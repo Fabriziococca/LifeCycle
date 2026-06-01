@@ -244,20 +244,26 @@ body {
     font-weight: 500;
 }
 
+.date-info-container {
+    display: flex;
+    flex-direction: column;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
 .date-info {
     display: flex;
     align-items: center;
     gap: 0.5rem;
     color: var(--text-secondary);
     font-size: 0.9rem;
-    margin-bottom: 1.5rem;
 }
 
 .date-info i {
     font-size: 1.1rem;
 }
 
-.last-washed-date {
+.date-info strong {
     color: var(--text-primary);
     font-weight: 500;
 }
