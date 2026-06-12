@@ -40,6 +40,20 @@ const itemsConfig = [
         icon: 'ph-tooth',
         limits: { yellow: 75, orange: 85, red: 90 },
         type: 'change'
+    },
+    {
+        id: 'celular',
+        name: 'Celular (Funda y Pantalla)',
+        icon: 'ph-phone',
+        limits: { yellow: 3, orange: 5, red: 7 },
+        type: 'clean'
+    },
+    {
+        id: 'computadora',
+        name: 'Computadora (Teclado y Ext.)',
+        icon: 'ph-laptop',
+        limits: { yellow: 7, orange: 11, red: 15 },
+        type: 'clean'
     }
 ];
 
@@ -106,6 +120,14 @@ class HygieneTracker {
                 case 'status-yellow': return 'Atención';
                 case 'status-orange': return 'Cambiar Pronto';
                 case 'status-red': return '¡Cámbialo ya!';
+                default: return 'OK';
+            }
+        } else if (type === 'clean') {
+            switch (statusClass) {
+                case 'status-green': return 'OK';
+                case 'status-yellow': return 'Atención';
+                case 'status-orange': return 'Limpiar Pronto';
+                case 'status-red': return 'Limpieza Urgente';
                 default: return 'OK';
             }
         } else {
@@ -197,8 +219,15 @@ class HygieneTracker {
             clone.querySelector('.days-count').textContent = daysElapsed === null ? '0' : daysElapsed;
             
             // Set dynamic labels depending on type
-            const lastDateLabel = type === 'change' ? 'Último cambio' : 'Último lavado';
-            const nextDateLabel = type === 'change' ? 'Próximo cambio' : 'Próximo lavado';
+            let lastDateLabel = 'Último lavado';
+            let nextDateLabel = 'Próximo lavado';
+            if (type === 'change') {
+                lastDateLabel = 'Último cambio';
+                nextDateLabel = 'Próximo cambio';
+            } else if (type === 'clean') {
+                lastDateLabel = 'Última limpieza';
+                nextDateLabel = 'Próxima limpieza';
+            }
             
             clone.querySelector('.last-date-label').textContent = lastDateLabel;
             clone.querySelector('.next-date-label').textContent = nextDateLabel;
@@ -219,8 +248,15 @@ class HygieneTracker {
 
             // Button Action and Wording
             const actionBtn = clone.querySelector('.btn-wash');
-            const btnText = type === 'change' ? 'Registrar Cambio' : 'Registrar Lavado';
-            const btnIcon = type === 'change' ? 'ph-arrows-clockwise' : 'ph-waves';
+            let btnText = 'Registrar Lavado';
+            let btnIcon = 'ph-waves';
+            if (type === 'change') {
+                btnText = 'Registrar Cambio';
+                btnIcon = 'ph-arrows-clockwise';
+            } else if (type === 'clean') {
+                btnText = 'Registrar Limpieza';
+                btnIcon = 'ph-sparkle';
+            }
             
             actionBtn.querySelector('span').textContent = btnText;
             actionBtn.querySelector('i').className = `ph-bold ${btnIcon}`;
