@@ -54,6 +54,34 @@ const itemsConfig = [
         icon: 'ph-laptop',
         limits: { yellow: 7, orange: 11, red: 15 },
         type: 'clean'
+    },
+    {
+        id: 'mouse',
+        name: 'Mouse (Limpieza)',
+        icon: 'ph-mouse',
+        limits: { yellow: 7, orange: 14, red: 21 },
+        type: 'clean'
+    },
+    {
+        id: 'auriculares',
+        name: 'Auriculares (Limpieza)',
+        icon: 'ph-headphones',
+        limits: { yellow: 15, orange: 30, red: 45 },
+        type: 'clean'
+    },
+    {
+        id: 'pad_cepillado',
+        name: 'Pad XL (Cepillado en seco)',
+        icon: 'ph-paint-brush',
+        limits: { yellow: 7, orange: 14, red: 21 },
+        type: 'brush'
+    },
+    {
+        id: 'pad_lavado',
+        name: 'Pad XL (Lavado a fondo)',
+        icon: 'ph-waves',
+        limits: { yellow: 60, orange: 75, red: 90 },
+        type: 'wash'
     }
 ];
 
@@ -128,6 +156,14 @@ class HygieneTracker {
                 case 'status-yellow': return 'Atención';
                 case 'status-orange': return 'Limpiar Pronto';
                 case 'status-red': return 'Limpieza Urgente';
+                default: return 'OK';
+            }
+        } else if (type === 'brush') {
+            switch (statusClass) {
+                case 'status-green': return 'OK';
+                case 'status-yellow': return 'Atención';
+                case 'status-orange': return 'Cepillar Pronto';
+                case 'status-red': return 'Cepillado Urgente';
                 default: return 'OK';
             }
         } else {
@@ -227,6 +263,9 @@ class HygieneTracker {
             } else if (type === 'clean') {
                 lastDateLabel = 'Última limpieza';
                 nextDateLabel = 'Próxima limpieza';
+            } else if (type === 'brush') {
+                lastDateLabel = 'Último cepillado';
+                nextDateLabel = 'Próximo cepillado';
             }
             
             clone.querySelector('.last-date-label').textContent = lastDateLabel;
@@ -256,6 +295,9 @@ class HygieneTracker {
             } else if (type === 'clean') {
                 btnText = 'Registrar Limpieza';
                 btnIcon = 'ph-sparkle';
+            } else if (type === 'brush') {
+                btnText = 'Registrar Cepillado';
+                btnIcon = 'ph-paint-brush';
             }
             
             actionBtn.querySelector('span').textContent = btnText;
