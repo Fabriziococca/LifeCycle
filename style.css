@@ -385,6 +385,147 @@ body {
     100% { transform: translateX(0); }
 }
 
+/* Tabs & Categories Navigation */
+.tabs-container {
+    display: flex;
+    gap: 0.5rem;
+    margin-bottom: 3rem;
+    justify-content: center;
+    background: rgba(30, 41, 59, 0.4);
+    padding: 0.4rem;
+    border-radius: 100px;
+    border: 1px solid var(--surface-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    width: max-content;
+    margin-left: auto;
+    margin-right: auto;
+    box-shadow: var(--shadow-glass);
+}
+
+.tab-btn {
+    background: transparent;
+    border: none;
+    padding: 0.6rem 1.4rem;
+    color: var(--text-secondary);
+    font-family: inherit;
+    font-size: 0.95rem;
+    font-weight: 600;
+    border-radius: 100px;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.tab-btn:hover {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.tab-btn.active {
+    color: var(--text-primary);
+    background: var(--primary-color);
+    box-shadow: var(--shadow-btn);
+}
+
+/* Card Header Action Buttons */
+.header-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+}
+
+.btn-info {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid var(--surface-border);
+    color: var(--text-secondary);
+    width: 34px;
+    height: 34px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    transition: var(--transition);
+}
+
+.btn-info i {
+    font-size: 1.1rem;
+    transition: transform 0.2s ease;
+}
+
+.btn-info:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: var(--text-primary);
+    transform: translateY(-1px);
+}
+
+.btn-info.active {
+    background: var(--primary-color);
+    color: white;
+    border-color: var(--primary-color);
+    box-shadow: 0 0 12px rgba(59, 130, 246, 0.4);
+}
+
+.btn-info.active i {
+    transform: rotate(180deg);
+}
+
+/* Collapsible Instructions Drawer */
+.instructions-collapse {
+    display: grid;
+    grid-template-rows: 0fr;
+    transition: grid-template-rows 0.3s cubic-bezier(0.4, 0, 0.2, 1), margin 0.3s ease, border 0.3s ease;
+    overflow: hidden;
+    background: rgba(0, 0, 0, 0.25);
+    border-radius: var(--border-radius-md);
+    margin: 0 0 1rem 0;
+    border: 1px solid transparent;
+}
+
+.instructions-collapse.open {
+    grid-template-rows: 1fr;
+    margin: 0 0 1.5rem 0;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.instructions-content {
+    min-height: 0;
+    padding: 0 1.25rem;
+    transition: padding 0.3s ease;
+}
+
+.instructions-collapse.open .instructions-content {
+    padding: 1.25rem;
+}
+
+.instruction-step {
+    margin-bottom: 0.75rem;
+}
+
+.instruction-step:last-child {
+    margin-bottom: 0;
+}
+
+.instruction-step-title {
+    font-size: 0.75rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--primary-color);
+    margin-bottom: 0.2rem;
+}
+
+/* Let the step title color adapt to status color of parent card */
+.card.status-yellow .instruction-step-title { color: var(--status-yellow); }
+.card.status-orange .instruction-step-title { color: var(--status-orange); }
+.card.status-red .instruction-step-title { color: var(--status-red); }
+
+.instruction-step-text {
+    font-size: 0.85rem;
+    color: var(--text-primary);
+    line-height: 1.45;
+}
+
 /* Responsive */
 @media (max-width: 768px) {
     .container {
@@ -395,5 +536,18 @@ body {
     }
     .cards-grid {
         grid-template-columns: 1fr;
+    }
+    .tabs-container {
+        width: 100%;
+        border-radius: var(--border-radius-md);
+        flex-wrap: wrap;
+        justify-content: center;
+        gap: 0.25rem;
+    }
+    .tab-btn {
+        font-size: 0.85rem;
+        padding: 0.5rem 1rem;
+        flex-grow: 1;
+        text-align: center;
     }
 }
