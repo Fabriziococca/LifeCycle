@@ -1742,6 +1742,1967 @@ class VehicleModule {
 // ==========================================================================
 // MÓDULO 6: COPIAS DE SEGURIDAD (BackupModule - Tolerante a Fallos)
 // ==========================================================================
+// ==========================================================================
+// MÓDULO 4: GIMNASIO (GymTracker PWA)
+// ==========================================================================
+class GymModule {
+    constructor(appController) {
+        this.app = appController;
+        this.records = [];
+        this.routine = [];
+        this.routineFocus = {};
+        this.sessions = [];
+        this.meals = { fixed: [], variable: [] };
+        this.supplements = { vit_d_history: [], vit_d_days_interval: 45, painkillers_history: [] };
+        this.weight = [];
+        this.activeSession = null;
+        this.collapsedGroups = {};
+
+        window.gym = this;
+        this.loadData();
+        this.setupListeners();
+    }
+
+    loadData() {
+        try {
+            const records = localStorage.getItem('gym_records');
+            if (records) this.records = JSON.parse(records);
+
+            const routine = localStorage.getItem('gym_routine');
+            if (routine) this.routine = JSON.parse(routine);
+
+            const routineFocus = localStorage.getItem('gym_routine_focus');
+            if (routineFocus) this.routineFocus = JSON.parse(routineFocus);
+            this.routineFocus = Object.assign({
+                'Lunes': '', 'Martes': '', 'Miércoles': '', 'Jueves': '', 'Viernes': '', 'Sábado': '', 'Domingo': ''
+            }, this.routineFocus);
+
+            const sessions = localStorage.getItem('gym_sessions');
+            if (sessions) this.sessions = JSON.parse(sessions);
+
+            const meals = localStorage.getItem('gym_meals');
+            if (meals) this.meals = JSON.parse(meals);
+            if (!this.meals.fixed) this.meals.fixed = [];
+            if (!this.meals.variable) this.meals.variable = [];
+
+            const supplements = localStorage.getItem('gym_supplements');
+            if (supplements) this.supplements = JSON.parse(supplements);
+            if (!this.supplements.vit_d_history) this.supplements.vit_d_history = [];
+            if (!this.supplements.vit_d_days_interval) this.supplements.vit_d_days_interval = 45;
+            if (!this.supplements.painkillers_history) this.supplements.painkillers_history = [];
+
+            const weight = localStorage.getItem('gym_weight');
+            if (weight) this.weight = JSON.parse(weight);
+        } catch (err) {
+            console.error('Error loading Gym data', err);
+        }
+    }
+
+    saveData(key) {
+        if (key === 'gym_records') localStorage.setItem('gym_records', JSON.stringify(this.records));
+        else if (key === 'gym_routine') localStorage.setItem('gym_routine', JSON.stringify(this.routine));
+        else if (key === 'gym_routine_focus') localStorage.setItem('gym_routine_focus', JSON.stringify(this.routineFocus));
+        else if (key === 'gym_sessions') localStorage.setItem('gym_sessions', JSON.stringify(this.sessions));
+        else if (key === 'gym_meals') localStorage.setItem('gym_meals', JSON.stringify(this.meals));
+        else if (key === 'gym_supplements') localStorage.setItem('gym_supplements', JSON.stringify(this.supplements));
+        else if (key === 'gym_weight') localStorage.setItem('gym_weight', JSON.stringify(this.weight));
+    }
+
+    setupListeners() {
+        // Sub-tabs switching
+        const container = document.getElementById('gym-tabs-container');
+        if (container) {
+            container.addEventListener('click', (e) => {
+                const btn = e.target.closest('.tab-btn');
+                if (!btn) return;
+                container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                const activeTab = btn.dataset.gymTab;
+                document.querySelectorAll('.gym-tab-content').forEach(c => {
+                    c.classList.toggle('hidden', c.id !== `gym-${activeTab}-content`);
+                });
+                this.render();
+            });
+        }
+
+        // Form 1: Records
+        const recordForm = document.getElementById('record-form');
+        if (recordForm) {
+            recordForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = document.getElementById('record-exercise').value.trim();
+                const weight = parseFloat(document.getElementById('record-weight').value);
+                const reps = parseInt(document.getElementById('record-reps').value);
+                const rir = document.getElementById('record-rir').value;
+
+                const newRecord = {
+                    id: Date.now(),
+                    name,
+                    weight,
+                    reps,
+                    rir,
+                    date: new Date().toLocaleDateString('es-AR')
+                };
+
+                const idx = this.records.findIndex(r => r.name.toLowerCase() === name.toLowerCase());
+                if (idx !== -1) {
+                    this.records[idx] = newRecord;
+                } else {
+                    this.records.push(newRecord);
+                }
+
+                this.saveData('gym_records');
+                this.renderRecords();
+                recordForm.reset();
+            });
+        }
+
+        // Form 2: Routine inline values change
+        const routineContainer = document.getElementById('routine-days-container');
+        if (routineContainer) {
+            routineContainer.addEventListener('change', (e) => {
+                const target = e.target;
+                if (target.classList.contains('day-focus-input')) {
+                    const day = target.getAttribute('data-day');
+                    this.routineFocus[day] = target.value.trim();
+                    this.saveData('gym_routine_focus');
+                } else if (target.classList.contains('routine-weight-input')) {
+                    const id = parseInt(target.getAttribute('data-id'));
+                    const val = parseFloat(target.value);
+                    const ex = this.routine.find(r => r.id === id);
+                    if (ex) {
+                        ex.weight = isNaN(val) ? null : val;
+                        this.saveData('gym_routine');
+                    }
+                } else if (target.classList.contains('routine-reps-input')) {
+                    const id = parseInt(target.getAttribute('data-id'));
+                    const val = parseInt(target.value);
+                    const ex = this.routine.find(r => r.id === id);
+                    if (ex) {
+                        ex.reps = isNaN(val) ? null : val;
+                        this.saveData('gym_routine');
+                    }
+                } else if (target.classList.contains('routine-rir-input')) {
+                    const id = parseInt(target.getAttribute('data-id'));
+                    const val = parseInt(target.value);
+                    const ex = this.routine.find(r => r.id === id);
+                    if (ex) {
+                        ex.rir = isNaN(val) ? null : val;
+                        this.saveData('gym_routine');
+                    }
+                } else if (target.classList.contains('routine-failed-input')) {
+                    const id = parseInt(target.getAttribute('data-id'));
+                    const ex = this.routine.find(r => r.id === id);
+                    if (ex) {
+                        ex.failed = target.checked;
+                        this.saveData('gym_routine');
+                    }
+                }
+            });
+
+            routineContainer.addEventListener('submit', (e) => {
+                if (e.target.classList.contains('inline-add-exercise-form')) {
+                    e.preventDefault();
+                    const day = e.target.getAttribute('data-day');
+                    const input = e.target.querySelector('input[type="text"]');
+                    const name = input.value.trim();
+                    if (!name) return;
+
+                    this.routine.push({
+                        id: Date.now(),
+                        day,
+                        name,
+                        weight: null,
+                        reps: null,
+                        rir: null,
+                        failed: false
+                    });
+
+                    this.saveData('gym_routine');
+                    this.renderRoutine();
+
+                    // Re-enfocar el input del día correspondiente
+                    const newInput = document.querySelector(`.inline-add-exercise-form[data-day="${day}"] input[type="text"]`);
+                    if (newInput) newInput.focus();
+                }
+            });
+        }
+
+        // Form 3: Sessions
+        const btnStart = document.getElementById('start-session-btn');
+        const btnEnd = document.getElementById('finish-session-btn');
+        const activeBox = document.getElementById('current-session');
+        const btnAddSet = document.getElementById('add-set-btn');
+
+        if (btnStart) {
+            btnStart.addEventListener('click', () => {
+                this.activeSession = {
+                    id: Date.now(),
+                    date: new Date().toLocaleDateString('es-AR'),
+                    exercises: {}
+                };
+                document.getElementById('start-session-container').classList.add('hidden');
+                activeBox?.classList.remove('hidden');
+                const preview = document.getElementById('current-sets-list');
+                if (preview) preview.innerHTML = '<p style="color:var(--text-secondary); padding: 10px;">Entrenamiento iniciado. Registrá tu primer serie.</p>';
+                this.updateRoutineExercisesList();
+            });
+        }
+
+        if (btnAddSet) {
+            btnAddSet.addEventListener('click', (e) => {
+                e.preventDefault();
+                if (!this.activeSession) return;
+
+                const exName = document.getElementById('session-exercise').value.trim();
+                const weight = parseFloat(document.getElementById('session-weight').value);
+                const reps = parseInt(document.getElementById('session-reps').value);
+
+                if (!exName || isNaN(weight) || isNaN(reps)) {
+                    alert('Por favor completa ejercicio, peso y repeticiones.');
+                    return;
+                }
+
+                if (!this.activeSession.exercises[exName]) {
+                    this.activeSession.exercises[exName] = [];
+                }
+
+                this.activeSession.exercises[exName].push({ weight, reps });
+                this.renderCurrentSessionSets();
+
+                // Resetear peso/reps pero dejar el nombre
+                document.getElementById('session-weight').value = '';
+                document.getElementById('session-reps').value = '';
+            });
+        }
+
+        if (btnEnd) {
+            btnEnd.addEventListener('click', () => {
+                if (!this.activeSession || Object.keys(this.activeSession.exercises).length === 0) {
+                    if (!confirm('No registraste series. ¿Cerrar sesión igualmente?')) return;
+                }
+
+                if (this.activeSession && Object.keys(this.activeSession.exercises).length > 0) {
+                    this.sessions.unshift(this.activeSession);
+                    this.saveData('gym_sessions');
+                }
+
+                this.activeSession = null;
+                activeBox?.classList.add('hidden');
+                document.getElementById('start-session-container').classList.remove('hidden');
+
+                // Limpiar inputs
+                document.getElementById('session-exercise').value = '';
+                document.getElementById('session-weight').value = '';
+                document.getElementById('session-reps').value = '';
+
+                this.renderSessionsLog();
+            });
+        }
+
+        // Form 4: Nutrition
+        const toggleFixedBtn = document.getElementById('toggle-fixed-form-btn');
+        const fixedForm = document.getElementById('fixed-meal-form');
+        if (toggleFixedBtn && fixedForm) {
+            toggleFixedBtn.addEventListener('click', () => {
+                fixedForm.classList.toggle('hidden');
+                const isHidden = fixedForm.classList.contains('hidden');
+                toggleFixedBtn.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Cargar Fija' : '<i class="ph ph-x"></i> Cancelar';
+            });
+        }
+
+        if (fixedForm) {
+            fixedForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = document.getElementById('fixed-meal-name').value.trim();
+                const qty = parseFloat(document.getElementById('fixed-meal-qty').value) || 1;
+                const unit = document.getElementById('fixed-meal-unit').value || 'u';
+                const kcal = parseFloat(document.getElementById('fixed-meal-kcal').value) || 0;
+                const protein = parseFloat(document.getElementById('fixed-meal-protein').value) || 0;
+                const carbs = parseFloat(document.getElementById('fixed-meal-carbs').value) || 0;
+                const fat = parseFloat(document.getElementById('fixed-meal-fat').value) || 0;
+                const sodium = parseFloat(document.getElementById('fixed-meal-sodium').value) || 0;
+                const group = document.getElementById('fixed-meal-group').value.trim();
+
+                this.meals.fixed.push({
+                    id: Date.now(), name, qty, unit, kcal, protein, carbs, fat, sodium, group
+                });
+                this.saveData('gym_meals');
+                this.renderNutrition();
+                fixedForm.reset();
+                fixedForm.classList.add('hidden');
+                if (toggleFixedBtn) toggleFixedBtn.innerHTML = '<i class="ph ph-plus"></i> Cargar Fija';
+            });
+        }
+
+        const toggleVarBtn = document.getElementById('toggle-var-form-btn');
+        const varForm = document.getElementById('variable-meal-form');
+        if (toggleVarBtn && varForm) {
+            toggleVarBtn.addEventListener('click', () => {
+                varForm.classList.toggle('hidden');
+                const isHidden = varForm.classList.contains('hidden');
+                toggleVarBtn.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Cargar Variable' : '<i class="ph ph-x"></i> Cancelar';
+            });
+        }
+
+        if (varForm) {
+            varForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const name = document.getElementById('variable-meal-name').value.trim();
+                const qty = parseFloat(document.getElementById('variable-meal-qty').value) || 1;
+                const unit = document.getElementById('variable-meal-unit').value || 'u';
+                const kcal = parseFloat(document.getElementById('variable-meal-kcal').value) || 0;
+                const protein = parseFloat(document.getElementById('variable-meal-protein').value) || 0;
+                const carbs = parseFloat(document.getElementById('variable-meal-carbs').value) || 0;
+                const fat = parseFloat(document.getElementById('variable-meal-fat').value) || 0;
+                const sodium = parseFloat(document.getElementById('variable-meal-sodium').value) || 0;
+                const group = document.getElementById('variable-meal-group').value.trim();
+
+                this.meals.variable.push({
+                    id: Date.now(),
+                    name, qty, unit, kcal, protein, carbs, fat, sodium, group,
+                    date: new Date().toLocaleDateString('es-AR')
+                });
+                this.saveData('gym_meals');
+                this.renderNutrition();
+                varForm.reset();
+                varForm.classList.add('hidden');
+                if (toggleVarBtn) toggleVarBtn.innerHTML = '<i class="ph ph-plus"></i> Cargar Variable';
+            });
+        }
+
+        // Weight corporal
+        const btnWeightLogToggle = document.getElementById('btn-weight-log-toggle');
+        const formWeightLog = document.getElementById('weight-log-form');
+        const btnWeightHistoryToggle = document.getElementById('btn-weight-history-toggle');
+
+        if (btnWeightLogToggle && formWeightLog) {
+            btnWeightLogToggle.addEventListener('click', () => {
+                formWeightLog.classList.toggle('hidden');
+                const isHidden = formWeightLog.classList.contains('hidden');
+                btnWeightLogToggle.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Registrar Peso' : '<i class="ph ph-x"></i> Cancelar';
+                if (!isHidden) {
+                    document.getElementById('weight-log-date').value = new Date().toISOString().split('T')[0];
+                    document.getElementById('weight-log-val').value = '';
+                }
+            });
+        }
+
+        if (btnWeightHistoryToggle) {
+            btnWeightHistoryToggle.addEventListener('click', () => {
+                const box = document.getElementById('weight-history-list');
+                box?.classList.toggle('hidden');
+                const isHidden = box?.classList.contains('hidden');
+                btnWeightHistoryToggle.innerHTML = isHidden ? '<i class="ph ph-eye"></i> Historial de Pesos' : '<i class="ph ph-eye-slash"></i> Ocultar Historial';
+            });
+        }
+
+        if (formWeightLog) {
+            formWeightLog.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const dateVal = document.getElementById('weight-log-date').value;
+                const weightVal = document.getElementById('weight-log-val').value;
+                const fastingVal = document.getElementById('weight-log-fasting').value;
+
+                if (!dateVal || !weightVal) return;
+
+                this.weight.push({
+                    id: Date.now(),
+                    date: dateVal,
+                    weight: parseFloat(weightVal),
+                    fasting: fastingVal ? parseFloat(fastingVal) : null
+                });
+
+                this.weight.sort((a, b) => new Date(b.date) - new Date(a.date) || b.id - a.id);
+                this.saveData('gym_weight');
+                this.renderWeight();
+                formWeightLog.reset();
+                formWeightLog.classList.add('hidden');
+                if (btnWeightLogToggle) btnWeightLogToggle.innerHTML = '<i class="ph ph-plus"></i> Registrar Peso';
+            });
+        }
+
+        // Vitamin D
+        const btnVitdLogToggle = document.getElementById('btn-vitd-log-toggle');
+        const formVitdLog = document.getElementById('vitd-log-form');
+        const btnVitdSettingsToggle = document.getElementById('btn-vitd-settings-toggle');
+        const formVitdSettings = document.getElementById('vitd-settings-form');
+        const btnVitdHistoryToggle = document.getElementById('btn-vitd-history-toggle');
+
+        if (btnVitdLogToggle && formVitdLog) {
+            btnVitdLogToggle.addEventListener('click', () => {
+                formVitdLog.classList.toggle('hidden');
+                const isHidden = formVitdLog.classList.contains('hidden');
+                btnVitdLogToggle.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Registrar Toma' : '<i class="ph ph-x"></i> Cancelar';
+                formVitdSettings?.classList.add('hidden');
+                if (btnVitdSettingsToggle) btnVitdSettingsToggle.innerHTML = '<i class="ph ph-gear"></i> Ajustar Días';
+                if (!isHidden) {
+                    document.getElementById('vitd-log-date').value = new Date().toISOString().split('T')[0];
+                }
+            });
+        }
+
+        if (btnVitdSettingsToggle && formVitdSettings) {
+            btnVitdSettingsToggle.addEventListener('click', () => {
+                formVitdSettings.classList.toggle('hidden');
+                const isHidden = formVitdSettings.classList.contains('hidden');
+                btnVitdSettingsToggle.innerHTML = isHidden ? '<i class="ph ph-gear"></i> Ajustar Días' : '<i class="ph ph-x"></i> Cancelar';
+                formVitdLog?.classList.add('hidden');
+                if (btnVitdLogToggle) btnVitdLogToggle.innerHTML = '<i class="ph ph-plus"></i> Registrar Toma';
+                if (!isHidden) {
+                    document.getElementById('vitd-interval-days').value = this.supplements.vit_d_days_interval;
+                }
+            });
+        }
+
+        if (btnVitdHistoryToggle) {
+            btnVitdHistoryToggle.addEventListener('click', () => {
+                const box = document.getElementById('vitd-history-list');
+                box?.classList.toggle('hidden');
+                const isHidden = box?.classList.contains('hidden');
+                btnVitdHistoryToggle.innerHTML = isHidden ? '<i class="ph ph-eye"></i> Historial' : '<i class="ph ph-eye-slash"></i> Ocultar';
+            });
+        }
+
+        if (formVitdLog) {
+            formVitdLog.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const dateVal = document.getElementById('vitd-log-date').value;
+                if (!dateVal) return;
+
+                this.supplements.vit_d_history.push({ id: Date.now(), date: dateVal });
+                this.supplements.vit_d_history.sort((a, b) => new Date(b.date) - new Date(a.date));
+                this.saveData('gym_supplements');
+                this.renderSupplements();
+                formVitdLog.reset();
+                formVitdLog.classList.add('hidden');
+                if (btnVitdLogToggle) btnVitdLogToggle.innerHTML = '<i class="ph ph-plus"></i> Registrar Toma';
+            });
+        }
+
+        if (formVitdSettings) {
+            formVitdSettings.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const intervalVal = parseInt(document.getElementById('vitd-interval-days').value);
+                if (isNaN(intervalVal) || intervalVal < 1) return;
+
+                this.supplements.vit_d_days_interval = intervalVal;
+                this.saveData('gym_supplements');
+                this.renderSupplements();
+                formVitdSettings.classList.add('hidden');
+                if (btnVitdSettingsToggle) btnVitdSettingsToggle.innerHTML = '<i class="ph ph-gear"></i> Ajustar Días';
+            });
+        }
+
+        // Painkillers
+        const btnPainLogToggle = document.getElementById('btn-pain-log-toggle');
+        const formPainLog = document.getElementById('pain-log-form');
+        const btnPainHistoryToggle = document.getElementById('btn-pain-history-toggle');
+
+        if (btnPainLogToggle && formPainLog) {
+            btnPainLogToggle.addEventListener('click', () => {
+                formPainLog.classList.toggle('hidden');
+                const isHidden = formPainLog.classList.contains('hidden');
+                btnPainLogToggle.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Registrar Toma' : '<i class="ph ph-x"></i> Cancelar';
+                if (!isHidden) {
+                    document.getElementById('pain-log-date').value = new Date().toISOString().split('T')[0];
+                    document.getElementById('pain-log-note').value = '';
+                }
+            });
+        }
+
+        if (btnPainHistoryToggle) {
+            btnPainHistoryToggle.addEventListener('click', () => {
+                const box = document.getElementById('pain-history-list');
+                box?.classList.toggle('hidden');
+                const isHidden = box?.classList.contains('hidden');
+                btnPainHistoryToggle.innerHTML = isHidden ? '<i class="ph ph-eye"></i> Historial' : '<i class="ph ph-eye-slash"></i> Ocultar';
+            });
+        }
+
+        if (formPainLog) {
+            formPainLog.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const dateVal = document.getElementById('pain-log-date').value;
+                const typeVal = document.getElementById('pain-log-type').value;
+                const noteVal = document.getElementById('pain-log-note').value.trim();
+
+                if (!dateVal) return;
+
+                this.supplements.painkillers_history.push({
+                    id: Date.now(), date: dateVal, type: typeVal, note: noteVal
+                });
+                this.supplements.painkillers_history.sort((a, b) => new Date(b.date) - new Date(a.date));
+                this.saveData('gym_supplements');
+                this.renderPainkillers();
+                formPainLog.reset();
+                formPainLog.classList.add('hidden');
+                if (btnPainLogToggle) btnPainLogToggle.innerHTML = '<i class="ph ph-plus"></i> Registrar Toma';
+            });
+        }
+    }
+
+    render() {
+        const activeBtn = document.querySelector('#gym-tabs-container .tab-btn.active');
+        const tab = activeBtn ? activeBtn.dataset.gymTab : 'records';
+
+        if (tab === 'records') this.renderRecords();
+        else if (tab === 'routine') this.renderRoutine();
+        else if (tab === 'sessions') {
+            this.renderCurrentSessionSets();
+            this.renderSessionsLog();
+        } else if (tab === 'nutrition') {
+            this.renderNutrition();
+            this.renderSupplements();
+            this.renderPainkillers();
+            this.renderWeight();
+        }
+    }
+
+    renderRecords() {
+        const list = document.getElementById('records-list');
+        if (!list) return;
+        list.innerHTML = '';
+
+        if (this.records.length === 0) {
+            list.innerHTML = '<p style="color:var(--text-secondary); grid-column: 1/-1; text-align: center; padding: 20px;">No hay récords personales guardados.</p>';
+            return;
+        }
+
+        // Ordenar alfabéticamente
+        const sorted = [...this.records].sort((a, b) => a.name.localeCompare(b.name));
+
+        sorted.forEach(r => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+                <div class="card-header" style="justify-content: space-between;">
+                    <h3 style="color: white; font-size: 1rem; margin: 0;">🏆 ${r.name}</h3>
+                    <button class="btn-history-delete" onclick="window.gym.deleteRecord(${r.id})" title="Eliminar PR"><i class="ph ph-trash" style="font-size:1.1rem;"></i></button>
+                </div>
+                <div class="card-body" style="padding-top: 5px;">
+                    <div style="font-size: 1.8rem; font-weight: 900; color: var(--status-green); margin: 5px 0;">
+                        ${r.weight} <span style="font-size: 1rem; font-weight: normal; color: var(--text-secondary);">kg</span>
+                    </div>
+                    <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 15px;">
+                        <span><strong style="color:white;">Reps:</strong> ${r.reps}</span>
+                        <span><strong style="color:white;">RIR:</strong> ${r.rir}</span>
+                    </div>
+                    <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 10px; text-align: right;">
+                        Logrado: ${r.date}
+                    </div>
+                </div>
+            `;
+            list.appendChild(card);
+        });
+    }
+
+    deleteRecord(id) {
+        if (confirm('¿Seguro que querés eliminar esta marca personal?')) {
+            this.records = this.records.filter(r => r.id !== id);
+            this.saveData('gym_records');
+            this.renderRecords();
+        }
+    }
+
+    renderRoutine() {
+        const container = document.getElementById('routine-days-container');
+        if (!container) return;
+        container.innerHTML = '';
+
+        const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        days.forEach(day => {
+            const dayExercises = this.routine.filter(r => r.day === day);
+            const focus = this.routineFocus[day] || '';
+
+            const card = document.createElement('div');
+            card.className = 'day-card';
+
+            card.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 0.5rem; margin-bottom: 1rem;">
+                    <h3 style="margin: 0; color: var(--primary-color); font-size: 1.1rem;">${day}</h3>
+                    <input type="text" class="day-focus-input" data-day="${day}" placeholder="Ej: Pecho y Tríceps" value="${focus}" style="background:transparent; border:none; color:white; text-align:right; font-size:0.85rem; font-weight:bold; outline:none; max-width:140px;">
+                </div>
+                <div class="routine-exercises-list" style="display:flex; flex-direction:column; gap:8px;">
+                    ${dayExercises.length === 0 ? '<p style="color:var(--text-secondary); font-size:0.8rem; font-style:italic; padding:5px 0;">Sin ejercicios programados.</p>' : ''}
+                </div>
+            `;
+
+            const listContainer = card.querySelector('.routine-exercises-list');
+
+            dayExercises.forEach(ex => {
+                const item = document.createElement('div');
+                item.className = 'routine-exercise-item';
+                item.style.flexDirection = 'column';
+                item.style.alignItems = 'stretch';
+                item.style.gap = '8px';
+
+                const w = ex.weight !== null ? ex.weight : '';
+                const reps = ex.reps !== null ? ex.reps : '';
+                const rir = ex.rir !== null ? ex.rir : '';
+                const failed = ex.failed ? 'checked' : '';
+
+                item.innerHTML = `
+                    <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
+                        <span style="font-weight: 600; color: white;">${ex.name}</span>
+                        <button type="button" class="btn-history-delete" onclick="window.gym.deleteRoutine(${ex.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                    </div>
+                    <div class="routine-exercise-inputs" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-start;">
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                            <input type="number" step="0.5" class="routine-weight-input" data-id="${ex.id}" placeholder="Kg" value="${w}" style="width: 45px; background: rgba(0,0,0,0.2); border: 1px solid var(--surface-border); border-radius: 4px; color: white; padding: 2px; text-align: center;">
+                            <span style="font-size:0.75rem; color:var(--text-secondary);">kg</span>
+                        </div>
+                        <span style="color:var(--text-secondary); font-size:0.8rem;">x</span>
+                        <div style="display: flex; align-items: center; gap: 2px;">
+                            <input type="number" class="routine-reps-input" data-id="${ex.id}" placeholder="Reps" value="${reps}" style="width: 40px; background: rgba(0,0,0,0.2); border: 1px solid var(--surface-border); border-radius: 4px; color: white; padding: 2px; text-align: center;">
+                            <span style="font-size:0.75rem; color:var(--text-secondary);">reps</span>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 2px; margin-left: 5px;">
+                            <span style="font-size:0.75rem; color:var(--text-secondary);">RIR</span>
+                            <input type="number" class="routine-rir-input" data-id="${ex.id}" placeholder="RIR" value="${rir}" min="0" max="5" style="width: 35px; background: rgba(0,0,0,0.2); border: 1px solid var(--surface-border); border-radius: 4px; color: white; padding: 2px; text-align: center;">
+                        </div>
+                        <label style="display: flex; align-items: center; gap: 3px; font-size:0.75rem; color:var(--text-secondary); cursor:pointer; margin-left: 5px;">
+                            <input type="checkbox" class="routine-failed-input" data-id="${ex.id}" ${failed} style="accent-color: var(--primary-color);"> Fallo
+                        </label>
+                    </div>
+                `;
+                listContainer.appendChild(item);
+            });
+
+            // Inline add form
+            const form = document.createElement('form');
+            form.className = 'inline-add-exercise-form';
+            form.setAttribute('data-day', day);
+            form.style.display = 'flex';
+            form.style.gap = '8px';
+            form.style.marginTop = '1rem';
+            form.innerHTML = `
+                <input type="text" class="text-input" placeholder="Añadir ejercicio..." required style="flex:1; padding: 6px 10px; font-size:0.85rem;">
+                <button type="submit" class="btn btn-primary" style="margin:0; width:auto; padding:0 12px;"><i class="ph ph-plus"></i></button>
+            `;
+            card.appendChild(form);
+
+            container.appendChild(card);
+        });
+    }
+
+    deleteRoutine(id) {
+        if (confirm('¿Seguro que querés quitar este ejercicio de la rutina?')) {
+            this.routine = this.routine.filter(r => r.id !== id);
+            this.saveData('gym_routine');
+            this.renderRoutine();
+        }
+    }
+
+    renderCurrentSessionSets() {
+        const box = document.getElementById('current-sets-list');
+        if (!box) return;
+
+        if (!this.activeSession || Object.keys(this.activeSession.exercises).length === 0) {
+            box.innerHTML = '<p style="color:var(--text-secondary); padding: 10px; text-align:center;">Ninguna serie cargada todavía.</p>';
+            return;
+        }
+
+        let html = '<table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:left;">';
+        html += `<tr style="border-bottom:1px solid var(--surface-border);"><th style="padding:6px;">Ejercicio</th><th style="padding:6px;">Series</th></tr>`;
+
+        Object.keys(this.activeSession.exercises).forEach(ex => {
+            const sets = this.activeSession.exercises[ex];
+            const setsStr = sets.map((s, idx) => `S${idx+1}: <strong>${s.weight}kg</strong> x ${s.reps}`).join(' | ');
+            html += `<tr style="border-bottom:1px dashed rgba(255,255,255,0.05);"><td style="padding:6px; color:white; font-weight:500;">${ex}</td><td style="padding:6px;">${setsStr}</td></tr>`;
+        });
+        html += '</table>';
+        box.innerHTML = html;
+    }
+
+    renderSessionsLog() {
+        const list = document.getElementById('sessions-history');
+        if (!list) return;
+        list.innerHTML = '';
+
+        if (this.sessions.length === 0) {
+            list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay historial de entrenamientos.</p>';
+            return;
+        }
+
+        this.sessions.forEach(s => {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.style.background = 'rgba(255,255,255,0.02)';
+
+            let exHtml = '<div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">';
+            Object.keys(s.exercises).forEach(ex => {
+                const sets = s.exercises[ex];
+                const setsStr = sets.map((val, idx) => `S${idx+1}: <strong>${val.weight}kg</strong> x ${val.reps}`).join(' | ');
+                exHtml += `
+                    <div style="font-size:0.85rem; background:rgba(0,0,0,0.15); padding:8px; border-radius:6px; border:1px solid var(--surface-border);">
+                        <div style="font-weight:600; color:white; margin-bottom:3px;">${ex}</div>
+                        <div style="color:var(--text-secondary);">${setsStr}</div>
+                    </div>
+                `;
+            });
+            exHtml += '</div>';
+
+            card.innerHTML = `
+                <div class="card-header" style="justify-content: space-between; border-bottom: 1px dashed var(--surface-border); padding-bottom: 0.5rem;">
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <i class="ph ph-calendar" style="color:var(--primary-color);"></i>
+                        <h4 style="margin: 0; color: white;">Entrenamiento del ${s.date}</h4>
+                    </div>
+                    <button class="btn-history-delete" onclick="window.gym.deleteSession(${s.id})" title="Eliminar Sesión"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>
+                </div>
+                <div class="card-body" style="padding-top: 5px;">
+                    ${exHtml}
+                </div>
+            `;
+            list.appendChild(card);
+        });
+    }
+
+    deleteSession(id) {
+        if (confirm('¿Seguro que deseas eliminar permanentemente este entrenamiento del historial?')) {
+            this.sessions = this.sessions.filter(s => s.id !== id);
+            this.saveData('gym_sessions');
+            this.renderSessionsLog();
+        }
+    }
+
+    updateRoutineExercisesList() {
+        const dl = document.getElementById('routine-exercises-list');
+        if (!dl) return;
+
+        // Ejercicios únicos en la rutina maestra + marcas anteriores
+        const unique = [...new Set([
+            ...this.routine.map(r => r.name),
+            ...this.records.map(r => r.name)
+        ])];
+
+        dl.innerHTML = unique.map(e => `<option value="${e}">`).join('');
+    }
+
+    renderNutrition() {
+        const fixedBody = document.getElementById('fixed-meals-body');
+        const varBody = document.getElementById('variable-meals-body');
+        if (!fixedBody || !varBody) return;
+
+        // Render fixed meals
+        const fixedTotals = this.renderMealRows(fixedBody, this.meals.fixed, 'fixed');
+
+        // Render variable meals (solo las de hoy)
+        const todayStr = new Date().toLocaleDateString('es-AR');
+        const todayVarMeals = this.meals.variable.filter(m => m.date === todayStr);
+        const varTotals = this.renderMealRows(varBody, todayVarMeals, 'variable');
+
+        // Sumar todo
+        const totalKcal = fixedTotals.kcal + varTotals.kcal;
+        const totalProtein = fixedTotals.protein + varTotals.protein;
+        const totalCarbs = fixedTotals.carbs + varTotals.carbs;
+        const totalFat = fixedTotals.fat + varTotals.fat;
+        const totalSodium = fixedTotals.sodium + varTotals.sodium;
+
+        // Actualizar dashboard
+        document.getElementById('total-kcal').textContent = totalKcal.toFixed(0);
+        document.getElementById('total-protein').textContent = totalProtein.toFixed(1) + 'g';
+        document.getElementById('total-carbs').textContent = totalCarbs.toFixed(1) + 'g';
+        document.getElementById('total-fat').textContent = totalFat.toFixed(1) + 'g';
+        document.getElementById('total-sodium').textContent = totalSodium.toFixed(0) + 'mg';
+
+        // Auto-complete list
+        const fixedGroups = [...new Set(this.meals.fixed.map(m => m.group).filter(Boolean))];
+        const fixedDatalist = document.getElementById('fixed-groups-list');
+        if (fixedDatalist) fixedDatalist.innerHTML = fixedGroups.map(g => `<option value="${g}">`).join('');
+
+        const varGroups = [...new Set(this.meals.variable.map(m => m.group).filter(Boolean))];
+        const varDatalist = document.getElementById('variable-groups-list');
+        if (varDatalist) varDatalist.innerHTML = varGroups.map(g => `<option value="${g}">`).join('');
+    }
+
+    renderMealRows(body, meals, type) {
+        body.innerHTML = '';
+        let tKcal = 0, tProtein = 0, tCarbs = 0, tFat = 0, tSodium = 0;
+
+        if (meals.length === 0) {
+            body.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-secondary); padding: 15px 0;">No hay comidas cargadas.</td></tr>`;
+            return { kcal: tKcal, protein: tProtein, carbs: tCarbs, fat: tFat, sodium: tSodium };
+        }
+
+        const order = [];
+        const groupsMap = {};
+
+        meals.forEach(meal => {
+            const grp = meal.group ? meal.group.trim() : '';
+            if (grp) {
+                if (!groupsMap[grp]) {
+                    groupsMap[grp] = [];
+                    order.push({ isGroup: true, name: grp });
+                }
+                groupsMap[grp].push(meal);
+            } else {
+                order.push({ isGroup: false, meal: meal });
+            }
+        });
+
+        order.forEach(item => {
+            if (item.isGroup) {
+                const grpName = item.name;
+                const grpMeals = groupsMap[grpName];
+                if (!grpMeals || grpMeals.length === 0) return;
+
+                delete groupsMap[grpName]; // Evitar duplicar
+
+                let grpKcal = 0, grpProtein = 0, grpCarbs = 0, grpFat = 0, grpSodium = 0;
+                grpMeals.forEach(m => {
+                    const q = parseFloat(m.qty) || 1;
+                    const mult = (m.unit === 'g' || m.unit === 'ml') ? (q / 100) : q;
+                    grpKcal += (parseFloat(m.kcal) || 0) * mult;
+                    grpProtein += (parseFloat(m.protein) || 0) * mult;
+                    grpCarbs += (parseFloat(m.carbs) || 0) * mult;
+                    grpFat += (parseFloat(m.fat) || 0) * mult;
+                    grpSodium += (parseFloat(m.sodium) || 0) * mult;
+                });
+
+                tKcal += grpKcal;
+                tProtein += grpProtein;
+                tCarbs += grpCarbs;
+                tFat += grpFat;
+                tSodium += grpSodium;
+
+                const collapsedKey = `${type}-${grpName}`;
+                const isCollapsed = !!this.collapsedGroups[collapsedKey];
+
+                const trHeader = document.createElement('tr');
+                trHeader.style.background = 'rgba(255,255,255,0.02)';
+                trHeader.innerHTML = `
+                    <td style="padding: 8px;">
+                        <button type="button" onclick="window.gym.toggleGroupCollapse('${type}', '${grpName.replace(/'/g, "\\'")}')" style="background:transparent; border:none; color:var(--primary-color); cursor:pointer; padding: 2px 5px; font-size:0.8rem;">
+                            <i class="ph ${isCollapsed ? 'ph-caret-right' : 'ph-caret-down'}"></i>
+                        </button>
+                        <strong style="color: white;">📁 ${grpName}</strong>
+                    </td>
+                    <td style="color:var(--text-secondary);">-</td>
+                    <td style="font-weight:bold; color:var(--primary-color);">${grpKcal.toFixed(0)}</td>
+                    <td style="font-weight:bold;">${grpProtein.toFixed(1)}g</td>
+                    <td style="font-weight:bold;">${grpCarbs.toFixed(1)}g</td>
+                    <td style="font-weight:bold;">${grpFat.toFixed(1)}g</td>
+                    <td style="font-weight:bold; color:var(--status-red);">${grpSodium.toFixed(0)}mg</td>
+                    <td style="text-align:right;">
+                        <button class="btn-history-delete" onclick="window.gym.deleteMealGroup('${type}', '${grpName.replace(/'/g, "\\'")}')" style="padding:0;"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                    </td>
+                `;
+                body.appendChild(trHeader);
+
+                if (!isCollapsed) {
+                    grpMeals.forEach(m => {
+                        const q = parseFloat(m.qty) || 1;
+                        const mult = (m.unit === 'g' || m.unit === 'ml') ? (q / 100) : q;
+                        const trItem = document.createElement('tr');
+                        trItem.innerHTML = `
+                            <td style="padding: 8px 8px 8px 24px; color: var(--text-secondary);">↳ ${m.name}</td>
+                            <td style="color:var(--text-secondary);">${q}${m.unit}</td>
+                            <td>${((parseFloat(m.kcal) || 0) * mult).toFixed(0)}</td>
+                            <td>${((parseFloat(m.protein) || 0) * mult).toFixed(1)}g</td>
+                            <td>${((parseFloat(m.carbs) || 0) * mult).toFixed(1)}g</td>
+                            <td>${((parseFloat(m.fat) || 0) * mult).toFixed(1)}g</td>
+                            <td>${((parseFloat(m.sodium) || 0) * mult).toFixed(0)}mg</td>
+                            <td style="text-align:right;">
+                                <button class="btn-history-delete" onclick="window.gym.deleteMeal('${type}', ${m.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
+                            </td>
+                        `;
+                        body.appendChild(trItem);
+                    });
+                }
+            } else {
+                const m = item.meal;
+                const q = parseFloat(m.qty) || 1;
+                const mult = (m.unit === 'g' || m.unit === 'ml') ? (q / 100) : q;
+
+                const mKcal = (parseFloat(m.kcal) || 0) * mult;
+                const mProtein = (parseFloat(m.protein) || 0) * mult;
+                const mCarbs = (parseFloat(m.carbs) || 0) * mult;
+                const mFat = (parseFloat(m.fat) || 0) * mult;
+                const mSodium = (parseFloat(m.sodium) || 0) * mult;
+
+                tKcal += mKcal;
+                tProtein += mProtein;
+                tCarbs += mCarbs;
+                tFat += mFat;
+                tSodium += mSodium;
+
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 8px; font-weight:600; color:white;">${m.name}</td>
+                    <td>${q}${m.unit}</td>
+                    <td style="color:var(--primary-color);">${mKcal.toFixed(0)}</td>
+                    <td>${mProtein.toFixed(1)}g</td>
+                    <td>${mCarbs.toFixed(1)}g</td>
+                    <td>${mFat.toFixed(1)}g</td>
+                    <td style="color:var(--status-red);">${mSodium.toFixed(0)}mg</td>
+                    <td style="text-align:right;">
+                        <button class="btn-history-delete" onclick="window.gym.deleteMeal('${type}', ${m.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                    </td>
+                `;
+                body.appendChild(tr);
+            }
+        });
+
+        return { kcal: tKcal, protein: tProtein, carbs: tCarbs, fat: tFat, sodium: tSodium };
+    }
+
+    toggleGroupCollapse(type, groupName) {
+        const key = `${type}-${groupName}`;
+        this.collapsedGroups[key] = !this.collapsedGroups[key];
+        this.renderNutrition();
+    }
+
+    deleteMealGroup(type, groupName) {
+        if (confirm(`¿Seguro que querés eliminar todo el grupo "${groupName}"?`)) {
+            this.meals[type] = this.meals[type].filter(m => (m.group || '') !== groupName);
+            this.saveData('gym_meals');
+            this.renderNutrition();
+        }
+    }
+
+    deleteMeal(type, id) {
+        this.meals[type] = this.meals[type].filter(m => m.id !== id);
+        this.saveData('gym_meals');
+        this.renderNutrition();
+    }
+
+    renderWeight() {
+        const valSpan = document.getElementById('weight-last-val');
+        const dateSpan = document.getElementById('weight-last-date');
+        const fastingSpan = document.getElementById('weight-last-fasting');
+        const diffSpan = document.getElementById('weight-diff');
+        const avgSpan = document.getElementById('weight-average');
+        const timerSpan = document.getElementById('weight-timer-count');
+        const historyBox = document.getElementById('weight-history-list');
+
+        if (!valSpan || !historyBox) return;
+
+        if (this.weight.length === 0) {
+            valSpan.textContent = '-';
+            dateSpan.textContent = '-';
+            fastingSpan.textContent = '-';
+            diffSpan.textContent = '-';
+            avgSpan.textContent = '-';
+            timerSpan.textContent = '-';
+            historyBox.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 10px; font-size:0.85rem;">Historial vacío.</p>';
+            return;
+        }
+
+        const last = this.weight[0];
+        valSpan.textContent = last.weight.toFixed(2) + ' kg';
+        dateSpan.textContent = last.date.split('-').reverse().join('/');
+        fastingSpan.textContent = last.fasting !== null ? `${last.fasting} hs` : 'Sin registrar';
+
+        // Timer
+        const elapsedDays = Math.floor((new Date() - new Date(last.date)) / 86400000);
+        timerSpan.textContent = elapsedDays;
+
+        // Difs
+        if (this.weight.length > 1) {
+            const diff = last.weight - this.weight[1].weight;
+            const sign = diff >= 0 ? '+' : '';
+            diffSpan.textContent = `${sign}${diff.toFixed(2)} kg`;
+            diffSpan.style.color = diff > 0 ? 'var(--status-red)' : 'var(--status-green)';
+        } else {
+            diffSpan.textContent = '-';
+            diffSpan.style.color = 'var(--text-secondary)';
+        }
+
+        // Avg
+        const sum = this.weight.reduce((acc, curr) => acc + curr.weight, 0);
+        avgSpan.textContent = (sum / this.weight.length).toFixed(2) + ' kg';
+
+        // History list
+        historyBox.innerHTML = this.weight.map(w => `
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem; padding: 6px 0; border-bottom:1px solid rgba(255,255,255,0.05); color:white; align-items:center;">
+                <span>📅 ${w.date.split('-').reverse().join('/')} - ⚖️ <strong>${w.weight.toFixed(2)}kg</strong> ${w.fasting ? `(${w.fasting}h ayuno)` : ''}</span>
+                <button class="btn-history-delete" onclick="window.gym.deleteWeight(${w.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
+            </div>
+        `).join('');
+    }
+
+    deleteWeight(id) {
+        if (confirm('¿Eliminar esta marca de peso corporal del historial?')) {
+            this.weight = this.weight.filter(w => w.id !== id);
+            this.saveData('gym_weight');
+            this.renderWeight();
+        }
+    }
+
+    renderSupplements() {
+        const lastSpan = document.getElementById('vitd-last-date');
+        const nextSpan = document.getElementById('vitd-next-date');
+        const timerSpan = document.getElementById('vitd-timer-count');
+        const badge = document.getElementById('vitd-badge');
+        const histBox = document.getElementById('vitd-history-list');
+
+        if (!lastSpan || !histBox) return;
+
+        if (this.supplements.vit_d_history.length === 0) {
+            lastSpan.textContent = '-';
+            nextSpan.textContent = '-';
+            timerSpan.textContent = '-';
+            if (badge) {
+                badge.textContent = 'Sin Tomas';
+                badge.className = 'badge';
+                badge.style.background = 'gray';
+            }
+            histBox.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 10px; font-size:0.85rem;">Historial vacío.</p>';
+            return;
+        }
+
+        const last = new Date(this.supplements.vit_d_history[0].date);
+        const interval = this.supplements.vit_d_days_interval;
+        const next = new Date(last.getTime() + interval * 24 * 60 * 60 * 1000);
+
+        lastSpan.textContent = last.toLocaleDateString('es-AR');
+        nextSpan.textContent = next.toLocaleDateString('es-AR');
+
+        const remainingDays = Math.ceil((next - new Date()) / 86400000);
+        timerSpan.textContent = remainingDays;
+
+        if (badge) {
+            if (remainingDays <= 0) {
+                badge.textContent = 'Tomar ahora';
+                badge.style.background = 'var(--status-red)';
+                timerSpan.style.color = 'var(--status-red)';
+            } else if (remainingDays <= 7) {
+                badge.textContent = 'Próximo';
+                badge.style.background = 'var(--status-orange)';
+                timerSpan.style.color = 'var(--status-orange)';
+            } else {
+                badge.textContent = 'Al día';
+                badge.style.background = 'var(--status-green)';
+                timerSpan.style.color = 'var(--status-green)';
+            }
+        }
+
+        histBox.innerHTML = this.supplements.vit_d_history.map(t => `
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem; padding: 6px 0; border-bottom:1px solid rgba(255,255,255,0.05); color:white; align-items:center;">
+                <span>📅 Toma: ${new Date(t.date).toLocaleDateString('es-AR')}</span>
+                <button class="btn-history-delete" onclick="window.gym.deleteVitdTake(${t.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
+            </div>
+        `).join('');
+    }
+
+    deleteVitdTake(id) {
+        if (confirm('¿Eliminar este registro de toma de Vitamina D?')) {
+            this.supplements.vit_d_history = this.supplements.vit_d_history.filter(t => t.id !== id);
+            this.saveData('gym_supplements');
+            this.renderSupplements();
+        }
+    }
+
+    renderPainkillers() {
+        const lastSpan = document.getElementById('pain-last-date');
+        const typeSpan = document.getElementById('pain-last-type');
+        const noteSpan = document.getElementById('pain-last-note');
+        const timerSpan = document.getElementById('pain-timer-count');
+        const badge = document.getElementById('pain-badge');
+        const histBox = document.getElementById('pain-history-list');
+
+        if (!lastSpan || !histBox) return;
+
+        if (this.supplements.painkillers_history.length === 0) {
+            lastSpan.textContent = '-';
+            typeSpan.textContent = '-';
+            noteSpan.textContent = '-';
+            timerSpan.textContent = '-';
+            if (badge) {
+                badge.textContent = 'Ninguno';
+                badge.style.background = 'gray';
+            }
+            histBox.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 10px; font-size:0.85rem;">Historial vacío.</p>';
+            return;
+        }
+
+        const last = this.supplements.painkillers_history[0];
+        const lastDate = new Date(last.date);
+        lastSpan.textContent = lastDate.toLocaleDateString('es-AR');
+        typeSpan.textContent = last.type;
+        noteSpan.textContent = last.note || 'Sin detalles';
+
+        const elapsedDays = Math.floor((new Date() - lastDate) / 86400000);
+        timerSpan.textContent = elapsedDays;
+
+        // Contadores
+        const now = new Date();
+        const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+        const startOfWeek = startOfToday - 6 * 24 * 60 * 60 * 1000;
+        const startOfMonth = startOfToday - 29 * 24 * 60 * 60 * 1000;
+
+        let dayCount = 0, weekCount = 0, monthCount = 0;
+
+        this.supplements.painkillers_history.forEach(p => {
+            const time = new Date(p.date).getTime();
+            if (time >= startOfToday) dayCount++;
+            if (time >= startOfWeek) weekCount++;
+            if (time >= startOfMonth) monthCount++;
+        });
+
+        document.getElementById('pain-count-day').textContent = `${dayCount} / 2`;
+        document.getElementById('pain-count-week').textContent = `${weekCount} / 6`;
+        document.getElementById('pain-count-month').textContent = `${monthCount} / 10`;
+
+        if (badge) {
+            if (dayCount > 2 || weekCount > 6 || monthCount > 10) {
+                badge.textContent = '¡EXCESO!';
+                badge.style.background = 'var(--status-red)';
+            } else if (dayCount === 2 || weekCount >= 5 || monthCount >= 8) {
+                badge.textContent = 'Al límite';
+                badge.style.background = 'var(--status-orange)';
+            } else {
+                badge.textContent = 'Uso seguro';
+                badge.style.background = 'var(--status-green)';
+            }
+        }
+
+        histBox.innerHTML = this.supplements.painkillers_history.map(p => `
+            <div style="display:flex; justify-content:space-between; font-size:0.8rem; padding: 6px 0; border-bottom:1px solid rgba(255,255,255,0.05); color:white; align-items:center;">
+                <span>📅 ${new Date(p.date).toLocaleDateString('es-AR')} - 💊 <strong>${p.type}</strong> ${p.note ? `(${p.note})` : ''}</span>
+                <button class="btn-history-delete" onclick="window.gym.deletePainkillerTake(${p.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
+            </div>
+        `).join('');
+    }
+
+    deletePainkillerTake(id) {
+        if (confirm('¿Eliminar este registro de toma de analgésico?')) {
+            this.supplements.painkillers_history = this.supplements.painkillers_history.filter(p => p.id !== id);
+            this.saveData('gym_supplements');
+            this.renderPainkillers();
+        }
+    }
+}
+
+// ==========================================================================
+// MÓDULO 5: PROYECTOS (ProjectPulse Freelance Deadline Tracker)
+// ==========================================================================
+class ProjectsModule {
+    constructor(appController) {
+        this.app = appController;
+        this.projects = [];
+        this.history = [];
+        this.currentProjectId = null;
+        this.FIXED_FEE = 0.0732; // Costo operativo retiro PayPal/Lemon (7.32%)
+
+        window.projects = this;
+        this.loadData();
+        this.setupListeners();
+        this.startTimersLoop();
+    }
+
+    loadData() {
+        try {
+            const projects = localStorage.getItem('projectPulseData');
+            if (projects) this.projects = JSON.parse(projects);
+
+            const history = localStorage.getItem('projectPulseHistory');
+            if (history) this.history = JSON.parse(history);
+        } catch (err) {
+            console.error('Error loading Projects data', err);
+        }
+    }
+
+    saveData() {
+        localStorage.setItem('projectPulseData', JSON.stringify(this.projects));
+        localStorage.setItem('projectPulseHistory', JSON.stringify(this.history));
+    }
+
+    calculateNet(gross, feeType, manualPercent, isDelegated = false, isReceived = false) {
+        let finalNet = 0;
+        if (feeType === 'direct') {
+            finalNet = gross;
+        } else if (feeType === 'paypal_direct') {
+            const netAfterPayPal = (gross * (1 - 0.054)) - 0.30;
+            finalNet = netAfterPayPal * 0.9457;
+            if (finalNet < 0) finalNet = 0;
+        } else {
+            let pct = (feeType === 'custom') ? (parseFloat(manualPercent) || 0) : parseFloat(feeType);
+            const amountAfterWorkana = gross * (1 - (pct / 100));
+            finalNet = amountAfterWorkana * (1 - this.FIXED_FEE);
+        }
+
+        if (isDelegated) {
+            finalNet = finalNet * 0.30;
+        } else if (isReceived) {
+            finalNet = finalNet * 0.70;
+        }
+
+        return parseFloat(finalNet.toFixed(2));
+    }
+
+    formatDate(isoString) {
+        if (!isoString) return '-';
+        const d = new Date(isoString);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hr = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hr}:${min}`;
+    }
+
+    setupListeners() {
+        // Commission select custom percent toggle
+        const feeSelect = document.getElementById('workanaFeeSelect');
+        const customContainer = document.getElementById('customFeeContainer');
+        if (feeSelect && customContainer) {
+            feeSelect.addEventListener('change', () => {
+                customContainer.classList.toggle('hidden', feeSelect.value !== 'custom');
+            });
+        }
+
+        // New Project Form Submit
+        const form = document.getElementById('projectForm');
+        if (form) {
+            form.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const client = document.getElementById('clientName').value.trim();
+                const project = document.getElementById('projectName').value.trim();
+                const accepted = document.getElementById('acceptDate').value;
+                const days = parseFloat(document.getElementById('deliveryDays').value);
+                const gross = parseFloat(document.getElementById('budgetGross').value);
+                const feeType = document.getElementById('workanaFeeSelect').value;
+                const customPct = parseFloat(document.getElementById('customWorkanaFee').value) || 0;
+                const isDel = document.getElementById('isDelegated').checked;
+                const isRec = document.getElementById('isReceived').checked;
+
+                const timeTotal = days * 24 * 60 * 60 * 1000;
+                const deadline = new Date(new Date(accepted).getTime() + timeTotal).toISOString();
+                const net = this.calculateNet(gross, feeType, customPct, isDel, isRec);
+
+                const newProj = {
+                    id: Date.now(),
+                    client,
+                    project,
+                    accepted,
+                    days,
+                    budgetGross: gross,
+                    feeType,
+                    manualPercent: customPct,
+                    isDelegated: isDel,
+                    isReceived: isRec,
+                    budgetNet: net,
+                    timeSpent: 0,
+                    timerStart: null,
+                    tasks: [],
+                    summary: '',
+                    phases: '',
+                    isDelivered: false,
+                    deliveredAt: null,
+                    deadline
+                };
+
+                this.projects.push(newProj);
+                this.saveData();
+                this.render();
+                form.reset();
+                customContainer?.classList.add('hidden');
+            });
+        }
+
+        // Projects Edit (Gestionar) Modal Cancel/Save
+        const editCancel = document.getElementById('proj-edit-cancel');
+        const editSave = document.getElementById('proj-edit-save');
+        const editModal = document.getElementById('projects-edit-modal');
+
+        editCancel?.addEventListener('click', () => {
+            editModal?.classList.add('hidden');
+            this.currentProjectId = null;
+        });
+
+        editSave?.addEventListener('click', () => {
+            if (!this.currentProjectId) return;
+            const p = this.projects.find(proj => proj.id === this.currentProjectId);
+            if (!p) return;
+
+            const extraDays = parseFloat(document.getElementById('proj-extraDays').value) || 0;
+            const extraBudget = parseFloat(document.getElementById('proj-extraBudget').value) || 0;
+            const manualHrs = parseFloat(document.getElementById('proj-manualHours').value) || 0;
+            const manualMins = parseFloat(document.getElementById('proj-manualMinutes').value) || 0;
+
+            // Ajustar plazos
+            if (extraDays > 0) {
+                p.days = (p.days || 0) + extraDays;
+                const oldDeadline = p.deadline ? new Date(p.deadline) : new Date(p.accepted);
+                p.deadline = new Date(oldDeadline.getTime() + extraDays * 24 * 60 * 60 * 1000).toISOString();
+            }
+
+            // Presupuesto extra
+            if (extraBudget > 0) {
+                p.budgetGross = (p.budgetGross || 0) + extraBudget;
+                p.budgetNet = this.calculateNet(p.budgetGross, p.feeType, p.manualPercent, p.isDelegated, p.isReceived);
+            }
+
+            // Tiempo trabajado manual
+            if (manualHrs > 0 || manualMins > 0) {
+                const addedMs = (manualHrs * 60 * 60 * 1000) + (manualMins * 60 * 1000);
+                p.timeSpent = (p.timeSpent || 0) + addedMs;
+            }
+
+            this.saveData();
+            this.render();
+            editModal?.classList.add('hidden');
+            this.currentProjectId = null;
+        });
+
+        // Plan Modal Save & Close & Task addition
+        const planClose = document.getElementById('proj-plan-modal-close');
+        const planSave = document.getElementById('proj-plan-modal-save');
+        const planModal = document.getElementById('projects-plan-modal');
+        const btnAddTask = document.getElementById('proj-btn-add-task');
+
+        planClose?.addEventListener('click', () => {
+            planModal?.classList.add('hidden');
+            this.currentProjectId = null;
+        });
+
+        planSave?.addEventListener('click', () => {
+            if (!this.currentProjectId) return;
+            const p = this.projects.find(proj => proj.id === this.currentProjectId);
+            if (!p) return;
+
+            p.summary = document.getElementById('proj-summary-textarea').value.trim();
+            p.phases = document.getElementById('proj-phases-textarea').value.trim();
+
+            this.saveData();
+            this.render();
+            planModal?.classList.add('hidden');
+            this.currentProjectId = null;
+        });
+
+        btnAddTask?.addEventListener('click', () => {
+            if (!this.currentProjectId) return;
+            const p = this.projects.find(proj => proj.id === this.currentProjectId);
+            if (!p) return;
+
+            const taskInput = document.getElementById('proj-new-task-input');
+            const text = taskInput.value.trim();
+            if (!text) return;
+
+            if (!p.tasks) p.tasks = [];
+            p.tasks.push({ id: Date.now(), text, completed: false });
+            this.saveData();
+            this.renderTasks(p.tasks);
+            taskInput.value = '';
+        });
+
+        // History Modal click controls
+        const btnOpenHistory = document.getElementById('btnOpenHistory');
+        const btnOpenMonthDetails = document.getElementById('btnOpenMonthDetails');
+        const btnOpenYearDetails = document.getElementById('btnOpenYearDetails');
+        const historyModal = document.getElementById('projects-history-modal');
+        const closeHistory = document.getElementById('proj-close-history-modal');
+
+        btnOpenHistory?.addEventListener('click', () => {
+            historyModal?.classList.remove('hidden');
+            this.renderMonthlyHistory('all');
+        });
+
+        btnOpenMonthDetails?.addEventListener('click', () => {
+            historyModal?.classList.remove('hidden');
+            this.renderMonthlyHistory('month');
+        });
+
+        btnOpenYearDetails?.addEventListener('click', () => {
+            historyModal?.classList.remove('hidden');
+            this.renderMonthlyHistory('year');
+        });
+
+        closeHistory?.addEventListener('click', () => {
+            historyModal?.classList.add('hidden');
+        });
+
+        // Past Income toggler
+        const btnTogglePast = document.getElementById('proj-btnToggleAddPastIncome');
+        const pastForm = document.getElementById('proj-add-past-income-form');
+        const btnCancelPast = document.getElementById('proj-btnCancelPastIncome');
+        const btnSavePast = document.getElementById('proj-btnSavePastIncome');
+
+        btnTogglePast?.addEventListener('click', () => {
+            pastForm?.classList.toggle('hidden');
+        });
+
+        btnCancelPast?.addEventListener('click', () => {
+            pastForm?.classList.add('hidden');
+            this.resetPastForm();
+        });
+
+        btnSavePast?.addEventListener('click', () => {
+            const client = document.getElementById('proj-pastClient').value.trim();
+            const project = document.getElementById('proj-pastProject').value.trim();
+            const date = document.getElementById('proj-pastDate').value;
+            const hrs = parseFloat(document.getElementById('proj-pastHours').value) || 0;
+            const gross = parseFloat(document.getElementById('proj-pastGross').value) || 0;
+            const net = parseFloat(document.getElementById('proj-pastNet').value) || 0;
+
+            if (!client || !project || !date || isNaN(gross) || isNaN(net)) {
+                alert('Por favor completa todos los campos requeridos.');
+                return;
+            }
+
+            const pPast = {
+                id: Date.now(),
+                client,
+                project,
+                accepted: date,
+                days: 0,
+                budgetGross: gross,
+                budgetNet: net,
+                timeSpent: hrs * 60 * 60 * 1000,
+                timerStart: null,
+                tasks: [],
+                summary: 'Ingreso cargado manualmente del historial pasado.',
+                phases: '',
+                isDelivered: true,
+                deliveredAt: new Date(date).toISOString(),
+                deliveredDate: date,
+                deadline: date
+            };
+
+            this.history.unshift(pPast);
+            this.history.sort((a, b) => new Date(b.deliveredAt) - new Date(a.deliveredAt));
+            this.saveData();
+            this.render();
+            this.renderMonthlyHistory('all');
+            pastForm?.classList.add('hidden');
+            this.resetPastForm();
+        });
+    }
+
+    resetPastForm() {
+        document.getElementById('proj-pastClient').value = '';
+        document.getElementById('proj-pastProject').value = '';
+        document.getElementById('proj-pastDate').value = '';
+        document.getElementById('proj-pastHours').value = '';
+        document.getElementById('proj-pastGross').value = '';
+        document.getElementById('proj-pastNet').value = '';
+    }
+
+    render() {
+        const list = document.getElementById('projectsList');
+        const activeCount = document.getElementById('activeCount');
+        if (!list || !activeCount) return;
+
+        list.innerHTML = '';
+        activeCount.innerText = this.projects.length;
+
+        // Calcular Finanzas del Dashboard
+        let activeNetSum = 0;
+        this.projects.forEach(p => {
+            activeNetSum += (p.budgetNet || 0);
+        });
+        document.getElementById('activeUSD').innerText = `USD ${activeNetSum.toFixed(2)}`;
+
+        const now = new Date();
+        const currYear = now.getFullYear();
+        const currMonth = now.getMonth();
+
+        let monthNetSum = 0;
+        let yearNetSum = 0;
+        let totalNetSum = 0;
+
+        this.history.forEach(p => {
+            totalNetSum += (p.budgetNet || 0);
+            if (p.deliveredAt) {
+                const del = new Date(p.deliveredAt);
+                if (del.getFullYear() === currYear) {
+                    yearNetSum += (p.budgetNet || 0);
+                    if (del.getMonth() === currMonth) {
+                        monthNetSum += (p.budgetNet || 0);
+                    }
+                }
+            }
+        });
+
+        document.getElementById('monthUSD').innerText = `USD ${monthNetSum.toFixed(2)}`;
+        document.getElementById('yearUSD').innerText = `USD ${yearNetSum.toFixed(2)}`;
+        document.getElementById('totalUSD').innerText = `USD ${totalNetSum.toFixed(2)}`;
+
+        if (this.projects.length === 0) {
+            list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 25px;">No hay proyectos activos.</p>';
+            return;
+        }
+
+        this.projects.forEach(p => {
+            const deadline = new Date(p.deadline);
+            let remainingMs = deadline - now;
+            let totalMs = deadline - new Date(p.accepted);
+
+            let progress = ((totalMs - remainingMs) / totalMs) * 100;
+            progress = Math.max(0, Math.min(100, progress));
+
+            let colorVar = "var(--status-green)";
+            let countdownText = "";
+            let leftDateLabel = "Aceptado:";
+            let leftDateVal = this.formatDate(p.accepted);
+            let rightDateLabel = `Límite (${p.days}d):`;
+            let rightDateVal = this.formatDate(p.deadline);
+
+            if (p.isDelivered) {
+                if (!p.deliveredAt) p.deliveredAt = now.toISOString();
+                const del = new Date(p.deliveredAt);
+                const releaseDate = new Date(del.getTime() + 15 * 24 * 60 * 60 * 1000);
+                const relRemainingMs = releaseDate - now;
+                const relTotalMs = 15 * 24 * 60 * 60 * 1000;
+
+                progress = ((relTotalMs - relRemainingMs) / relTotalMs) * 100;
+                progress = Math.max(0, Math.min(100, progress));
+
+                leftDateLabel = "Entregado:";
+                leftDateVal = this.formatDate(p.deliveredAt);
+                rightDateLabel = "Liberación (15d):";
+                rightDateVal = this.formatDate(releaseDate);
+
+                if (relRemainingMs <= 0) {
+                    countdownText = "LISTO PARA LIBERAR";
+                    colorVar = "var(--status-green)";
+                    progress = 100;
+                } else {
+                    const d = Math.floor(relRemainingMs / 86400000);
+                    const h = Math.floor((relRemainingMs % 86400000) / 3600000);
+                    countdownText = `Fondos en ${d}d ${h}h`;
+
+                    const remPct = (relRemainingMs / relTotalMs) * 100;
+                    if (remPct <= 10) colorVar = "var(--status-green)";
+                    else if (remPct <= 50) colorVar = "var(--status-orange)";
+                    else colorVar = "var(--status-yellow)";
+                }
+            } else {
+                if (remainingMs <= 0) {
+                    countdownText = "ENTREGA DEMORADA";
+                    colorVar = "var(--status-red)";
+                } else {
+                    const d = Math.floor(remainingMs / 86400000);
+                    const h = Math.floor((remainingMs % 86400000) / 3600000);
+                    countdownText = `Faltan ${d}d ${h}h`;
+
+                    const remPct = (remainingMs / totalMs) * 100;
+                    if (remPct <= 10) colorVar = "var(--status-red)";
+                    else if (remPct <= 30) colorVar = "var(--status-orange)";
+                    else if (remPct <= 50) colorVar = "var(--status-yellow)";
+                }
+            }
+
+            let badgeSpan = '';
+            if (p.isDelegated) {
+                badgeSpan = '<span class="badge" style="background:var(--status-yellow); color:#000; font-size:0.7rem; margin-left:8px; vertical-align:middle; padding:3px 8px;">Delegado (30%)</span>';
+            } else if (p.isReceived) {
+                badgeSpan = '<span class="badge" style="background:var(--status-green); color:#fff; font-size:0.7rem; margin-left:8px; vertical-align:middle; padding:3px 8px;">Fabro (70%)</span>';
+            }
+
+            const isRunning = p.timerStart !== null;
+            const btnIcon = isRunning ? '⏸️' : '▶️';
+            const btnBg = isRunning ? 'var(--status-red)' : 'var(--primary-color)';
+            const btnColor = 'white';
+
+            let initialMs = p.timeSpent || 0;
+            if (p.timerStart) {
+                initialMs += (now - new Date(p.timerStart));
+            }
+            const initialSecs = Math.floor(initialMs / 1000);
+            const h = Math.floor(initialSecs / 3600);
+            const m = Math.floor((initialSecs % 3600) / 60);
+            const s = initialSecs % 60;
+            const formattedTime = `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+
+            let rateText = 'USD --/h';
+            let rateColor = 'var(--text-secondary)';
+            const totalHours = initialMs / (3600 * 1000);
+            if (totalHours > 0) {
+                const rate = (p.budgetNet || 0) / totalHours;
+                rateText = `USD ${rate.toFixed(2)}/h`;
+                if (rate >= 25) rateColor = 'var(--status-green)';
+                else if (rate >= 20) rateColor = 'var(--primary-color)';
+                else if (rate >= 10) rateColor = 'var(--status-yellow)';
+                else rateColor = 'var(--status-red)';
+            }
+
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.setAttribute('data-project-id', p.id);
+            card.style.background = p.isDelivered ? 'rgba(16, 185, 129, 0.05)' : 'var(--surface-color)';
+            card.style.border = p.isDelivered ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--surface-border)';
+
+            card.innerHTML = `
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.5rem;">
+                    <div>
+                        <h3 class="project-client" style="color:white; font-size:1.15rem; margin:0; display:flex; align-items:center; flex-wrap:wrap;">
+                            ${p.client} ${badgeSpan}
+                        </h3>
+                        <p class="project-name" style="color:var(--text-secondary); font-size:0.85rem; margin: 3px 0 10px 0;">${p.project}</p>
+                    </div>
+                    <button class="btn-history-delete" onclick="window.projects.deleteActiveProject(${p.id})" title="Eliminar proyecto"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>
+                </div>
+
+                <div class="finance-block">
+                    <span class="gross-amount">Presupuesto Bruto: USD ${p.budgetGross.toFixed(2)} (${p.feeType === 'direct' ? 'Sin comisiones' : (p.feeType === 'paypal_direct' ? 'Paypal Direct' : `Workana ${p.feeType}%`)})</span>
+                    <strong class="net-amount">Neto: USD ${p.budgetNet.toFixed(2)}</strong>
+                </div>
+
+                <div class="timer-block" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.2); border:1px solid var(--surface-border); border-radius:8px; padding:8px 12px; margin-bottom:1rem; gap:10px;">
+                    <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
+                        <span style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px;">Tiempo dedicado</span>
+                        <strong class="timer-display" style="font-size:1.05rem; color:white; font-variant-numeric: tabular-nums;">${formattedTime}</strong>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:8px;">
+                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; min-width:0;">
+                            <span style="font-size:0.7rem; color:var(--text-secondary);">Valor Hora</span>
+                            <strong class="rate-value" style="font-size:0.9rem; color:${rateColor};">${rateText}</strong>
+                        </div>
+                        <button onclick="window.projects.toggleTimer('${p.id}', event)" style="background:${btnBg}; color:${btnColor}; border:none; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1rem; transition: transform 0.1s; flex-shrink:0;">${btnIcon}</button>
+                    </div>
+                </div>
+
+                <div class="project-dates">
+                    <div class="date-block">
+                        <span>${leftDateLabel}</span>
+                        <strong>${leftDateVal}</strong>
+                    </div>
+                    <div class="date-block" style="text-align: right;">
+                        <span>${rightDateLabel}</span>
+                        <strong>${rightDateVal}</strong>
+                    </div>
+                </div>
+
+                <div class="pulse-bar">
+                    <div class="pulse-progress" style="width:${progress}%; background:${colorVar}"></div>
+                </div>
+                
+                <div class="countdown" style="color:${colorVar}">${countdownText}</div>
+                
+                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                    ${!p.isDelivered ? `
+                        <button class="btn btn-secondary" style="margin: 0;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan de Acción</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary half" style="margin:0;" onclick="window.projects.openEditModal('${p.id}')"><i class="ph ph-gear"></i> Gestionar</button>
+                            <button class="btn btn-primary half" style="margin:0; background: var(--status-green); color: white;" onclick="window.projects.markAsDelivered('${p.id}')"><i class="ph ph-check"></i> Entregado</button>
+                        </div>
+                    ` : `
+                        <button class="btn btn-primary" style="background:var(--status-green); color:white; width:100%; border:none; padding:12px; font-size:1rem; border-radius:8px; cursor:pointer; margin:0;" onclick="window.projects.confirmPayment('${p.id}')"><i class="ph ph-coins"></i> Pago Confirmado</button>
+                    `}
+                </div>
+            `;
+            list.appendChild(card);
+        });
+    }
+
+    deleteActiveProject(id) {
+        if (confirm('¿Seguro que deseas eliminar este proyecto de la lista de activos?')) {
+            this.projects = this.projects.filter(p => p.id !== id);
+            this.saveData();
+            this.render();
+        }
+    }
+
+    toggleTimer(id, event) {
+        if (event) event.stopPropagation();
+
+        const now = new Date();
+        const p = this.projects.find(proj => proj.id == id);
+        if (!p) return;
+
+        if (p.timerStart) {
+            // Pausar timer
+            const elapsed = now - new Date(p.timerStart);
+            p.timeSpent = (p.timeSpent || 0) + elapsed;
+            p.timerStart = null;
+        } else {
+            // Iniciar timer (Pausar todos los demás activos)
+            this.projects.forEach(other => {
+                if (other.timerStart && other.id !== p.id) {
+                    const elapsed = now - new Date(other.timerStart);
+                    other.timeSpent = (other.timeSpent || 0) + elapsed;
+                    other.timerStart = null;
+                }
+            });
+            p.timerStart = now.toISOString();
+        }
+
+        this.saveData();
+        this.render();
+    }
+
+    openPlanModal(id) {
+        this.currentProjectId = parseInt(id);
+        const p = this.projects.find(proj => proj.id === this.currentProjectId);
+        if (!p) return;
+
+        document.getElementById('proj-summary-textarea').value = p.summary || '';
+        document.getElementById('proj-phases-textarea').value = p.phases || '';
+        this.renderTasks(p.tasks || []);
+
+        const modal = document.getElementById('projects-plan-modal');
+        modal?.classList.remove('hidden');
+    }
+
+    renderTasks(tasks) {
+        const list = document.getElementById('proj-tasks-list');
+        if (!list) return;
+        list.innerHTML = '';
+
+        tasks.forEach(t => {
+            const row = document.createElement('div');
+            row.className = 'task-item';
+            row.innerHTML = `
+                <input type="checkbox" class="task-checkbox" ${t.completed ? 'checked' : ''} onchange="window.projects.toggleTask(${t.id})">
+                <span class="task-text ${t.completed ? 'completed' : ''}">${t.text}</span>
+                <button class="btn-delete-task" onclick="window.projects.deleteTask(${t.id})">&times;</button>
+            `;
+            list.appendChild(row);
+        });
+    }
+
+    toggleTask(taskId) {
+        if (!this.currentProjectId) return;
+        const p = this.projects.find(proj => proj.id === this.currentProjectId);
+        if (!p) return;
+
+        const task = p.tasks.find(t => t.id === taskId);
+        if (task) {
+            task.completed = !task.completed;
+            this.saveData();
+            this.renderTasks(p.tasks);
+        }
+    }
+
+    deleteTask(taskId) {
+        if (!this.currentProjectId) return;
+        const p = this.projects.find(proj => proj.id === this.currentProjectId);
+        if (!p) return;
+
+        p.tasks = p.tasks.filter(t => t.id !== taskId);
+        this.saveData();
+        this.renderTasks(p.tasks);
+    }
+
+    openEditModal(id) {
+        this.currentProjectId = parseInt(id);
+        const modal = document.getElementById('projects-edit-modal');
+        if (modal) {
+            document.getElementById('proj-extraDays').value = 0;
+            document.getElementById('proj-extraBudget').value = 0;
+            document.getElementById('proj-manualHours').value = '';
+            document.getElementById('proj-manualMinutes').value = '';
+            modal.classList.remove('hidden');
+        }
+    }
+
+    markAsDelivered(id) {
+        const p = this.projects.find(proj => proj.id == id);
+        if (p) {
+            // Pausar timer si está activo
+            if (p.timerStart) {
+                const elapsed = new Date() - new Date(p.timerStart);
+                p.timeSpent = (p.timeSpent || 0) + elapsed;
+                p.timerStart = null;
+            }
+            p.isDelivered = true;
+            p.deliveredAt = new Date().toISOString();
+            this.saveData();
+            this.render();
+        }
+    }
+
+    confirmPayment(id) {
+        const pIndex = this.projects.findIndex(proj => proj.id == id);
+        if (pIndex !== -1) {
+            const p = this.projects[pIndex];
+            p.deliveredDate = new Date().toISOString().split('T')[0];
+
+            this.history.unshift(p);
+            this.projects.splice(pIndex, 1);
+            this.saveData();
+            this.render();
+        }
+    }
+
+    renderMonthlyHistory(filterType = 'all') {
+        const list = document.getElementById('proj-monthlyHistoryList');
+        if (!list) return;
+        list.innerHTML = '';
+
+        // Calcular Promedios
+        const averages = this.calculateAverages();
+        document.getElementById('proj-avgHistorical').innerText = `USD ${averages.historical.toFixed(2)}`;
+        document.getElementById('proj-avg6Months').innerText = `USD ${averages.last6.toFixed(2)}`;
+        document.getElementById('proj-avg3Months').innerText = `USD ${averages.last3.toFixed(2)}`;
+
+        // Agrupar
+        const monthsMap = {};
+        this.history.forEach(p => {
+            const delDate = p.deliveredDate ? new Date(p.deliveredDate) : new Date();
+            const year = delDate.getFullYear();
+            const month = delDate.getMonth();
+            const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+
+            if (!monthsMap[key]) {
+                monthsMap[key] = {
+                    title: delDate.toLocaleString('es-AR', { month: 'long', year: 'numeric' }),
+                    projects: [],
+                    totalNet: 0
+                };
+            }
+            monthsMap[key].projects.push(p);
+            monthsMap[key].totalNet += (p.budgetNet || 0);
+        });
+
+        // Ordenar meses descendiente
+        const sortedKeys = Object.keys(monthsMap).sort((a, b) => b.localeCompare(a));
+
+        if (sortedKeys.length === 0) {
+            list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">Historial vacío.</p>';
+            return;
+        }
+
+        sortedKeys.forEach(k => {
+            const m = monthsMap[k];
+            const card = document.createElement('div');
+            card.className = 'history-month-card';
+
+            let projItems = '';
+            m.projects.forEach(p => {
+                const dateStr = p.deliveredDate ? p.deliveredDate.split('-').reverse().join('/') : '-';
+                projItems += `
+                    <div class="history-project-item">
+                        <div class="history-project-info">
+                            <span class="history-project-title">${p.client} - ${p.project}</span>
+                            <span class="history-project-date">Cobrado: ${dateStr}</span>
+                        </div>
+                        <div class="history-project-actions">
+                            <span class="history-project-net">+ USD ${p.budgetNet.toFixed(2)}</span>
+                            <button class="btn-history-delete" onclick="window.projects.deleteHistoryProject(${p.id}, '${filterType}')">&times;</button>
+                        </div>
+                    </div>
+                `;
+            });
+
+            card.innerHTML = `
+                <div class="history-month-header" onclick="this.nextElementSibling.classList.toggle('hidden');">
+                    <h4>${m.title}</h4>
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <strong style="color:var(--status-green);">+ USD ${m.totalNet.toFixed(2)}</strong>
+                        <span class="toggle-icon"><i class="ph ph-caret-down"></i></span>
+                    </div>
+                </div>
+                <div class="history-month-details hidden">
+                    ${projItems}
+                </div>
+            `;
+            list.appendChild(card);
+        });
+    }
+
+    deleteHistoryProject(id, filterType) {
+        const p = this.history.find(proj => proj.id === id);
+        if (!p) return;
+
+        if (confirm(`¿Desconfirmar el pago del proyecto "${p.project}" de ${p.client}?\n\nEl proyecto se quitará de los ingresos y volverá a la lista de activos.`)) {
+            this.history = this.history.filter(proj => proj.id !== id);
+            p.deliveredDate = null;
+            p.isDelivered = false;
+            p.deliveredAt = null;
+            this.projects.push(p);
+            this.saveData();
+            this.render();
+            this.renderMonthlyHistory(filterType);
+        }
+    }
+
+    calculateAverages() {
+        if (this.history.length === 0) return { historical: 0, last6: 0, last3: 0 };
+
+        const now = new Date();
+        const currentYear = now.getFullYear();
+        const currentMonth = now.getMonth();
+
+        let earliestDate = now;
+        this.history.forEach(p => {
+            if (p.deliveredDate) {
+                const d = new Date(p.deliveredDate);
+                if (d < earliestDate) earliestDate = d;
+            }
+        });
+
+        const startYear = earliestDate.getFullYear();
+        const startMonth = earliestDate.getMonth();
+        const totalHistoricalMonths = Math.max(1, (currentYear - startYear) * 12 + (currentMonth - startMonth) + 1);
+
+        let totalUSD = 0;
+        this.history.forEach(p => {
+            totalUSD += (p.budgetNet || 0);
+        });
+
+        const avgHistorical = totalUSD / totalHistoricalMonths;
+
+        let sum3Months = 0;
+        let sum6Months = 0;
+
+        const dateLimit3 = new Date(currentYear, currentMonth - 2, 1);
+        const dateLimit6 = new Date(currentYear, currentMonth - 5, 1);
+
+        this.history.forEach(p => {
+            if (!p.deliveredDate) return;
+            const d = new Date(p.deliveredDate);
+            if (d >= dateLimit3) sum3Months += (p.budgetNet || 0);
+            if (d >= dateLimit6) sum6Months += (p.budgetNet || 0);
+        });
+
+        return {
+            historical: avgHistorical,
+            last6: sum6Months / 6,
+            last3: sum3Months / 3
+        };
+    }
+
+    startTimersLoop() {
+        setInterval(() => {
+            const now = new Date();
+            let changed = false;
+
+            this.projects.forEach(p => {
+                if (p.timerStart) {
+                    const cardEl = document.querySelector(`.card[data-project-id="${p.id}"]`);
+                    if (cardEl) {
+                        let totalMs = p.timeSpent || 0;
+                        totalMs += (now - new Date(p.timerStart));
+
+                        const totalSecs = Math.floor(totalMs / 1000);
+                        const hrs = Math.floor(totalSecs / 3600);
+                        const mins = Math.floor((totalSecs % 3600) / 60);
+                        const secs = totalSecs % 60;
+
+                        const timerDisplay = cardEl.querySelector('.timer-display');
+                        if (timerDisplay) {
+                            timerDisplay.innerText = `${hrs}h ${String(mins).padStart(2, '0')}m ${String(secs).padStart(2, '0')}s`;
+                        }
+
+                        // Recalcular valor hora
+                        const rateValue = cardEl.querySelector('.rate-value');
+                        if (rateValue) {
+                            const totalHours = totalMs / (3600 * 1000);
+                            if (totalHours > 0) {
+                                const rate = (p.budgetNet || 0) / totalHours;
+                                rateValue.innerText = `USD ${rate.toFixed(2)}/h`;
+
+                                let rateColor = 'var(--text-secondary)';
+                                if (rate >= 25) rateColor = 'var(--status-green)';
+                                else if (rate >= 20) rateColor = 'var(--primary-color)';
+                                else if (rate >= 10) rateColor = 'var(--status-yellow)';
+                                else rateColor = 'var(--status-red)';
+                                rateValue.style.color = rateColor;
+                            }
+                        }
+                    }
+                }
+            });
+        }, 1000);
+    }
+}
+
 class BackupModule {
     constructor(appController) {
         this.app = appController;
@@ -1768,7 +3729,16 @@ class BackupModule {
             health_medical_data: localStorage.getItem('health_medical_data'),
             health_blood_tests: localStorage.getItem('health_blood_tests'),
             vehicle_odometer: localStorage.getItem('vehicle_odometer'),
-            vehicle_maintenance_log: localStorage.getItem('vehicle_maintenance_log')
+            vehicle_maintenance_log: localStorage.getItem('vehicle_maintenance_log'),
+            gym_records: localStorage.getItem('gym_records'),
+            gym_routine: localStorage.getItem('gym_routine'),
+            gym_routine_focus: localStorage.getItem('gym_routine_focus'),
+            gym_sessions: localStorage.getItem('gym_sessions'),
+            gym_meals: localStorage.getItem('gym_meals'),
+            gym_supplements: localStorage.getItem('gym_supplements'),
+            gym_weight: localStorage.getItem('gym_weight'),
+            projectPulseData: localStorage.getItem('projectPulseData'),
+            projectPulseHistory: localStorage.getItem('projectPulseHistory')
         };
 
         const blob = new Blob([JSON.stringify(unifiedData, null, 2)], { type: "application/json" });
@@ -1819,7 +3789,7 @@ class BackupModule {
                         : JSON.stringify(rawData.hygiene_tracker_data);
                     localStorage.setItem('hygiene_tracker_data', dataVal);
                     importedCategories.push("Higiene");
-                } else if (rawData.appName === undefined && !rawData.groomingData_v2 && !lensFound) {
+                } else if (rawData.appName === undefined && !rawData.groomingData_v2 && !lensFound && !rawData.gym_routine && !rawData.projectPulseData) {
                     localStorage.setItem('hygiene_tracker_data', JSON.stringify(rawData));
                     importedCategories.push("Higiene");
                 }
@@ -1861,11 +3831,48 @@ class BackupModule {
                     importedCategories.push("Vehículo y Mantenimiento");
                 }
 
+                // Gimnasio
+                const gymKeys = [
+                    'gym_records', 'gym_routine', 'gym_routine_focus', 
+                    'gym_sessions', 'gym_meals', 'gym_supplements', 'gym_weight'
+                ];
+                let gymFound = false;
+                gymKeys.forEach(key => {
+                    if (rawData[key] !== undefined && rawData[key] !== null) {
+                        const val = typeof rawData[key] === 'object' ? JSON.stringify(rawData[key]) : rawData[key];
+                        localStorage.setItem(key, val);
+                        gymFound = true;
+                    }
+                });
+                if (gymFound) {
+                    importedCategories.push("Gimnasio (GymTracker)");
+                }
+
+                // Proyectos
+                let projectsFound = false;
+                if (rawData.projectPulseData) {
+                    const dataVal = typeof rawData.projectPulseData === 'string' 
+                        ? rawData.projectPulseData 
+                        : JSON.stringify(rawData.projectPulseData);
+                    localStorage.setItem('projectPulseData', dataVal);
+                    projectsFound = true;
+                }
+                if (rawData.projectPulseHistory) {
+                    const dataVal = typeof rawData.projectPulseHistory === 'string' 
+                        ? rawData.projectPulseHistory 
+                        : JSON.stringify(rawData.projectPulseHistory);
+                    localStorage.setItem('projectPulseHistory', dataVal);
+                    projectsFound = true;
+                }
+                if (projectsFound) {
+                    importedCategories.push("Proyectos (ProjectPulse)");
+                }
+
                 if (importedCategories.length > 0) {
                     alert(`Backup restaurado correctamente. Módulos importados:\n- ${importedCategories.join('\n- ')}`);
                     location.reload();
                 } else {
-                    alert('Archivo JSON válido pero no contiene datos compatibles de LifeCycle, HabitSync o LensTracker.');
+                    alert('Archivo JSON válido pero no contiene datos compatibles de LifeCycle.');
                 }
             } catch (err) {
                 console.error(err);
@@ -1935,6 +3942,10 @@ class AppController {
                 this.health.render();
             } else if (activeSectionId === 'vehiculo-section') {
                 this.vehicle.render();
+            } else if (activeSectionId === 'gym-section') {
+                this.gym.render();
+            } else if (activeSectionId === 'projects-section') {
+                this.projects.render();
             }
         });
     }
@@ -2091,6 +4102,8 @@ class AppController {
         this.lenses = new LensModule(this);
         this.health = new HealthModule(this);
         this.vehicle = new VehicleModule(this);
+        this.gym = new GymModule(this);
+        this.projects = new ProjectsModule(this);
         this.backups = new BackupModule(this);
         
         setInterval(() => {
@@ -2101,6 +4114,8 @@ class AppController {
                 else if (activeSection.id === 'lenses-section') this.lenses.loadDatesAndStock();
                 else if (activeSection.id === 'salud-section') this.health.render();
                 else if (activeSection.id === 'vehiculo-section') this.vehicle.render();
+                else if (activeSection.id === 'gym-section') this.gym.render();
+                else if (activeSection.id === 'projects-section') this.projects.render();
             }
         }, 1000 * 60 * 60);
     }

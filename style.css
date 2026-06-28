@@ -1264,3 +1264,374 @@ body {
     accent-color: var(--primary-color);
 }
 
+/* ==========================================================================
+   FASE 3: ESTILOS ADAPTADOS DE GIMNASIO Y PROYECTOS (LIFECYCLE)
+   ========================================================================== */
+
+/* Sub-pestañas del gimnasio */
+.gym-tab-content {
+    transition: opacity 0.2s ease-in-out;
+}
+
+/* Rutina Maestra */
+.routine-days-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 1.25rem;
+}
+
+.day-card {
+    background: var(--surface-color);
+    border: 1px solid var(--surface-border);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    border-radius: var(--border-radius-md);
+    padding: 1.5rem;
+    box-shadow: var(--shadow-glass);
+}
+
+.day-card h3 {
+    margin-bottom: 1rem;
+    color: var(--primary-color);
+    font-size: 1.15rem;
+    border-bottom: 1px solid var(--surface-border);
+    padding-bottom: 0.5rem;
+}
+
+.day-focus-text {
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    background: rgba(0, 0, 0, 0.15);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius-sm);
+    padding: 8px 12px;
+    margin-bottom: 1rem;
+    outline: none;
+    width: 100%;
+}
+
+.day-focus-text:focus {
+    border-color: var(--primary-color);
+}
+
+.routine-exercises-list {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+}
+
+.routine-exercise-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--surface-border);
+    padding: 0.65rem 0.85rem;
+    border-radius: var(--border-radius-sm);
+    transition: background-color 0.2s;
+    font-size: 0.9rem;
+}
+
+.routine-exercise-item:hover {
+    background-color: rgba(255, 255, 255, 0.06);
+}
+
+.routine-exercise-item span {
+    color: var(--text-primary);
+    font-weight: 500;
+}
+
+.routine-exercise-inputs {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+}
+
+.routine-exercise-inputs input {
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--surface-border);
+    border-radius: 4px;
+    color: white;
+    font-size: 0.8rem;
+    padding: 3px 6px;
+    width: 45px;
+    text-align: center;
+}
+
+@media (min-width: 768px) {
+    .routine-days-grid {
+        display: grid;
+        grid-template-columns: repeat(2, 1fr);
+        gap: 1.5rem;
+    }
+}
+
+/* Tablas de Nutrición */
+.nutrition-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.85rem;
+}
+
+.nutrition-table th, .nutrition-table td {
+    padding: 0.65rem 0.5rem;
+    border-bottom: 1px solid var(--surface-border);
+}
+
+.nutrition-table th {
+    background-color: rgba(255, 255, 255, 0.03);
+    color: var(--text-secondary);
+    font-weight: 600;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+}
+
+.nutrition-table td {
+    color: var(--text-primary);
+}
+
+.nutrition-table tr:last-child td {
+    border-bottom: none;
+}
+
+.nutrition-table tbody tr:hover {
+    background-color: rgba(255, 255, 255, 0.02);
+}
+
+/* Suplementos y Peso Corporal */
+.supplement-card {
+    background: rgba(255, 255, 255, 0.02);
+    border: 1px solid var(--surface-border);
+    border-radius: var(--border-radius-md);
+    padding: 1rem;
+    margin-bottom: 1rem;
+}
+
+/* ESTILOS DE PROYECTOS (ProjectPulse) */
+.finance-block {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 12px;
+    border-radius: 8px;
+    margin-bottom: 1rem;
+    align-items: center;
+    gap: 6px;
+    border: 1px solid var(--surface-border);
+}
+
+.gross-amount {
+    color: var(--text-secondary);
+    font-size: 0.85rem;
+}
+
+.net-amount {
+    color: var(--status-green);
+    font-size: 1.4rem;
+    font-weight: 800;
+    text-align: center;
+}
+
+.project-dates {
+    display: flex;
+    justify-content: space-between;
+    font-size: 0.8rem;
+    margin-bottom: 1rem;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 10px;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+}
+
+.date-block span {
+    display: block;
+    color: var(--text-secondary);
+    margin-bottom: 3px;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+.date-block strong {
+    color: var(--text-primary);
+}
+
+.countdown {
+    text-align: center;
+    font-size: 1.3rem;
+    font-weight: 800;
+    margin: 0.8rem 0;
+    color: white;
+}
+
+/* Barra de Urgencia Adaptativa (Pulse) */
+.pulse-bar {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 6px;
+    height: 6px;
+    overflow: hidden;
+    margin-bottom: 0.5rem;
+    border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.pulse-progress {
+    height: 100%;
+    transition: width 0.3s ease, background-color 0.3s ease;
+    border-radius: 6px;
+}
+
+/* Checklist de Tareas Plan de Acción */
+.task-item {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    background: rgba(0, 0, 0, 0.2);
+    padding: 8px 12px;
+    border-radius: 8px;
+    border: 1px solid var(--surface-border);
+}
+
+.task-checkbox {
+    width: 16px;
+    height: 16px;
+    accent-color: var(--primary-color);
+    cursor: pointer;
+}
+
+.task-text {
+    flex: 1;
+    font-size: 0.9rem;
+    word-break: break-word;
+    transition: all 0.2s;
+    color: white;
+}
+
+.task-text.completed {
+    text-decoration: line-through;
+    color: var(--text-secondary);
+}
+
+.btn-delete-task {
+    background: transparent;
+    border: none;
+    color: var(--status-red);
+    font-size: 1.1rem;
+    cursor: pointer;
+    padding: 0 5px;
+    opacity: 0.7;
+    transition: opacity 0.2s;
+}
+
+.btn-delete-task:hover {
+    opacity: 1;
+}
+
+/* Historial Mensual Proyectos */
+.history-month-card {
+    background: var(--surface-color);
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    padding: 10px 14px;
+    margin-bottom: 8px;
+    transition: box-shadow 0.2s ease;
+}
+
+.history-month-card:hover {
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.history-month-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    cursor: pointer;
+    user-select: none;
+}
+
+.history-month-header h4 {
+    margin: 0;
+    color: white;
+    font-size: 0.95rem;
+}
+
+.history-month-header .toggle-icon {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    transition: transform 0.2s ease;
+}
+
+.history-month-details {
+    margin-top: 10px;
+    border-top: 1px solid var(--surface-border);
+    padding-top: 10px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+}
+
+.history-project-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--surface-border);
+    border-radius: 8px;
+    padding: 6px 10px;
+    font-size: 0.8rem;
+}
+
+.history-project-info {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    flex: 1;
+    min-width: 0;
+    padding-right: 6px;
+}
+
+.history-project-title {
+    font-weight: 600;
+    color: white;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.history-project-date {
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+}
+
+.history-project-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-shrink: 0;
+}
+
+.history-project-net {
+    color: var(--status-green);
+    font-weight: bold;
+}
+
+.btn-history-delete {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.btn-history-delete:hover {
+    color: var(--status-red);
+    background-color: rgba(239, 68, 68, 0.15);
+}
+

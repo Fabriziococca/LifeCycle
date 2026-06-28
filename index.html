@@ -53,6 +53,12 @@
             <button class="nav-btn" data-section="vehiculo-section">
                 <i class="ph ph-car"></i> Vehículo
             </button>
+            <button class="nav-btn" data-section="gym-section">
+                <i class="ph ph-barbell"></i> Gimnasio
+            </button>
+            <button class="nav-btn" data-section="projects-section">
+                <i class="ph ph-briefcase"></i> Proyectos
+            </button>
             <button class="nav-btn" data-section="ajustes-section">
                 <i class="ph ph-gear"></i> Ajustes
             </button>
@@ -436,6 +442,611 @@
             </div>
         </section>
 
+        <!-- SECCIÓN: GIMNASIO -->
+        <section id="gym-section" class="main-section hidden">
+            <!-- Menú de Sub-Pestañas para el Gimnasio -->
+            <div class="tabs-container" id="gym-tabs-container" style="margin-bottom: 2rem;">
+                <button class="tab-btn active" data-gym-tab="records"><i class="ph ph-trophy"></i> Récords</button>
+                <button class="tab-btn" data-gym-tab="routine"><i class="ph ph-clipboard-text"></i> Rutina</button>
+                <button class="tab-btn" data-gym-tab="sessions"><i class="ph ph-barbell"></i> Sesiones</button>
+                <button class="tab-btn" data-gym-tab="nutrition"><i class="ph ph-salad"></i> Nutrición</button>
+            </div>
+
+            <!-- SUB-TAB 1: RÉCORDS -->
+            <div id="gym-records-content" class="gym-tab-content">
+                <div class="card">
+                    <div class="card-header">
+                        <div class="icon-container">
+                            <i class="ph ph-trophy"></i>
+                        </div>
+                        <h3>Registrar Marca Personal (PR)</h3>
+                    </div>
+                    <div class="card-body">
+                        <form id="record-form">
+                            <div class="form-row">
+                                <div class="input-group half">
+                                    <label for="record-exercise">Ejercicio</label>
+                                    <input type="text" id="record-exercise" class="text-input" placeholder="Ej: Press Inclinado" required>
+                                </div>
+                                <div class="input-group half">
+                                    <label for="record-weight">Peso Total (kg)</label>
+                                    <input type="number" step="0.5" id="record-weight" class="number-input" placeholder="Ej: 80" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="input-group half">
+                                    <label for="record-reps">Repeticiones</label>
+                                    <input type="number" id="record-reps" class="number-input" placeholder="Ej: 8" required>
+                                </div>
+                                <div class="input-group half">
+                                    <label for="record-rir">RIR / Esfuerzo</label>
+                                    <select id="record-rir" class="text-input">
+                                        <option value="Fallo">Al Fallo (RIR 0)</option>
+                                        <option value="RIR 0.5">RIR 0.5</option>
+                                        <option value="RIR 1">RIR 1</option>
+                                        <option value="RIR 1.5">RIR 1.5</option>
+                                        <option value="RIR 2">RIR 2</option>
+                                        <option value="RIR 3">RIR 3</option>
+                                        <option value="RIR 4">RIR 4</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="margin-top: 1rem;">Guardar PR</button>
+                        </form>
+                    </div>
+                </div>
+
+                <div class="projects-header" style="margin-top: 2rem;">
+                    <h3>Historial de Récords</h3>
+                </div>
+                <div id="records-list" class="grid-container" style="margin-top: 1rem;"></div>
+            </div>
+
+            <!-- SUB-TAB 2: RUTINA MAESTRA -->
+            <div id="gym-routine-content" class="gym-tab-content hidden">
+                <div id="routine-days-container" class="grid-container"></div>
+            </div>
+
+            <!-- SUB-TAB 3: SESIONES DIARIAS -->
+            <div id="gym-sessions-content" class="gym-tab-content hidden">
+                <!-- Sesión activa -->
+                <div id="current-session" class="card hidden" style="margin-bottom: 2rem; border: 1px solid var(--primary-color);">
+                    <div class="card-header">
+                        <div class="icon-container" style="background: var(--primary-color); color: white;">
+                            <i class="ph ph-play-circle"></i>
+                        </div>
+                        <h3>Entrenamiento Activo</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="form-row">
+                            <div class="input-group" style="flex: 2;">
+                                <label for="session-exercise">Ejercicio</label>
+                                <input type="text" id="session-exercise" class="text-input" placeholder="Buscar o ingresar ejercicio..." list="routine-exercises-list">
+                                <datalist id="routine-exercises-list"></datalist>
+                            </div>
+                            <div class="input-group" style="flex: 1;">
+                                <label for="session-weight">Peso (kg)</label>
+                                <input type="number" step="0.5" id="session-weight" class="number-input" placeholder="0">
+                            </div>
+                            <div class="input-group" style="flex: 1;">
+                                <label for="session-reps">Reps</label>
+                                <input type="number" id="session-reps" class="number-input" placeholder="0">
+                            </div>
+                        </div>
+                        <div style="display: flex; gap: 10px; margin-top: 1rem;">
+                            <button id="add-set-btn" class="btn btn-primary" style="flex: 2;">Agregar Serie</button>
+                            <button id="finish-session-btn" class="btn btn-secondary" style="flex: 1; background: var(--status-green); color: white;">Finalizar</button>
+                        </div>
+                        
+                        <div id="current-sets-list" class="table-container" style="margin-top: 1.5rem;">
+                            <!-- Series agregadas -->
+                        </div>
+                    </div>
+                </div>
+
+                <div id="start-session-container" style="text-align: center; margin: 3rem 0;">
+                    <button id="start-session-btn" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2rem; width: auto;"><i class="ph ph-play-circle"></i> Iniciar Nuevo Entrenamiento</button>
+                </div>
+
+                <div class="projects-header">
+                    <h3>Historial de Sesiones</h3>
+                </div>
+                <div id="sessions-history" style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem;"></div>
+            </div>
+
+            <!-- SUB-TAB 4: NUTRICIÓN -->
+            <div id="gym-nutrition-content" class="gym-tab-content hidden">
+                <!-- Dashboard de Macros -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <div class="icon-container">
+                            <i class="ph ph-chart-pie"></i>
+                        </div>
+                        <h3>Macros & Calorías Diarias</h3>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: center;">
+                            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                                <div id="total-kcal" style="font-size: 1.2rem; font-weight: bold; color: var(--primary-color);">0</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">Kcal</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                                <div id="total-protein" style="font-size: 1.2rem; font-weight: bold; color: var(--status-green);">0g</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">Prot</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                                <div id="total-carbs" style="font-size: 1.2rem; font-weight: bold; color: var(--status-yellow);">0g</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">Carbs</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                                <div id="total-fat" style="font-size: 1.2rem; font-weight: bold; color: var(--status-orange);">0g</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">Grasa</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                                <div id="total-sodium" style="font-size: 1.2rem; font-weight: bold; color: var(--status-red);">0mg</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">Sodio</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Peso Corporal -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header" style="justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="icon-container">
+                                <i class="ph ph-scales"></i>
+                            </div>
+                            <h3>Control de Peso</h3>
+                        </div>
+                        <div id="weight-badge" class="days-count badge green" style="font-size: 0.8rem; margin: 0; padding: 4px 8px;">Activo</div>
+                    </div>
+                    <div class="card-body">
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; margin-bottom: 1.5rem;">
+                            <div>
+                                <p style="font-size: 0.9rem; margin-bottom: 0.3rem;">⚖️ <strong>Último peso:</strong> <span id="weight-last-val" style="color: white; font-weight: bold;">-</span></p>
+                                <p style="font-size: 0.9rem; margin-bottom: 0.3rem;">📅 <strong>Fecha:</strong> <span id="weight-last-date">-</span></p>
+                                <p style="font-size: 0.9rem; margin-bottom: 0.3rem;">⏱️ <strong>Ayuno:</strong> <span id="weight-last-fasting">-</span></p>
+                                <p style="font-size: 0.9rem; margin-bottom: 0.3rem;">📊 <strong>Diferencia:</strong> <span id="weight-diff">-</span></p>
+                                <p style="font-size: 0.9rem; margin-bottom: 0.3rem;">📈 <strong>Promedio:</strong> <span id="weight-average" style="font-weight: bold;">-</span></p>
+                            </div>
+                            <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 15px; border-radius: 12px; border: 1px solid var(--surface-border); min-width: 120px;">
+                                <div style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase;">Días transcurridos</div>
+                                <div id="weight-timer-count" style="font-size: 2.2rem; font-weight: bold; color: var(--primary-color); margin-top: 5px;">-</div>
+                            </div>
+                        </div>
+
+                        <div style="display: flex; gap: 10px;">
+                            <button id="btn-weight-log-toggle" class="btn btn-secondary" style="width: auto;"><i class="ph ph-plus"></i> Registrar Peso</button>
+                            <button id="btn-weight-history-toggle" class="btn btn-secondary" style="width: auto;"><i class="ph ph-eye"></i> Historial de Pesos</button>
+                        </div>
+
+                        <!-- Formulario de peso -->
+                        <form id="weight-log-form" class="hidden" style="margin-top: 1.5rem; border-top: 1px solid var(--surface-border); padding-top: 1.5rem;">
+                            <div class="form-row">
+                                <div class="input-group third">
+                                    <label for="weight-log-date">Fecha</label>
+                                    <input type="date" id="weight-log-date" class="date-input" required>
+                                </div>
+                                <div class="input-group third">
+                                    <label for="weight-log-val">Peso (kg)</label>
+                                    <input type="number" step="any" id="weight-log-val" class="number-input" placeholder="Ej: 75.3" required>
+                                </div>
+                                <div class="input-group third">
+                                    <label for="weight-log-fasting">Ayuno (hs)</label>
+                                    <input type="number" step="any" min="0" id="weight-log-fasting" class="number-input" placeholder="Ej: 12">
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="margin-top: 1rem;"><i class="ph ph-floppy-disk"></i> Guardar Peso</button>
+                        </form>
+
+                        <div id="weight-history-list" class="hidden" style="margin-top: 1rem; background: rgba(0,0,0,0.15); border-radius: 8px; max-height: 150px; overflow-y: auto; padding: 10px; border: 1px solid var(--surface-border);">
+                            <!-- Generado dinámicamente -->
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comidas Fijas (70%) -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header" style="justify-content: space-between;">
+                        <h3>Comidas Fijas (70%)</h3>
+                        <button id="toggle-fixed-form-btn" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 0.85rem;"><i class="ph ph-plus"></i> Cargar Fija</button>
+                    </div>
+                    <div class="card-body">
+                        <form id="fixed-meal-form" class="hidden" style="margin-bottom: 1.5rem; background: rgba(0,0,0,0.15); padding: 15px; border-radius: 12px; border: 1px solid var(--surface-border);">
+                            <div class="form-row">
+                                <div class="input-group" style="flex: 2;">
+                                    <label>Nombre de la comida</label>
+                                    <input type="text" id="fixed-meal-name" class="text-input" placeholder="Ej: Avena con Proteína" required>
+                                </div>
+                                <div class="input-group" style="flex: 1;">
+                                    <label>Cant.</label>
+                                    <input type="number" step="0.1" id="fixed-meal-qty" class="number-input" placeholder="1" required>
+                                </div>
+                                <div class="input-group" style="flex: 1;">
+                                    <label>Unidad</label>
+                                    <select id="fixed-meal-unit" class="text-input">
+                                        <option value="u">u</option>
+                                        <option value="g">g</option>
+                                        <option value="ml">ml</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="input-group third">
+                                    <label>Kcal</label>
+                                    <input type="number" step="1" id="fixed-meal-kcal" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group third">
+                                    <label>Proteína (g)</label>
+                                    <input type="number" step="0.1" id="fixed-meal-protein" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group third">
+                                    <label>Carbohidratos (g)</label>
+                                    <input type="number" step="0.1" id="fixed-meal-carbs" class="number-input" placeholder="0" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="input-group third">
+                                    <label>Grasas (g)</label>
+                                    <input type="number" step="0.1" id="fixed-meal-fat" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group third">
+                                    <label>Sodio (mg)</label>
+                                    <input type="number" step="1" id="fixed-meal-sodium" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group third">
+                                    <label>Grupo / Receta</label>
+                                    <input type="text" id="fixed-meal-group" list="fixed-groups-list" class="text-input" placeholder="Ej: Licuado">
+                                    <datalist id="fixed-groups-list"></datalist>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="margin-top: 1rem;"><i class="ph ph-plus"></i> Agregar Comida Fija</button>
+                        </form>
+
+                        <div class="table-container">
+                            <table class="nutrition-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--surface-border); text-align: left;">
+                                        <th style="padding: 8px;">Comida</th>
+                                        <th style="padding: 8px;">Cant</th>
+                                        <th style="padding: 8px;">Kcal</th>
+                                        <th style="padding: 8px;">P</th>
+                                        <th style="padding: 8px;">C</th>
+                                        <th style="padding: 8px;">G</th>
+                                        <th style="padding: 8px;">Na</th>
+                                        <th style="padding: 8px; width: 30px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="fixed-meals-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Comidas Variables (30%) -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header" style="justify-content: space-between;">
+                        <h3>Comidas Variables (30%) - Hoy</h3>
+                        <button id="toggle-var-form-btn" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 0.85rem;"><i class="ph ph-plus"></i> Cargar Variable</button>
+                    </div>
+                    <div class="card-body">
+                        <form id="variable-meal-form" class="hidden" style="margin-bottom: 1.5rem; background: rgba(0,0,0,0.15); padding: 15px; border-radius: 12px; border: 1px solid var(--surface-border);">
+                            <div class="form-row">
+                                <div class="input-group" style="flex: 2;">
+                                    <label>Nombre de la comida</label>
+                                    <input type="text" id="variable-meal-name" class="text-input" placeholder="Ej: Pizza" required>
+                                </div>
+                                <div class="input-group" style="flex: 1;">
+                                    <label>Cant.</label>
+                                    <input type="number" step="0.1" id="variable-meal-qty" class="number-input" placeholder="1" required>
+                                </div>
+                                <div class="input-group" style="flex: 1;">
+                                    <label>Unidad</label>
+                                    <select id="variable-meal-unit" class="text-input">
+                                        <option value="u">u</option>
+                                        <option value="g">g</option>
+                                        <option value="ml">ml</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="input-group third">
+                                    <label>Kcal</label>
+                                    <input type="number" step="1" id="variable-meal-kcal" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group third">
+                                    <label>Proteína (g)</label>
+                                    <input type="number" step="0.1" id="variable-meal-protein" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group third">
+                                    <label>Carbohidratos (g)</label>
+                                    <input type="number" step="0.1" id="variable-meal-carbs" class="number-input" placeholder="0" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="input-group third">
+                                    <label>Grasas (g)</label>
+                                    <input type="number" step="0.1" id="variable-meal-fat" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group third">
+                                    <label>Sodio (mg)</label>
+                                    <input type="number" step="1" id="variable-meal-sodium" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group third">
+                                    <label>Grupo / Receta</label>
+                                    <input type="text" id="variable-meal-group" list="variable-groups-list" class="text-input" placeholder="Ej: Almuerzo">
+                                    <datalist id="variable-groups-list"></datalist>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="margin-top: 1rem;"><i class="ph ph-plus"></i> Agregar Comida Variable</button>
+                        </form>
+
+                        <div class="table-container">
+                            <table class="nutrition-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--surface-border); text-align: left;">
+                                        <th style="padding: 8px;">Comida</th>
+                                        <th style="padding: 8px;">Cant</th>
+                                        <th style="padding: 8px;">Kcal</th>
+                                        <th style="padding: 8px;">P</th>
+                                        <th style="padding: 8px;">C</th>
+                                        <th style="padding: 8px;">G</th>
+                                        <th style="padding: 8px;">Na</th>
+                                        <th style="padding: 8px; width: 30px;"></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="variable-meals-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Suplementos y Vitaminas -->
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header">
+                        <div class="icon-container">
+                            <i class="ph ph-pill"></i>
+                        </div>
+                        <h3>Suplementos y Medicación</h3>
+                    </div>
+                    <div class="card-body">
+                        <!-- Vitamin D -->
+                        <div style="border-bottom: 1px solid var(--surface-border); padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+                                <h4 style="margin: 0; color: white;">Vitamina D (100.000 UI)</h4>
+                                <div id="vitd-badge" class="badge" style="padding: 4px 8px; font-size: 0.8rem;">Cargando...</div>
+                            </div>
+                            
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:1rem;">
+                                <div>
+                                    <p style="font-size:0.9rem; margin-bottom: 0.3rem;">📅 <strong>Última toma:</strong> <span id="vitd-last-date">-</span></p>
+                                    <p style="font-size:0.9rem; margin-bottom: 0.3rem;">⏰ <strong>Siguiente toma:</strong> <span id="vitd-next-date">-</span></p>
+                                </div>
+                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid var(--surface-border); min-width: 100px;">
+                                    <div style="font-size: 0.7rem; color: var(--text-secondary);">Días restantes</div>
+                                    <div id="vitd-timer-count" style="font-size: 1.6rem; font-weight: bold;">-</div>
+                                </div>
+                            </div>
+
+                            <div style="display:flex; gap:10px; flex-wrap: wrap;">
+                                <button id="btn-vitd-log-toggle" class="btn btn-secondary" style="flex:1; min-width:120px; margin:0;"><i class="ph ph-plus"></i> Registrar Toma</button>
+                                <button id="btn-vitd-settings-toggle" class="btn btn-secondary" style="flex:1; min-width:120px; margin:0;"><i class="ph ph-gear"></i> Ajustar Días</button>
+                                <button id="btn-vitd-history-toggle" class="btn btn-secondary" style="flex:1; min-width:120px; margin:0;"><i class="ph ph-eye"></i> Historial</button>
+                            </div>
+
+                            <!-- Formulario para registrar toma de Vit D -->
+                            <form id="vitd-log-form" class="hidden" style="margin-top: 1rem; border-top: 1px solid var(--surface-border); padding-top: 1rem;">
+                                <div class="form-row" style="align-items: flex-end;">
+                                    <div class="input-group" style="flex: 1;">
+                                        <label for="vitd-log-date" style="font-size:0.8rem;">Fecha de la toma</label>
+                                        <input type="date" id="vitd-log-date" class="date-input" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="margin: 0; width: auto; height: 42px;"><i class="ph ph-floppy-disk"></i> Guardar</button>
+                                </div>
+                            </form>
+
+                            <!-- Formulario para configurar intervalo Vit D -->
+                            <form id="vitd-settings-form" class="hidden" style="margin-top: 1rem; border-top: 1px solid var(--surface-border); padding-top: 1rem;">
+                                <div class="form-row" style="align-items: flex-end;">
+                                    <div class="input-group" style="flex: 1;">
+                                        <label for="vitd-interval-days" style="font-size:0.8rem;">Intervalo objetivo (días)</label>
+                                        <input type="number" id="vitd-interval-days" class="number-input" min="1" required>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="margin: 0; width: auto; height: 42px;"><i class="ph ph-check"></i> Aplicar</button>
+                                </div>
+                            </form>
+
+                            <!-- Historial de tomas Vit D -->
+                            <div id="vitd-history-list" class="hidden" style="margin-top: 1rem; background: rgba(0,0,0,0.15); border-radius: 8px; max-height: 150px; overflow-y: auto; padding: 10px; border: 1px solid var(--surface-border);"></div>
+                        </div>
+
+                        <!-- Analgésicos -->
+                        <div>
+                            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom: 1rem;">
+                                <h4 style="margin: 0; color: white;">Analgésicos (Ibuprofeno/Paracetamol)</h4>
+                                <div id="pain-badge" class="badge" style="padding: 4px 8px; font-size: 0.8rem;">Uso seguro</div>
+                            </div>
+                            
+                            <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:1rem;">
+                                <div>
+                                    <p style="font-size:0.9rem; margin-bottom: 0.3rem;">⏱️ <strong>Última dosis:</strong> <span id="pain-last-date">-</span></p>
+                                    <p style="font-size:0.9rem; margin-bottom: 0.3rem;">💊 <strong>Medicamento:</strong> <span id="pain-last-type">-</span></p>
+                                    <p style="font-size:0.9rem; margin-bottom: 0.3rem;">💬 <strong>Motivo:</strong> <span id="pain-last-note" style="font-style: italic;">-</span></p>
+                                </div>
+                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid var(--surface-border); min-width: 100px;">
+                                    <div style="font-size: 0.7rem; color: var(--text-secondary);">Días limpio</div>
+                                    <div id="pain-timer-count" style="font-size: 1.6rem; font-weight: bold;">-</div>
+                                </div>
+                            </div>
+
+                            <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 1.5rem; text-align: center;">
+                                <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--surface-border);">
+                                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">Hoy (24h)</div>
+                                    <div id="pain-count-day" style="font-size: 1.1rem; font-weight: bold; color: white; margin-top: 3px;">0 / 2</div>
+                                </div>
+                                <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--surface-border);">
+                                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">Semana (7d)</div>
+                                    <div id="pain-count-week" style="font-size: 1.1rem; font-weight: bold; color: white; margin-top: 3px;">0 / 6</div>
+                                </div>
+                                <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--surface-border);">
+                                    <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">Mes (30d)</div>
+                                    <div id="pain-count-month" style="font-size: 1.1rem; font-weight: bold; color: white; margin-top: 3px;">0 / 10</div>
+                                </div>
+                            </div>
+
+                            <p style="font-size: 0.75rem; color: var(--text-secondary); background: rgba(239, 68, 68, 0.08); border: 1px solid rgba(239, 68, 68, 0.2); border-radius: 8px; padding: 10px; margin-bottom: 1.5rem; line-height: 1.4;">
+                                ⚠️ <strong>Gym-Tip:</strong> Los antiinflamatorios (como Ibuprofeno/Ibupirac) inhiben las enzimas COX, reduciendo la respuesta inflamatoria necesaria para la síntesis de proteínas e hipertrofia muscular. El paracetamol (Tafirol) interfiere menos con los músculos, pero igual se aconseja moderar ambos.
+                            </p>
+
+                            <div style="display:flex; gap:10px;">
+                                <button id="btn-pain-log-toggle" class="btn btn-secondary" style="flex:1; margin:0;"><i class="ph ph-plus"></i> Registrar Toma</button>
+                                <button id="btn-pain-history-toggle" class="btn btn-secondary" style="flex:1; margin:0;"><i class="ph ph-eye"></i> Historial</button>
+                            </div>
+
+                            <!-- Formulario para registrar toma de analgésico -->
+                            <form id="pain-log-form" class="hidden" style="margin-top: 1rem; border-top: 1px solid var(--surface-border); padding-top: 1rem;">
+                                <div class="form-row">
+                                    <div class="input-group half">
+                                        <label for="pain-log-date">Fecha</label>
+                                        <input type="date" id="pain-log-date" class="date-input" required>
+                                    </div>
+                                    <div class="input-group half">
+                                        <label for="pain-log-type">Medicamento</label>
+                                        <select id="pain-log-type" class="text-input">
+                                            <option value="Tafirol">Tafirol (Paracetamol)</option>
+                                            <option value="Ibupirac">Ibupirac (Ibuprofeno)</option>
+                                            <option value="Otro">Otro</option>
+                                        </select>
+                                    </div>
+                                </div>
+                                <div class="form-row" style="align-items: flex-end;">
+                                    <div class="input-group" style="flex: 1;">
+                                        <label for="pain-log-note">Motivo / Nota (Opcional)</label>
+                                        <input type="text" id="pain-log-note" class="text-input" placeholder="Ej: Dolor de cabeza">
+                                    </div>
+                                    <button type="submit" class="btn btn-primary" style="margin: 0; width: auto; height: 42px;"><i class="ph ph-floppy-disk"></i> Guardar</button>
+                                </div>
+                            </form>
+
+                            <!-- Historial de tomas analgésicos -->
+                            <div id="pain-history-list" class="hidden" style="margin-top: 1rem; background: rgba(0,0,0,0.15); border-radius: 8px; max-height: 150px; overflow-y: auto; padding: 10px; border: 1px solid var(--surface-border);"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECCIÓN: PROYECTOS (ProjectPulse) -->
+        <section id="projects-section" class="main-section hidden">
+            <!-- Dashboard Financiero -->
+            <div class="dashboard-container" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 2rem;">
+                <div class="card" style="margin:0; padding: 15px;">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Activos</div>
+                    <div id="activeUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--primary-color); margin-top: 5px;">USD 0.00</div>
+                </div>
+                <div class="card" style="margin:0; padding: 15px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Mes</span>
+                        <button id="btnOpenMonthDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Detalle</button>
+                    </div>
+                    <div id="monthUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--status-green); margin-top: 5px;">USD 0.00</div>
+                </div>
+                <div class="card" style="margin:0; padding: 15px;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Año</span>
+                        <button id="btnOpenYearDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Detalle</button>
+                    </div>
+                    <div id="yearUSD" style="font-size: 1.4rem; font-weight: bold; color: white; margin-top: 5px;">USD 0.00</div>
+                </div>
+                <div class="card" style="margin:0; padding: 15px; border-bottom: 3px solid var(--status-orange);">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Histórico</span>
+                        <button id="btnOpenHistory" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Mensual</button>
+                    </div>
+                    <div id="totalUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--status-yellow); margin-top: 5px;">USD 0.00</div>
+                </div>
+            </div>
+
+            <!-- Nuevo Proyecto -->
+            <div class="card" style="margin-bottom: 2rem;">
+                <div class="card-header">
+                    <div class="icon-container">
+                        <i class="ph ph-briefcase"></i>
+                    </div>
+                    <h3>Nuevo Proyecto</h3>
+                </div>
+                <div class="card-body">
+                    <form id="projectForm">
+                        <div class="form-row">
+                            <div class="input-group half">
+                                <label for="clientName">Cliente</label>
+                                <input type="text" id="clientName" class="text-input" placeholder="Ej: Workana Client" required>
+                            </div>
+                            <div class="input-group half">
+                                <label for="projectName">Nombre del Proyecto</label>
+                                <input type="text" id="projectName" class="text-input" placeholder="Ej: Fix API Login" required>
+                            </div>
+                        </div>
+                        
+                        <div class="form-row">
+                            <div class="input-group half">
+                                <label for="acceptDate">Fecha y Hora de Aceptación</label>
+                                <input type="datetime-local" id="acceptDate" class="date-input" required>
+                            </div>
+                            <div class="input-group half">
+                                <label for="deliveryDays">Días de Entrega</label>
+                                <input type="number" id="deliveryDays" class="number-input" min="1" placeholder="Ej: 5" required>
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="input-group half">
+                                <label for="budgetGross">Presupuesto Bruto (USD)</label>
+                                <input type="number" id="budgetGross" class="number-input" min="0" step="0.01" placeholder="Ej: 150.00" required>
+                            </div>
+                            <div class="input-group half">
+                                <label for="workanaFeeSelect">Comisión</label>
+                                <select id="workanaFeeSelect" class="text-input">
+                                    <option value="20">20% (Estándar)</option>
+                                    <option value="15">15%</option>
+                                    <option value="10">10% (Frecuente)</option>
+                                    <option value="direct">Particular (0% Costo)</option>
+                                    <option value="paypal_direct">Directo PayPal</option>
+                                    <option value="custom">Exacta (Manual) %</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <div id="customFeeContainer" class="input-group hidden" style="margin-bottom: 1rem;">
+                            <label for="customWorkanaFee">Comisión Workana Manual (%)</label>
+                            <input type="number" id="customWorkanaFee" class="number-input" min="0" max="100" step="0.1" value="0">
+                        </div>
+
+                        <div class="form-row" style="margin: 1rem 0; display:flex; flex-direction:column; gap:10px;">
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; border: 1px solid var(--surface-border);">
+                                <input type="checkbox" id="isDelegated" style="width: 18px; height: 18px; accent-color: var(--primary-color);">
+                                <span style="font-size: 0.9rem; color: white;">Lo delego a otro (Me llevo el 30%)</span>
+                            </label>
+                            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer; background: rgba(255,255,255,0.05); padding: 12px; border-radius: 8px; border: 1px solid var(--surface-border);">
+                                <input type="checkbox" id="isReceived" style="width: 18px; height: 18px; accent-color: var(--primary-color);">
+                                <span style="font-size: 0.9rem; color: white;">Recibido de Fabro (Me llevo el 70%)</span>
+                            </label>
+                        </div>
+
+                        <button type="submit" class="btn btn-primary">➕ Agregar Proyecto</button>
+                    </form>
+                </div>
+            </div>
+
+            <!-- Proyectos Activos -->
+            <div class="projects-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Proyectos Activos</h3>
+                <span id="activeCount" class="badge" style="padding: 4px 8px; font-size: 0.85rem;">0</span>
+            </div>
+            <div id="projectsList" style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem;"></div>
+        </section>
+
         <!-- SECCIÓN 4: AJUSTES Y MIGRACIÓN -->
         <section id="ajustes-section" class="main-section hidden">
             <!-- Tarjeta de Instalación PWA -->
@@ -517,6 +1128,137 @@
             <div class="modal-actions">
                 <button id="modal-cancel" class="btn btn-cancel">Cancelar</button>
                 <button id="modal-save" class="btn btn-save">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODALS ESPECÍFICOS DE PROYECTOS -->
+    <div id="projects-edit-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Modificar Proyecto</h3>
+            <p class="modal-desc">Ajustá tiempos o sumá presupuesto extra.</p>
+            
+            <div class="input-group">
+                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Sumar Días al Plazo</label>
+                <input type="number" id="proj-extraDays" class="number-input" min="0" value="0">
+            </div>
+            <div class="input-group" style="margin-top: 1rem;">
+                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Sumar Presupuesto Bruto (USD)</label>
+                <input type="number" id="proj-extraBudget" class="number-input" min="0" step="0.01" value="0">
+            </div>
+            <div class="input-group" style="margin-top: 1rem;">
+                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Tiempo Trabajado Manual</label>
+                <div style="display:flex; gap:10px;">
+                    <input type="number" id="proj-manualHours" class="number-input half" min="0" placeholder="Horas">
+                    <input type="number" id="proj-manualMinutes" class="number-input half" min="0" max="59" placeholder="Minutos">
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top:1.5rem;">
+                <button id="proj-edit-cancel" class="btn btn-cancel">Cancelar</button>
+                <button id="proj-edit-save" class="btn btn-save">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="projects-plan-modal" class="modal hidden">
+        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <h3 id="proj-plan-modal-title" style="margin: 0;">Plan de Acción</h3>
+                <button id="proj-plan-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <p class="modal-desc" style="margin-bottom: 15px;">Resumen, Fases y Tareas pendientes.</p>
+            
+            <div class="input-group">
+                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Resumen del Proyecto</label>
+                <textarea id="proj-summary-textarea" class="text-input" rows="3" placeholder="¿De qué trata el proyecto?" style="resize: vertical; min-height: 60px;"></textarea>
+            </div>
+
+            <div class="input-group" style="margin-top: 1.25rem;">
+                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Plan paso a paso (Fases)</label>
+                <textarea id="proj-phases-textarea" class="text-input" rows="5" placeholder="Ej: Fase 1: Estructura&#10;Fase 2: Diseño..." style="resize: vertical; min-height: 80px;"></textarea>
+            </div>
+
+            <div class="input-group" style="margin-top: 1.25rem;">
+                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Checklist de Tareas Específicas</label>
+                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
+                    <input type="text" id="proj-new-task-input" class="text-input" placeholder="Ej: Crear formulario..." style="flex: 1;">
+                    <button id="proj-btn-add-task" class="btn btn-primary" style="margin: 0; padding: 0 15px; width: auto; font-size: 1rem;">+</button>
+                </div>
+                <div id="proj-tasks-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 1.5rem;">
+                <button id="proj-plan-modal-save" class="btn btn-save" style="width: 100%;">Guardar Cambios</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="projects-history-modal" class="modal hidden">
+        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 5px;">
+                <div>
+                    <h3 id="proj-history-modal-title" style="margin: 0 0 5px 0;">Historial Mensual</h3>
+                    <p class="modal-desc" style="margin: 0 0 10px 0;">Ingresos por cada mes finalizado.</p>
+                </div>
+                <button id="proj-btnToggleAddPastIncome" style="background:var(--primary-color); color:white; border:none; padding:8px 12px; font-size:0.8rem; border-radius:8px; cursor:pointer; white-space:nowrap; flex-shrink:0;">+ Pasado</button>
+            </div>
+            
+            <!-- Formulario de ingreso pasado -->
+            <div id="proj-add-past-income-form" class="hidden" style="background: rgba(0,0,0,0.2); border: 1px solid var(--surface-border); border-radius: 12px; padding: 12px; margin-bottom: 12px; display: flex; flex-direction: column; gap: 8px; font-size: 0.9rem;">
+                <h4 style="margin: 0; font-size: 0.95rem; color: white;">Cargar Ingreso Pasado</h4>
+                <div style="display: flex; gap: 8px;">
+                    <input type="text" id="proj-pastClient" class="text-input half" placeholder="Cliente" required>
+                    <input type="text" id="proj-pastProject" class="text-input half" placeholder="Proyecto" required>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: flex-end;">
+                    <div class="half" style="display: flex; flex-direction: column; gap: 2px;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary);">Fecha Cobro</span>
+                        <input type="date" id="proj-pastDate" class="date-input" required>
+                    </div>
+                    <div class="half" style="display: flex; flex-direction: column; gap: 2px;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary);">Horas (Opcional)</span>
+                        <input type="number" id="proj-pastHours" class="number-input" min="0" placeholder="Horas">
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; align-items: flex-end;">
+                    <div class="half" style="display: flex; flex-direction: column; gap: 2px;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary);">Bruto USD</span>
+                        <input type="number" id="proj-pastGross" class="number-input" min="0" step="0.01" placeholder="Bruto" required>
+                    </div>
+                    <div class="half" style="display: flex; flex-direction: column; gap: 2px;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary);">Neto USD</span>
+                        <input type="number" id="proj-pastNet" class="number-input" min="0" step="0.01" placeholder="Neto" required>
+                    </div>
+                </div>
+                <div style="display: flex; gap: 8px; margin-top: 4px;">
+                    <button id="proj-btnCancelPastIncome" class="btn btn-cancel half" style="margin: 0;">Cancelar</button>
+                    <button id="proj-btnSavePastIncome" class="btn btn-save half" style="margin: 0; background: var(--status-green); color: white;">Guardar</button>
+                </div>
+            </div>
+            
+            <!-- Promedios mensuales -->
+            <div id="proj-averages-container" style="background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); border-radius:12px; padding:12px 10px; margin-bottom:15px; display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; text-align:center; font-size:0.85rem;">
+                <div style="display:flex; flex-direction:column; gap:2px; border-right: 1px solid var(--surface-border); padding-right:4px;">
+                    <span style="font-size:0.75rem; color:var(--text-secondary);">Histórico</span>
+                    <strong id="proj-avgHistorical" style="font-size:0.9rem; color:var(--status-green); white-space:nowrap;">USD 0.00</strong>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:2px; border-right: 1px solid var(--surface-border); padding-right:4px;">
+                    <span style="font-size:0.75rem; color:var(--text-secondary);">Últ. 6 Meses</span>
+                    <strong id="proj-avg6Months" style="font-size:0.9rem; color:var(--status-green); white-space:nowrap;">USD 0.00</strong>
+                </div>
+                <div style="display:flex; flex-direction:column; gap:2px;">
+                    <span style="font-size:0.75rem; color:var(--text-secondary);">Últ. 3 Meses</span>
+                    <strong id="proj-avg3Months" style="font-size:0.9rem; color:var(--status-green); white-space:nowrap;">USD 0.00</strong>
+                </div>
+            </div>
+            
+            <div id="proj-monthlyHistoryList" style="overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; margin-bottom: 15px; flex: 1;">
+                <!-- Rellenado por JS -->
+            </div>
+
+            <div class="modal-actions">
+                <button id="proj-close-history-modal" class="btn btn-cancel" style="width: 100%;">Cerrar</button>
             </div>
         </div>
     </div>
