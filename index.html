@@ -101,9 +101,9 @@
                     <div class="timer-flex">
                         <!-- Círculo de Progreso -->
                         <div class="ring-container">
-                            <svg class="progress-ring" width="180" height="180">
-                                <circle class="progress-ring__circle-bg" stroke="#1e293b" stroke-width="10" fill="transparent" r="72" cx="90" cy="90"/>
-                                <circle id="progressRing" class="progress-ring__circle" stroke="#3b82f6" stroke-width="10" fill="transparent" r="72" cx="90" cy="90"/>
+                            <svg class="progress-ring" width="200" height="200">
+                                <circle class="progress-ring__circle-bg" stroke="#1e293b" stroke-width="10" fill="transparent" r="80" cx="100" cy="100"/>
+                                <circle id="progressRing" class="progress-ring__circle" stroke="#3b82f6" stroke-width="10" fill="transparent" r="80" cx="100" cy="100"/>
                             </svg>
                             <div class="timer-inner">
                                 <span class="timer-text" id="lenses-timer">00:00:00</span>
@@ -209,8 +209,8 @@
 
         <!-- SECCIÓN 4: AJUSTES Y MIGRACIÓN -->
         <section id="ajustes-section" class="main-section hidden">
-            <!-- Tarjeta de Instalación PWA (oculta por defecto, se muestra si es compatible) -->
-            <div class="card backup-card hidden" id="pwa-install-card" style="margin-bottom: 2rem;">
+            <!-- Tarjeta de Instalación PWA -->
+            <div class="card backup-card" id="pwa-install-card" style="margin-bottom: 2rem;">
                 <div class="card-header">
                     <div class="icon-container">
                         <i class="ph ph-device-mobile"></i>
@@ -218,10 +218,31 @@
                     <h3>Instalar Aplicación</h3>
                 </div>
                 <div class="card-body">
-                    <p class="backup-text">Instala LifeCycle en tu pantalla de inicio para acceder de forma rápida y disfrutar de una experiencia a pantalla completa como una app nativa.</p>
-                    <button id="btnInstallPWA" class="btn btn-primary" style="width: 100%;">
-                        <i class="ph-bold ph-plus-circle"></i> Instalar LifeCycle
-                    </button>
+                    <!-- Mensaje cuando ya está instalada -->
+                    <div id="pwa-installed-message" class="hidden">
+                        <p class="backup-text" style="color: var(--status-green); font-weight: 600; margin-bottom: 0;">
+                            <i class="ph-fill ph-check-circle" style="font-size: 1.25rem; vertical-align: middle; margin-right: 0.25rem;"></i> LifeCycle ya está instalada en tu dispositivo. ¡Disfruta de la experiencia a pantalla completa!
+                        </p>
+                    </div>
+                    
+                    <!-- Controles de instalación -->
+                    <div id="pwa-install-controls">
+                        <p class="backup-text">Instala LifeCycle en tu pantalla de inicio para acceder rápidamente y disfrutar de una experiencia completa sin distracciones.</p>
+                        
+                        <!-- Botón nativo (se muestra solo si es compatible y no está instalada) -->
+                        <button id="btnInstallPWA" class="btn btn-primary hidden" style="width: 100%; margin-bottom: 1rem;">
+                            <i class="ph-bold ph-plus-circle"></i> Instalar LifeCycle
+                        </button>
+                        
+                        <!-- Guía de instalación manual (se muestra como ayuda si no se puede iniciar la instalación nativa) -->
+                        <div id="pwa-manual-guide" class="migration-guide" style="margin-top: 0.5rem;">
+                            <h4 style="margin-bottom: 0.5rem;"><i class="ph ph-info"></i> ¿Cómo instalar manualmente?</h4>
+                            <ul style="font-size: 0.85rem; color: var(--text-secondary); padding-left: 0; display: flex; flex-direction: column; gap: 0.5rem; list-style: none;">
+                                <li><strong>En Android / Chrome:</strong> Toca los 3 puntos <i class="ph ph-dots-three-vertical"></i> arriba a la derecha y selecciona <strong>"Agregar a pantalla de inicio"</strong> o <strong>"Instalar aplicación"</strong>.</li>
+                                <li><strong>En iOS / Safari:</strong> Toca el botón <strong>Compartir</strong> <i class="ph ph-export"></i> en la barra inferior (o superior) y selecciona <strong>"Añadir a pantalla de inicio"</strong>.</li>
+                            </ul>
+                        </div>
+                    </div>
                 </div>
             </div>
 

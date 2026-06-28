@@ -148,7 +148,7 @@ const LENS_LIMITS = {
     clothChange: 270
 };
 
-const CIRCUMFERENCE = 452; // 2 * Math.PI * 72 (basado en r=72 del SVG)
+const CIRCUMFERENCE = 502; // 2 * Math.PI * 80 (basado en r=80 del SVG)
 
 // ==========================================================================
 // MÓDULO 1: HIGIENE (Original HygieneTracker)
@@ -1151,15 +1151,30 @@ class AppController {
     initPWAInstall() {
         const installCard = document.getElementById('pwa-install-card');
         const btnInstall = document.getElementById('btnInstallPWA');
+        const manualGuide = document.getElementById('pwa-manual-guide');
+        const installedMessage = document.getElementById('pwa-installed-message');
+        const installControls = document.getElementById('pwa-install-controls');
+
+        // Detectar modo standalone (ya instalada)
+        const isStandalone = window.matchMedia('(display-mode: standalone)').matches || window.navigator.standalone;
+
+        if (isStandalone) {
+            if (installedMessage) installedMessage.classList.remove('hidden');
+            if (installControls) installControls.classList.add('hidden');
+        }
 
         window.addEventListener('beforeinstallprompt', (e) => {
             // Prevent the mini-infobar from appearing on mobile
             e.preventDefault();
             // Stash the event so it can be triggered later.
             this.deferredPrompt = e;
-            // Show the install card
-            if (installCard) {
-                installCard.classList.remove('hidden');
+            // Mostrar botón de instalación nativo
+            if (btnInstall && !isStandalone) {
+                btnInstall.classList.remove('hidden');
+            }
+            // Ocultar guía manual ya que el botón nativo está activo
+            if (manualGuide && !isStandalone) {
+                manualGuide.classList.add('hidden');
             }
         });
 
@@ -1173,9 +1188,11 @@ class AppController {
                 console.log(`User response to install: ${outcome}`);
                 // Clear the prompt, it can't be reused
                 this.deferredPrompt = null;
-                // Hide the install card
-                if (installCard) {
-                    installCard.classList.add('hidden');
+                // Ocultar el botón
+                btnInstall.classList.add('hidden');
+                // Mostrar guía manual si cancelaron
+                if (outcome !== 'accepted' && manualGuide) {
+                    manualGuide.classList.remove('hidden');
                 }
             });
         }
@@ -1183,9 +1200,8 @@ class AppController {
         window.addEventListener('appinstalled', (e) => {
             console.log('LifeCycle was installed');
             this.deferredPrompt = null;
-            if (installCard) {
-                installCard.classList.add('hidden');
-            }
+            if (installedMessage) installedMessage.classList.remove('hidden');
+            if (installControls) installControls.classList.add('hidden');
         });
     }
 

@@ -244,6 +244,10 @@ body {
     line-height: 1;
 }
 
+.card:not(.hero-card) .days-count {
+    margin: 0.5rem 0 1.25rem 0;
+}
+
 .days-label {
     font-size: 1.1rem;
     color: var(--text-secondary);
@@ -844,8 +848,8 @@ body {
 
 .ring-container {
     position: relative;
-    width: 180px;
-    height: 180px;
+    width: 200px;
+    height: 200px;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -1044,6 +1048,7 @@ body {
     justify-content: space-between;
     align-items: center;
     font-size: 0.9rem;
+    gap: 15px;
 }
 
 .hist-date {
