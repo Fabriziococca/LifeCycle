@@ -577,7 +577,7 @@ body {
     display: flex;
     gap: 0.5rem;
     margin-bottom: 2.5rem;
-    justify-content: center;
+    justify-content: flex-start;
     background: rgba(30, 41, 59, 0.4);
     padding: 0.4rem;
     border-radius: var(--border-radius-lg);
@@ -585,17 +585,24 @@ body {
     backdrop-filter: blur(12px);
     -webkit-backdrop-filter: blur(12px);
     width: 100%;
-    max-width: 500px;
+    max-width: 650px;
     margin-left: auto;
     margin-right: auto;
     box-shadow: var(--shadow-glass);
+    overflow-x: auto;
+    white-space: nowrap;
+    scrollbar-width: none; /* Firefox */
+}
+
+.main-nav::-webkit-scrollbar {
+    display: none; /* Safari/Chrome */
 }
 
 .nav-btn {
-    flex: 1;
+    flex: 0 0 auto;
     background: transparent;
     border: none;
-    padding: 0.7rem 1rem;
+    padding: 0.7rem 1.1rem;
     color: var(--text-secondary);
     font-family: inherit;
     font-size: 0.95rem;
@@ -1209,12 +1216,51 @@ body {
 @media (max-width: 600px) {
     .main-nav {
         border-radius: var(--border-radius-md);
-        flex-wrap: wrap;
+        margin-bottom: 1.5rem;
     }
     .nav-btn {
-        flex-basis: calc(50% - 0.25rem);
-        padding: 0.6rem 0.8rem;
+        padding: 0.55rem 0.9rem;
         font-size: 0.85rem;
     }
+}
+
+/* Ajustes para Salud y Vehículo */
+.frequency-control {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+    margin-bottom: 0.75rem;
+}
+
+.frequency-control input.frequency-input {
+    padding: 0.25rem;
+    font-size: 0.85rem;
+    border-radius: var(--border-radius-sm);
+    border: 1px solid var(--surface-border);
+    background: rgba(255, 255, 255, 0.05);
+    color: var(--text-primary);
+    text-align: center;
+    width: 55px;
+}
+
+.chk-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.chk-item {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    font-size: 0.85rem;
+    color: var(--text-secondary);
+}
+
+.chk-item input[type="checkbox"] {
+    accent-color: var(--primary-color);
 }
 

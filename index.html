@@ -47,6 +47,12 @@
             <button class="nav-btn" data-section="lentes-section">
                 <i class="ph ph-eye"></i> Lentes
             </button>
+            <button class="nav-btn" data-section="salud-section">
+                <i class="ph ph-first-aid-kit"></i> Salud
+            </button>
+            <button class="nav-btn" data-section="vehiculo-section">
+                <i class="ph ph-car"></i> Vehículo
+            </button>
             <button class="nav-btn" data-section="ajustes-section">
                 <i class="ph ph-gear"></i> Ajustes
             </button>
@@ -203,6 +209,229 @@
                         <!-- Generado dinámicamente -->
                     </ul>
                     <button id="lenses-btnClearHistory" class="btn-text">Borrar historial de usos</button>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECCIÓN: SALUD -->
+        <section id="salud-section" class="main-section hidden">
+            <h3 class="section-title">Controles Médicos</h3>
+            <div id="salud-grid-section" class="cards-grid" style="margin-bottom: 2rem;">
+                <!-- Dentista y Oculista generados dinámicamente -->
+            </div>
+
+            <div class="card" id="blood-tests-card" style="max-width: 600px; margin: 0 auto;">
+                <div class="card-header">
+                    <div class="icon-container">
+                        <i class="ph ph-first-aid-kit"></i>
+                    </div>
+                    <h3>Análisis de Sangre</h3>
+                </div>
+                <div class="card-body">
+                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.5rem;">
+                        <div class="time-display" style="margin-bottom: 0;">
+                            <span class="days-count" id="blood-days-count" style="color: var(--primary-color);">0</span>
+                            <span class="days-label">días desde el último estudio</span>
+                        </div>
+                    </div>
+                    
+                    <div class="date-info-container" style="margin-bottom: 1.5rem;">
+                        <div class="date-info">
+                            <i class="ph ph-clock-counter-clockwise"></i>
+                            <span>Último análisis: <strong id="blood-last-date">Nunca</strong></span>
+                        </div>
+                        <div class="date-info">
+                            <i class="ph ph-calendar"></i>
+                            <span>Próximo análisis (anual): <strong id="blood-next-date">N/A</strong></span>
+                        </div>
+                    </div>
+
+                    <button id="btn-add-blood-test" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">
+                        <i class="ph-bold ph-plus-circle"></i> Agregar Nuevo Estudio
+                    </button>
+
+                    <!-- Formulario agregar estudio (oculto por defecto) -->
+                    <div id="blood-test-form" class="migration-guide hidden" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+                        <h4 style="margin-bottom: 0.75rem;">Registrar Estudio de Sangre</h4>
+                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div class="input-group">
+                                <label>Fecha del Estudio:</label>
+                                <input type="date" id="blood-form-date" class="date-input">
+                            </div>
+                            <div class="input-group">
+                                <label>Enlace al PDF (ej. Google Drive):</label>
+                                <input type="url" id="blood-form-pdf" class="time-input" placeholder="https://drive.google.com/...">
+                            </div>
+                            <div class="input-group">
+                                <label>Enlace al Portal Web del Laboratorio:</label>
+                                <input type="url" id="blood-form-portal" class="time-input" placeholder="https://laboratorio.com/...">
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                <button id="blood-form-cancel" class="btn btn-cancel" style="flex: 1; padding: 0.6rem;">Cancelar</button>
+                                <button id="blood-form-save" class="btn btn-save" style="flex: 1; padding: 0.6rem;">Guardar</button>
+                            </div>
+                        </div>
+                    </div>
+
+                    <h4 class="sub-section-title">Historial de Estudios</h4>
+                    <ul id="blood-tests-list" class="history-list" style="padding-left: 0;">
+                        <!-- Lista de estudios generada dinámicamente -->
+                    </ul>
+                </div>
+            </div>
+        </section>
+
+        <!-- SECCIÓN: VEHÍCULO -->
+        <section id="vehiculo-section" class="main-section hidden">
+            <!-- Odómetro -->
+            <div class="card" style="max-width: 600px; margin: 0 auto 2rem auto; border: 1px dashed var(--primary-color);">
+                <div class="card-body" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1.25rem;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div class="icon-container" style="width: 40px; height: 40px;">
+                            <i class="ph ph-gauge" style="font-size: 1.4rem; color: var(--primary-color);"></i>
+                        </div>
+                        <strong style="font-size: 1.05rem;">Kilometraje Actual del Auto:</strong>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 0.5rem;">
+                        <input type="number" id="vehicle-odometer-input" class="number-input" style="width: 120px; font-size: 1.1rem; font-weight: 700; text-align: right;" value="0">
+                        <span style="font-weight: 600; color: var(--text-secondary);">km</span>
+                    </div>
+                </div>
+            </div>
+
+            <div class="lenses-dashboard">
+                <!-- Tarjeta Aceite y Filtros -->
+                <div class="card" id="vehicle-oil-card">
+                    <div class="card-header">
+                        <div class="icon-container">
+                            <i class="ph ph-drop-half-bottom"></i>
+                        </div>
+                        <h3>Aceite y Filtros</h3>
+                    </div>
+                    <div class="card-body">
+                        <div class="time-display" style="margin-bottom: 0.5rem;">
+                            <span class="days-count" id="oil-remaining-km" style="font-size: 2.2rem; color: var(--status-green);">--</span>
+                            <span class="days-label">km restantes</span>
+                        </div>
+                        <div class="days-info" id="oil-remaining-days" style="margin-bottom: 1.5rem;">-- días restantes</div>
+
+                        <div class="date-info-container" style="margin-bottom: 1.5rem;">
+                            <div class="date-info">
+                                <i class="ph ph-clock-counter-clockwise"></i>
+                                <span>Último cambio: <strong id="oil-last-service">Nunca</strong></span>
+                            </div>
+                            <div class="date-info">
+                                <i class="ph ph-calendar"></i>
+                                <span>Próximo cambio: <strong id="oil-next-service">N/A</strong></span>
+                            </div>
+                        </div>
+
+                        <button id="btn-add-oil-service" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">
+                            <i class="ph-bold ph-plus-circle"></i> Registrar Cambio
+                        </button>
+
+                        <!-- Formulario de Servicio de Aceite -->
+                        <div id="oil-service-form" class="migration-guide hidden" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+                            <h4 style="margin-bottom: 0.75rem;">Registrar Cambio Aceite/Filtros</h4>
+                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <div class="input-group">
+                                    <label>Fecha:</label>
+                                    <input type="date" id="oil-form-date" class="date-input">
+                                </div>
+                                <div class="input-group">
+                                    <label>Kilometraje del Auto:</label>
+                                    <input type="number" id="oil-form-km" class="number-input" style="width: 100%; text-align: left;">
+                                </div>
+                                <div class="input-group">
+                                    <label>Componentes cambiados:</label>
+                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.25rem;">
+                                        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-oil" checked> Aceite</label>
+                                        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-oil" checked> Filtro Aceite</label>
+                                        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-air" checked> Filtro Aire</label>
+                                        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-cab" checked> Filtro A/A (Hab.)</label>
+                                    </div>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                    <button id="oil-form-cancel" class="btn btn-cancel" style="flex: 1; padding: 0.6rem;">Cancelar</button>
+                                    <button id="oil-form-save" class="btn btn-save" style="flex: 1; padding: 0.6rem;">Guardar</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="btn-toggle-oil-history" class="btn btn-history">Ver historial de servicios</button>
+                        <div id="oil-service-history" class="history-log hidden" style="margin-top: 1rem;"></div>
+                    </div>
+                </div>
+
+                <!-- Tarjeta Neumáticos y Geometría -->
+                <div class="card" id="vehicle-tires-card">
+                    <div class="card-header">
+                        <div class="icon-container">
+                            <i class="ph ph-arrows-clockwise"></i>
+                        </div>
+                        <h3>Neumáticos y Geometría</h3>
+                    </div>
+                    <div class="card-body">
+                        <!-- Alineación & Balanceo -->
+                        <div style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
+                            <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Alineación & Balanceo</h4>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                <span>Último: <strong id="align-last">Nunca</strong></span>
+                                <span id="align-remaining">-- km rest.</span>
+                            </div>
+                            <button id="btn-record-align" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;">Alinear & Balancear hoy</button>
+                        </div>
+
+                        <!-- Rotación -->
+                        <div style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
+                            <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Rotación de Neumáticos</h4>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                <span>Última: <strong id="rot-last">Nunca</strong></span>
+                                <span id="rot-remaining">-- km rest.</span>
+                            </div>
+                            <button id="btn-record-rot" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;">Rotar neumáticos hoy</button>
+                        </div>
+
+                        <!-- Reemplazo -->
+                        <div style="margin-bottom: 1rem;">
+                            <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Reemplazo de Ruedas</h4>
+                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                <span>Último: <strong id="replace-last">Nunca</strong></span>
+                                <span id="replace-remaining">-- km rest.</span>
+                            </div>
+                            <button id="btn-add-replace-service" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;">Registrar Neumáticos Nuevos</button>
+                            
+                            <!-- Formulario de Reemplazo Neumáticos -->
+                            <div id="replace-service-form" class="migration-guide hidden" style="margin-top: 1rem; padding: 1.25rem;">
+                                <h4 style="margin-bottom: 0.75rem;">Registrar Cambio Neumáticos</h4>
+                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                    <div class="input-group">
+                                        <label>Fecha:</label>
+                                        <input type="date" id="replace-form-date" class="date-input">
+                                    </div>
+                                    <div class="input-group">
+                                        <label>Kilometraje del Auto:</label>
+                                        <input type="number" id="replace-form-km" class="number-input" style="width: 100%; text-align: left;">
+                                    </div>
+                                    <div class="input-group">
+                                        <label>Neumáticos cambiados:</label>
+                                        <select id="replace-form-pos" class="time-input" style="width: 100%;">
+                                            <option value="4">Las 4 Ruedas</option>
+                                            <option value="2-del">Las 2 Delanteras</option>
+                                            <option value="2-tras">Las 2 Traseras</option>
+                                        </select>
+                                    </div>
+                                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                        <button id="replace-form-cancel" class="btn btn-cancel" style="flex: 1; padding: 0.6rem;">Cancelar</button>
+                                        <button id="replace-form-save" class="btn btn-save" style="flex: 1; padding: 0.6rem;">Guardar</button>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <button id="btn-toggle-tires-history" class="btn btn-history">Ver historial mecánico</button>
+                        <div id="tires-service-history" class="history-log hidden" style="margin-top: 1rem;"></div>
+                    </div>
                 </div>
             </div>
         </section>

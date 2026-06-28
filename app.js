@@ -920,7 +920,827 @@ class LensModule {
 
 
 // ==========================================================================
-// MÓDULO 4: COPIAS DE SEGURIDAD (BackupModule - Tolerante a Fallos)
+// MÓDULO 4: SALUD
+// ==========================================================================
+class HealthModule {
+    constructor(controller) {
+        this.controller = controller;
+        this.gridContainer = document.getElementById('salud-grid-section');
+        this.bloodDaysCount = document.getElementById('blood-days-count');
+        this.bloodLastDate = document.getElementById('blood-last-date');
+        this.bloodNextDate = document.getElementById('blood-next-date');
+        
+        this.btnAddBlood = document.getElementById('btn-add-blood-test');
+        this.bloodForm = document.getElementById('blood-test-form');
+        this.bloodFormDate = document.getElementById('blood-form-date');
+        this.bloodFormPdf = document.getElementById('blood-form-pdf');
+        this.bloodFormPortal = document.getElementById('blood-form-portal');
+        this.bloodFormCancel = document.getElementById('blood-form-cancel');
+        this.bloodFormSave = document.getElementById('blood-form-save');
+        this.bloodList = document.getElementById('blood-tests-list');
+
+        // Configuración médica
+        this.medicalData = JSON.parse(localStorage.getItem('health_medical_data')) || {
+            dentista: { lastVisit: null, frequencyMonths: 6, history: [] },
+            oculista: { lastVisit: null, frequencyMonths: 6, history: [] }
+        };
+        this.bloodTests = JSON.parse(localStorage.getItem('health_blood_tests')) || [];
+
+        this.init();
+    }
+
+    saveMedicalData() {
+        localStorage.setItem('health_medical_data', JSON.stringify(this.medicalData));
+    }
+
+    saveBloodTests() {
+        localStorage.setItem('health_blood_tests', JSON.stringify(this.bloodTests));
+    }
+
+    init() {
+        // Carga formulario análisis
+        this.btnAddBlood?.addEventListener('click', () => {
+            if (this.bloodForm) this.bloodForm.classList.remove('hidden');
+            if (this.bloodFormDate) {
+                this.bloodFormDate.value = new Date().toISOString().split('T')[0];
+            }
+        });
+
+        this.bloodFormCancel?.addEventListener('click', () => {
+            this.clearBloodForm();
+        });
+
+        this.bloodFormSave?.addEventListener('click', () => {
+            this.saveBloodTestEntry();
+        });
+
+        this.render();
+    }
+
+    clearBloodForm() {
+        if (this.bloodForm) this.bloodForm.classList.add('hidden');
+        if (this.bloodFormDate) this.bloodFormDate.value = '';
+        if (this.bloodFormPdf) this.bloodFormPdf.value = '';
+        if (this.bloodFormPortal) this.bloodFormPortal.value = '';
+    }
+
+    saveBloodTestEntry() {
+        const dateVal = this.bloodFormDate?.value;
+        if (!dateVal) {
+            alert('Por favor selecciona la fecha del estudio.');
+            return;
+        }
+        
+        const entry = {
+            id: 'blood_' + Date.now(),
+            date: dateVal,
+            pdfUrl: this.bloodFormPdf?.value || '',
+            portalUrl: this.bloodFormPortal?.value || ''
+        };
+
+        this.bloodTests.push(entry);
+        this.bloodTests.sort((a, b) => new Date(b.date) - new Date(a.date));
+        this.saveBloodTests();
+        this.clearBloodForm();
+        this.render();
+    }
+
+    deleteBloodTest(id) {
+        if (confirm('¿Estás seguro de que quieres eliminar este registro de análisis de sangre?')) {
+            this.bloodTests = this.bloodTests.filter(t => t.id !== id);
+            this.saveBloodTests();
+            this.render();
+        }
+    }
+
+    calculateDaysElapsed(dateStr) {
+        if (!dateStr) return null;
+        const diffTime = Math.abs(new Date() - new Date(dateStr));
+        return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    formatDate(dateStr) {
+        if (!dateStr) return 'Nunca';
+        const [year, month, day] = dateStr.split('-');
+        return `${day}/${month}/${year}`;
+    }
+
+    addMonths(date, months) {
+        const d = new Date(date);
+        d.setMonth(d.getMonth() + Number(months));
+        return d;
+    }
+
+    recordQuickVisit(key) {
+        const today = new Date().toISOString().split('T')[0];
+        this.medicalData[key].lastVisit = today;
+        
+        if (!this.medicalData[key].history) {
+            this.medicalData[key].history = [];
+        }
+        this.medicalData[key].history.unshift(today);
+        this.saveMedicalData();
+        this.render();
+    }
+
+    deleteVisitHistory(key, index) {
+        if (confirm('¿Seguro que quieres borrar este registro de visita?')) {
+            this.medicalData[key].history.splice(index, 1);
+            this.medicalData[key].lastVisit = this.medicalData[key].history.length > 0 
+                ? this.medicalData[key].history[0] 
+                : null;
+            this.saveMedicalData();
+            this.render();
+        }
+    }
+
+    render() {
+        this.renderMedicalCards();
+        this.renderBloodTestsCard();
+    }
+
+    renderMedicalCards() {
+        if (!this.gridContainer) return;
+        this.gridContainer.innerHTML = '';
+
+        Object.keys(this.medicalData).forEach(key => {
+            const doc = this.medicalData[key];
+            const name = key.charAt(0).toUpperCase() + key.slice(1);
+            const daysElapsed = this.calculateDaysElapsed(doc.lastVisit);
+            
+            const frequencyDays = doc.frequencyMonths * 30.5;
+            let statusColor = 'var(--status-green)';
+            let statusText = 'Al día';
+            let shadowColor = 'var(--status-green-glow)';
+            
+            if (daysElapsed === null) {
+                statusColor = 'var(--text-secondary)';
+                statusText = 'Sin datos';
+                shadowColor = 'transparent';
+            } else if (daysElapsed >= frequencyDays) {
+                statusColor = 'var(--status-red)';
+                statusText = 'Vencido';
+                shadowColor = 'var(--status-red-glow)';
+            } else if (daysElapsed >= frequencyDays - 30) {
+                statusColor = 'var(--status-orange)';
+                statusText = 'Próximo';
+                shadowColor = 'var(--status-orange-glow)';
+            }
+
+            const daysDisplay = daysElapsed !== null ? `${daysElapsed} días` : '--';
+            const lastVisitDisplay = this.formatDate(doc.lastVisit);
+            
+            let nextVisitDisplay = 'N/A';
+            if (doc.lastVisit) {
+                const nextDateObj = this.addMonths(doc.lastVisit, doc.frequencyMonths);
+                const yyyy = nextDateObj.getFullYear();
+                const mm = String(nextDateObj.getMonth() + 1).padStart(2, '0');
+                const dd = String(nextDateObj.getDate()).padStart(2, '0');
+                nextVisitDisplay = `${dd}/${mm}/${yyyy}`;
+            }
+
+            const card = document.createElement('div');
+            card.className = 'card';
+            
+            let historyHtml = '';
+            if (doc.history && doc.history.length > 0) {
+                historyHtml = doc.history.map((dateStr, idx) => `
+                    <li style="font-size: 0.85rem; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.15); border-radius: var(--border-radius-sm);">
+                        <span>${this.formatDate(dateStr)}</span>
+                        <button class="btn-delete-visit-history" data-key="${key}" data-index="${idx}" title="Borrar registro" style="border:none; background:transparent; cursor:pointer;">❌</button>
+                    </li>
+                `).join('');
+            } else {
+                historyHtml = '<li style="font-size: 0.85rem; padding: 0.5rem; text-align: center; color: var(--text-secondary);">Sin visitas anteriores</li>';
+            }
+
+            card.innerHTML = `
+                <div class="card-header">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div class="icon-container">
+                            <i class="ph ${key === 'dentista' ? 'ph-first-aid' : 'ph-eye'}"></i>
+                        </div>
+                        <h3 style="font-size: 1.20rem; font-weight:600; margin:0;">${name}</h3>
+                    </div>
+                    <button class="btn-edit-retro-medical" data-key="${key}" title="Editar fecha de última visita" style="background:transparent; border:none; cursor:pointer; color:var(--text-secondary);">
+                        <i class="ph ph-pencil-simple" style="font-size: 1.2rem;"></i>
+                    </button>
+                </div>
+                
+                <div class="card-body" style="padding: 0;">
+                    <div class="frequency-control">
+                        <i class="ph ph-calendar-blank"></i>
+                        <span>Frecuencia:</span>
+                        <input type="number" class="frequency-input" data-key="${key}" value="${doc.frequencyMonths}" min="1" max="60">
+                        <span>meses</span>
+                    </div>
+
+                    <div class="time-display" style="margin-bottom: 0.5rem; display: flex; align-items: baseline; gap: 0.4rem;">
+                        <span class="days-count" style="color: ${statusColor}; text-shadow: 0 0 20px ${shadowColor};">${daysDisplay}</span>
+                        ${daysElapsed !== null ? '<span class="days-label">desde última visita</span>' : ''}
+                    </div>
+
+                    <div class="date-info-container" style="margin-bottom: 1rem; display:flex; flex-direction:column; gap:0.4rem;">
+                        <div class="date-info" style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:var(--text-secondary);">
+                            <i class="ph ph-clock-counter-clockwise"></i>
+                            <span>Último control: <strong>${lastVisitDisplay}</strong></span>
+                        </div>
+                        <div class="date-info" style="display:flex; align-items:center; gap:0.5rem; font-size:0.85rem; color:var(--text-secondary);">
+                            <i class="ph ph-calendar"></i>
+                            <span>Próximo control: <strong>${nextVisitDisplay}</strong></span>
+                        </div>
+                    </div>
+
+                    <button class="btn btn-record btn-quick-visit" data-key="${key}" style="width: 100%;">✓ Registrar Visita Hoy</button>
+                    
+                    <button class="btn btn-history btn-toggle-visit-history" style="margin-top: 0.5rem; width:100%;">Ver Historial</button>
+                    <div class="history-log hidden" style="margin-top: 0.75rem;">
+                        <ul style="padding-left: 0; display:flex; flex-direction:column; gap:0.4rem; list-style:none; margin:0;">
+                            ${historyHtml}
+                        </ul>
+                    </div>
+                </div>
+            `;
+
+            // Attach event listeners
+            card.querySelector('.frequency-input').addEventListener('change', (e) => {
+                const k = e.target.dataset.key;
+                const val = parseInt(e.target.value) || 6;
+                this.medicalData[k].frequencyMonths = val;
+                this.saveMedicalData();
+                this.render();
+            });
+
+            card.querySelector('.btn-quick-visit').addEventListener('click', (e) => {
+                const k = e.currentTarget.dataset.key;
+                this.recordQuickVisit(k);
+            });
+
+            card.querySelector('.btn-toggle-visit-history').addEventListener('click', (e) => {
+                const log = card.querySelector('.history-log');
+                const btn = e.currentTarget;
+                if (log.classList.contains('hidden')) {
+                    log.classList.remove('hidden');
+                    btn.innerText = 'Ocultar Historial';
+                } else {
+                    log.classList.add('hidden');
+                    btn.innerText = 'Ver Historial';
+                }
+            });
+
+            card.querySelectorAll('.btn-delete-visit-history').forEach(btn => {
+                btn.addEventListener('click', (e) => {
+                    const k = e.currentTarget.dataset.key;
+                    const idx = parseInt(e.currentTarget.dataset.index);
+                    this.deleteVisitHistory(k, idx);
+                });
+            });
+
+            card.querySelector('.btn-edit-retro-medical').addEventListener('click', (e) => {
+                const k = e.currentTarget.dataset.key;
+                const displayName = k === 'dentista' ? 'Dentista' : 'Oculista';
+                this.controller.openEditModal('medical', k, displayName, this.medicalData[k].lastVisit);
+            });
+
+            this.gridContainer.appendChild(card);
+        });
+    }
+
+    renderBloodTestsCard() {
+        const lastTest = this.bloodTests[0];
+        const daysElapsed = this.calculateDaysElapsed(lastTest?.date);
+
+        if (this.bloodDaysCount) {
+            this.bloodDaysCount.innerText = daysElapsed !== null ? daysElapsed : '--';
+        }
+        if (this.bloodLastDate) {
+            this.bloodLastDate.innerText = this.formatDate(lastTest?.date);
+        }
+        if (this.bloodNextDate) {
+            if (lastTest?.date) {
+                const nextDate = new Date(lastTest.date);
+                nextDate.setFullYear(nextDate.getFullYear() + 1);
+                const yyyy = nextDate.getFullYear();
+                const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
+                const dd = String(nextDate.getDate()).padStart(2, '0');
+                this.bloodNextDate.innerText = `${dd}/${mm}/${yyyy}`;
+            } else {
+                this.bloodNextDate.innerText = 'N/A';
+            }
+        }
+
+        // Render list
+        if (this.bloodList) {
+            this.bloodList.innerHTML = '';
+            if (this.bloodTests.length > 0) {
+                this.bloodTests.forEach(test => {
+                    const li = document.createElement('li');
+                    li.style.display = 'flex';
+                    li.style.justifyContent = 'space-between';
+                    li.style.alignItems = 'center';
+                    li.style.gap = '15px';
+                    li.style.padding = '0.75rem 1rem';
+
+                    let linksHtml = '';
+                    if (test.pdfUrl) {
+                        linksHtml += `<a href="${test.pdfUrl}" target="_blank" class="btn-text" style="color: var(--primary-color); display:flex; align-items:center; gap:0.25rem;"><i class="ph ph-file-pdf"></i> PDF</a>`;
+                    }
+                    if (test.portalUrl) {
+                        linksHtml += `<a href="${test.portalUrl}" target="_blank" class="btn-text" style="color: var(--primary-color); display:flex; align-items:center; gap:0.25rem;"><i class="ph ph-globe"></i> Web</a>`;
+                    }
+
+                    li.innerHTML = `
+                        <div style="display:flex; align-items:center; gap:0.5rem;">
+                            <span class="hist-date">${this.formatDate(test.date)}</span>
+                        </div>
+                        <div style="display:flex; align-items:center; gap:1rem;">
+                            <div style="display:flex; gap:0.50rem;">
+                                ${linksHtml || '<span style="color:var(--text-secondary); font-size:0.8rem;">Sin enlaces</span>'}
+                            </div>
+                            <button class="btn-delete-blood" data-id="${test.id}" style="border:none; background:transparent; cursor:pointer;" title="Eliminar registro">❌</button>
+                        </div>
+                    `;
+
+                    li.querySelector('.btn-delete-blood').addEventListener('click', (e) => {
+                        this.deleteBloodTest(e.currentTarget.dataset.id);
+                    });
+
+                    this.bloodList.appendChild(li);
+                });
+            } else {
+                this.bloodList.innerHTML = '<li style="justify-content:center; color:var(--text-secondary); font-size:0.85rem; padding:1rem;">No tienes análisis de sangre registrados</li>';
+            }
+        }
+    }
+}
+
+
+// ==========================================================================
+// MÓDULO 5: VEHÍCULO
+// ==========================================================================
+class VehicleModule {
+    constructor(controller) {
+        this.controller = controller;
+
+        this.odometerInput = document.getElementById('vehicle-odometer-input');
+        
+        this.oilRemainingKm = document.getElementById('oil-remaining-km');
+        this.oilRemainingDays = document.getElementById('oil-remaining-days');
+        this.oilLastService = document.getElementById('oil-last-service');
+        this.oilNextService = document.getElementById('oil-next-service');
+        
+        this.btnNewOil = document.getElementById('btn-add-oil-service');
+        this.oilForm = document.getElementById('oil-service-form');
+        this.oilFormDate = document.getElementById('oil-form-date');
+        this.oilFormKm = document.getElementById('oil-form-km');
+        this.oilFormCancel = document.getElementById('oil-form-cancel');
+        this.oilFormSave = document.getElementById('oil-form-save');
+        this.btnToggleOilHist = document.getElementById('btn-toggle-oil-history');
+        this.oilHistoryLog = document.getElementById('oil-service-history');
+
+        this.alignLast = document.getElementById('align-last');
+        this.alignRemaining = document.getElementById('align-remaining');
+        this.btnRecordAlign = document.getElementById('btn-record-align');
+
+        this.rotLast = document.getElementById('rot-last');
+        this.rotRemaining = document.getElementById('rot-remaining');
+        this.btnRecordRot = document.getElementById('btn-record-rot');
+
+        this.replaceLast = document.getElementById('replace-last');
+        this.replaceRemaining = document.getElementById('replace-remaining');
+        
+        this.btnNewReplace = document.getElementById('btn-add-replace-service');
+        this.replaceForm = document.getElementById('replace-service-form');
+        this.replaceFormDate = document.getElementById('replace-form-date');
+        this.replaceFormKm = document.getElementById('replace-form-km');
+        this.replaceFormPos = document.getElementById('replace-form-pos');
+        this.replaceFormCancel = document.getElementById('replace-form-cancel');
+        this.replaceFormSave = document.getElementById('replace-form-save');
+        this.btnToggleTiresHist = document.getElementById('btn-toggle-tires-history');
+        this.tiresHistoryLog = document.getElementById('tires-service-history');
+
+        // Load data
+        this.odometer = Number(localStorage.getItem('vehicle_odometer')) || 0;
+        this.maintenanceLog = JSON.parse(localStorage.getItem('vehicle_maintenance_log')) || [];
+        
+        this.init();
+    }
+
+    saveOdometer() {
+        localStorage.setItem('vehicle_odometer', this.odometer.toString());
+    }
+
+    saveMaintenanceLog() {
+        localStorage.setItem('vehicle_maintenance_log', JSON.stringify(this.maintenanceLog));
+    }
+
+    init() {
+        if (this.odometerInput) {
+            this.odometerInput.value = this.odometer;
+            this.odometerInput.addEventListener('change', (e) => {
+                const val = parseInt(e.target.value) || 0;
+                this.odometer = val;
+                this.saveOdometer();
+                this.render();
+            });
+        }
+
+        this.btnNewOil?.addEventListener('click', () => {
+            if (this.oilForm) this.oilForm.classList.remove('hidden');
+            if (this.oilFormDate) this.oilFormDate.value = new Date().toISOString().split('T')[0];
+            if (this.oilFormKm) this.oilFormKm.value = this.odometer;
+        });
+        
+        this.oilFormCancel?.addEventListener('click', () => {
+            this.clearOilForm();
+        });
+
+        this.oilFormSave?.addEventListener('click', () => {
+            this.saveOilService();
+        });
+
+        this.btnToggleOilHist?.addEventListener('click', () => {
+            if (this.oilHistoryLog) {
+                if (this.oilHistoryLog.classList.contains('hidden')) {
+                    this.oilHistoryLog.classList.remove('hidden');
+                    this.btnToggleOilHist.innerText = 'Ocultar historial de servicios';
+                } else {
+                    this.oilHistoryLog.classList.add('hidden');
+                    this.btnToggleOilHist.innerText = 'Ver historial de servicios';
+                }
+            }
+        });
+
+        this.btnRecordAlign?.addEventListener('click', () => {
+            this.recordQuickGeometry('Alineación & Balanceo');
+        });
+
+        this.btnRecordRot?.addEventListener('click', () => {
+            this.recordQuickGeometry('Rotación de Neumáticos');
+        });
+
+        this.btnNewReplace?.addEventListener('click', () => {
+            if (this.replaceForm) this.replaceForm.classList.remove('hidden');
+            if (this.replaceFormDate) this.replaceFormDate.value = new Date().toISOString().split('T')[0];
+            if (this.replaceFormKm) this.replaceFormKm.value = this.odometer;
+        });
+
+        this.replaceFormCancel?.addEventListener('click', () => {
+            this.clearReplaceForm();
+        });
+
+        this.replaceFormSave?.addEventListener('click', () => {
+            this.saveReplaceService();
+        });
+
+        this.btnToggleTiresHist?.addEventListener('click', () => {
+            if (this.tiresHistoryLog) {
+                if (this.tiresHistoryLog.classList.contains('hidden')) {
+                    this.tiresHistoryLog.classList.remove('hidden');
+                    this.btnToggleTiresHist.innerText = 'Ocultar historial mecánico';
+                } else {
+                    this.tiresHistoryLog.classList.add('hidden');
+                    this.btnToggleTiresHist.innerText = 'Ver historial mecánico';
+                }
+            }
+        });
+
+        this.render();
+    }
+
+    clearOilForm() {
+        this.oilForm?.classList.add('hidden');
+        if (this.oilFormDate) this.oilFormDate.value = '';
+        if (this.oilFormKm) this.oilFormKm.value = '';
+    }
+
+    clearReplaceForm() {
+        this.replaceForm?.classList.add('hidden');
+        if (this.replaceFormDate) this.replaceFormDate.value = '';
+        if (this.replaceFormKm) this.replaceFormKm.value = '';
+    }
+
+    saveOilService() {
+        const dateVal = this.oilFormDate?.value;
+        const kmVal = parseInt(this.oilFormKm?.value) || 0;
+
+        if (!dateVal) {
+            alert('Por favor selecciona la fecha del servicio.');
+            return;
+        }
+
+        if (kmVal <= 0) {
+            alert('Por favor ingresa un kilometraje válido.');
+            return;
+        }
+
+        const chkOil = document.getElementById('oil-chk-oil')?.checked || false;
+        const chkFilOil = document.getElementById('oil-chk-fil-oil')?.checked || false;
+        const chkFilAir = document.getElementById('oil-chk-fil-air')?.checked || false;
+        const chkFilCab = document.getElementById('oil-chk-fil-cab')?.checked || false;
+
+        const entry = {
+            id: 'maint_' + Date.now(),
+            type: 'Aceite y Filtros',
+            date: dateVal,
+            km: kmVal,
+            details: {
+                oil: chkOil,
+                filterOil: chkFilOil,
+                filterAir: chkFilAir,
+                filterCabin: chkFilCab
+            }
+        };
+
+        this.maintenanceLog.push(entry);
+        this.maintenanceLog.sort((a, b) => b.km - a.km || new Date(b.date) - new Date(a.date));
+
+        if (kmVal > this.odometer) {
+            this.odometer = kmVal;
+            this.saveOdometer();
+            if (this.odometerInput) this.odometerInput.value = this.odometer;
+        }
+
+        this.saveMaintenanceLog();
+        this.clearOilForm();
+        this.render();
+    }
+
+    recordQuickGeometry(type) {
+        const dateVal = new Date().toISOString().split('T')[0];
+        const kmVal = this.odometer;
+
+        const entry = {
+            id: 'maint_' + Date.now(),
+            type: type,
+            date: dateVal,
+            km: kmVal,
+            details: {}
+        };
+
+        this.maintenanceLog.push(entry);
+        this.maintenanceLog.sort((a, b) => b.km - a.km || new Date(b.date) - new Date(a.date));
+        this.saveMaintenanceLog();
+        this.render();
+    }
+
+    saveReplaceService() {
+        const dateVal = this.replaceFormDate?.value;
+        const kmVal = parseInt(this.replaceFormKm?.value) || 0;
+        const posVal = this.replaceFormPos?.value || '4';
+
+        if (!dateVal) {
+            alert('Por favor selecciona la fecha del servicio.');
+            return;
+        }
+
+        if (kmVal <= 0) {
+            alert('Por favor ingresa un kilometraje válido.');
+            return;
+        }
+
+        let posText = 'Las 4 Ruedas';
+        if (posVal === '2-del') posText = 'Las 2 Delanteras';
+        else if (posVal === '2-tras') posText = 'Las 2 Traseras';
+
+        const entry = {
+            id: 'maint_' + Date.now(),
+            type: 'Reemplazo de Neumáticos',
+            date: dateVal,
+            km: kmVal,
+            details: {
+                position: posText
+            }
+        };
+
+        this.maintenanceLog.push(entry);
+        this.maintenanceLog.sort((a, b) => b.km - a.km || new Date(b.date) - new Date(a.date));
+
+        if (kmVal > this.odometer) {
+            this.odometer = kmVal;
+            this.saveOdometer();
+            if (this.odometerInput) this.odometerInput.value = this.odometer;
+        }
+
+        this.saveMaintenanceLog();
+        this.clearReplaceForm();
+        this.render();
+    }
+
+    deleteMaintenance(id) {
+        if (confirm('¿Estás seguro de que quieres eliminar este registro de servicio?')) {
+            this.maintenanceLog = this.maintenanceLog.filter(m => m.id !== id);
+            this.saveMaintenanceLog();
+            this.render();
+        }
+    }
+
+    formatDate(dateStr) {
+        if (!dateStr) return 'Nunca';
+        const [year, month, day] = dateStr.split('-');
+        return `${day}/${month}/${year}`;
+    }
+
+    calculateDaysElapsed(dateStr) {
+        if (!dateStr) return null;
+        const diffTime = Math.abs(new Date() - new Date(dateStr));
+        return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    render() {
+        this.renderOilCard();
+        this.renderTiresCard();
+        this.renderHistories();
+    }
+
+    renderOilCard() {
+        const lastOil = this.maintenanceLog.find(m => m.type === 'Aceite y Filtros');
+        
+        if (lastOil) {
+            const nextKm = lastOil.km + 10000;
+            const remainingKm = nextKm - this.odometer;
+            const daysElapsed = this.calculateDaysElapsed(lastOil.date);
+            const remainingDays = 365 - (daysElapsed || 0);
+
+            if (this.oilRemainingKm) {
+                this.oilRemainingKm.innerText = remainingKm.toLocaleString('es-AR') + ' km';
+                if (remainingKm <= 0) {
+                    this.oilRemainingKm.style.color = 'var(--status-red)';
+                } else if (remainingKm <= 1000) {
+                    this.oilRemainingKm.style.color = 'var(--status-orange)';
+                } else {
+                    this.oilRemainingKm.style.color = 'var(--status-green)';
+                }
+            }
+
+            if (this.oilRemainingDays) {
+                if (remainingDays <= 0) {
+                    this.oilRemainingDays.innerText = `Plazo vencido por tiempo (${Math.abs(remainingDays)} días transcurridos del año)`;
+                    this.oilRemainingDays.style.color = 'var(--status-red)';
+                } else {
+                    this.oilRemainingDays.innerText = `Equivale a aprox. ${remainingDays} días restantes (1 año máx.)`;
+                    this.oilRemainingDays.style.color = 'var(--text-secondary)';
+                }
+            }
+
+            if (this.oilLastService) {
+                this.oilLastService.innerText = `${lastOil.km.toLocaleString('es-AR')} km (${this.formatDate(lastOil.date)})`;
+            }
+
+            if (this.oilNextService) {
+                this.oilNextService.innerText = `${nextKm.toLocaleString('es-AR')} km`;
+            }
+        } else {
+            if (this.oilRemainingKm) this.oilRemainingKm.innerText = '-- km';
+            if (this.oilRemainingDays) this.oilRemainingDays.innerText = 'Sin registros de cambio';
+            if (this.oilLastService) this.oilLastService.innerText = 'Nunca';
+            if (this.oilNextService) this.oilNextService.innerText = 'N/A';
+        }
+    }
+
+    renderTiresCard() {
+        const lastAlign = this.maintenanceLog.find(m => m.type === 'Alineación & Balanceo');
+        const lastRot = this.maintenanceLog.find(m => m.type === 'Rotación de Neumáticos');
+        const lastReplace = this.maintenanceLog.find(m => m.type === 'Reemplazo de Neumáticos');
+
+        if (lastAlign) {
+            const nextKm = lastAlign.km + 10000;
+            const remaining = nextKm - this.odometer;
+            if (this.alignLast) this.alignLast.innerText = `${lastAlign.km.toLocaleString('es-AR')} km (${this.formatDate(lastAlign.date)})`;
+            if (this.alignRemaining) {
+                this.alignRemaining.innerText = remaining <= 0 ? 'Vencido' : `${remaining.toLocaleString('es-AR')} km rest.`;
+                this.alignRemaining.style.color = remaining <= 0 ? 'var(--status-red)' : 'var(--text-secondary)';
+            }
+        } else {
+            if (this.alignLast) this.alignLast.innerText = 'Nunca';
+            if (this.alignRemaining) this.alignRemaining.innerText = '-- km rest.';
+        }
+
+        if (lastRot) {
+            const nextKm = lastRot.km + 10000;
+            const remaining = nextKm - this.odometer;
+            if (this.rotLast) this.rotLast.innerText = `${lastRot.km.toLocaleString('es-AR')} km (${this.formatDate(lastRot.date)})`;
+            if (this.rotRemaining) {
+                this.rotRemaining.innerText = remaining <= 0 ? 'Vencido' : `${remaining.toLocaleString('es-AR')} km rest.`;
+                this.rotRemaining.style.color = remaining <= 0 ? 'var(--status-red)' : 'var(--text-secondary)';
+            }
+        } else {
+            if (this.rotLast) this.rotLast.innerText = 'Nunca';
+            if (this.rotRemaining) this.rotRemaining.innerText = '-- km rest.';
+        }
+
+        if (lastReplace) {
+            const nextKm = lastReplace.km + 60000;
+            const remaining = nextKm - this.odometer;
+            if (this.replaceLast) this.replaceLast.innerText = `${lastReplace.km.toLocaleString('es-AR')} km (${this.formatDate(lastReplace.date)})`;
+            if (this.replaceRemaining) {
+                this.replaceRemaining.innerText = remaining <= 0 ? 'Vencido' : `${remaining.toLocaleString('es-AR')} km rest.`;
+                this.replaceRemaining.style.color = remaining <= 0 ? 'var(--status-red)' : 'var(--text-secondary)';
+            }
+        } else {
+            if (this.replaceLast) this.replaceLast.innerText = 'Nunca';
+            if (this.replaceRemaining) this.replaceRemaining.innerText = '-- km rest.';
+        }
+    }
+
+    renderHistories() {
+        if (this.oilHistoryLog) {
+            this.oilHistoryLog.innerHTML = '';
+            const oilEntries = this.maintenanceLog.filter(m => m.type === 'Aceite y Filtros');
+            if (oilEntries.length > 0) {
+                const ul = document.createElement('ul');
+                ul.className = 'history-list';
+                ul.style.paddingLeft = '0';
+                ul.style.listStyle = 'none';
+
+                oilEntries.forEach(entry => {
+                    const li = document.createElement('li');
+                    li.style.display = 'flex';
+                    li.style.flexDirection = 'column';
+                    li.style.alignItems = 'stretch';
+                    li.style.padding = '0.75rem';
+                    li.style.gap = '8px';
+
+                    const details = entry.details || {};
+                    const components = [];
+                    if (details.oil) components.push('Aceite');
+                    if (details.filterOil) components.push('F. Aceite');
+                    if (details.filterAir) components.push('F. Aire');
+                    if (details.filterCabin) components.push('F. Habitáculo');
+
+                    li.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-weight:600; margin-bottom: 0.25rem;">
+                            <span>${entry.km.toLocaleString('es-AR')} km</span>
+                            <span style="font-size:0.8rem; color:var(--text-secondary);">${this.formatDate(entry.date)}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:0.8rem; color:var(--text-secondary);">Cambio: ${components.join(', ') || 'Ninguno'}</span>
+                            <button class="btn-delete-maint" data-id="${entry.id}" style="border:none; background:transparent; cursor:pointer;" title="Eliminar registro">❌</button>
+                        </div>
+                    `;
+
+                    li.querySelector('.btn-delete-maint').addEventListener('click', (e) => {
+                        this.deleteMaintenance(e.currentTarget.dataset.id);
+                    });
+
+                    ul.appendChild(li);
+                });
+                this.oilHistoryLog.appendChild(ul);
+            } else {
+                this.oilHistoryLog.innerHTML = '<p style="font-size:0.85rem; color:var(--text-secondary); text-align:center; padding: 1rem 0;">No hay servicios de aceite registrados.</p>';
+            }
+        }
+
+        if (this.tiresHistoryLog) {
+            this.tiresHistoryLog.innerHTML = '';
+            const tiresEntries = this.maintenanceLog.filter(m => m.type !== 'Aceite y Filtros');
+            if (tiresEntries.length > 0) {
+                const ul = document.createElement('ul');
+                ul.className = 'history-list';
+                ul.style.paddingLeft = '0';
+                ul.style.listStyle = 'none';
+
+                tiresEntries.forEach(entry => {
+                    const li = document.createElement('li');
+                    li.style.display = 'flex';
+                    li.style.flexDirection = 'column';
+                    li.style.alignItems = 'stretch';
+                    li.style.padding = '0.75rem';
+                    li.style.gap = '8px';
+
+                    let extraDetails = '';
+                    if (entry.type === 'Reemplazo de Neumáticos' && entry.details && entry.details.position) {
+                        extraDetails = ` (${entry.details.position})`;
+                    }
+
+                    li.innerHTML = `
+                        <div style="display:flex; justify-content:space-between; align-items:center; font-weight:600; margin-bottom: 0.25rem;">
+                            <span>${entry.type}${extraDetails}</span>
+                            <span style="font-size:0.8rem; color:var(--text-secondary);">${this.formatDate(entry.date)}</span>
+                        </div>
+                        <div style="display:flex; justify-content:space-between; align-items:center;">
+                            <span style="font-size:0.8rem; color:var(--text-secondary);">A los ${entry.km.toLocaleString('es-AR')} km</span>
+                            <button class="btn-delete-maint" data-id="${entry.id}" style="border:none; background:transparent; cursor:pointer;" title="Eliminar registro">❌</button>
+                        </div>
+                    `;
+
+                    li.querySelector('.btn-delete-maint').addEventListener('click', (e) => {
+                        this.deleteMaintenance(e.currentTarget.dataset.id);
+                    });
+
+                    ul.appendChild(li);
+                });
+                this.tiresHistoryLog.appendChild(ul);
+            } else {
+                this.tiresHistoryLog.innerHTML = '<p style="font-size:0.85rem; color:var(--text-secondary); text-align:center; padding: 1rem 0;">No hay historial mecánico de ruedas registrado.</p>';
+            }
+        }
+    }
+}
+
+
+// ==========================================================================
+// MÓDULO 6: COPIAS DE SEGURIDAD (BackupModule - Tolerante a Fallos)
 // ==========================================================================
 class BackupModule {
     constructor(appController) {
@@ -944,7 +1764,11 @@ class BackupModule {
             caseDate: localStorage.getItem('caseDate'),
             systaneDate: localStorage.getItem('systaneDate'),
             clothWashDate: localStorage.getItem('clothWashDate'),
-            clothChangeDate: localStorage.getItem('clothChangeDate')
+            clothChangeDate: localStorage.getItem('clothChangeDate'),
+            health_medical_data: localStorage.getItem('health_medical_data'),
+            health_blood_tests: localStorage.getItem('health_blood_tests'),
+            vehicle_odometer: localStorage.getItem('vehicle_odometer'),
+            vehicle_maintenance_log: localStorage.getItem('vehicle_maintenance_log')
         };
 
         const blob = new Blob([JSON.stringify(unifiedData, null, 2)], { type: "application/json" });
@@ -998,6 +1822,43 @@ class BackupModule {
                 } else if (rawData.appName === undefined && !rawData.groomingData_v2 && !lensFound) {
                     localStorage.setItem('hygiene_tracker_data', JSON.stringify(rawData));
                     importedCategories.push("Higiene");
+                }
+
+                // Salud
+                let healthFound = false;
+                if (rawData.health_medical_data) {
+                    const dataVal = typeof rawData.health_medical_data === 'string' 
+                        ? rawData.health_medical_data 
+                        : JSON.stringify(rawData.health_medical_data);
+                    localStorage.setItem('health_medical_data', dataVal);
+                    healthFound = true;
+                }
+                if (rawData.health_blood_tests) {
+                    const dataVal = typeof rawData.health_blood_tests === 'string' 
+                        ? rawData.health_blood_tests 
+                        : JSON.stringify(rawData.health_blood_tests);
+                    localStorage.setItem('health_blood_tests', dataVal);
+                    healthFound = true;
+                }
+                if (healthFound) {
+                    importedCategories.push("Salud y Controles Médicos");
+                }
+
+                // Vehículo
+                let vehicleFound = false;
+                if (rawData.vehicle_odometer !== undefined && rawData.vehicle_odometer !== null) {
+                    localStorage.setItem('vehicle_odometer', rawData.vehicle_odometer.toString());
+                    vehicleFound = true;
+                }
+                if (rawData.vehicle_maintenance_log) {
+                    const dataVal = typeof rawData.vehicle_maintenance_log === 'string' 
+                        ? rawData.vehicle_maintenance_log 
+                        : JSON.stringify(rawData.vehicle_maintenance_log);
+                    localStorage.setItem('vehicle_maintenance_log', dataVal);
+                    vehicleFound = true;
+                }
+                if (vehicleFound) {
+                    importedCategories.push("Vehículo y Mantenimiento");
                 }
 
                 if (importedCategories.length > 0) {
@@ -1064,12 +1925,16 @@ class AppController {
             
             if (activeSectionId === 'cuidado-section') {
                 this.grooming.render();
-            } else if (activeSectionId === 'lentes-section') {
+            } else if (activeSectionId === 'lenses-section') {
                 this.lenses.updateUI();
                 this.lenses.loadDatesAndStock();
                 this.lenses.renderHistory();
             } else if (activeSectionId === 'higiene-section') {
                 this.hygiene.render();
+            } else if (activeSectionId === 'salud-section') {
+                this.health.render();
+            } else if (activeSectionId === 'vehiculo-section') {
+                this.vehicle.render();
             }
         });
     }
@@ -1138,6 +2003,21 @@ class AppController {
             this.grooming.data[this.currentEditId].sort((a, b) => new Date(b) - new Date(a));
             this.grooming.saveData();
             this.grooming.render();
+        } else if (this.currentEditType === 'medical') {
+            const k = this.currentEditId;
+            const dateStr = isoString.split('T')[0];
+            this.health.medicalData[k].lastVisit = dateStr;
+            
+            if (!this.health.medicalData[k].history) {
+                this.health.medicalData[k].history = [];
+            }
+            if (this.health.medicalData[k].history.length > 0) {
+                this.health.medicalData[k].history[0] = dateStr;
+            } else {
+                this.health.medicalData[k].history.unshift(dateStr);
+            }
+            this.health.saveMedicalData();
+            this.health.render();
         }
 
         this.closeModal();
@@ -1209,6 +2089,8 @@ class AppController {
         this.hygiene = new HygieneModule(this);
         this.grooming = new GroomingModule(this);
         this.lenses = new LensModule(this);
+        this.health = new HealthModule(this);
+        this.vehicle = new VehicleModule(this);
         this.backups = new BackupModule(this);
         
         setInterval(() => {
@@ -1217,6 +2099,8 @@ class AppController {
                 if (activeSection.id === 'higiene-section') this.hygiene.render();
                 else if (activeSection.id === 'cuidado-section') this.grooming.render();
                 else if (activeSection.id === 'lenses-section') this.lenses.loadDatesAndStock();
+                else if (activeSection.id === 'salud-section') this.health.render();
+                else if (activeSection.id === 'vehiculo-section') this.vehicle.render();
             }
         }, 1000 * 60 * 60);
     }
