@@ -933,11 +933,16 @@ class HealthModule {
         this.btnAddBlood = document.getElementById('btn-add-blood-test');
         this.bloodForm = document.getElementById('blood-test-form');
         this.bloodFormDate = document.getElementById('blood-form-date');
-        this.bloodFormPdf = document.getElementById('blood-form-pdf');
         this.bloodFormPortal = document.getElementById('blood-form-portal');
         this.bloodFormCancel = document.getElementById('blood-form-cancel');
         this.bloodFormSave = document.getElementById('blood-form-save');
         this.bloodList = document.getElementById('blood-tests-list');
+
+        // File attachment inputs
+        this.bloodFormFile = document.getElementById('blood-form-file');
+        this.bloodFormFileName = document.getElementById('blood-form-file-name');
+        this.attachedFileData = null;
+        this.attachedFileName = null;
 
         // Configuración médica
         this.medicalData = JSON.parse(localStorage.getItem('health_medical_data')) || {
@@ -966,6 +971,35 @@ class HealthModule {
             }
         });
 
+        // File listener
+        this.bloodFormFile?.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) {
+                if (file.size > 1.5 * 1024 * 1024) {
+                    alert('El archivo es demasiado grande (máximo 1.5MB en modo offline para evitar saturar el navegador). En la siguiente fase con base de datos en la nube no habrá este límite.');
+                    this.bloodFormFile.value = '';
+                    this.attachedFileData = null;
+                    this.attachedFileName = null;
+                    if (this.bloodFormFileName) {
+                        this.bloodFormFileName.classList.add('hidden');
+                        this.bloodFormFileName.innerText = '';
+                    }
+                    return;
+                }
+
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    this.attachedFileData = event.target.result;
+                    this.attachedFileName = file.name;
+                    if (this.bloodFormFileName) {
+                        this.bloodFormFileName.classList.remove('hidden');
+                        this.bloodFormFileName.innerHTML = `<i class="ph ph-file-pdf"></i> ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+                    }
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+
         this.bloodFormCancel?.addEventListener('click', () => {
             this.clearBloodForm();
         });
@@ -980,8 +1014,14 @@ class HealthModule {
     clearBloodForm() {
         if (this.bloodForm) this.bloodForm.classList.add('hidden');
         if (this.bloodFormDate) this.bloodFormDate.value = '';
-        if (this.bloodFormPdf) this.bloodFormPdf.value = '';
         if (this.bloodFormPortal) this.bloodFormPortal.value = '';
+        if (this.bloodFormFile) this.bloodFormFile.value = '';
+        if (this.bloodFormFileName) {
+            this.bloodFormFileName.classList.add('hidden');
+            this.bloodFormFileName.innerText = '';
+        }
+        this.attachedFileData = null;
+        this.attachedFileName = null;
     }
 
     saveBloodTestEntry() {
@@ -994,8 +1034,9 @@ class HealthModule {
         const entry = {
             id: 'blood_' + Date.now(),
             date: dateVal,
-            pdfUrl: this.bloodFormPdf?.value || '',
-            portalUrl: this.bloodFormPortal?.value || ''
+            portalUrl: this.bloodFormPortal?.value || '',
+            fileName: this.attachedFileName || null,
+            fileData: this.attachedFileData || null
         };
 
         this.bloodTests.push(entry);
@@ -1114,13 +1155,18 @@ class HealthModule {
                 historyHtml = '<li style="font-size: 0.85rem; padding: 0.5rem; text-align: center; color: var(--text-secondary);">Sin visitas anteriores</li>';
             }
 
+            const badgeClass = statusText === 'Al día' ? 'green' : (statusText === 'Vencido' ? 'red' : (statusText === 'Próximo' ? 'orange' : ''));
+
             card.innerHTML = `
                 <div class="card-header">
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <div class="icon-container">
                             <i class="ph ${key === 'dentista' ? 'ph-first-aid' : 'ph-eye'}"></i>
                         </div>
-                        <h3 style="font-size: 1.20rem; font-weight:600; margin:0;">${name}</h3>
+                        <h3 style="font-size: 1.15rem; font-weight:600; margin:0; display:flex; align-items:center; gap:8px;">
+                            ${name}
+                            <span class="badge ${badgeClass}" style="font-size: 0.65rem; padding: 2px 6px; text-transform: uppercase;">${statusText}</span>
+                        </h3>
                     </div>
                     <button class="btn-edit-retro-medical" data-key="${key}" title="Editar fecha de última visita" style="background:transparent; border:none; cursor:pointer; color:var(--text-secondary);">
                         <i class="ph ph-pencil-simple" style="font-size: 1.2rem;"></i>
@@ -1242,7 +1288,9 @@ class HealthModule {
                     li.style.padding = '0.75rem 1rem';
 
                     let linksHtml = '';
-                    if (test.pdfUrl) {
+                    if (test.fileData) {
+                        linksHtml += `<a href="${test.fileData}" download="${test.fileName || 'analisis.pdf'}" class="btn-text" style="color: var(--primary-color); display:flex; align-items:center; gap:0.25rem;" title="${test.fileName}"><i class="ph ph-file-pdf"></i> PDF</a>`;
+                    } else if (test.pdfUrl) {
                         linksHtml += `<a href="${test.pdfUrl}" target="_blank" class="btn-text" style="color: var(--primary-color); display:flex; align-items:center; gap:0.25rem;"><i class="ph ph-file-pdf"></i> PDF</a>`;
                     }
                     if (test.portalUrl) {
@@ -2348,22 +2396,24 @@ class GymModule {
                         <span style="font-weight: 600; color: white;">${ex.name}</span>
                         <button type="button" class="btn-history-delete" onclick="window.gym.deleteRoutine(${ex.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </div>
-                    <div class="routine-exercise-inputs" style="display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: flex-start;">
-                        <div style="display: flex; align-items: center; gap: 2px;">
-                            <input type="number" step="0.5" class="routine-weight-input" data-id="${ex.id}" placeholder="Kg" value="${w}" style="width: 45px; background: rgba(0,0,0,0.2); border: 1px solid var(--surface-border); border-radius: 4px; color: white; padding: 2px; text-align: center;">
-                            <span style="font-size:0.75rem; color:var(--text-secondary);">kg</span>
+                    <div class="routine-inputs-row">
+                        <div class="input-unit-wrapper">
+                            <input type="number" step="0.5" class="routine-weight-input" data-id="${ex.id}" placeholder="0.0" value="${w}">
+                            <span class="unit-label">kg</span>
                         </div>
-                        <span style="color:var(--text-secondary); font-size:0.8rem;">x</span>
-                        <div style="display: flex; align-items: center; gap: 2px;">
-                            <input type="number" class="routine-reps-input" data-id="${ex.id}" placeholder="Reps" value="${reps}" style="width: 40px; background: rgba(0,0,0,0.2); border: 1px solid var(--surface-border); border-radius: 4px; color: white; padding: 2px; text-align: center;">
-                            <span style="font-size:0.75rem; color:var(--text-secondary);">reps</span>
+                        <span class="separator">×</span>
+                        <div class="input-unit-wrapper">
+                            <input type="number" class="routine-reps-input" data-id="${ex.id}" placeholder="0" value="${reps}">
+                            <span class="unit-label">reps</span>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 2px; margin-left: 5px;">
-                            <span style="font-size:0.75rem; color:var(--text-secondary);">RIR</span>
-                            <input type="number" class="routine-rir-input" data-id="${ex.id}" placeholder="RIR" value="${rir}" min="0" max="5" style="width: 35px; background: rgba(0,0,0,0.2); border: 1px solid var(--surface-border); border-radius: 4px; color: white; padding: 2px; text-align: center;">
+                        <span class="separator">|</span>
+                        <div class="input-unit-wrapper">
+                            <span class="unit-label-prefix">RIR</span>
+                            <input type="number" class="routine-rir-input" data-id="${ex.id}" placeholder="-" value="${rir}" min="0" max="5">
                         </div>
-                        <label style="display: flex; align-items: center; gap: 3px; font-size:0.75rem; color:var(--text-secondary); cursor:pointer; margin-left: 5px;">
-                            <input type="checkbox" class="routine-failed-input" data-id="${ex.id}" ${failed} style="accent-color: var(--primary-color);"> Fallo
+                        <label class="fail-checkbox-wrapper">
+                            <input type="checkbox" class="routine-failed-input" data-id="${ex.id}" ${failed}>
+                            <span>Fallo</span>
                         </label>
                     </div>
                 `;
@@ -2374,12 +2424,9 @@ class GymModule {
             const form = document.createElement('form');
             form.className = 'inline-add-exercise-form';
             form.setAttribute('data-day', day);
-            form.style.display = 'flex';
-            form.style.gap = '8px';
-            form.style.marginTop = '1rem';
             form.innerHTML = `
-                <input type="text" class="text-input" placeholder="Añadir ejercicio..." required style="flex:1; padding: 6px 10px; font-size:0.85rem;">
-                <button type="submit" class="btn btn-primary" style="margin:0; width:auto; padding:0 12px;"><i class="ph ph-plus"></i></button>
+                <input type="text" class="text-input" placeholder="Añadir ejercicio..." required>
+                <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i></button>
             `;
             card.appendChild(form);
 
@@ -3339,7 +3386,7 @@ class ProjectsModule {
                 </div>
 
                 <div class="finance-block">
-                    <span class="gross-amount">Presupuesto Bruto: USD ${p.budgetGross.toFixed(2)} (${p.feeType === 'direct' ? 'Sin comisiones' : (p.feeType === 'paypal_direct' ? 'Paypal Direct' : `Workana ${p.feeType}%`)})</span>
+                    <span class="gross-amount">Presupuesto Bruto: USD ${p.budgetGross.toFixed(2)} (${p.feeType === 'direct' ? 'Sin comisiones' : (p.feeType === 'paypal_direct' ? 'PayPal Direct' : (p.feeType === 'custom' ? `Workana ${p.manualPercent}%` : `Workana ${p.feeType || 20}%`))})</span>
                     <strong class="net-amount">Neto: USD ${p.budgetNet.toFixed(2)}</strong>
                 </div>
 
@@ -3382,6 +3429,7 @@ class ProjectsModule {
                             <button class="btn btn-primary half" style="margin:0; background: var(--status-green); color: white;" onclick="window.projects.markAsDelivered('${p.id}')"><i class="ph ph-check"></i> Entregado</button>
                         </div>
                     ` : `
+                        <button class="btn btn-secondary" style="margin: 0;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan de Acción</button>
                         <button class="btn btn-primary" style="background:var(--status-green); color:white; width:100%; border:none; padding:12px; font-size:1rem; border-radius:8px; cursor:pointer; margin:0;" onclick="window.projects.confirmPayment('${p.id}')"><i class="ph ph-coins"></i> Pago Confirmado</button>
                     `}
                 </div>

@@ -265,8 +265,10 @@
                                 <input type="date" id="blood-form-date" class="date-input">
                             </div>
                             <div class="input-group">
-                                <label>Enlace al PDF (ej. Google Drive):</label>
-                                <input type="url" id="blood-form-pdf" class="time-input" placeholder="https://drive.google.com/...">
+                                <label>Archivo PDF / Imagen del Estudio:</label>
+                                <input type="file" id="blood-form-file" accept=".pdf,image/*" style="display: none;">
+                                <label for="blood-form-file" class="btn btn-secondary" style="margin: 0; width: 100%; box-sizing: border-box; font-size: 0.9rem; padding: 10px 14px;"><i class="ph ph-paperclip"></i> Adjuntar PDF / Imagen</label>
+                                <div id="blood-form-file-name" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 5px; word-break: break-all;" class="hidden"></div>
                             </div>
                             <div class="input-group">
                                 <label>Enlace al Portal Web del Laboratorio:</label>
