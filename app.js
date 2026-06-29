@@ -3991,6 +3991,7 @@ class AuthSyncModule {
         this.btnSyncNow = document.getElementById('btn-sync-now');
         this.btnLogout = document.getElementById('btn-logout');
         
+        this.realtimeChannel = null;
         this.init();
     }
 
@@ -4118,11 +4119,20 @@ class AuthSyncModule {
             
             // Trigger sync check
             await this.checkAndSyncData();
+
+            // Setup realtime subscription for cross-device updates
+            this.setupRealtimeSubscription();
         } else {
             // Logged out
             if (this.authLoggedIn) this.authLoggedIn.classList.add('hidden');
             if (this.authLoggedOut) this.authLoggedOut.classList.remove('hidden');
             if (this.profileEmail) this.profileEmail.innerText = '';
+
+            // Unsubscribe from channels
+            if (this.realtimeChannel) {
+                this.supabase.removeChannel(this.realtimeChannel);
+                this.realtimeChannel = null;
+            }
         }
     }
 
@@ -4315,6 +4325,42 @@ class AuthSyncModule {
             .getPublicUrl(filePath);
             
         return publicUrl;
+    }
+
+    setupRealtimeSubscription() {
+        if (!this.user || !this.supabase) return;
+        
+        // Remove existing channel if any
+        if (this.realtimeChannel) {
+            this.supabase.removeChannel(this.realtimeChannel);
+        }
+        
+        this.realtimeChannel = this.supabase
+            .channel(`user-data-channel-${this.user.id}`)
+            .on('postgres_changes', { 
+                event: 'UPDATE', 
+                schema: 'public', 
+                table: 'user_data',
+                filter: `user_id=eq.${this.user.id}`
+            }, payload => {
+                const newCloudData = payload.new?.data;
+                if (newCloudData) {
+                    const local = this.gatherLocalData();
+                    let changed = false;
+                    Object.keys(newCloudData).forEach(key => {
+                        if (newCloudData[key] !== local[key]) {
+                            changed = true;
+                        }
+                    });
+                    
+                    if (changed) {
+                        this.restoreDataLocally(newCloudData);
+                        console.log("Realtime sync triggered page reload.");
+                        location.reload();
+                    }
+                }
+            })
+            .subscribe();
     }
 }
 
