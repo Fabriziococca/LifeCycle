@@ -4217,10 +4217,26 @@ class AuthSyncModule {
                     this.updateSyncBadge('synced', "Sincronizado");
                 }
             } else {
-                // Cloud data exists!
+                // Cloud data exists! Compare normalized differences
+                const local = this.gatherLocalData();
+                let hasDifference = false;
+                Object.keys(local).forEach(key => {
+                    const cloudVal = cloudData[key] === undefined ? null : cloudData[key];
+                    const localVal = local[key] === undefined ? null : local[key];
+                    if (cloudVal !== localVal) {
+                        hasDifference = true;
+                    }
+                });
+
+                if (!hasDifference) {
+                    // Perfect sync, do nothing
+                    this.updateSyncBadge('synced', "Sincronizado");
+                    return;
+                }
+
                 if (hasLocalData) {
                     const confirmMerge = confirm(
-                        "¡Sesión iniciada! Se encontraron datos en la nube y también datos locales. \n\n" +
+                        "¡Sesión iniciada! Se encontraron diferencias entre los datos en la nube y los locales. \n\n" +
                         "¿Deseas CARGAR los datos de la nube y sobreescribir los locales?\n" +
                         "(Acepta para usar los datos de la nube. Cancela si deseas mantener los locales y sobreescribir la nube)."
                     );
@@ -4247,7 +4263,7 @@ class AuthSyncModule {
 
     hasAnyLocalData() {
         const local = this.gatherLocalData();
-        return Object.values(local).some(v => v !== null && v !== '');
+        return Object.values(local).some(v => v !== null && v !== undefined && v !== '');
     }
 
     async syncToCloud(isManual = false) {
@@ -4276,10 +4292,21 @@ class AuthSyncModule {
     }
 
     restoreDataLocally(cloudData) {
-        Object.keys(cloudData).forEach(key => {
+        const localKeys = [
+            'hygiene_tracker_data', 'groomingData_v2', 'lensesStartTime', 
+            'lensesHistory', 'lensStock', 'lensDate', 'solutionDate', 
+            'caseDate', 'systaneDate', 'clothWashDate', 'clothChangeDate', 
+            'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
+            'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
+            'gym_routine_focus', 'gym_sessions', 'gym_meals', 
+            'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory'
+        ];
+        localKeys.forEach(key => {
             const val = cloudData[key];
             if (val !== null && val !== undefined) {
                 localStorage.setItem(key, val);
+            } else {
+                localStorage.removeItem(key);
             }
         });
     }
