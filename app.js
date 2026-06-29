@@ -4067,11 +4067,13 @@ class AuthSyncModule {
         if (!email || !password) return;
         
         this.setLoading(true, "Iniciando sesión...");
+        sessionStorage.setItem('is_explicit_login', 'true');
         
         const { data, error } = await this.supabase.auth.signInWithPassword({ email, password });
         
         if (error) {
             alert("Error al iniciar sesión: " + error.message);
+            sessionStorage.removeItem('is_explicit_login');
             this.setLoading(false);
         }
     }
@@ -4087,11 +4089,13 @@ class AuthSyncModule {
         }
         
         this.setLoading(true, "Creando cuenta...");
+        sessionStorage.setItem('is_explicit_login', 'true');
         
         const { data, error } = await this.supabase.auth.signUp({ email, password });
         
         if (error) {
             alert("Error al registrarse: " + error.message);
+            sessionStorage.removeItem('is_explicit_login');
             this.setLoading(false);
         } else {
             alert("¡Registro exitoso! Si se configuró confirmación por correo, revisa tu casilla. De lo contrario, ya has iniciado sesión.");
@@ -4181,7 +4185,20 @@ class AuthSyncModule {
         };
     }
 
-    // Checks if cloud data exists, prompts user to sync/merge on first login
+    areValuesEqual(val1, val2) {
+        if (val1 === val2) return true;
+        if (!val1 && !val2) return true; // both are null/undefined/empty
+        if (!val1 || !val2) return false;
+        
+        try {
+            const obj1 = JSON.parse(val1);
+            const obj2 = JSON.parse(val2);
+            return JSON.stringify(obj1) === JSON.stringify(obj2);
+        } catch (e) {
+            return String(val1).trim() === String(val2).trim();
+        }
+    }
+
     async checkAndSyncData() {
         if (!this.user) return;
         
@@ -4205,11 +4222,9 @@ class AuthSyncModule {
             if (!cloudData) {
                 // No data in cloud yet.
                 if (hasLocalData) {
-                    // Automatically push local data to cloud on first login
                     console.log("No data on cloud, uploading local data...");
                     await this.syncToCloud(false);
                 } else {
-                    // Create empty row in cloud
                     await this.supabase.from('user_data').insert({
                         user_id: this.user.id,
                         data: {}
@@ -4223,18 +4238,21 @@ class AuthSyncModule {
                 Object.keys(local).forEach(key => {
                     const cloudVal = cloudData[key] === undefined ? null : cloudData[key];
                     const localVal = local[key] === undefined ? null : local[key];
-                    if (cloudVal !== localVal) {
+                    if (!this.areValuesEqual(cloudVal, localVal)) {
                         hasDifference = true;
                     }
                 });
 
                 if (!hasDifference) {
-                    // Perfect sync, do nothing
                     this.updateSyncBadge('synced', "Sincronizado");
                     return;
                 }
 
-                if (hasLocalData) {
+                // Check if this was an explicit login action
+                const isExplicitLogin = sessionStorage.getItem('is_explicit_login') === 'true';
+                sessionStorage.removeItem('is_explicit_login');
+
+                if (isExplicitLogin && hasLocalData) {
                     const confirmMerge = confirm(
                         "¡Sesión iniciada! Se encontraron diferencias entre los datos en la nube y los locales. \n\n" +
                         "¿Deseas CARGAR los datos de la nube y sobreescribir los locales?\n" +
@@ -4250,9 +4268,8 @@ class AuthSyncModule {
                         await this.syncToCloud(false);
                     }
                 } else {
-                    // No local data, just pull from cloud
+                    // Pull silently in the background on normal loads (no reload loop!)
                     this.restoreDataLocally(cloudData);
-                    location.reload();
                 }
             }
         } catch (err) {
@@ -4309,6 +4326,23 @@ class AuthSyncModule {
                 localStorage.removeItem(key);
             }
         });
+
+        // Trigger UI updates for all active modules dynamically
+        try {
+            if (this.app.hygiene) this.app.hygiene.render();
+            if (this.app.grooming) this.app.grooming.render();
+            if (this.app.lenses) {
+                this.app.lenses.loadDatesAndStock();
+                this.app.lenses.updateUI();
+                this.app.lenses.renderHistory();
+            }
+            if (this.app.health) this.app.health.render();
+            if (this.app.vehicle) this.app.vehicle.render();
+            if (this.app.gym) this.app.gym.render();
+            if (this.app.projects) this.app.projects.render();
+        } catch (e) {
+            console.error("Error refreshing module views during silent sync:", e);
+        }
     }
 
     updateSyncBadge(state, text) {
@@ -4374,16 +4408,17 @@ class AuthSyncModule {
                 if (newCloudData) {
                     const local = this.gatherLocalData();
                     let changed = false;
-                    Object.keys(newCloudData).forEach(key => {
-                        if (newCloudData[key] !== local[key]) {
+                    Object.keys(local).forEach(key => {
+                        const cloudVal = newCloudData[key] === undefined ? null : newCloudData[key];
+                        const localVal = local[key] === undefined ? null : local[key];
+                        if (!this.areValuesEqual(cloudVal, localVal)) {
                             changed = true;
                         }
                     });
                     
                     if (changed) {
+                        console.log("Realtime sync: differences detected, updating local state silently.");
                         this.restoreDataLocally(newCloudData);
-                        console.log("Realtime sync triggered page reload.");
-                        location.reload();
                     }
                 }
             })
