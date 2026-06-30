@@ -617,6 +617,16 @@ class GroomingModule {
                     if (daysDiff <= 2) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
                     else if (daysDiff === 3) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
                     else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
+                } else if (zone.id === 'pelo') {
+                    if (daysDiff <= 14) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
+                    else if (daysDiff <= 17) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
+                    else if (daysDiff <= 19) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
+                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
+                } else if (zone.id === 'axilas') {
+                    if (daysDiff <= 20) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
+                    else if (daysDiff <= 25) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
+                    else if (daysDiff <= 29) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
+                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
                 } else if (zone.id === 'hoja_gillette') {
                     if (daysDiff <= 30) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
                     else if (daysDiff <= 40) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
@@ -628,7 +638,7 @@ class GroomingModule {
 
             const card = document.createElement('div');
             card.className = zone.isHero ? 'card hero-card' : 'card';
-            if (zone.isHero && daysDiff !== null) {
+            if (daysDiff !== null) {
                 card.style.borderColor = borderColor;
             }
 
@@ -2977,17 +2987,19 @@ class GymModule {
         timerSpan.textContent = remainingDays;
 
         if (badge) {
+            badge.style.background = '';
+            badge.style.color = '';
             if (remainingDays <= 0) {
                 badge.textContent = 'Tomar ahora';
-                badge.style.background = 'var(--status-red)';
+                badge.className = 'badge red';
                 timerSpan.style.color = 'var(--status-red)';
             } else if (remainingDays <= 7) {
                 badge.textContent = 'Próximo';
-                badge.style.background = 'var(--status-orange)';
+                badge.className = 'badge orange';
                 timerSpan.style.color = 'var(--status-orange)';
             } else {
                 badge.textContent = 'Al día';
-                badge.style.background = 'var(--status-green)';
+                badge.className = 'badge green';
                 timerSpan.style.color = 'var(--status-green)';
             }
         }
@@ -3060,15 +3072,17 @@ class GymModule {
         document.getElementById('pain-count-month').textContent = `${monthCount} / 10`;
 
         if (badge) {
+            badge.style.background = '';
+            badge.style.color = '';
             if (dayCount > 2 || weekCount > 6 || monthCount > 10) {
                 badge.textContent = '¡EXCESO!';
-                badge.style.background = 'var(--status-red)';
+                badge.className = 'badge red';
             } else if (dayCount === 2 || weekCount >= 5 || monthCount >= 8) {
                 badge.textContent = 'Al límite';
-                badge.style.background = 'var(--status-orange)';
+                badge.className = 'badge orange';
             } else {
                 badge.textContent = 'Uso seguro';
-                badge.style.background = 'var(--status-green)';
+                badge.className = 'badge green';
             }
         }
 
@@ -4669,6 +4683,27 @@ class AuthSyncModule {
             const subscription = await registration.pushManager.getSubscription();
             
             if (subscription) {
+                const subscriptionJSON = subscription.toJSON();
+                // Sincronización silenciosa en segundo plano (Auto-Heal)
+                (async () => {
+                    try {
+                        await this.supabase
+                            .from('push_subscriptions')
+                            .delete()
+                            .eq('user_id', this.user.id)
+                            .eq('subscription->>endpoint', subscriptionJSON.endpoint);
+                            
+                        await this.supabase
+                            .from('push_subscriptions')
+                            .insert({
+                                user_id: this.user.id,
+                                subscription: subscriptionJSON
+                            });
+                    } catch (err) {
+                        console.warn("Silent subscription auto-heal sync failed:", err);
+                    }
+                })();
+
                 if (this.btnEnablePush) {
                     this.btnEnablePush.innerText = '🔔 Notificaciones Activas en este Dispositivo';
                     this.btnEnablePush.style.borderColor = 'var(--status-green)';

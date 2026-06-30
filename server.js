@@ -173,18 +173,38 @@ app.listen(PORT, () => {
 // Tarea Programada: Chequeo Diario a las 23:00 Argentina Time (UTC-3)
 // ==========================================================================
 let lastNotifiedDate = '';
+let lastSalmonNotifiedDate = '';
+let lastNeckNotifiedDate = '';
 
 setInterval(() => {
     const now = new Date();
     // Convertir la hora a la zona horaria de Argentina (Buenos Aires)
     const argTime = new Date(now.toLocaleString("en-US", { timeZone: "America/Argentina/Buenos_Aires" }));
     const hour = argTime.getHours();
+    const minutes = argTime.getMinutes();
+    const dayOfWeek = argTime.getDay(); // 0 = Domingo, 5 = Viernes, 6 = Sábado
     const dateStr = argTime.toISOString().split('T')[0];
 
+    // Chequeo diario a las 23:00
     if (hour === 23 && lastNotifiedDate !== dateStr) {
         lastNotifiedDate = dateStr;
         console.log(`[Reminders] Iniciando chequeo de alertas diarias para la fecha ${dateStr} a las 23:00 hora de Argentina`);
         checkAndSendDailyReminders();
+        
+        // Enviar recordatorio de creatina diario a las 23:00
+        sendCreatineReminder();
+    }
+
+    // Chequear recordatorio semanal de salmón (Domingos a las 17:00)
+    if (dayOfWeek === 0 && hour === 17 && lastSalmonNotifiedDate !== dateStr) {
+        lastSalmonNotifiedDate = dateStr;
+        sendSalmonReminder();
+    }
+
+    // Chequear recordatorio semanal de cuello (Viernes y Sábados a las 23:30)
+    if ((dayOfWeek === 5 || dayOfWeek === 6) && hour === 23 && minutes >= 30 && minutes < 35 && lastNeckNotifiedDate !== dateStr) {
+        lastNeckNotifiedDate = dateStr;
+        sendNeckReminder();
     }
 
     // Chequear alertas del robot aspiradora cada 5 minutos
@@ -278,6 +298,24 @@ async function checkAndSendDailyReminders() {
                 const elapsed = getDaysElapsed(gilletteHistory[0]);
                 if (elapsed !== null && elapsed > 40) {
                     alerts.push(`🪒 Hoja Gillette: Sugerimos cambiarla (pasaron ${elapsed} días).`);
+                }
+            }
+
+            // Pelo
+            const peloHistory = groomingData['pelo'] || [];
+            if (peloHistory.length > 0) {
+                const elapsed = getDaysElapsed(peloHistory[0]);
+                if (elapsed !== null && elapsed >= 20) {
+                    alerts.push(`💇 Pelo: Ya pasaron ${elapsed} días, te deberías cortar el pelo.`);
+                }
+            }
+
+            // Axilas
+            const axilasHistory = groomingData['axilas'] || [];
+            if (axilasHistory.length > 0) {
+                const elapsed = getDaysElapsed(axilasHistory[0]);
+                if (elapsed !== null && elapsed >= 30) {
+                    alerts.push(`🪒 Axilas: Tiempo de rebajar el vello (hace ${elapsed} días).`);
                 }
             }
 
@@ -506,3 +544,82 @@ async function checkAndSendRobotReminders() {
         console.error("Error en checkAndSendRobotReminders:", err);
     }
 }
+
+// ==========================================================================
+// Funciones Auxiliares para Recordatorios Dedicados
+// ==========================================================================
+async function sendCreatineReminder() {
+    if (!supabase) return;
+    try {
+        const { data: subs } = await supabase.from('push_subscriptions').select('*');
+        if (!subs || subs.length === 0) return;
+        
+        const payload = JSON.stringify({
+            title: '💪 Creatina',
+            body: '¡No te olvides de tomar la creatina de hoy!',
+            url: '/'
+        });
+        
+        console.log(`[Creatina] Enviando recordatorio diario a ${subs.length} dispositivos.`);
+        for (const sub of subs) {
+            try {
+                await webpush.sendNotification(sub.subscription, payload);
+            } catch (err) {
+                console.error("Error sending creatine reminder:", err.message);
+            }
+        }
+    } catch(err) {
+        console.error("Error in sendCreatineReminder:", err);
+    }
+}
+
+async function sendSalmonReminder() {
+    if (!supabase) return;
+    try {
+        const { data: subs } = await supabase.from('push_subscriptions').select('*');
+        if (!subs || subs.length === 0) return;
+        
+        const payload = JSON.stringify({
+            title: '🐟 Salmón & Omega 3',
+            body: 'Recordá sacar el salmón para mañana lunes para comer Omega 3.',
+            url: '/'
+        });
+        
+        console.log(`[Salmón] Enviando recordatorio semanal a ${subs.length} dispositivos.`);
+        for (const sub of subs) {
+            try {
+                await webpush.sendNotification(sub.subscription, payload);
+            } catch (err) {
+                console.error("Error sending salmon reminder:", err.message);
+            }
+        }
+    } catch(err) {
+        console.error("Error in sendSalmonReminder:", err);
+    }
+}
+
+async function sendNeckReminder() {
+    if (!supabase) return;
+    try {
+        const { data: subs } = await supabase.from('push_subscriptions').select('*');
+        if (!subs || subs.length === 0) return;
+        
+        const payload = JSON.stringify({
+            title: '💪 Entrenamiento de Cuello',
+            body: 'Recordá entrenar el cuello hoy (1 vez por semana).',
+            url: '/'
+        });
+        
+        console.log(`[Cuello] Enviando recordatorio semanal a ${subs.length} dispositivos.`);
+        for (const sub of subs) {
+            try {
+                await webpush.sendNotification(sub.subscription, payload);
+            } catch (err) {
+                console.error("Error sending neck reminder:", err.message);
+            }
+        }
+    } catch(err) {
+        console.error("Error in sendNeckReminder:", err);
+    }
+}
+
