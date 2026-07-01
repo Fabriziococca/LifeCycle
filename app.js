@@ -3199,6 +3199,18 @@ class ProjectsModule {
 
             const history = localStorage.getItem('projectPulseHistory');
             if (history) this.history = JSON.parse(history);
+
+            const subscription = localStorage.getItem('projectPulseSubscription');
+            if (subscription) {
+                this.subscription = JSON.parse(subscription);
+            } else {
+                this.subscription = {
+                    plan: 'Explorer',
+                    cost: 37.18,
+                    cycle: 3,
+                    startDate: '2026-04-24'
+                };
+            }
         } catch (err) {
             console.error('Error loading Projects data', err);
         }
@@ -3207,6 +3219,7 @@ class ProjectsModule {
     saveData() {
         localStorage.setItem('projectPulseData', JSON.stringify(this.projects));
         localStorage.setItem('projectPulseHistory', JSON.stringify(this.history));
+        localStorage.setItem('projectPulseSubscription', JSON.stringify(this.subscription));
     }
 
     calculateNet(gross, feeType, manualPercent, isDelegated = false, isReceived = false) {
@@ -3244,6 +3257,61 @@ class ProjectsModule {
     }
 
     setupListeners() {
+        // Workana Subscription Listeners
+        const btnEditSub = document.getElementById('btn-edit-sub');
+        const subForm = document.getElementById('sub-settings-form');
+        const selectPlan = document.getElementById('sub-input-plan');
+        const customPlanContainer = document.getElementById('sub-custom-plan-container');
+
+        if (btnEditSub && subForm && selectPlan && customPlanContainer) {
+            btnEditSub.addEventListener('click', () => {
+                const isHidden = subForm.classList.toggle('hidden');
+                if (!isHidden) {
+                    // Prefill values
+                    const sub = this.subscription;
+                    const isStandard = ['Explorer', 'Profesional', 'Beginner', 'Free'].includes(sub.plan);
+                    selectPlan.value = isStandard ? sub.plan : 'custom';
+                    if (!isStandard) {
+                        customPlanContainer.classList.remove('hidden');
+                        document.getElementById('sub-input-plan-custom').value = sub.plan;
+                    } else {
+                        customPlanContainer.classList.add('hidden');
+                    }
+                    document.getElementById('sub-input-cost').value = sub.cost;
+                    document.getElementById('sub-input-cycle').value = sub.cycle;
+                    document.getElementById('sub-input-date').value = sub.startDate;
+                }
+            });
+
+            selectPlan.addEventListener('change', () => {
+                customPlanContainer.classList.toggle('hidden', selectPlan.value !== 'custom');
+            });
+
+            subForm.addEventListener('submit', (e) => {
+                e.preventDefault();
+                const selectedVal = selectPlan.value;
+                const finalPlanName = selectedVal === 'custom' 
+                    ? document.getElementById('sub-input-plan-custom').value.trim() 
+                    : selectedVal;
+
+                this.subscription = {
+                    plan: finalPlanName || 'Explorer',
+                    cost: parseFloat(document.getElementById('sub-input-cost').value) || 0,
+                    cycle: parseInt(document.getElementById('sub-input-cycle').value) || 3,
+                    startDate: document.getElementById('sub-input-date').value
+                };
+
+                this.saveData();
+                this.render();
+                subForm.classList.add('hidden');
+
+                if (this.app.auth) {
+                    if (navigator.vibrate) navigator.vibrate(50);
+                    this.app.auth.syncToCloud(false).catch(() => {});
+                }
+            });
+        }
+
         // Commission select custom percent toggle
         const feeSelect = document.getElementById('workanaFeeSelect');
         const customContainer = document.getElementById('customFeeContainer');
@@ -3480,7 +3548,64 @@ class ProjectsModule {
         document.getElementById('proj-pastNet').value = '';
     }
 
+    renderSubscription() {
+        const subNameEl = document.getElementById('sub-plan-name');
+        const startDateEl = document.getElementById('sub-start-date');
+        const endDateEl = document.getElementById('sub-end-date');
+        const costValEl = document.getElementById('sub-cost-val');
+        const daysCountEl = document.getElementById('sub-days-count');
+        const badgeEl = document.getElementById('sub-badge');
+        const cardEl = document.getElementById('workana-subscription-card');
+
+        if (!subNameEl || !startDateEl || !endDateEl || !costValEl || !daysCountEl || !badgeEl || !cardEl) return;
+
+        const sub = this.subscription;
+        const start = new Date(sub.startDate + 'T12:00:00');
+        const expiry = new Date(start);
+        expiry.setMonth(expiry.getMonth() + parseInt(sub.cycle));
+
+        const today = new Date();
+        today.setHours(0,0,0,0);
+        const expiryDay = new Date(expiry);
+        expiryDay.setHours(0,0,0,0);
+
+        const diffTime = expiryDay - today;
+        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+        subNameEl.textContent = `Plan ${sub.plan} (${sub.cycle} ${sub.cycle == 1 ? 'mes' : 'meses'})`;
+        startDateEl.textContent = start.toLocaleDateString('es-AR');
+        endDateEl.textContent = expiry.toLocaleDateString('es-AR');
+        costValEl.textContent = `USD ${parseFloat(sub.cost).toFixed(2)}`;
+        daysCountEl.textContent = diffDays;
+
+        // Reset class and styling
+        badgeEl.className = 'badge';
+        cardEl.style.borderBottom = '';
+
+        if (diffDays > 15) {
+            badgeEl.textContent = 'Activa';
+            badgeEl.className = 'badge green';
+            daysCountEl.style.color = 'var(--status-green)';
+        } else if (diffDays > 7) {
+            badgeEl.textContent = 'Por vencer';
+            badgeEl.className = 'badge yellow';
+            daysCountEl.style.color = 'var(--status-yellow)';
+            cardEl.style.borderBottom = '3px solid var(--status-yellow)';
+        } else if (diffDays > 2) {
+            badgeEl.textContent = 'Vence pronto';
+            badgeEl.className = 'badge orange';
+            daysCountEl.style.color = 'var(--status-orange)';
+            cardEl.style.borderBottom = '3px solid var(--status-orange)';
+        } else {
+            badgeEl.textContent = diffDays < 0 ? 'Vencida' : 'Crítico';
+            badgeEl.className = 'badge red';
+            daysCountEl.style.color = 'var(--status-red)';
+            cardEl.style.borderBottom = '3px solid var(--status-red)';
+        }
+    }
+
     render() {
+        this.renderSubscription();
         const list = document.getElementById('projectsList');
         const activeCount = document.getElementById('activeCount');
         if (!list || !activeCount) return;
@@ -4041,7 +4166,8 @@ class BackupModule {
             gym_supplements: localStorage.getItem('gym_supplements'),
             gym_weight: localStorage.getItem('gym_weight'),
             projectPulseData: localStorage.getItem('projectPulseData'),
-            projectPulseHistory: localStorage.getItem('projectPulseHistory')
+            projectPulseHistory: localStorage.getItem('projectPulseHistory'),
+            projectPulseSubscription: localStorage.getItem('projectPulseSubscription')
         };
 
         const blob = new Blob([JSON.stringify(unifiedData, null, 2)], { type: "application/json" });
@@ -4165,6 +4291,13 @@ class BackupModule {
                         ? rawData.projectPulseHistory 
                         : JSON.stringify(rawData.projectPulseHistory);
                     localStorage.setItem('projectPulseHistory', dataVal);
+                    projectsFound = true;
+                }
+                if (rawData.projectPulseSubscription) {
+                    const dataVal = typeof rawData.projectPulseSubscription === 'string' 
+                        ? rawData.projectPulseSubscription 
+                        : JSON.stringify(rawData.projectPulseSubscription);
+                    localStorage.setItem('projectPulseSubscription', dataVal);
                     projectsFound = true;
                 }
                 if (projectsFound) {
@@ -4430,7 +4563,8 @@ class AuthSyncModule {
             gym_supplements: localStorage.getItem('gym_supplements'),
             gym_weight: localStorage.getItem('gym_weight'),
             projectPulseData: localStorage.getItem('projectPulseData'),
-            projectPulseHistory: localStorage.getItem('projectPulseHistory')
+            projectPulseHistory: localStorage.getItem('projectPulseHistory'),
+            projectPulseSubscription: localStorage.getItem('projectPulseSubscription')
         };
     }
 
@@ -4565,7 +4699,7 @@ class AuthSyncModule {
             'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
             'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
             'gym_routine_focus', 'gym_sessions', 'gym_meals', 
-            'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory'
+            'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 'projectPulseSubscription'
         ];
         localKeys.forEach(key => {
             const val = cloudData[key];

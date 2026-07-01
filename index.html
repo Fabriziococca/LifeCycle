@@ -1099,6 +1099,83 @@
                 </div>
             </div>
 
+            <!-- Suscripción Workana Card -->
+            <div class="card" id="workana-subscription-card" style="margin-bottom: 2rem;">
+                <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 12px; margin-bottom: 12px;">
+                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                        <div class="icon-container" style="background: rgba(192, 132, 252, 0.15); color: #c084fc;">
+                            <i class="ph ph-credit-card"></i>
+                        </div>
+                        <div>
+                            <h3 style="margin: 0; font-size: 1.1rem; color: white;">Plan Workana</h3>
+                            <p style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-secondary);" id="sub-plan-name">Cargando plan...</p>
+                        </div>
+                    </div>
+                    <span id="sub-badge" class="badge">Cargando...</span>
+                </div>
+                <div class="card-body" style="padding-top: 0;">
+                    <!-- Detalle de la suscripción -->
+                    <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:1rem;">
+                        <div>
+                            <p style="font-size:0.9rem; margin-bottom: 0.3rem; color: white;">📅 <strong>Inicio:</strong> <span id="sub-start-date" style="color: var(--text-secondary);">-</span></p>
+                            <p style="font-size:0.9rem; margin-bottom: 0.3rem; color: white;">⏰ <strong>Vence:</strong> <span id="sub-end-date" style="color: var(--text-secondary);">-</span></p>
+                            <p style="font-size:0.9rem; margin-bottom: 0.3rem; color: white;">💵 <strong>Costo:</strong> <span id="sub-cost-val" style="color: var(--status-green);">-</span></p>
+                        </div>
+                        <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid var(--surface-border); min-width: 100px;">
+                            <div style="font-size: 0.7rem; color: var(--text-secondary);">Días restantes</div>
+                            <div id="sub-days-count" style="font-size: 1.6rem; font-weight: bold;">-</div>
+                        </div>
+                    </div>
+
+                    <!-- Botón para Editar Configuración de Suscripción -->
+                    <button id="btn-edit-sub" class="btn btn-secondary" style="width: 100%; border-color: rgba(192, 132, 252, 0.3); color: #c084fc; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                        <i class="ph ph-gear"></i> Ajustar Suscripción
+                    </button>
+
+                    <!-- Formulario oculto para editar configuración -->
+                    <form id="sub-settings-form" class="hidden" style="margin-top: 1rem; border-top: 1px solid var(--surface-border); padding-top: 1rem;">
+                        <div class="form-row">
+                            <div class="input-group half">
+                                <label for="sub-input-plan">Nombre del Plan</label>
+                                <select id="sub-input-plan" class="text-input" style="width: 100%; background: var(--surface-card); color: white; border: 1px solid var(--surface-border); border-radius: 6px; height: 42px; padding: 0 10px;">
+                                    <option value="Explorer">Explorer</option>
+                                    <option value="Profesional">Profesional</option>
+                                    <option value="Beginner">Beginner</option>
+                                    <option value="Free">Free</option>
+                                    <option value="custom">Otro (Manual)</option>
+                                </select>
+                            </div>
+                            <div class="input-group half hidden" id="sub-custom-plan-container">
+                                <label for="sub-input-plan-custom">Nombre Personalizado</label>
+                                <input type="text" id="sub-input-plan-custom" class="text-input" placeholder="Ej: Platinum">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="input-group half">
+                                <label for="sub-input-cost">Costo (USD)</label>
+                                <input type="number" step="0.01" id="sub-input-cost" class="number-input" placeholder="Ej: 37.18" required>
+                            </div>
+                            <div class="input-group half">
+                                <label for="sub-input-cycle">Ciclo de Facturación</label>
+                                <select id="sub-input-cycle" class="text-input" style="width: 100%; background: var(--surface-card); color: white; border: 1px solid var(--surface-border); border-radius: 6px; height: 42px; padding: 0 10px;">
+                                    <option value="3">Trimestral (3 meses)</option>
+                                    <option value="1">Mensual (1 mes)</option>
+                                    <option value="6">Semestral (6 meses)</option>
+                                    <option value="12">Anual (12 meses)</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="form-row" style="align-items: flex-end;">
+                            <div class="input-group" style="flex: 1; margin: 0;">
+                                <label for="sub-input-date">Fecha de Último Pago</label>
+                                <input type="date" id="sub-input-date" class="date-input" required>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="margin: 0; width: auto; height: 42px; display: flex; align-items: center; gap: 8px;"><i class="ph ph-floppy-disk"></i> Guardar</button>
+                        </div>
+                    </form>
+                </div>
+            </div>
+
             <!-- Nuevo Proyecto -->
             <div class="card" style="margin-bottom: 2rem;">
                 <div class="card-header">

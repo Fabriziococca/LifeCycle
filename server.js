@@ -440,6 +440,27 @@ async function checkAndSendDailyReminders() {
                 }
             });
 
+            // 8. SUSCRIPCIÓN WORKANA
+            const sub = data.projectPulseSubscription;
+            if (sub && sub.startDate && sub.cycle) {
+                const start = new Date(sub.startDate + 'T12:00:00');
+                const expiry = new Date(start);
+                expiry.setMonth(expiry.getMonth() + parseInt(sub.cycle));
+                
+                const today = new Date();
+                today.setHours(0,0,0,0);
+                const expiryDay = new Date(expiry);
+                expiryDay.setHours(0,0,0,0);
+                const diffTime = expiryDay - today;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                
+                if (diffDays <= 7 && diffDays > 2) {
+                    alerts.push(`💳 Suscripción Workana: Che, en ${diffDays} días tu suscripción va a vencer, acordate de renovarla o de hacer algo al respecto.`);
+                } else if (diffDays <= 2) {
+                    alerts.push(`💳 Suscripción Workana: Vencimiento crítico en ${diffDays} días (${expiry.toLocaleDateString('es-AR')}).`);
+                }
+            }
+
             // Enviar alerta agrupada si existen notificaciones
             if (alerts.length > 0) {
                 const payload = JSON.stringify({
