@@ -53,8 +53,28 @@ if (!supabase) {
     console.warn("⚠️ Advertencia: SUPABASE_URL no está configurada. Supabase no estará disponible en el backend.");
 }
 
+// Rate Limiter integrado y liviano (sin dependencias npm)
+const ipCounts = {};
+setInterval(() => {
+    // Resetear contadores de IP cada 15 minutos para evitar fugas de memoria
+    for (const ip in ipCounts) {
+        delete ipCounts[ip];
+    }
+}, 15 * 60 * 1000);
+
+const rateLimiter = (req, res, next) => {
+    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
+    ipCounts[ip] = (ipCounts[ip] || 0) + 1;
+    if (ipCounts[ip] > 100) {
+        console.warn(`[Security] IP bloqueada temporalmente por exceso de peticiones: ${ip}`);
+        return res.status(429).json({ error: 'Demasiadas solicitudes. Por favor, intentá de nuevo más tarde.' });
+    }
+    next();
+};
+
 // Middleware
 app.use(express.json());
+app.use('/api/', rateLimiter);
 app.use(express.static(__dirname));
 
 // Config endpoint to secure credentials and send VAPID key
@@ -106,14 +126,26 @@ app.post('/api/test-push', (req, res) => {
     res.json({ success: true, message: 'Notificación de prueba programada para dentro de 5 segundos.' });
 });
 
+// Middleware de autenticación para endpoints administrativos
+const checkAdminToken = (req, res, next) => {
+    const token = req.query.token;
+    const secret = process.env.ADMIN_TOKEN || 'fallback-dev-token';
+    if (!token || token !== secret) {
+        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
+        console.warn(`[Security] Intento de acceso no autorizado a endpoint administrativo desde IP: ${ip}`);
+        return res.status(401).json({ error: 'No autorizado. Se requiere un token válido.' });
+    }
+    next();
+};
+
 // Endpoint manual para disparar la revisión de recordatorios
-app.get('/api/check-reminders', async (req, res) => {
+app.get('/api/check-reminders', checkAdminToken, async (req, res) => {
     await checkAndSendDailyReminders();
     res.json({ success: true, message: 'Revisión de recordatorios ejecutada.' });
 });
 
 // Endpoint manual de prueba para disparar alerta de robot inmediatamente si está sucio
-app.get('/api/test-robot-reminder', async (req, res) => {
+app.get('/api/test-robot-reminder', checkAdminToken, async (req, res) => {
     if (!supabase) return res.status(500).json({ error: 'Supabase no configurado' });
     
     try {
