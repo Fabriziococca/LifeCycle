@@ -296,6 +296,7 @@ body {
 /* Card Footer & Button */
 .card-footer {
     margin-top: auto;
+    padding-top: 0.75rem;
 }
 
 .btn-wash {
@@ -809,17 +810,20 @@ body {
 }
 
 .btn-history {
-    background: transparent;
-    border: 1px solid var(--surface-border);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
     color: var(--text-secondary);
     width: 100%;
     font-size: 0.85rem;
     padding: 0.6rem;
+    border-radius: var(--border-radius-md);
+    transition: all 0.2s ease;
 }
 
 .btn-history:hover {
     color: var(--text-primary);
-    background: rgba(255, 255, 255, 0.05);
+    background: rgba(255, 255, 255, 0.08);
+    border-color: rgba(255, 255, 255, 0.15);
 }
 
 .btn-master {
@@ -1007,10 +1011,12 @@ textarea {
 input::-webkit-outer-spin-button,
 input::-webkit-inner-spin-button {
     -webkit-appearance: none;
+    appearance: none;
     margin: 0;
 }
 input[type="number"] {
     -moz-appearance: textfield;
+    appearance: textfield;
 }
 
 

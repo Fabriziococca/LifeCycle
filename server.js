@@ -347,8 +347,12 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         // Higiene
                         case 'esponja_africana':
                             if (hygieneData.esponja_africana) {
-                                const elapsed = getDaysElapsed(hygieneData.esponja_africana);
-                                if (elapsed >= 30) { shouldNotify = true; title = '🧼 Esponja Africana'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
+                                const val = hygieneData.esponja_africana;
+                                const history = Array.isArray(val) ? val : [val];
+                                if (history.length > 0) {
+                                    const elapsed = getDaysElapsed(history[0]);
+                                    if (elapsed >= 30) { shouldNotify = true; title = '🧼 Esponja Africana'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
+                                }
                             }
                             break;
                         case 'toalla_mano':
@@ -383,8 +387,12 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             break;
                         case 'cepillo_dientes':
                             if (hygieneData.cepillo_dientes) {
-                                const elapsed = getDaysElapsed(hygieneData.cepillo_dientes);
-                                if (elapsed >= 90) { shouldNotify = true; title = '🪥 Cepillo de Dientes'; body = `Pasaron ${elapsed} días, recordá cambiarlo.`; }
+                                const val = hygieneData.cepillo_dientes;
+                                const history = Array.isArray(val) ? val : [val];
+                                if (history.length > 0) {
+                                    const elapsed = getDaysElapsed(history[0]);
+                                    if (elapsed >= 90) { shouldNotify = true; title = '🪥 Cepillo de Dientes'; body = `Pasaron ${elapsed} días, recordá cambiarlo.`; }
+                                }
                             }
                             break;
                         case 'dentista':
@@ -392,6 +400,26 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const elapsed = getDaysElapsed(dentista.lastVisit);
                                 const limit = (dentista.frequencyMonths || 6) * 30;
                                 if (elapsed >= limit) { shouldNotify = true; title = '🩺 Control Dentista'; body = `Pasaron ${elapsed} días, sugerimos realizar tu visita periódica.`; }
+                            }
+                            break;
+                        case 'compu_limpieza_int':
+                            if (hygieneData.compu_limpieza_int) {
+                                const val = hygieneData.compu_limpieza_int;
+                                const history = Array.isArray(val) ? val : [val];
+                                if (history.length > 0) {
+                                    const elapsed = getDaysElapsed(history[0]);
+                                    if (elapsed >= 180) { shouldNotify = true; title = '💻 Computadora (Limpieza Int.)'; body = `Pasaron ${elapsed} días, recordá limpiar tu PC por dentro.`; }
+                                }
+                            }
+                            break;
+                        case 'compu_pasta_termica':
+                            if (hygieneData.compu_pasta_termica) {
+                                const val = hygieneData.compu_pasta_termica;
+                                const history = Array.isArray(val) ? val : [val];
+                                if (history.length > 0) {
+                                    const elapsed = getDaysElapsed(history[0]);
+                                    if (elapsed >= 360) { shouldNotify = true; title = '🧪 Computadora (Pasta Térmica)'; body = `Pasaron ${elapsed} días, recordá cambiar la pasta térmica de tu PC.`; }
+                                }
                             }
                             break;
 

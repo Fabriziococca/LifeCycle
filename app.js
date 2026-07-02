@@ -123,6 +123,32 @@ const itemsConfig = [
             { step: 'Lavado', text: 'Sumerge el pad en la bacha con agua tibia (nunca caliente). Aplica un chorrito de shampoo para el pelo para cortar el sebo corporal. Frega suavemente en círculos con un cepillo de cerdas blandas.' },
             { step: 'Enjuague y Secado', text: 'Enjuaga con agua fría hasta retirar todo el jabón. No lo retuerzas. Apoyalo plano sobre una toalla, enrollalo como un pionono para sacar el exceso de agua y déjalo secar estirado a la sombra.' }
         ]
+    },
+    {
+        id: 'compu_limpieza_int',
+        name: 'Computadora (Limpieza Int.)',
+        icon: 'ph-laptop',
+        limits: { yellow: 90, orange: 135, red: 180 },
+        type: 'clean',
+        category: 'tecnologia',
+        instructions: [
+            { step: 'Desarme', text: 'Abrir la tapa lateral o chasis completo del equipo con las herramientas del kit de precisión.' },
+            { step: 'Limpieza', text: 'Usar aire comprimido o perita y un pincel suave para remover pelusas y tierra acumulada en los ventiladores y disipador. Sostener las aspas del fan para que no giren libres.' },
+            { step: 'Armado', text: 'Verificar conexiones, cerrar el chasis y encender el equipo para corroborar flujo de aire y sonido normal.' }
+        ]
+    },
+    {
+        id: 'compu_pasta_termica',
+        name: 'Computadora (Pasta Térmica)',
+        icon: 'ph-wrench',
+        limits: { yellow: 180, orange: 270, red: 360 },
+        type: 'change',
+        category: 'tecnologia',
+        instructions: [
+            { step: 'Desmontaje', text: 'Desatornillar el disipador del procesador (y placa de video si aplica) con cuidado.' },
+            { step: 'Limpieza', text: 'Limpiar la pasta vieja del chip y disipador usando un paño o hisopo humedecido en alcohol isopropílico al 99% hasta que brille el metal.' },
+            { step: 'Aplicación', text: 'Colocar un grano de arroz o gota de pasta de buena calidad (ej. Arctic MX-4) en el centro del procesador, volver a montar el disipador ajustando tornillos en cruz.' }
+        ]
     }
 ];
 
@@ -263,7 +289,8 @@ class HygieneModule {
         if (navigator.vibrate) navigator.vibrate(50);
         
         const nowIso = new Date().toISOString();
-        if (id === 'esponja_africana' || id === 'cepillo_dientes') {
+        const isHistory = itemsConfig.find(x => x.id === id)?.category === 'tecnologia' || id === 'esponja_africana' || id === 'cepillo_dientes';
+        if (isHistory) {
             let history = Array.isArray(this.data[id]) 
                 ? this.data[id] 
                 : (this.data[id] ? [this.data[id]] : []);
@@ -431,7 +458,9 @@ class HygieneModule {
             const histBtn = clone.querySelector('.hygiene-history-btn');
             const logContainer = clone.querySelector('.hygiene-history-log');
 
-            if (item.id === 'esponja_africana' || item.id === 'cepillo_dientes') {
+            const isHistoryEnabled = item.category === 'tecnologia' || item.id === 'esponja_africana' || item.id === 'cepillo_dientes';
+
+            if (isHistoryEnabled) {
                 histBtn.style.display = 'block';
                 histBtn.classList.remove('hidden');
                 
@@ -629,18 +658,43 @@ class GroomingModule {
     }
 
     updatePrediction(historyArray) {
-        if (!historyArray || historyArray.length < 2) return 'Sugerencia: Faltan registros para proyectar';
+        if (!historyArray || historyArray.length === 0) return 'Sin registros';
+        
+        // Filtrar duplicados o registros muy cercanos (menos de 12 horas)
+        const validDates = [];
+        for (let i = 0; i < historyArray.length; i++) {
+            const current = new Date(historyArray[i]);
+            if (validDates.length === 0) {
+                validDates.push(current);
+            } else {
+                const prev = validDates[validDates.length - 1];
+                if (Math.abs(prev - current) > 12 * 60 * 60 * 1000) {
+                    validDates.push(current);
+                }
+            }
+        }
+
+        if (validDates.length < 2) {
+            // Sugerir en 2 días por defecto (frecuencia óptima para la barba)
+            const nextDate = new Date(validDates[0] ? validDates[0].getTime() : Date.now());
+            nextDate.setDate(nextDate.getDate() + 2);
+            let dateStr = nextDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' });
+            return `Próximo afeitado proyectado: ${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)} (Estimado)`;
+        }
         
         let totalDiff = 0;
-        let count = Math.min(historyArray.length - 1, 3);
+        let count = Math.min(validDates.length - 1, 3);
         for (let i = 0; i < count; i++) {
-            const d1 = new Date(historyArray[i]);
-            const d2 = new Date(historyArray[i+1]);
-            totalDiff += (d1 - d2);
+            totalDiff += (validDates[i].getTime() - validDates[i+1].getTime());
         }
-        const avgDiff = totalDiff / count; 
-        const nextDate = new Date(new Date(historyArray[0]).getTime() + avgDiff);
+        let avgDiff = totalDiff / count;
         
+        // Si la diferencia promedio es mayor a 4 días (el límite crítico máximo), la limitamos
+        if (avgDiff > 4 * 24 * 60 * 60 * 1000) {
+            avgDiff = 2.5 * 24 * 60 * 60 * 1000; // Valor razonable por defecto para afeitado regular
+        }
+        
+        const nextDate = new Date(validDates[0].getTime() + avgDiff);
         let dateStr = nextDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' });
         return `Próximo afeitado proyectado: ${dateStr.charAt(0).toUpperCase() + dateStr.slice(1)}`;
     }
@@ -5047,6 +5101,8 @@ const ALERT_DEFINITIONS = [
     { key: 'alfombra_bano', name: 'Alfombra de Baño', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'cepillo_dientes', name: 'Cepillo de Dientes', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'dentista', name: 'Control Dentista', category: 'higiene', type: 'interval', defaultTime: '23:00' },
+    { key: 'compu_limpieza_int', name: 'Computadora (Limpieza Int.)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
+    { key: 'compu_pasta_termica', name: 'Computadora (Pasta Térmica)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
 
     // Cuidado Corporal
     { key: 'pelo', name: 'Corte de Pelo', category: 'cuidado', type: 'interval', defaultTime: '23:00' },

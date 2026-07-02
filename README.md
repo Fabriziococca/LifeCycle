@@ -1,42 +1,72 @@
-# HygieneTracker 🧼
+# LifeCycle 🧼🧔👁️🚗
 
-> **Personal Hygiene & Textile Wash Cycle Manager.**
+> **Unified PWA for Personal Hygiene, Grooming, Health Tracking, and Vehicle Maintenance.**
 
-HygieneTracker is an offline-first Progressive Web App (PWA) designed to automate and track the washing cycles of personal care items and home textiles. It replaces traditional, easily ignored alarms with a visual, state-driven dashboard.
+LifeCycle is an offline-first Progressive Web App (PWA) designed to automate, monitor, and manage the life cycles of daily habits, personal care schedules, vehicle maintenance logs, contact lenses usage, financial projects, and medical visits. 
 
-## 🚀 The Problem it Solves
-
-Maintaining optimal hygiene standards for items like African sponges, pillowcases, and towels requires tracking multiple, overlapping schedules (3, 7, 15, or 30 days). Relying on memory or standard daily alarms creates notification fatigue. HygieneTracker solves this by providing a unified, color-coded visual pulse of what needs washing and when.
-
-## ✨ Key Features
-
-- **Adaptive Visual Urgency:** Items automatically shift colors based on elapsed days:
-  - 🟢 **Green:** Recently washed / Safe.
-  - 🟡 **Yellow:** Approaching wash window.
-  - 🟠 **Orange:** Recommended wash time.
-  - 🔴 **Red:** Mandatory wash overdue.
-- **Pre-configured Dermatological Cycles:**
-  - Hand Towels & Pillowcases: 3-day cycle.
-  - Body Towels & Bed Sheets: 7-day cycle.
-  - African Sponges: 15 to 30-day cycle.
-- **Offline-First PWA:** Built with Service Workers and LocalStorage. It works instantly without an internet connection.
-- **Glassmorphism UI:** Premium dark-mode interface with dynamic glow effects based on the item's status.
-
-## 🛠️ Tech Stack
-
-- **Frontend:** Vanilla JavaScript (ES6+), HTML5, CSS3.
-- **Persistence:** LocalStorage API.
-- **Architecture:** Progressive Web App (PWA).
-- **Icons:** Phosphor Icons.
-
-## 📦 Installation
-
-As a fully compliant PWA, it can be installed directly from the browser:
-
-1. Visit the [GitHub Pages link](https://fabriziococca.github.io/HygieneTracker/).
-2. On Chrome (Mobile): Tap the three dots and select **"Install App"** or **"Add to Home Screen"**.
-3. On Desktop: Click the install icon in the address bar.
+It replaces standard notification fatigue and easily ignored calendar reminders with an adaptive, color-coded visual dashboard and a centralized, floating **Notifications Center**.
 
 ---
 
-Developed with 🧉 by **Fabrizio Cocca**
+## 🚀 Key Modules & Features
+
+### 1. 🧼 Hygiene & Home Textiles (Higiene)
+*   **Washing Cycles:** Track time elapsed since washing or changing key items (African sponges, hand towels, body towels, bed sheets, pillowcases, and toothbrush replacements).
+*   **Interactive History Logs:** Keep up to 10 entries of previous washes/replacements, with the ability to delete entries.
+*   **Robot Vacuum Cleaner:** Log and track custom cleaning warnings for robotic vacuum sweepers.
+
+### 2. 🧔 Grooming & Care (Cuidado)
+*   **Body & Hair Care:** Custom counters for Beard Shaving, Haircuts, Axillary Grooming, and Gillette Blade usage.
+*   **Shaving Prediction:** Smart algorithm predicting the next optimal beard shave day based on average interval logs.
+*   **History Logs:** Delete and manage individual logs to clean up mistaken entries.
+
+### 3. 👁️ Contact Lenses Manager (Lentes)
+*   **Usage Timer & Stock:** Real-time day counter for lens wear time, solution, lens case, Systane drops, and microfiber cloth wash/change cycles.
+*   **Stock alerts:** Triggers low-stock warnings when contact lenses pairs fall below a safety threshold.
+
+### 4. 🚗 Vehicle Maintenance (Vehículo)
+*   **Smart Odometer tracking:** Automatically tracks and flags services for Oil & Filters, Alignment & Balancing, Tire Rotation, and Tire Replacements.
+*   **Status Alert:** Shifts card colors (Green/Yellow/Red) based on km or days remaining.
+
+### 5. 💼 Financial Projects Tracker (ProjectPulse)
+*   **Workana Client & Subscriptions:** Track financial progress (active contracts in USD) and manage Workana subscription plans.
+*   **Visual Deadline Alert:** Color-coded warnings as the subscription renewal deadline approaches.
+
+### 6. 🩺 Health & Medicine (Salud)
+*   Track annual/periodical visits for Dentists, Ophthalmologists, Clinical Blood Tests, and generic custom health controls.
+
+### 7. 🔔 Notifications & Alerts (Alertas)
+*   **Push Notifications:** Configure exact times and recurring days for system alerts.
+*   **Centralized Panel:** Active notification controls for all sections.
+*   **Floating Notifications Center:** A quick-action bell icon dropdown showing overdue (red) items across all sections, allowing immediate checklist completion (`✓ Listo`) from any screen.
+
+---
+
+## 🛠️ Architecture & Tech Stack
+
+*   **Frontend:** HTML5, Vanilla CSS3 (custom glassmorphism style, dark-mode first design), and ES6+ JavaScript.
+*   **Data Persistence:** Offline-first architecture utilizing LocalStorage.
+*   **Cloud Sync:** Bidirectional real-time database sync with **Supabase**, featuring conflict resolution and automatic merge.
+*   **Backend Server:** Node.js Express server hosted on **Render**, performing catch-up checks every 5 minutes and dispatching Web Push Notifications.
+*   **PWA Assets:** Service Workers (caching assets & offline capabilities) and standard web manifest file.
+
+---
+
+## 📦 Local Installation & Running
+
+Ensure you have [Node.js](https://nodejs.org/) installed:
+
+1. Clone the repository:
+   ```bash
+   git clone https://github.com/Fabriziococca/HygieneTracker.git
+   cd HygieneTracker
+   ```
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Run the backend server:
+   ```bash
+   node server.js
+   ```
+4. Access the client PWA by opening `index.html` in your browser.
