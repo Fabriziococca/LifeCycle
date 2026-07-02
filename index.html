@@ -30,6 +30,23 @@
     </div>
 
     <main class="container">
+        <!-- Centro de Notificaciones (Tareas Críticas en Rojo) -->
+        <div class="notifications-wrapper">
+            <button id="notification-bell-btn" class="bell-btn" title="Tareas Críticas Pendientes">
+                <i class="ph ph-bell"></i>
+                <span id="notification-badge" class="bell-badge" style="display: none;">0</span>
+            </button>
+            <div id="notification-dropdown-panel" class="notifications-panel hidden">
+                <div class="notifications-header">
+                    <h4>Tareas Críticas</h4>
+                    <span id="notification-dropdown-count" class="count-badge">0 pendientes</span>
+                </div>
+                <div id="notification-list" class="notifications-list">
+                    <!-- Dinámico -->
+                </div>
+            </div>
+        </div>
+
         <header class="app-header">
             <div class="header-title">
                 <i class="ph-fill ph-activity"></i>
@@ -462,7 +479,6 @@
                 <button class="tab-btn" data-gym-tab="routine"><i class="ph ph-clipboard-text"></i> Rutina</button>
                 <button class="tab-btn" data-gym-tab="sessions"><i class="ph ph-barbell"></i> Sesiones</button>
                 <button class="tab-btn" data-gym-tab="nutrition"><i class="ph ph-salad"></i> Nutrición</button>
-                <button class="tab-btn" data-gym-tab="reminders"><i class="ph ph-bell"></i> Recordatorios</button>
             </div>
 
             <!-- SUB-TAB 1: RÉCORDS -->
@@ -949,126 +965,7 @@
                 </div>
             </div>
 
-            <!-- SUB-TAB 5: RECORDATORIOS -->
-            <div id="gym-reminders-content" class="gym-tab-content hidden">
-                <div class="card">
-                    <div class="card-header">
-                        <div class="icon-container">
-                            <i class="ph ph-bell"></i>
-                        </div>
-                        <h3>Recordatorios Personalizados</h3>
-                    </div>
-                    <div class="card-body">
-                        <p class="backup-text" style="margin-bottom: 1.5rem; color: var(--text-secondary);">
-                            Configurá tus alertas personalizadas de hábitos y nutrición. Las notificaciones push se enviarán en los días y horas seleccionados.
-                        </p>
-                        
-                        <!-- Recordatorio 1: Creatina -->
-                        <div class="reminder-row" style="border-bottom: 1px solid var(--surface-border); padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <i class="ph-bold ph-lightning" style="font-size: 1.2rem; color: var(--primary-color);"></i>
-                                    <h4 style="margin: 0; color: white;">Creatina (Diario)</h4>
-                                </div>
-                                <label class="switch-container" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                    <input type="checkbox" id="reminder-creatine-enabled" class="reminder-toggle" style="width: 18px; height: 18px; accent-color: var(--primary-color);">
-                                    <span style="font-size: 0.85rem; color: var(--text-secondary);">Activar</span>
-                                </label>
-                            </div>
-                            
-                            <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
-                                <div>
-                                    <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px;">Días de notificación</label>
-                                    <div class="day-selectors" id="reminder-creatine-days" style="display: flex; gap: 6px; flex-wrap: wrap;">
-                                        <button class="day-btn" data-day="1">L</button>
-                                        <button class="day-btn" data-day="2">M</button>
-                                        <button class="day-btn" data-day="3">M</button>
-                                        <button class="day-btn" data-day="4">J</button>
-                                        <button class="day-btn" data-day="5">V</button>
-                                        <button class="day-btn" data-day="6">S</button>
-                                        <button class="day-btn" data-day="0">D</button>
-                                    </div>
-                                </div>
-                                <div class="input-group" style="margin: 0;">
-                                    <label for="reminder-creatine-time" style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px;">Horario de notificación</label>
-                                    <input type="time" id="reminder-creatine-time" class="time-input" style="width: 100%; max-width: 120px;">
-                                </div>
-                            </div>
-                        </div>
 
-                        <!-- Recordatorio 2: Salmón -->
-                        <div class="reminder-row" style="border-bottom: 1px solid var(--surface-border); padding-bottom: 1.5rem; margin-bottom: 1.5rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <i class="ph-bold ph-fish" style="font-size: 1.2rem; color: var(--primary-color);"></i>
-                                    <h4 style="margin: 0; color: white;">Salmón (Omega 3)</h4>
-                                </div>
-                                <label class="switch-container" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                    <input type="checkbox" id="reminder-salmon-enabled" class="reminder-toggle" style="width: 18px; height: 18px; accent-color: var(--primary-color);">
-                                    <span style="font-size: 0.85rem; color: var(--text-secondary);">Activar</span>
-                                </label>
-                            </div>
-                            
-                            <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
-                                <div>
-                                    <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px;">Días de notificación</label>
-                                    <div class="day-selectors" id="reminder-salmon-days" style="display: flex; gap: 6px; flex-wrap: wrap;">
-                                        <button class="day-btn" data-day="1">L</button>
-                                        <button class="day-btn" data-day="2">M</button>
-                                        <button class="day-btn" data-day="3">M</button>
-                                        <button class="day-btn" data-day="4">J</button>
-                                        <button class="day-btn" data-day="5">V</button>
-                                        <button class="day-btn" data-day="6">S</button>
-                                        <button class="day-btn" data-day="0">D</button>
-                                    </div>
-                                </div>
-                                <div class="input-group" style="margin: 0;">
-                                    <label for="reminder-salmon-time" style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px;">Horario de notificación</label>
-                                    <input type="time" id="reminder-salmon-time" class="time-input" style="width: 100%; max-width: 120px;">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Recordatorio 3: Cuello -->
-                        <div class="reminder-row" style="margin-bottom: 1rem;">
-                            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem;">
-                                <div style="display: flex; align-items: center; gap: 8px;">
-                                    <i class="ph-bold ph-barbell" style="font-size: 1.2rem; color: var(--primary-color);"></i>
-                                    <h4 style="margin: 0; color: white;">Entrenamiento de Cuello</h4>
-                                </div>
-                                <label class="switch-container" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                    <input type="checkbox" id="reminder-neck-enabled" class="reminder-toggle" style="width: 18px; height: 18px; accent-color: var(--primary-color);">
-                                    <span style="font-size: 0.85rem; color: var(--text-secondary);">Activar</span>
-                                </label>
-                            </div>
-                            
-                            <div style="display: grid; grid-template-columns: 1fr; gap: 12px;">
-                                <div>
-                                    <label style="display: block; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px;">Días de notificación</label>
-                                    <div class="day-selectors" id="reminder-neck-days" style="display: flex; gap: 6px; flex-wrap: wrap;">
-                                        <button class="day-btn" data-day="1">L</button>
-                                        <button class="day-btn" data-day="2">M</button>
-                                        <button class="day-btn" data-day="3">M</button>
-                                        <button class="day-btn" data-day="4">J</button>
-                                        <button class="day-btn" data-day="5">V</button>
-                                        <button class="day-btn" data-day="6">S</button>
-                                        <button class="day-btn" data-day="0">D</button>
-                                    </div>
-                                </div>
-                                <div class="input-group" style="margin: 0;">
-                                    <label for="reminder-neck-time" style="font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 6px;">Horario de notificación</label>
-                                    <input type="time" id="reminder-neck-time" class="time-input" style="width: 100%; max-width: 120px;">
-                                </div>
-                            </div>
-                        </div>
-
-                        <!-- Botón para Guardar Cambios -->
-                        <button id="btn-save-reminders" class="btn btn-primary" style="width: 100%; margin-top: 1.5rem;">
-                            <i class="ph ph-floppy-disk"></i> Guardar Recordatorios
-                        </button>
-                    </div>
-                </div>
-            </div>
         </section>
 
         <!-- SECCIÓN: PROYECTOS (ProjectPulse) -->
@@ -1593,6 +1490,9 @@
                 <div class="progress-container">
                     <div class="progress-bar"></div>
                 </div>
+                
+                <button class="btn btn-history hygiene-history-btn" style="margin-top: 0.75rem; width: 100%; display: none; font-size: 0.85rem; padding: 6px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">Ver historial</button>
+                <div class="history-log hygiene-history-log hidden" style="margin-top: 0.5rem; background: rgba(0,0,0,0.15); border-radius: 6px; padding: 8px;"></div>
             </div>
 
             <div class="instructions-collapse">

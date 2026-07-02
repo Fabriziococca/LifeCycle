@@ -417,6 +417,13 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 if (elapsed >= 30) { shouldNotify = true; title = '🪒 Depilación Axilas'; body = `Tiempo de rebajar el vello (hace ${elapsed} días).`; }
                             }
                             break;
+                        case 'hoja_gillette':
+                            const gilletteHistory = groomingData.hoja_gillette || [];
+                            if (gilletteHistory.length > 0) {
+                                const elapsed = getDaysElapsed(gilletteHistory[0]);
+                                if (elapsed >= 30) { shouldNotify = true; title = '🪒 Hoja Gillette'; body = `Sugerimos cambiar la hoja (pasaron ${elapsed} días).`; }
+                            }
+                            break;
 
                         // Lentes
                         case 'lenses_droplets':

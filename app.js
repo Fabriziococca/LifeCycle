@@ -261,9 +261,62 @@ class HygieneModule {
 
     washItem(id) {
         if (navigator.vibrate) navigator.vibrate(50);
-        this.data[id] = new Date().toISOString();
+        
+        const nowIso = new Date().toISOString();
+        if (id === 'esponja_africana' || id === 'cepillo_dientes') {
+            let history = Array.isArray(this.data[id]) 
+                ? this.data[id] 
+                : (this.data[id] ? [this.data[id]] : []);
+            history.unshift(nowIso);
+            if (history.length > 10) history.pop();
+            this.data[id] = history;
+        } else {
+            this.data[id] = nowIso;
+        }
+        
         this.saveData();
         this.render();
+        this.app.notificationsCenter?.updateBadge();
+    }
+
+    renderHygieneHistoryLog(itemId, historyArray, logContainer) {
+        if (!historyArray || historyArray.length === 0) {
+            logContainer.innerHTML = '<i>Sin registros</i>';
+            return;
+        }
+        logContainer.innerHTML = historyArray.slice(0, 5).map((dateStr, index) => {
+            const dateObj = new Date(dateStr);
+            const formatted = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+            return `
+                <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 0.8rem;">
+                    <span>${formatted}</span>
+                    <button class="btn-delete-hygiene-history" data-item="${itemId}" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 2px 6px;" title="Borrar registro">❌</button>
+                </div>
+            `;
+        }).join('');
+
+        // Bind delete listeners
+        logContainer.querySelectorAll('.btn-delete-hygiene-history').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const itemId = btn.dataset.item;
+                const idx = parseInt(btn.dataset.index);
+                if (confirm('¿Borrar este registro del historial?')) {
+                    if (Array.isArray(this.data[itemId])) {
+                        this.data[itemId].splice(idx, 1);
+                        if (this.data[itemId].length === 0) {
+                            this.data[itemId] = null;
+                        }
+                    } else {
+                        this.data[itemId] = null;
+                    }
+                    this.saveData();
+                    this.render();
+                    this.app.auth?.syncToCloud(false).catch(() => {});
+                    this.app.notificationsCenter?.updateBadge();
+                }
+            });
+        });
     }
 
     render() {
@@ -287,7 +340,10 @@ class HygieneModule {
 
         filteredItems.forEach(item => {
             const type = item.type || 'wash';
-            const lastDateVal = this.data[item.id];
+            const history = Array.isArray(this.data[item.id]) 
+                ? this.data[item.id] 
+                : (this.data[item.id] ? [this.data[item.id]] : []);
+            const lastDateVal = history[0] || null;
             const daysElapsed = this.getDaysElapsed(lastDateVal);
             const statusClass = this.getStatusClass(daysElapsed, item.limits);
             const statusText = this.getStatusText(statusClass, type);
@@ -370,6 +426,27 @@ class HygieneModule {
             actionBtn.querySelector('i').className = `ph-bold ${btnIcon}`;
             
             actionBtn.addEventListener('click', () => this.washItem(item.id));
+
+            // Historial (sólo para esponja africana y cepillo de dientes)
+            const histBtn = clone.querySelector('.hygiene-history-btn');
+            const logContainer = clone.querySelector('.hygiene-history-log');
+
+            if (item.id === 'esponja_africana' || item.id === 'cepillo_dientes') {
+                histBtn.style.display = 'block';
+                histBtn.classList.remove('hidden');
+                
+                this.renderHygieneHistoryLog(item.id, history, logContainer);
+                
+                histBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    const isHidden = logContainer.classList.contains('hidden');
+                    logContainer.classList.toggle('hidden', !isHidden);
+                    histBtn.innerText = isHidden ? 'Ocultar historial' : 'Ver historial';
+                });
+            } else {
+                histBtn.style.display = 'none';
+                logContainer.style.display = 'none';
+            }
 
             this.container.appendChild(clone);
         });
@@ -488,6 +565,7 @@ class HygieneModule {
         this.saveData();
         this.render();
         this.app.auth?.syncToCloud(false).catch(() => {});
+        this.app.notificationsCenter?.updateBadge();
     }
 
     markRobotClean() {
@@ -500,6 +578,7 @@ class HygieneModule {
         this.saveData();
         this.render();
         this.app.auth?.syncToCloud(false).catch(() => {});
+        this.app.notificationsCenter?.updateBadge();
     }
 
     init() {
@@ -580,6 +659,7 @@ class GroomingModule {
         
         this.saveData();
         this.render();
+        this.app.notificationsCenter?.updateBadge();
     }
 
     renderHistoryLog(zoneId, historyArray, logContainer) {
@@ -587,11 +667,32 @@ class GroomingModule {
             logContainer.innerHTML = '<i>Sin registros</i>';
             return;
         }
-        logContainer.innerHTML = historyArray.slice(0, 5).map(dateStr => {
+        logContainer.innerHTML = historyArray.slice(0, 5).map((dateStr, index) => {
             const dateObj = new Date(dateStr);
             const formatted = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
-            return `<div class="history-item"><span>${formatted}</span></div>`;
+            return `
+                <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px;">
+                    <span>${formatted}</span>
+                    <button class="btn-delete-grooming-history" data-zone="${zoneId}" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 2px 6px; font-size: 0.85rem;" title="Borrar registro">❌</button>
+                </div>
+            `;
         }).join('');
+
+        // Bind delete listeners
+        logContainer.querySelectorAll('.btn-delete-grooming-history').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const zone = btn.dataset.zone;
+                const idx = parseInt(btn.dataset.index);
+                if (confirm('¿Borrar este registro del historial?')) {
+                    this.data[zone].splice(idx, 1);
+                    this.saveData();
+                    this.render();
+                    this.app.auth?.syncToCloud(false).catch(() => {});
+                    this.app.notificationsCenter?.updateBadge();
+                }
+            });
+        });
     }
 
     render() {
@@ -628,8 +729,8 @@ class GroomingModule {
                     else if (daysDiff <= 29) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
                     else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
                 } else if (zone.id === 'hoja_gillette') {
-                    if (daysDiff <= 30) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff <= 40) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
+                    if (daysDiff <= 20) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
+                    else if (daysDiff <= 29) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
                     else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
                 } else {
                     colorVar = 'var(--primary-color)';
@@ -942,6 +1043,7 @@ class LensModule {
             elCcDays.innerText = `${ccDays} días de uso`;
             this.updateLabelStyle(elCcDays, ccDays, LENS_LIMITS.clothChange);
         }
+        this.app.notificationsCenter?.updateBadge();
     }
 
     checkStockWarning(stock) {
@@ -1774,6 +1876,7 @@ class VehicleModule {
         this.renderOilCard();
         this.renderTiresCard();
         this.renderHistories();
+        this.controller.notificationsCenter?.updateBadge();
     }
 
     renderOilCard() {
@@ -2472,43 +2575,6 @@ class GymModule {
             });
         }
 
-        // Custom reminders day buttons toggles
-        const dayButtons = document.querySelectorAll('.day-selectors .day-btn');
-        dayButtons.forEach(btn => {
-            btn.addEventListener('click', (e) => {
-                e.preventDefault();
-                btn.classList.toggle('active');
-            });
-        });
-
-        // Custom reminders save button
-        const btnSaveReminders = document.getElementById('btn-save-reminders');
-        if (btnSaveReminders) {
-            btnSaveReminders.addEventListener('click', (e) => {
-                e.preventDefault();
-                if (navigator.vibrate) navigator.vibrate(50);
-                
-                const keys = ['creatine', 'salmon', 'neck'];
-                keys.forEach(k => {
-                    const enabled = document.getElementById(`reminder-${k}-enabled`).checked;
-                    const time = document.getElementById(`reminder-${k}-time`).value || '00:00';
-                    
-                    const days = [];
-                    const daysContainer = document.getElementById(`reminder-${k}-days`);
-                    if (daysContainer) {
-                        daysContainer.querySelectorAll('.day-btn.active').forEach(btn => {
-                            days.push(parseInt(btn.dataset.day));
-                        });
-                    }
-                    
-                    this.supplements.custom_reminders[k] = { enabled, days, time };
-                });
-                
-                this.saveData('gym_supplements');
-                alert('¡Recordatorios guardados con éxito!');
-                this.app.auth?.syncToCloud(false).catch(() => {});
-            });
-        }
     }
 
     render() {
@@ -2525,34 +2591,7 @@ class GymModule {
             this.renderSupplements();
             this.renderPainkillers();
             this.renderWeight();
-        } else if (tab === 'reminders') {
-            this.renderReminders();
         }
-    }
-
-    renderReminders() {
-        const reminders = this.supplements.custom_reminders;
-        if (!reminders) return;
-
-        const keys = ['creatine', 'salmon', 'neck'];
-        keys.forEach(k => {
-            const config = reminders[k];
-            if (!config) return;
-
-            const chk = document.getElementById(`reminder-${k}-enabled`);
-            if (chk) chk.checked = config.enabled;
-
-            const timeInput = document.getElementById(`reminder-${k}-time`);
-            if (timeInput) timeInput.value = config.time || '';
-
-            const daysContainer = document.getElementById(`reminder-${k}-days`);
-            if (daysContainer) {
-                daysContainer.querySelectorAll('.day-btn').forEach(btn => {
-                    const dayVal = parseInt(btn.dataset.day);
-                    btn.classList.toggle('active', (config.days || []).includes(dayVal));
-                });
-            }
-        });
     }
 
     renderRecords() {
@@ -3602,6 +3641,7 @@ class ProjectsModule {
             daysCountEl.style.color = 'var(--status-red)';
             cardEl.style.borderBottom = '3px solid var(--status-red)';
         }
+        this.app.notificationsCenter?.updateBadge();
     }
 
     render() {
@@ -4744,6 +4784,7 @@ class AuthSyncModule {
             if (this.app.vehicle) this.app.vehicle.render();
             if (this.app.gym) this.app.gym.render();
             if (this.app.projects) this.app.projects.render();
+            if (this.app.notificationsCenter) this.app.notificationsCenter.updateBadge();
         } catch (e) {
             console.error("Error refreshing module views during silent sync:", e);
         }
@@ -5011,6 +5052,7 @@ const ALERT_DEFINITIONS = [
     { key: 'pelo', name: 'Corte de Pelo', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
     { key: 'barba', name: 'Afeitado de Barba', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
     { key: 'axilas', name: 'Depilación Axilas', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
+    { key: 'hoja_gillette', name: 'Hoja Gillette', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
 
     // Lentes
     { key: 'lenses_droplets', name: 'Gotas de Ojos (Systane)', category: 'lentes', type: 'interval', defaultTime: '23:00' },
@@ -5232,6 +5274,389 @@ class AlertsModule {
 
 
 // ==========================================================================
+// MÓDULO 10: CENTRO DE NOTIFICACIONES PENDIENTES (TAREAS CRÍTICAS)
+// ==========================================================================
+class NotificationsCenterModule {
+    constructor(appController) {
+        this.app = appController;
+        this.bellBtn = document.getElementById('notification-bell-btn');
+        this.badge = document.getElementById('notification-badge');
+        this.panel = document.getElementById('notification-dropdown-panel');
+        this.countText = document.getElementById('notification-dropdown-count');
+        this.listContainer = document.getElementById('notification-list');
+        
+        this.init();
+    }
+
+    init() {
+        if (!this.bellBtn || !this.panel) return;
+        
+        this.bellBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.panel.classList.toggle('hidden');
+            if (!this.panel.classList.contains('hidden')) {
+                this.render();
+            }
+        });
+        
+        document.addEventListener('click', (e) => {
+            if (this.panel && !this.panel.contains(e.target) && !this.bellBtn.contains(e.target)) {
+                this.panel.classList.add('hidden');
+            }
+        });
+        
+        // Renderizado inicial y polling periódico
+        setTimeout(() => this.updateBadge(), 1000);
+        setInterval(() => this.updateBadge(), 30000);
+    }
+
+    getOverdueItems() {
+        const items = [];
+        const now = new Date();
+
+        // 1. HIGIENE
+        if (this.app.hygiene) {
+            const hData = this.app.hygiene.data;
+            itemsConfig.forEach(item => {
+                const val = hData[item.id];
+                // Permitir soporte para arrays (historial) o strings
+                const history = Array.isArray(val) ? val : (val ? [val] : []);
+                const lastDateVal = history[0] || null;
+                const elapsed = this.app.hygiene.getDaysElapsed(lastDateVal);
+                if (elapsed !== null && elapsed >= item.limits.red) {
+                    items.push({
+                        module: 'hygiene',
+                        id: item.id,
+                        name: item.name,
+                        icon: item.icon || 'ph-sparkle',
+                        desc: `Pasaron ${elapsed} de ${item.limits.red} días.`
+                    });
+                }
+            });
+            // Robot aspiradora
+            if (hData.robot_cleaner && hData.robot_cleaner.status === 'dirty') {
+                let timeText = 'Robot Sucio';
+                if (hData.robot_cleaner.marked_dirty_at) {
+                    const elapsedMs = now - new Date(hData.robot_cleaner.marked_dirty_at);
+                    const elapsedHours = Math.floor(elapsedMs / 3600000);
+                    const elapsedMins = Math.floor((elapsedMs % 3600000) / 60000);
+                    timeText = elapsedHours > 0 ? `Lleva sucio ${elapsedHours}h ${elapsedMins}m` : `Lleva sucio ${elapsedMins} min`;
+                }
+                items.push({
+                    module: 'robot',
+                    id: 'robot_cleaner',
+                    name: 'Robot Aspiradora',
+                    icon: 'ph-robot',
+                    desc: timeText
+                });
+            }
+        }
+
+        // 2. CUIDADO CORPORAL (barba, pelo, axilas, hoja_gillette)
+        if (this.app.grooming) {
+            const gData = this.app.grooming.data;
+            
+            // Barba (límite: >= 4)
+            const barba = gData.barba || [];
+            if (barba.length > 0) {
+                const diff = this.app.grooming.getDaysDiff(barba[0]);
+                if (diff >= 4) {
+                    items.push({
+                        module: 'grooming',
+                        id: 'barba',
+                        name: 'Afeitado de Barba',
+                        icon: 'ph-scissors',
+                        desc: `Pasaron ${diff} de 4 días.`
+                    });
+                }
+            }
+            
+            // Pelo (límite: >= 20)
+            const pelo = gData.pelo || [];
+            if (pelo.length > 0) {
+                const diff = this.app.grooming.getDaysDiff(pelo[0]);
+                if (diff >= 20) {
+                    items.push({
+                        module: 'grooming',
+                        id: 'pelo',
+                        name: 'Corte de Pelo',
+                        icon: 'ph-user',
+                        desc: `Pasaron ${diff} de 20 días.`
+                    });
+                }
+            }
+            
+            // Axilas (límite: >= 30)
+            const axilas = gData.axilas || [];
+            if (axilas.length > 0) {
+                const diff = this.app.grooming.getDaysDiff(axilas[0]);
+                if (diff >= 30) {
+                    items.push({
+                        module: 'grooming',
+                        id: 'axilas',
+                        name: 'Depilación Axilas',
+                        icon: 'ph-user',
+                        desc: `Pasaron ${diff} de 30 días.`
+                    });
+                }
+            }
+            
+            // Hoja Gillette (límite: >= 30)
+            const gillette = gData.hoja_gillette || [];
+            if (gillette.length > 0) {
+                const diff = this.app.grooming.getDaysDiff(gillette[0]);
+                if (diff >= 30) {
+                    items.push({
+                        module: 'grooming',
+                        id: 'hoja_gillette',
+                        name: 'Hoja Gillette',
+                        icon: 'ph-sparkle',
+                        desc: `En uso hace ${diff} de 30 días.`
+                    });
+                }
+            }
+        }
+
+        // 3. LENTES DE CONTACTO
+        if (this.app.lenses) {
+            const checks = [
+                { key: 'lensDate', label: 'Reemplazo de Lentes', limit: LENS_LIMITS.lenses, icon: 'ph-eye' },
+                { key: 'solutionDate', label: 'Solución Lentes', limit: LENS_LIMITS.solution, icon: 'ph-eye' },
+                { key: 'caseDate', label: 'Estuche Lentes', limit: LENS_LIMITS.case, icon: 'ph-eye' },
+                { key: 'systaneDate', label: 'Gotas Systane', limit: LENS_LIMITS.systane, icon: 'ph-eye' },
+                { key: 'clothWashDate', label: 'Lavado Paño', limit: LENS_LIMITS.clothWash, icon: 'ph-eye' },
+                { key: 'clothChangeDate', label: 'Reemplazo Paño', limit: LENS_LIMITS.clothChange, icon: 'ph-eye' }
+            ];
+
+            checks.forEach(c => {
+                const dateVal = localStorage.getItem(c.key);
+                if (dateVal) {
+                    const elapsed = this.app.lenses.calculateDaysElapsed(dateVal);
+                    if (elapsed !== '--' && elapsed >= c.limit) {
+                        items.push({
+                            module: 'lenses',
+                            id: c.key,
+                            name: c.label,
+                            icon: c.icon,
+                            desc: `En uso hace ${elapsed} de ${c.limit} días.`
+                        });
+                    }
+                }
+            });
+        }
+
+        // 4. VEHÍCULO
+        if (this.app.vehicle) {
+            const odo = this.app.vehicle.odometer;
+            const log = this.app.vehicle.maintenanceLog;
+
+            // Aceite y Filtros
+            const lastOil = log.find(m => m.type === 'Aceite y Filtros');
+            if (lastOil) {
+                const remKm = (lastOil.km + 10000) - odo;
+                const days = this.app.vehicle.calculateDaysElapsed(lastOil.date);
+                const remDays = 365 - (days || 0);
+                if (remKm <= 0 || remDays <= 0) {
+                    items.push({
+                        module: 'vehicle',
+                        id: 'oil',
+                        name: 'Aceite y Filtros',
+                        icon: 'ph-car',
+                        desc: remKm <= 0 ? 'Vencido por kilometraje.' : 'Plazo anual vencido.'
+                    });
+                }
+            }
+
+            // Alineación y Balanceo
+            const lastAlign = log.find(m => m.type === 'Alineación & Balanceo');
+            if (lastAlign) {
+                const remKm = (lastAlign.km + 10000) - odo;
+                if (remKm <= 0) {
+                    items.push({
+                        module: 'vehicle',
+                        id: 'align',
+                        name: 'Alineación & Balanceo',
+                        icon: 'ph-car',
+                        desc: 'Vencido por kilometraje.'
+                    });
+                }
+            }
+
+            // Rotación de Neumáticos
+            const lastRot = log.find(m => m.type === 'Rotación de Neumáticos');
+            if (lastRot) {
+                const remKm = (lastRot.km + 10000) - odo;
+                if (remKm <= 0) {
+                    items.push({
+                        module: 'vehicle',
+                        id: 'rot',
+                        name: 'Rotación de Neumáticos',
+                        icon: 'ph-car',
+                        desc: 'Vencido por kilometraje.'
+                    });
+                }
+            }
+
+            // Reemplazo de Neumáticos
+            const lastRep = log.find(m => m.type === 'Reemplazo de Neumáticos');
+            if (lastRep) {
+                const remKm = (lastRep.km + 60000) - odo;
+                if (remKm <= 0) {
+                    items.push({
+                        module: 'vehicle',
+                        id: 'replace',
+                        name: 'Reemplazo de Neumáticos',
+                        icon: 'ph-car',
+                        desc: 'Vencido por kilometraje.'
+                    });
+                }
+            }
+        }
+
+        // 5. WORKANA SUBSCRIPTION
+        if (this.app.projects) {
+            const sub = this.app.projects.subscription;
+            if (sub && sub.startDate) {
+                const nextDate = new Date(sub.startDate);
+                nextDate.setMonth(nextDate.getMonth() + sub.cycle);
+                const diffTime = nextDate - now;
+                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                if (diffDays <= 2) {
+                    items.push({
+                        module: 'workana',
+                        id: 'workana_sub',
+                        name: 'Suscripción Workana',
+                        icon: 'ph-credit-card',
+                        desc: diffDays < 0 ? 'Plazo de suscripción vencido.' : `Vence en ${diffDays} días.`
+                    });
+                }
+            }
+        }
+
+        return items;
+    }
+
+    updateBadge() {
+        const items = this.getOverdueItems();
+        const count = items.length;
+        
+        if (this.badge) {
+            if (count > 0) {
+                this.badge.innerText = count;
+                this.badge.style.display = 'flex';
+            } else {
+                this.badge.style.display = 'none';
+            }
+        }
+        
+        if (this.countText) {
+            this.countText.innerText = `${count} pendientes`;
+        }
+    }
+
+    render() {
+        if (!this.listContainer) return;
+        this.listContainer.innerHTML = '';
+        
+        const items = this.getOverdueItems();
+        
+        if (items.length === 0) {
+            this.listContainer.innerHTML = `
+                <div class="notifications-empty">
+                    <i class="ph ph-check-circle"></i>
+                    <span>¡Estás al día! Sin tareas críticas.</span>
+                </div>
+            `;
+            return;
+        }
+        
+        items.forEach(item => {
+            const el = document.createElement('div');
+            el.className = 'notification-item';
+            el.innerHTML = `
+                <div class="notification-item-info">
+                    <div class="notification-item-title">
+                        <i class="ph ${item.icon}"></i>
+                        <span>${item.name}</span>
+                    </div>
+                    <div class="notification-item-desc">${item.desc}</div>
+                </div>
+                <button class="notification-item-btn" data-module="${item.module}" data-id="${item.id}">
+                    <i class="ph ph-check"></i> Listo
+                </button>
+            `;
+            
+            el.querySelector('.notification-item-btn').addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.completeTask(item.module, item.id);
+            });
+            
+            this.listContainer.appendChild(el);
+        });
+    }
+
+    completeTask(module, id) {
+        if (navigator.vibrate) navigator.vibrate(50);
+        
+        if (module === 'hygiene') {
+            this.app.hygiene.washItem(id);
+        } else if (module === 'robot') {
+            this.app.hygiene.markRobotClean();
+        } else if (module === 'grooming') {
+            this.app.grooming.recordSession(id);
+        } else if (module === 'lenses') {
+            const today = new Date().toISOString().split('T')[0];
+            localStorage.setItem(id, today);
+            this.app.lenses.loadDatesAndStock();
+        } else if (module === 'vehicle') {
+            if (id === 'oil') {
+                const dateVal = new Date().toISOString().split('T')[0];
+                const kmVal = this.app.vehicle.odometer;
+                const entry = {
+                    id: 'maint_' + Date.now(),
+                    type: 'Aceite y Filtros',
+                    date: dateVal,
+                    km: kmVal,
+                    details: { oil: true, filterOil: true, filterAir: true, filterCabin: true }
+                };
+                this.app.vehicle.maintenanceLog.push(entry);
+                this.app.vehicle.maintenanceLog.sort((a, b) => b.km - a.km || new Date(b.date) - new Date(a.date));
+                this.app.vehicle.saveMaintenanceLog();
+                this.app.vehicle.render();
+            } else if (id === 'align') {
+                this.app.vehicle.recordQuickGeometry('Alineación & Balanceo');
+            } else if (id === 'rot') {
+                this.app.vehicle.recordQuickGeometry('Rotación de Neumáticos');
+            } else if (id === 'replace') {
+                const dateVal = new Date().toISOString().split('T')[0];
+                const kmVal = this.app.vehicle.odometer;
+                const entry = {
+                    id: 'maint_' + Date.now(),
+                    type: 'Reemplazo de Neumáticos',
+                    date: dateVal,
+                    km: kmVal,
+                    details: { front: true, rear: true }
+                };
+                this.app.vehicle.maintenanceLog.push(entry);
+                this.app.vehicle.maintenanceLog.sort((a, b) => b.km - a.km || new Date(b.date) - new Date(a.date));
+                this.app.vehicle.saveMaintenanceLog();
+                this.app.vehicle.render();
+            }
+        } else if (module === 'workana') {
+            const today = new Date().toISOString().split('T')[0];
+            this.app.projects.subscription.startDate = today;
+            this.app.projects.saveData();
+            this.app.projects.render();
+        }
+        
+        // Update badge and list in real-time
+        this.updateBadge();
+        this.render();
+    }
+}
+
+
+// ==========================================================================
 // CONTROLADOR CENTRAL: APP CONTROLLER
 // ==========================================================================
 class AppController {
@@ -5373,6 +5798,7 @@ class AppController {
             this.health.render();
         }
 
+        this.notificationsCenter?.updateBadge();
         this.closeModal();
     }
 
@@ -5449,6 +5875,7 @@ class AppController {
         this.backups = new BackupModule(this);
         this.auth = new AuthSyncModule(this);
         this.alerts = new AlertsModule(this);
+        this.notificationsCenter = new NotificationsCenterModule(this);
         
         setInterval(() => {
             const activeSection = document.querySelector('.main-section:not(.hidden)');
@@ -5472,7 +5899,8 @@ class AppController {
             'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
             'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
             'gym_routine_focus', 'gym_sessions', 'gym_meals', 
-            'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory'
+            'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory',
+            'projectPulseSubscription', 'alerts_config'
         ];
         
         if (trackedKeys.includes(key) && this.auth && this.auth.user) {
