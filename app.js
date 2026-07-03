@@ -4890,7 +4890,8 @@ class AuthSyncModule {
             projectPulseData: localStorage.getItem('projectPulseData'),
             projectPulseHistory: localStorage.getItem('projectPulseHistory'),
             projectPulseSubscription: localStorage.getItem('projectPulseSubscription'),
-            alerts_config: localStorage.getItem('alerts_config')
+            alerts_config: localStorage.getItem('alerts_config'),
+            alerts_sent_log: localStorage.getItem('alerts_sent_log')
         };
     }
 
@@ -5054,7 +5055,7 @@ class AuthSyncModule {
             'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
             'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
             'gym_routine_focus', 'gym_sessions', 'gym_meals', 
-            'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 'projectPulseSubscription', 'alerts_config'
+            'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 'projectPulseSubscription', 'alerts_config', 'alerts_sent_log'
         ];
         localKeys.forEach(key => {
             const val = cloudData[key];
@@ -6196,7 +6197,7 @@ class AppController {
             'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
             'gym_routine_focus', 'gym_sessions', 'gym_meals', 
             'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory',
-            'projectPulseSubscription', 'alerts_config'
+            'projectPulseSubscription', 'alerts_config', 'alerts_sent_log'
         ];
         
         if (trackedKeys.includes(key) && this.auth && this.auth.user) {

@@ -25,16 +25,9 @@ if (!publicKey || !privateKey) {
     }
     
     if (!publicKey || !privateKey) {
-        console.log("Generating new VAPID keys...");
-        const newKeys = webpush.generateVAPIDKeys();
-        publicKey = newKeys.publicKey;
-        privateKey = newKeys.privateKey;
-        try {
-            fs.writeFileSync(keysPath, JSON.stringify(newKeys, null, 2), 'utf8');
-            console.log("VAPID keys saved to vapid-keys.json (ignored by git).");
-        } catch (err) {
-            console.error("Error writing vapid-keys.json:", err);
-        }
+        console.log("Using static fallback VAPID keys to prevent mismatch on restart...");
+        publicKey = 'BNFObqN7PPQXTrIxyemfcS1UvP4psiKaow8ytml-LqRhJh4aBQEw968TlrTLV2NZheFsOMAFMrAfCoMpQZPzzeI';
+        privateKey = 'YqywooDDg4CsxMZnNR9DasJaWL650XNa2M-uQmeudCM';
     }
 }
 
@@ -213,17 +206,40 @@ app.listen(PORT, () => {
 });
 
 // ==========================================================================
+// Utilidad: Obtener Fecha y Hora de Argentina (UTC-3) sin errores de DST
+// ==========================================================================
+function getArgentinaTime() {
+    const formatter = new Intl.DateTimeFormat('en-US', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        year: 'numeric', month: '2-digit', day: '2-digit',
+        hour: '2-digit', minute: '2-digit', second: '2-digit',
+        hourCycle: 'h23'
+    });
+    
+    const parts = formatter.formatToParts(new Date());
+    const t = {};
+    parts.forEach(p => t[p.type] = p.value);
+    
+    const hour = parseInt(t.hour, 10);
+    const minutes = parseInt(t.minute, 10);
+    const dateStr = `${t.year}-${t.month}-${t.day}`;
+    
+    const utcDate = new Date(Date.UTC(
+        parseInt(t.year, 10),
+        parseInt(t.month, 10) - 1,
+        parseInt(t.day, 10)
+    ));
+    const dayOfWeek = utcDate.getUTCDay();
+    
+    return { hour, minutes, dayOfWeek, dateStr };
+}
+
+// ==========================================================================
 // Tarea Programada: Chequeo Diario a las 23:00 Argentina Time (UTC-3)
 // ==========================================================================
 let lastNotifiedDate = '';
 
 setInterval(() => {
-    const now = new Date();
-    // Convertir a la hora de Argentina (UTC-3) restando 3 horas al tiempo UTC
-    const argTime = new Date(now.getTime() - (3 * 60 * 60 * 1000));
-    const hour = argTime.getUTCHours();
-    const dateStr = argTime.toISOString().split('T')[0];
-
     // Chequear alertas del robot aspiradora cada 5 minutos
     checkAndSendRobotReminders();
 
@@ -237,13 +253,7 @@ setInterval(() => {
 async function checkAndSendAllAlerts(forceAll = false) {
     if (!supabase) return;
     try {
-        const now = new Date();
-        // Convertir a la hora de Argentina (UTC-3) restando 3 horas al tiempo UTC
-        const argTime = new Date(now.getTime() - (3 * 60 * 60 * 1000));
-        const hour = argTime.getUTCHours();
-        const minutes = argTime.getUTCMinutes();
-        const dayOfWeek = argTime.getUTCDay(); // 0 = Domingo, 1 = Lunes, etc.
-        const dateStr = argTime.toISOString().split('T')[0];
+        const { hour, minutes, dayOfWeek, dateStr } = getArgentinaTime();
 
         const { data: usersData, error: dbError } = await supabase.from('user_data').select('*');
         const { data: subs, error: subError } = await supabase.from('push_subscriptions').select('*');
