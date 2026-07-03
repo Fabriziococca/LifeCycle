@@ -197,6 +197,66 @@ const LENS_LIMITS = {
 const CIRCUMFERENCE = 502; // 2 * Math.PI * 80 (basado en r=80 del SVG)
 
 // ==========================================================================
+// UTILIDADES COMPARTIDAS DE FECHAS
+// ==========================================================================
+class DateUtils {
+    static getDaysElapsed(dateString) {
+        if (!dateString) return null;
+        const lastWashed = new Date(dateString);
+        lastWashed.setHours(0, 0, 0, 0);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const diffTime = Math.abs(today - lastWashed);
+        return Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+    }
+
+    static formatFriendlyDate(dateInput, neverLabel = 'Nunca (Nuevo)') {
+        if (!dateInput) return neverLabel;
+        const date = new Date(dateInput);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dateCompare = new Date(date);
+        dateCompare.setHours(0, 0, 0, 0);
+        
+        if (dateCompare.getTime() === today.getTime()) return 'Hoy';
+        
+        const yesterday = new Date(today);
+        yesterday.setDate(yesterday.getDate() - 1);
+        if (dateCompare.getTime() === yesterday.getTime()) return 'Ayer';
+
+        const tomorrow = new Date(today);
+        tomorrow.setDate(tomorrow.getDate() + 1);
+        if (dateCompare.getTime() === tomorrow.getTime()) return 'Mañana';
+
+        const currentYear = today.getFullYear();
+        const displayOptions = dateCompare.getFullYear() !== currentYear 
+            ? { month: 'short', day: 'numeric', year: 'numeric' }
+            : { month: 'short', day: 'numeric' };
+            
+        return date.toLocaleDateString('es-ES', displayOptions);
+    }
+
+    static formatInputDate(dateStr, neverLabel = 'Nunca') {
+        if (!dateStr) return neverLabel;
+        const parts = dateStr.split('-');
+        if (parts.length !== 3) return dateStr;
+        const [year, month, day] = parts;
+        return `${day}/${month}/${year}`;
+    }
+
+    static formatDateTime(dateInput, emptyLabel = '-') {
+        if (!dateInput) return emptyLabel;
+        const d = new Date(dateInput);
+        const day = String(d.getDate()).padStart(2, '0');
+        const month = String(d.getMonth() + 1).padStart(2, '0');
+        const year = d.getFullYear();
+        const hr = String(d.getHours()).padStart(2, '0');
+        const min = String(d.getMinutes()).padStart(2, '0');
+        return `${day}/${month}/${year} ${hr}:${min}`;
+    }
+}
+
+// ==========================================================================
 // MÓDULO 1: HIGIENE (Original HygieneTracker)
 // ==========================================================================
 class HygieneModule {
@@ -238,13 +298,7 @@ class HygieneModule {
     }
 
     getDaysElapsed(dateString) {
-        if (!dateString) return null;
-        const lastWashed = new Date(dateString);
-        lastWashed.setHours(0, 0, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const diffTime = Math.abs(today - lastWashed);
-        return Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+        return DateUtils.getDaysElapsed(dateString);
     }
 
     getStatusClass(daysElapsed, limits) {
@@ -267,29 +321,7 @@ class HygieneModule {
     }
 
     formatDate(dateInput) {
-        if (!dateInput) return 'Nunca (Nuevo)';
-        const date = new Date(dateInput);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const dateCompare = new Date(date);
-        dateCompare.setHours(0, 0, 0, 0);
-        
-        if (dateCompare.getTime() === today.getTime()) return 'Hoy';
-        
-        const yesterday = new Date(today);
-        yesterday.setDate(yesterday.getDate() - 1);
-        if (dateCompare.getTime() === yesterday.getTime()) return 'Ayer';
-
-        const tomorrow = new Date(today);
-        tomorrow.setDate(tomorrow.getDate() + 1);
-        if (dateCompare.getTime() === tomorrow.getTime()) return 'Mañana';
-
-        const currentYear = today.getFullYear();
-        const displayOptions = dateCompare.getFullYear() !== currentYear 
-            ? { month: 'short', day: 'numeric', year: 'numeric' }
-            : { month: 'short', day: 'numeric' };
-            
-        return date.toLocaleDateString('es-ES', displayOptions);
+        return DateUtils.formatFriendlyDate(dateInput);
     }
 
     getNextDate(dateString, limitDays) {
@@ -1588,15 +1620,11 @@ class HealthModule {
     }
 
     calculateDaysElapsed(dateStr) {
-        if (!dateStr) return null;
-        const diffTime = Math.abs(new Date() - new Date(dateStr));
-        return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        return DateUtils.getDaysElapsed(dateStr);
     }
 
     formatDate(dateStr) {
-        if (!dateStr) return 'Nunca';
-        const [year, month, day] = dateStr.split('-');
-        return `${day}/${month}/${year}`;
+        return DateUtils.formatInputDate(dateStr);
     }
 
     addMonths(date, months) {
@@ -2118,15 +2146,11 @@ class VehicleModule {
     }
 
     formatDate(dateStr) {
-        if (!dateStr) return 'Nunca';
-        const [year, month, day] = dateStr.split('-');
-        return `${day}/${month}/${year}`;
+        return DateUtils.formatInputDate(dateStr);
     }
 
     calculateDaysElapsed(dateStr) {
-        if (!dateStr) return null;
-        const diffTime = Math.abs(new Date() - new Date(dateStr));
-        return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        return DateUtils.getDaysElapsed(dateStr);
     }
 
     render() {
@@ -3542,14 +3566,7 @@ class ProjectsModule {
     }
 
     formatDate(isoString) {
-        if (!isoString) return '-';
-        const d = new Date(isoString);
-        const day = String(d.getDate()).padStart(2, '0');
-        const month = String(d.getMonth() + 1).padStart(2, '0');
-        const year = d.getFullYear();
-        const hr = String(d.getHours()).padStart(2, '0');
-        const min = String(d.getMinutes()).padStart(2, '0');
-        return `${day}/${month}/${year} ${hr}:${min}`;
+        return DateUtils.formatDateTime(isoString);
     }
 
     setupListeners() {
@@ -4666,6 +4683,8 @@ class AuthSyncModule {
         this.btnTestPush = document.getElementById('btn-test-push');
         
         this.realtimeChannel = null;
+        this.isSyncing = false;
+        this.pendingSync = false;
         this.init();
     }
 
@@ -4987,25 +5006,43 @@ class AuthSyncModule {
     async syncToCloud(isManual = false) {
         if (!this.user || !this.supabase) return;
         
+        if (this.isSyncing) {
+            this.pendingSync = true;
+            return;
+        }
+        
+        this.isSyncing = true;
         this.updateSyncBadge('syncing', "Sincronizando...");
         
-        const localData = this.gatherLocalData();
-        
-        const { error } = await this.supabase
-            .from('user_data')
-            .upsert({
-                user_id: this.user.id,
-                data: localData,
-                updated_at: new Date().toISOString()
-            });
+        try {
+            const localData = this.gatherLocalData();
             
-        if (error) {
-            console.error("Sync to cloud error:", error);
-            this.updateSyncBadge('error', "Error al guardar");
-            if (isManual) alert("Error al sincronizar datos con la nube: " + error.message);
-        } else {
-            this.updateSyncBadge('synced', "Sincronizado");
-            if (isManual) alert("¡Datos sincronizados correctamente con la nube!");
+            const { error } = await this.supabase
+                .from('user_data')
+                .upsert({
+                    user_id: this.user.id,
+                    data: localData,
+                    updated_at: new Date().toISOString()
+                });
+                
+            if (error) {
+                console.error("Sync to cloud error:", error);
+                this.updateSyncBadge('error', "Error al guardar");
+                if (isManual) alert("Error al sincronizar datos con la nube: " + error.message);
+            } else {
+                this.updateSyncBadge('synced', "Sincronizado");
+                if (isManual) alert("¡Datos sincronizados correctamente con la nube!");
+            }
+        } catch (e) {
+            console.error("Sync catch error:", e);
+            this.updateSyncBadge('error', "Error de sincronización");
+        } finally {
+            this.isSyncing = false;
+            if (this.pendingSync) {
+                this.pendingSync = false;
+                // Executing pending sync to send latest modifications
+                this.syncToCloud(false);
+            }
         }
     }
 

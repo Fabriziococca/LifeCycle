@@ -75,7 +75,18 @@ const rateLimiter = (req, res, next) => {
 // Middleware
 app.use(express.json());
 app.use('/api/', rateLimiter);
-app.use(express.static(__dirname));
+app.use(express.static(__dirname, {
+    maxAge: '7d', // Cache static assets for 7 days by default
+    setHeaders: (res, filePath) => {
+        if (filePath.endsWith('.html') || filePath.includes('sw.js')) {
+            // HTML files and Service Worker must not be cached strongly to guarantee updates
+            res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+        } else if (filePath.endsWith('.js') || filePath.endsWith('.css') || filePath.endsWith('.json') || filePath.endsWith('.png') || filePath.endsWith('.ico')) {
+            // JS, CSS, JSON, and images cached for 1 week
+            res.setHeader('Cache-Control', 'public, max-age=604800');
+        }
+    }
+}));
 
 // Config endpoint to secure credentials and send VAPID key
 app.get('/api/config', (req, res) => {

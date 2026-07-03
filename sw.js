@@ -1,15 +1,68 @@
+const CACHE_NAME = 'lifecycle-cache-v1';
+const STATIC_ASSETS = [
+    '/',
+    '/index.html',
+    '/app.js',
+    '/style.css',
+    '/manifest.json'
+];
+
 self.addEventListener('install', (e) => {
     console.log('[Service Worker] LifeCycle Installed');
-    self.skipWaiting();
+    e.waitUntil(
+        caches.open(CACHE_NAME).then((cache) => {
+            console.log('[Service Worker] Pre-caching static assets');
+            return cache.addAll(STATIC_ASSETS).catch(err => {
+                console.warn('[Service Worker] Pre-cache failed for some assets, continuing anyway:', err);
+            });
+        }).then(() => self.skipWaiting())
+    );
 });
 
 self.addEventListener('activate', (e) => {
     console.log('[Service Worker] LifeCycle Activated');
-    e.waitUntil(clients.claim());
+    e.waitUntil(
+        caches.keys().then((keys) => {
+            return Promise.all(
+                keys.map((key) => {
+                    if (key !== CACHE_NAME) {
+                        console.log('[Service Worker] Removing old cache', key);
+                        return caches.delete(key);
+                    }
+                })
+            );
+        }).then(() => self.clients.claim())
+    );
 });
 
 self.addEventListener('fetch', (e) => {
-    // Interceptor para modo offline
+    const url = new URL(e.request.url);
+    
+    // Evitar interceptar Supabase, llamadas de API, o métodos que no sean GET
+    if (
+        url.hostname.includes('supabase') || 
+        url.pathname.includes('/api/') || 
+        e.request.method !== 'GET'
+    ) {
+        return;
+    }
+
+    e.respondWith(
+        caches.match(e.request).then((cachedResponse) => {
+            const fetchPromise = fetch(e.request).then((networkResponse) => {
+                if (networkResponse && networkResponse.status === 200) {
+                    caches.open(CACHE_NAME).then((cache) => {
+                        cache.put(e.request, networkResponse.clone());
+                    });
+                }
+                return networkResponse;
+            }).catch(() => {
+                return cachedResponse;
+            });
+
+            return cachedResponse || fetchPromise;
+        })
+    );
 });
 
 // Escuchar notificaciones Push
