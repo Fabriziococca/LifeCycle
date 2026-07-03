@@ -3695,7 +3695,7 @@ class ProjectsModule {
 
         editSave?.addEventListener('click', () => {
             if (!this.currentProjectId) return;
-            const p = this.projects.find(proj => proj.id === this.currentProjectId);
+            const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId));
             if (!p) return;
 
             const extraDays = parseFloat(document.getElementById('proj-extraDays').value) || 0;
