@@ -60,8 +60,6 @@ const itemsConfig = [
             { step: 'Técnica', text: 'Pasa el paño suavemente en movimientos rectos para eliminar huellas y grasitud. Nunca apliques el líquido directo sobre el vidrio ni uses alcohol común.' },
             { step: 'Acción', text: 'Retira la funda del teléfono. Humedece una microfibra multiuso con alcohol isopropílico.' },
             { step: 'Técnica', text: 'Frota todo el cuerpo interno y externo para cortar la grasitud pegada. Si está muy sucia, lavala en la bacha con agua y una gota de jabón blanco neutro. Secala al 100% antes de volver a colocarla.' }
-        ]
-    },
     {
         id: 'computadora',
         name: 'Computadora (Teclado y Ext.)',
@@ -69,6 +67,10 @@ const itemsConfig = [
         limits: { yellow: 7, orange: 11, red: 15 },
         type: 'clean',
         category: 'tecnologia',
+        group: 'computadora',
+        groupName: 'Computadora',
+        groupIcon: 'ph-laptop',
+        subName: 'Teclado y Ext.',
         instructions: [
             { step: 'Teclado y Puertos', text: 'Usa la perita de aire y los cepillos del kit 20 en 1 para sacar el polvo flotante de las ranuras.' },
             { step: 'Chasis y Plásticos', text: 'Humedece una microfibra multiuso con alcohol isopropílico y repasa la tapa, la base y el apoya muñecas para eliminar el brillo aceitoso.' },
@@ -107,6 +109,10 @@ const itemsConfig = [
         limits: { yellow: 7, orange: 14, red: 21 },
         type: 'brush',
         category: 'tecnologia',
+        group: 'pad_xl',
+        groupName: 'Pad XL',
+        groupIcon: 'ph-paint-brush',
+        subName: 'Cepillado en seco',
         instructions: [
             { step: 'Acción', text: 'Usa un cepillo de cerdas medianas o duras (como el de ropa o interiores de auto).' },
             { step: 'Técnica', text: 'Frota de forma vertical y con firmeza sobre la tela para levantar el polvo depositado, las migas y las escamas de piel. Lleva el pad afuera y sacudilo con ganas para eliminar el polvillo suelto.' }
@@ -119,6 +125,10 @@ const itemsConfig = [
         limits: { yellow: 60, orange: 75, red: 90 },
         type: 'wash',
         category: 'tecnologia',
+        group: 'pad_xl',
+        groupName: 'Pad XL',
+        groupIcon: 'ph-paint-brush',
+        subName: 'Lavado a fondo',
         instructions: [
             { step: 'Lavado', text: 'Sumerge el pad en la bacha con agua tibia (nunca caliente). Aplica un chorrito de shampoo para el pelo para cortar el sebo corporal. Frega suavemente en círculos con un cepillo de cerdas blandas.' },
             { step: 'Enjuague y Secado', text: 'Enjuaga con agua fría hasta retirar todo el jabón. No lo retuerzas. Apoyalo plano sobre una toalla, enrollalo como un pionono para sacar el exceso de agua y déjalo secar estirado a la sombra.' }
@@ -131,6 +141,10 @@ const itemsConfig = [
         limits: { yellow: 90, orange: 135, red: 180 },
         type: 'clean',
         category: 'tecnologia',
+        group: 'computadora',
+        groupName: 'Computadora',
+        groupIcon: 'ph-laptop',
+        subName: 'Limpieza Interna',
         instructions: [
             { step: 'Desarme', text: 'Abrir la tapa lateral o chasis completo del equipo con las herramientas del kit de precisión.' },
             { step: 'Limpieza', text: 'Usar aire comprimido o perita y un pincel suave para remover pelusas y tierra acumulada en los ventiladores y disipador. Sostener las aspas del fan para que no giren libres.' },
@@ -144,6 +158,10 @@ const itemsConfig = [
         limits: { yellow: 180, orange: 270, red: 360 },
         type: 'change',
         category: 'tecnologia',
+        group: 'computadora',
+        groupName: 'Computadora',
+        groupIcon: 'ph-laptop',
+        subName: 'Pasta Térmica',
         instructions: [
             { step: 'Desmontaje', text: 'Desatornillar el disipador del procesador (y placa de video si aplica) con cuidado.' },
             { step: 'Limpieza', text: 'Limpiar la pasta vieja del chip y disipador usando un paño o hisopo humedecido en alcohol isopropílico al 99% hasta que brille el metal.' },
@@ -365,119 +383,301 @@ class HygieneModule {
             ? itemsConfig 
             : itemsConfig.filter(item => item.category === this.currentCategory);
 
+        // Agrupación visual
+        const groups = {};
+        const renderedCards = [];
+
         filteredItems.forEach(item => {
-            const type = item.type || 'wash';
-            const history = Array.isArray(this.data[item.id]) 
-                ? this.data[item.id] 
-                : (this.data[item.id] ? [this.data[item.id]] : []);
-            const lastDateVal = history[0] || null;
-            const daysElapsed = this.getDaysElapsed(lastDateVal);
-            const statusClass = this.getStatusClass(daysElapsed, item.limits);
-            const statusText = this.getStatusText(statusClass, type);
-
-            const clone = this.template.content.cloneNode(true);
-            const cardEl = clone.querySelector('.card');
-            
-            cardEl.className = `card ${statusClass}`;
-            clone.querySelector('.card-icon').className = `ph ${item.icon}`;
-            clone.querySelector('.card-title').textContent = item.name;
-            clone.querySelector('.status-text').textContent = statusText;
-            clone.querySelector('.days-count').textContent = daysElapsed === null ? '0' : daysElapsed;
-            
-            let lastDateLabel = 'Último lavado';
-            let nextDateLabel = 'Próximo lavado';
-            if (type === 'change') {
-                lastDateLabel = 'Último cambio';
-                nextDateLabel = 'Próximo cambio';
-            } else if (type === 'clean') {
-                lastDateLabel = 'Última limpieza';
-                nextDateLabel = 'Próxima limpieza';
-            } else if (type === 'brush') {
-                lastDateLabel = 'Último cepillado';
-                nextDateLabel = 'Próximo cepillado';
-            }
-            
-            clone.querySelector('.last-date-label').textContent = lastDateLabel;
-            clone.querySelector('.next-date-label').textContent = nextDateLabel;
-            clone.querySelector('.last-date').textContent = this.formatDate(lastDateVal);
-            
-            if (lastDateVal) {
-                const nextDateVal = this.getNextDate(lastDateVal, item.limits.red);
-                clone.querySelector('.next-date').textContent = this.formatDate(nextDateVal);
+            if (item.group) {
+                if (!groups[item.group]) {
+                    groups[item.group] = {
+                        name: item.groupName,
+                        icon: item.groupIcon,
+                        items: []
+                    };
+                }
+                groups[item.group].items.push(item);
             } else {
-                clone.querySelector('.next-date').textContent = 'N/A';
+                // Item normal (sin grupo)
+                renderedCards.push({ type: 'normal', item });
             }
-            
-            clone.querySelector('.progress-bar').style.width = this.getProgressWidth(daysElapsed, item.limits.red);
+        });
 
-            // Instrucciones desplegables
-            const infoBtn = clone.querySelector('.btn-info');
-            const instructionsCollapse = clone.querySelector('.instructions-collapse');
-            const instructionsContent = clone.querySelector('.instructions-content');
-            
-            if (item.instructions && item.instructions.length > 0) {
-                instructionsContent.innerHTML = item.instructions.map(inst => `
-                    <div class="instruction-step">
-                        <div class="instruction-step-title">${inst.step}</div>
-                        <div class="instruction-step-text">${inst.text}</div>
-                    </div>
-                `).join('');
+        // Añadir los grupos al listado de renderizado
+        Object.keys(groups).forEach(groupKey => {
+            renderedCards.push({ type: 'group', key: groupKey, groupData: groups[groupKey] });
+        });
+
+        // Renderizar cada elemento
+        renderedCards.forEach(cardData => {
+            if (cardData.type === 'normal') {
+                const item = cardData.item;
+                const type = item.type || 'wash';
+                const history = Array.isArray(this.data[item.id]) 
+                    ? this.data[item.id] 
+                    : (this.data[item.id] ? [this.data[item.id]] : []);
+                const lastDateVal = history[0] || null;
+                const daysElapsed = this.getDaysElapsed(lastDateVal);
+                const statusClass = this.getStatusClass(daysElapsed, item.limits);
+                const statusText = this.getStatusText(statusClass, type);
+
+                const clone = this.template.content.cloneNode(true);
+                const cardEl = clone.querySelector('.card');
                 
-                infoBtn.addEventListener('click', (e) => {
+                // Color glow based on status
+                let colorVar = 'var(--status-green)';
+                if (statusClass === 'yellow') colorVar = 'var(--status-yellow)';
+                else if (statusClass === 'orange') colorVar = 'var(--status-orange)';
+                else if (statusClass === 'red') colorVar = 'var(--status-red)';
+                
+                cardEl.style.borderBottom = `3px solid ${colorVar}`;
+
+                clone.querySelector('.card-title').textContent = item.name;
+                clone.querySelector('.card-icon').className = `card-icon ph ${item.icon}`;
+                clone.querySelector('.days-count').textContent = daysElapsed !== null ? daysElapsed : '--';
+                clone.querySelector('.days-count').style.color = colorVar;
+                clone.querySelector('.status-text').textContent = statusText;
+                clone.querySelector('.status-dot').style.backgroundColor = colorVar;
+
+                let lastDateLabel = 'Último lavado';
+                let nextDateLabel = 'Próximo lavado';
+                if (type === 'change') {
+                    lastDateLabel = 'Último cambio';
+                    nextDateLabel = 'Próximo cambio';
+                } else if (type === 'clean') {
+                    lastDateLabel = 'Última limpieza';
+                    nextDateLabel = 'Próxima limpieza';
+                } else if (type === 'brush') {
+                    lastDateLabel = 'Último cepillado';
+                    nextDateLabel = 'Próximo cepillado';
+                }
+                
+                clone.querySelector('.last-date-label').textContent = lastDateLabel;
+                clone.querySelector('.next-date-label').textContent = nextDateLabel;
+                clone.querySelector('.last-date').textContent = this.formatDate(lastDateVal);
+                
+                if (lastDateVal) {
+                    const nextDateVal = this.getNextDate(lastDateVal, item.limits.red);
+                    clone.querySelector('.next-date').textContent = this.formatDate(nextDateVal);
+                } else {
+                    clone.querySelector('.next-date').textContent = 'N/A';
+                }
+                
+                clone.querySelector('.progress-bar').style.width = this.getProgressWidth(daysElapsed, item.limits.red);
+                clone.querySelector('.progress-bar').style.backgroundColor = colorVar;
+
+                // Instrucciones desplegables
+                const infoBtn = clone.querySelector('.btn-info');
+                const instructionsCollapse = clone.querySelector('.instructions-collapse');
+                const instructionsContent = clone.querySelector('.instructions-content');
+                
+                if (item.instructions && item.instructions.length > 0) {
+                    instructionsContent.innerHTML = item.instructions.map(inst => `
+                        <div class="instruction-step">
+                            <div class="instruction-step-title">${inst.step}</div>
+                            <div class="instruction-step-text">${inst.text}</div>
+                        </div>
+                    `).join('');
+                    
+                    infoBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const isOpen = instructionsCollapse.classList.contains('open');
+                        instructionsCollapse.classList.toggle('open', !isOpen);
+                        infoBtn.classList.toggle('active', !isOpen);
+                    });
+                } else {
+                    infoBtn.style.display = 'none';
+                    instructionsCollapse.style.display = 'none';
+                }
+
+                // Botón editar fecha retroactivamente
+                const editBtn = clone.querySelector('.btn-card-edit');
+                editBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
-                    const isOpen = instructionsCollapse.classList.contains('open');
-                    instructionsCollapse.classList.toggle('open', !isOpen);
-                    infoBtn.classList.toggle('active', !isOpen);
+                    this.app.openEditModal('hygiene', item.id, item.name, lastDateVal);
                 });
-            } else {
-                infoBtn.style.display = 'none';
-                instructionsCollapse.style.display = 'none';
-            }
 
-            // Botón editar fecha retroactivamente
-            const editBtn = clone.querySelector('.btn-card-edit');
-            editBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                this.app.openEditModal('hygiene', item.id, item.name, lastDateVal);
-            });
-
-            // Botón de acción principal
-            const actionBtn = clone.querySelector('.btn-wash');
-            let btnText = 'Registrar Lavado';
-            let btnIcon = 'ph-waves';
-            if (type === 'change') { btnText = 'Registrar Cambio'; btnIcon = 'ph-arrows-clockwise'; }
-            else if (type === 'clean') { btnText = 'Registrar Limpieza'; btnIcon = 'ph-sparkle'; }
-            else if (type === 'brush') { btnText = 'Registrar Cepillado'; btnIcon = 'ph-paint-brush'; }
-            
-            actionBtn.querySelector('span').textContent = btnText;
-            actionBtn.querySelector('i').className = `ph-bold ${btnIcon}`;
-            
-            actionBtn.addEventListener('click', () => this.washItem(item.id));
-
-            // Historial (sólo para esponja africana y cepillo de dientes)
-            const histBtn = clone.querySelector('.hygiene-history-btn');
-            const logContainer = clone.querySelector('.hygiene-history-log');
-
-            const isHistoryEnabled = item.category === 'tecnologia' || item.id === 'esponja_africana' || item.id === 'cepillo_dientes';
-
-            if (isHistoryEnabled) {
-                histBtn.style.display = 'block';
-                histBtn.classList.remove('hidden');
+                // Botón de acción principal
+                const actionBtn = clone.querySelector('.btn-wash');
+                let btnText = 'Registrar Lavado';
+                let btnIcon = 'ph-waves';
+                if (type === 'change') { btnText = 'Registrar Cambio'; btnIcon = 'ph-arrows-clockwise'; }
+                else if (type === 'clean') { btnText = 'Registrar Limpieza'; btnIcon = 'ph-sparkle'; }
+                else if (type === 'brush') { btnText = 'Registrar Cepillado'; btnIcon = 'ph-paint-brush'; }
                 
-                this.renderHygieneHistoryLog(item.id, history, logContainer);
+                actionBtn.querySelector('span').textContent = btnText;
+                actionBtn.querySelector('i').className = `ph-bold ${btnIcon}`;
                 
-                histBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const isHidden = logContainer.classList.contains('hidden');
-                    logContainer.classList.toggle('hidden', !isHidden);
-                    histBtn.innerText = isHidden ? 'Ocultar historial' : 'Ver historial';
+                actionBtn.addEventListener('click', () => this.washItem(item.id));
+
+                // Historial (sólo para esponja africana, cepillo de dientes y tecnología)
+                const histBtn = clone.querySelector('.hygiene-history-btn');
+                const logContainer = clone.querySelector('.hygiene-history-log');
+
+                const isHistoryEnabled = item.category === 'tecnologia' || item.id === 'esponja_africana' || item.id === 'cepillo_dientes';
+
+                if (isHistoryEnabled) {
+                    histBtn.style.display = 'block';
+                    histBtn.classList.remove('hidden');
+                    
+                    this.renderHygieneHistoryLog(item.id, history, logContainer);
+                    
+                    histBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const isHidden = logContainer.classList.contains('hidden');
+                        logContainer.classList.toggle('hidden', !isHidden);
+                        histBtn.innerText = isHidden ? 'Ocultar historial' : 'Ver historial';
+                    });
+                } else {
+                    histBtn.style.display = 'none';
+                    logContainer.style.display = 'none';
+                }
+
+                this.container.appendChild(clone);
+
+            } else if (cardData.type === 'group') {
+                const groupData = cardData.groupData;
+                const groupKey = cardData.key;
+                
+                // Buscar la plantilla de tarjeta grupal
+                const groupTemplate = document.getElementById('group-card-template');
+                const clone = groupTemplate.content.cloneNode(true);
+                const cardEl = clone.querySelector('.card');
+                
+                clone.querySelector('.card-title').textContent = groupData.name;
+                clone.querySelector('.card-icon').className = `card-icon ph ${groupData.icon}`;
+                
+                const subitemsContainer = clone.querySelector('.group-subitems-container');
+                subitemsContainer.innerHTML = '';
+                
+                // Determinar el peor estado entre los subitems para definir el color de borde de la tarjeta grupal
+                let worstStatus = 'green';
+                
+                groupData.items.forEach((item, index) => {
+                    const type = item.type || 'wash';
+                    const history = Array.isArray(this.data[item.id]) 
+                        ? this.data[item.id] 
+                        : (this.data[item.id] ? [this.data[item.id]] : []);
+                    const lastDateVal = history[0] || null;
+                    const daysElapsed = this.getDaysElapsed(lastDateVal);
+                    const statusClass = this.getStatusClass(daysElapsed, item.limits);
+                    const statusText = this.getStatusText(statusClass, type);
+                    
+                    if (statusClass === 'red') worstStatus = 'red';
+                    else if (statusClass === 'orange' && worstStatus !== 'red') worstStatus = 'orange';
+                    else if (statusClass === 'yellow' && worstStatus !== 'red' && worstStatus !== 'orange') worstStatus = 'yellow';
+                    
+                    let statusColor = 'var(--status-green)';
+                    if (statusClass === 'yellow') statusColor = 'var(--status-yellow)';
+                    else if (statusClass === 'orange') statusColor = 'var(--status-orange)';
+                    else if (statusClass === 'red') statusColor = 'var(--status-red)';
+                    
+                    let btnText = 'Registrar Lavado';
+                    let btnIcon = 'ph-waves';
+                    if (type === 'change') { btnText = 'Registrar Cambio'; btnIcon = 'ph-arrows-clockwise'; }
+                    else if (type === 'clean') { btnText = 'Registrar Limpieza'; btnIcon = 'ph-sparkle'; }
+                    else if (type === 'brush') { btnText = 'Registrar Cepillado'; btnIcon = 'ph-paint-brush'; }
+                    
+                    const subItemEl = document.createElement('div');
+                    subItemEl.className = 'group-subitem';
+                    subItemEl.style.borderTop = index > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none';
+                    subItemEl.style.paddingTop = index > 0 ? '1.25rem' : '0.5rem';
+                    subItemEl.style.paddingBottom = '0.5rem';
+                    
+                    subItemEl.innerHTML = `
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+                            <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: #fff;">${item.subName}</h4>
+                            <div style="display: flex; align-items: center; gap: 8px;">
+                                <button class="btn-info sub-info-btn" title="Ver Instrucciones" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; font-size: 1rem;"><i class="ph ph-book-open"></i></button>
+                                <button class="btn-card-edit sub-edit-btn" title="Editar Fecha" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; font-size: 1rem;"><i class="ph ph-pencil-simple"></i></button>
+                                <span class="status-dot" style="background-color: ${statusColor}; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px ${statusColor};"></span>
+                            </div>
+                        </div>
+                        
+                        <div class="instructions-collapse hidden" style="margin-bottom: 0.75rem;">
+                            <div class="instructions-content" style="font-size: 0.8rem; color: var(--text-secondary); background: rgba(0,0,0,0.15); border-radius: 6px; padding: 8px;"></div>
+                        </div>
+
+                        <div style="display: flex; align-items: baseline; gap: 6px; margin-bottom: 0.5rem;">
+                            <span style="font-size: 1.5rem; font-weight: 700; color: ${statusColor};">${daysElapsed !== null ? daysElapsed : '--'}</span>
+                            <span style="font-size: 0.85rem; color: var(--text-secondary);">días</span>
+                        </div>
+
+                        <div style="font-size: 0.75rem; color: var(--text-secondary); display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 0.75rem;">
+                            <div>Último: <strong style="color: white; font-weight: 500;">${this.formatDate(lastDateVal)}</strong></div>
+                            <div>Próximo: <strong style="color: white; font-weight: 500;">${lastDateVal ? this.formatDate(this.getNextDate(lastDateVal, item.limits.red)) : 'N/A'}</strong></div>
+                        </div>
+
+                        <div class="progress-container" style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; margin-bottom: 0.75rem;">
+                            <div class="progress-bar" style="width: ${this.getProgressWidth(daysElapsed, item.limits.red)}; background-color: ${statusColor}; height: 100%;"></div>
+                        </div>
+
+                        <button class="btn btn-history hygiene-history-btn" style="margin-top: 0.5rem; width: 100%; font-size: 0.8rem; padding: 6px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">Ver historial</button>
+                        <div class="history-log hygiene-history-log hidden" style="margin-top: 0.5rem; background: rgba(0,0,0,0.15); border-radius: 6px; padding: 8px;"></div>
+                        
+                        <div class="card-footer" style="padding-top: 0.75rem; margin-top: 0.5rem;">
+                            <button class="btn-wash" style="padding: 0.6rem; font-size: 0.85rem;">
+                                <i class="ph-bold ${btnIcon}"></i>
+                                <span>${btnText}</span>
+                            </button>
+                        </div>
+                    `;
+                    
+                    // Bind actions
+                    const infoBtn = subItemEl.querySelector('.sub-info-btn');
+                    const instCollapse = subItemEl.querySelector('.instructions-collapse');
+                    const instContent = subItemEl.querySelector('.instructions-content');
+                    
+                    if (item.instructions && item.instructions.length > 0) {
+                        instContent.innerHTML = item.instructions.map(inst => `
+                            <div class="instruction-step">
+                                <div class="instruction-step-title">${inst.step}</div>
+                                <div class="instruction-step-text">${inst.text}</div>
+                            </div>
+                        `).join('');
+                        
+                        infoBtn.addEventListener('click', (e) => {
+                            e.stopPropagation();
+                            instCollapse.classList.toggle('hidden');
+                            infoBtn.classList.toggle('active');
+                        });
+                    } else {
+                        infoBtn.style.display = 'none';
+                        instCollapse.style.display = 'none';
+                    }
+                    
+                    subItemEl.querySelector('.sub-edit-btn').addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        this.app.openEditModal('hygiene', item.id, `${groupData.name} (${item.subName})`, lastDateVal);
+                    });
+                    
+                    subItemEl.querySelector('.btn-wash').addEventListener('click', () => this.washItem(item.id));
+                    
+                    const logContainer = subItemEl.querySelector('.hygiene-history-log');
+                    const histBtn = subItemEl.querySelector('.hygiene-history-btn');
+                    
+                    this.renderHygieneHistoryLog(item.id, history, logContainer);
+                    
+                    histBtn.addEventListener('click', (e) => {
+                        e.stopPropagation();
+                        const isHidden = logContainer.classList.contains('hidden');
+                        logContainer.classList.toggle('hidden', !isHidden);
+                        histBtn.innerText = isHidden ? 'Ocultar historial' : 'Ver historial';
+                    });
+                    
+                    subitemsContainer.appendChild(subItemEl);
                 });
-            } else {
-                histBtn.style.display = 'none';
-                logContainer.style.display = 'none';
+                
+                // Color borde según peor estado
+                let groupColor = 'var(--status-green)';
+                if (worstStatus === 'yellow') groupColor = 'var(--status-yellow)';
+                else if (worstStatus === 'orange') groupColor = 'var(--status-orange)';
+                else if (worstStatus === 'red') groupColor = 'var(--status-red)';
+                
+                cardEl.style.borderBottom = `3px solid ${groupColor}`;
+                
+                this.container.appendChild(clone);
             }
-
-            this.container.appendChild(clone);
         });
     }
 
