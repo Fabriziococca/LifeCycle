@@ -60,6 +60,8 @@ const itemsConfig = [
             { step: 'Técnica', text: 'Pasa el paño suavemente en movimientos rectos para eliminar huellas y grasitud. Nunca apliques el líquido directo sobre el vidrio ni uses alcohol común.' },
             { step: 'Acción', text: 'Retira la funda del teléfono. Humedece una microfibra multiuso con alcohol isopropílico.' },
             { step: 'Técnica', text: 'Frota todo el cuerpo interno y externo para cortar la grasitud pegada. Si está muy sucia, lavala en la bacha con agua y una gota de jabón blanco neutro. Secala al 100% antes de volver a colocarla.' }
+        ]
+    },
     {
         id: 'computadora',
         name: 'Computadora (Teclado y Ext.)',
@@ -426,10 +428,11 @@ class HygieneModule {
                 
                 // Color glow based on status
                 let colorVar = 'var(--status-green)';
-                if (statusClass === 'yellow') colorVar = 'var(--status-yellow)';
-                else if (statusClass === 'orange') colorVar = 'var(--status-orange)';
-                else if (statusClass === 'red') colorVar = 'var(--status-red)';
+                if (statusClass === 'status-yellow') colorVar = 'var(--status-yellow)';
+                else if (statusClass === 'status-orange') colorVar = 'var(--status-orange)';
+                else if (statusClass === 'status-red') colorVar = 'var(--status-red)';
                 
+                cardEl.className = `card ${statusClass}`;
                 cardEl.style.borderBottom = `3px solid ${colorVar}`;
 
                 clone.querySelector('.card-title').textContent = item.name;
@@ -563,14 +566,14 @@ class HygieneModule {
                     const statusClass = this.getStatusClass(daysElapsed, item.limits);
                     const statusText = this.getStatusText(statusClass, type);
                     
-                    if (statusClass === 'red') worstStatus = 'red';
-                    else if (statusClass === 'orange' && worstStatus !== 'red') worstStatus = 'orange';
-                    else if (statusClass === 'yellow' && worstStatus !== 'red' && worstStatus !== 'orange') worstStatus = 'yellow';
+                    if (statusClass === 'status-red') worstStatus = 'red';
+                    else if (statusClass === 'status-orange' && worstStatus !== 'red') worstStatus = 'orange';
+                    else if (statusClass === 'status-yellow' && worstStatus !== 'red' && worstStatus !== 'orange') worstStatus = 'yellow';
                     
                     let statusColor = 'var(--status-green)';
-                    if (statusClass === 'yellow') statusColor = 'var(--status-yellow)';
-                    else if (statusClass === 'orange') statusColor = 'var(--status-orange)';
-                    else if (statusClass === 'red') statusColor = 'var(--status-red)';
+                    if (statusClass === 'status-yellow') statusColor = 'var(--status-yellow)';
+                    else if (statusClass === 'status-orange') statusColor = 'var(--status-orange)';
+                    else if (statusClass === 'status-red') statusColor = 'var(--status-red)';
                     
                     let btnText = 'Registrar Lavado';
                     let btnIcon = 'ph-waves';
