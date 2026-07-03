@@ -3716,10 +3716,10 @@ class ProjectsModule {
                 p.budgetNet = this.calculateNet(p.budgetGross, p.feeType, p.manualPercent, p.isDelegated, p.isReceived);
             }
 
-            // Tiempo trabajado manual
-            if (manualHrs > 0 || manualMins > 0) {
-                const addedMs = (manualHrs * 60 * 60 * 1000) + (manualMins * 60 * 1000);
-                p.timeSpent = (p.timeSpent || 0) + addedMs;
+            // Tiempo trabajado manual (Sobreescribir/Reemplazar)
+            p.timeSpent = (manualHrs * 60 * 60 * 1000) + (manualMins * 60 * 1000);
+            if (p.timerStart) {
+                p.timerStart = new Date().toISOString();
             }
 
             this.saveData();
@@ -4220,12 +4220,20 @@ class ProjectsModule {
 
     openEditModal(id) {
         this.currentProjectId = id;
+        const p = this.projects.find(proj => String(proj.id) === String(id));
         const modal = document.getElementById('projects-edit-modal');
-        if (modal) {
+        if (modal && p) {
             document.getElementById('proj-extraDays').value = 0;
             document.getElementById('proj-extraBudget').value = 0;
-            document.getElementById('proj-manualHours').value = '';
-            document.getElementById('proj-manualMinutes').value = '';
+            
+            // Calcular horas y minutos acumulados actuales
+            const totalSecs = Math.floor((p.timeSpent || 0) / 1000);
+            const totalMins = Math.floor(totalSecs / 60);
+            const hrs = Math.floor(totalMins / 60);
+            const mins = totalMins % 60;
+            
+            document.getElementById('proj-manualHours').value = hrs;
+            document.getElementById('proj-manualMinutes').value = mins;
             modal.classList.remove('hidden');
         }
     }
@@ -4305,7 +4313,22 @@ class ProjectsModule {
 
             let projItems = '';
             m.projects.forEach(p => {
-                const dateStr = p.deliveredDate ? p.deliveredDate.split('-').reverse().join('/') : '-';
+                const dateVal = p.deliveredDate || p.deliveredAt;
+                let dateStr = '-';
+                if (dateVal) {
+                    if (dateVal.length === 10 && dateVal.includes('-') && !dateVal.includes('T')) {
+                        const [y, m, d] = dateVal.split('-');
+                        dateStr = `${d}/${m}/${y}`;
+                    } else {
+                        const d = new Date(dateVal);
+                        if (!isNaN(d.getTime())) {
+                            const day = String(d.getDate()).padStart(2, '0');
+                            const month = String(d.getMonth() + 1).padStart(2, '0');
+                            const year = d.getFullYear();
+                            dateStr = `${day}/${month}/${year}`;
+                        }
+                    }
+                }
                 projItems += `
                     <div class="history-project-item">
                         <div class="history-project-info">
