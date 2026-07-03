@@ -25,9 +25,16 @@ if (!publicKey || !privateKey) {
     }
     
     if (!publicKey || !privateKey) {
-        console.log("Using static fallback VAPID keys to prevent mismatch on restart...");
-        publicKey = 'BNFObqN7PPQXTrIxyemfcS1UvP4psiKaow8ytml-LqRhJh4aBQEw968TlrTLV2NZheFsOMAFMrAfCoMpQZPzzeI';
-        privateKey = 'YqywooDDg4CsxMZnNR9DasJaWL650XNa2M-uQmeudCM';
+        console.log("Generating new VAPID keys for local development...");
+        const newKeys = webpush.generateVAPIDKeys();
+        publicKey = newKeys.publicKey;
+        privateKey = newKeys.privateKey;
+        try {
+            fs.writeFileSync(keysPath, JSON.stringify(newKeys, null, 2), 'utf8');
+            console.log("VAPID keys saved to vapid-keys.json (ignored by git).");
+        } catch (err) {
+            console.error("Error writing vapid-keys.json:", err);
+        }
     }
 }
 
