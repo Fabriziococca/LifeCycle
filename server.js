@@ -379,7 +379,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
                 const definitions = [
                     'esponja_africana', 'toalla_mano', 'toalla_cuerpo', 'sabanas', 'funda_almohada', 'alfombra_bano',
-                    'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'lenses_droplets', 'lenses_case',
+                    'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
                     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana'
                 ];
@@ -390,6 +390,28 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 Object.keys(defaultTimes).forEach(k => {
                     alertsConfig[k] = defaultTimes[k];
                 });
+            } else {
+                // Rellenar dinámicamente llaves faltantes (como hoja_gillette)
+                const definitions = [
+                    'esponja_africana', 'toalla_mano', 'toalla_cuerpo', 'sabanas', 'funda_almohada', 'alfombra_bano',
+                    'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
+                    'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
+                    'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
+                    'creatine', 'salmon', 'neck'
+                ];
+                let configFilled = false;
+                definitions.forEach(k => {
+                    if (!alertsConfig[k]) {
+                        if (k === 'creatine') alertsConfig[k] = { enabled: true, time: '23:00', days: [1,2,3,4,5,6,0] };
+                        else if (k === 'salmon') alertsConfig[k] = { enabled: true, time: '17:00', days: [0] };
+                        else if (k === 'neck') alertsConfig[k] = { enabled: true, time: '23:30', days: [5,6] };
+                        else alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
+                        configFilled = true;
+                    }
+                });
+                if (configFilled) {
+                    data.alerts_config = alertsConfig;
+                }
             }
 
             // Inicializar log de envíos diarios si no existe
@@ -397,7 +419,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 data.alerts_sent_log = {};
             }
 
-            let dataChanged = false;
+            let dataChanged = configFilled;
 
             // Procesar cada alerta definida
             for (const key of Object.keys(alertsConfig)) {
@@ -676,6 +698,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         for (const sub of userSubs) {
                             try {
                                 await webpush.sendNotification(sub, payload);
+                                await new Promise(resolve => setTimeout(resolve, 200)); // Evitar saturación de Google FCM
                             } catch (err) {
                                 console.error(`[Alert Engine] Falló enviar push de ${key}:`, err.message);
                             }
@@ -787,6 +810,7 @@ async function checkAndSendRobotReminders() {
                     for (const sub of userSubs) {
                         try {
                             await webpush.sendNotification(sub, payload);
+                            await new Promise(resolve => setTimeout(resolve, 200)); // Evitar saturación de Google FCM
                         } catch (err) {
                             console.error(`[Robot Reminder] Falló enviar push a suscripción:`, err.message);
                         }
