@@ -325,11 +325,16 @@ async function checkAndSendAllAlerts(forceAll = false) {
         if (!usersData || usersData.length === 0) return;
         if (!subs || subs.length === 0) return;
 
-        // Agrupar suscripciones por user_id
+        // Agrupar suscripciones por user_id (evitando endpoints duplicados)
         const subsByUser = {};
         subs.forEach(s => {
+            if (!s.subscription || !s.subscription.endpoint) return;
             if (!subsByUser[s.user_id]) subsByUser[s.user_id] = [];
-            subsByUser[s.user_id].push(s.subscription);
+            
+            const alreadyAdded = subsByUser[s.user_id].some(existing => existing.endpoint === s.subscription.endpoint);
+            if (!alreadyAdded) {
+                subsByUser[s.user_id].push(s.subscription);
+            }
         });
 
         for (const userRow of usersData) {
@@ -731,11 +736,16 @@ async function checkAndSendRobotReminders() {
         if (!usersData || usersData.length === 0) return;
         if (!subs || subs.length === 0) return;
         
-        // Agrupar suscripciones por user_id
+        // Agrupar suscripciones por user_id (evitando endpoints duplicados)
         const subsByUser = {};
         subs.forEach(s => {
+            if (!s.subscription || !s.subscription.endpoint) return;
             if (!subsByUser[s.user_id]) subsByUser[s.user_id] = [];
-            subsByUser[s.user_id].push(s.subscription);
+            
+            const alreadyAdded = subsByUser[s.user_id].some(existing => existing.endpoint === s.subscription.endpoint);
+            if (!alreadyAdded) {
+                subsByUser[s.user_id].push(s.subscription);
+            }
         });
         
         const now = new Date();

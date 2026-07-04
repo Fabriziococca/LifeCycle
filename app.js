@@ -5230,7 +5230,7 @@ class AuthSyncModule {
                     .from('push_subscriptions')
                     .delete()
                     .eq('user_id', this.user.id)
-                    .eq('subscription->>endpoint', subscriptionJSON.endpoint);
+                    .eq('subscription->endpoint', subscriptionJSON.endpoint);
             } catch (err) {
                 console.warn("Error cleaning up old subscription:", err);
             }
@@ -5277,7 +5277,7 @@ class AuthSyncModule {
                             .from('push_subscriptions')
                             .delete()
                             .eq('user_id', this.user.id)
-                            .eq('subscription->>endpoint', subscriptionJSON.endpoint);
+                            .eq('subscription->endpoint', subscriptionJSON.endpoint);
                             
                         await this.supabase
                             .from('push_subscriptions')
