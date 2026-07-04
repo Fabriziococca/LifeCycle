@@ -5553,8 +5553,9 @@ class AlertsModule {
                     <div class="alert-config-row" data-alert-key="${def.key}" style="border-bottom: 1px solid rgba(255, 255, 255, 0.03); padding-bottom: 1.25rem;">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
                             <span style="font-size: 0.95rem; font-weight: 500; color: white;">${def.name}</span>
-                            <label class="switch-container" style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                                <input type="checkbox" class="alert-enabled-check" style="width: 18px; height: 18px; accent-color: var(--primary-color);" ${conf.enabled ? 'checked' : ''}>
+                            <label class="custom-checkbox-container" style="display: flex; align-items: center; gap: 8px; cursor: pointer; user-select: none;">
+                                <input type="checkbox" class="alert-enabled-check" ${conf.enabled ? 'checked' : ''}>
+                                <span class="custom-checkbox"></span>
                                 <span style="font-size: 0.8rem; color: var(--text-secondary);">Recibir push</span>
                             </label>
                         </div>

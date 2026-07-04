@@ -5,6 +5,52 @@ const fs = require('fs');
 const webpush = require('web-push');
 const { createClient } = require('@supabase/supabase-js');
 
+// Búfer en memoria para depuración de logs en Render
+const logBuffer = [];
+const originalLog = console.log;
+const originalError = console.error;
+const originalWarn = console.warn;
+
+function getArgentinaTimestamp() {
+    try {
+        return new Date().toLocaleString('es-AR', { 
+            timeZone: 'America/Argentina/Buenos_Aires',
+            hour12: false 
+        });
+    } catch (e) {
+        return new Date().toISOString();
+    }
+}
+
+function addToLogBuffer(type, args) {
+    const timestamp = getArgentinaTimestamp();
+    const msg = args.map(arg => {
+        if (arg instanceof Error) return arg.stack || arg.message;
+        if (typeof arg === 'object') {
+            try { return JSON.stringify(arg); } catch (e) { return '[Object]'; }
+        }
+        return String(arg);
+    }).join(' ');
+    logBuffer.push(`[${timestamp}] [${type}] ${msg}`);
+    if (logBuffer.length > 200) {
+        logBuffer.shift();
+    }
+}
+
+console.log = (...args) => {
+    addToLogBuffer('INFO', args);
+    originalLog.apply(console, args);
+};
+console.error = (...args) => {
+    addToLogBuffer('ERROR', args);
+    originalError.apply(console, args);
+};
+console.warn = (...args) => {
+    addToLogBuffer('WARN', args);
+    originalWarn.apply(console, args);
+};
+
+
 const app = express();
 const PORT = process.env.PORT || 3000;
 
@@ -155,6 +201,10 @@ app.get('/api/check-reminders', checkAdminToken, async (req, res) => {
     res.json({ success: true, message: 'Revisión de recordatorios ejecutada (forzada para pruebas).' });
 });
 
+app.get('/api/admin/logs', checkAdminToken, (req, res) => {
+    res.type('text/plain').send(logBuffer.join('\n'));
+});
+
 // Endpoint manual de prueba para disparar alerta de robot inmediatamente si está sucio
 app.get('/api/test-robot-reminder', checkAdminToken, async (req, res) => {
     if (!supabase) return res.status(500).json({ error: 'Supabase no configurado' });
@@ -267,6 +317,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
         if (dbError) throw dbError;
         if (subError) throw subError;
+
+        console.log(`[Alert Engine] Tick: checking alerts (forceAll: ${forceAll}). Time in Argentina: ${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}, Day: ${dayOfWeek}, Date: ${dateStr}. Subscriptions found: ${subs ? subs.length : 0}`);
 
         if (!usersData || usersData.length === 0) return;
         if (!subs || subs.length === 0) return;
@@ -671,6 +723,8 @@ async function checkAndSendRobotReminders() {
         
         if (dbError) throw dbError;
         if (subError) throw subError;
+        
+        console.log(`[Robot Reminder Engine] Tick: checking robot status. Subscriptions found: ${subs ? subs.length : 0}`);
         
         if (!usersData || usersData.length === 0) return;
         if (!subs || subs.length === 0) return;

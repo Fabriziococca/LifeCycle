@@ -2135,3 +2135,71 @@ select option {
     scrollbar-color: rgba(255, 255, 255, 0.12) rgba(255, 255, 255, 0.02);
 }
 
+/* ==========================================================================
+   CHECKBOX PERSONALIZADO (GLASSMORPHIC & GLOWING)
+   ========================================================================== */
+.custom-checkbox-container {
+    position: relative;
+    cursor: pointer;
+    user-select: none;
+}
+
+/* Ocultar el checkbox nativo */
+.custom-checkbox-container input {
+    position: absolute;
+    opacity: 0;
+    cursor: pointer;
+    height: 0;
+    width: 0;
+}
+
+/* El recuadro del checkbox */
+.custom-checkbox {
+    width: 20px;
+    height: 20px;
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid var(--surface-border);
+    border-radius: 6px;
+    display: inline-block;
+    position: relative;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    vertical-align: middle;
+}
+
+/* Hover */
+.custom-checkbox-container:hover .custom-checkbox {
+    border-color: var(--primary-color);
+    background: rgba(255, 255, 255, 0.08);
+}
+
+/* Cuando está checked */
+.custom-checkbox-container input:checked ~ .custom-checkbox {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    box-shadow: 0 0 10px rgba(59, 130, 246, 0.45);
+}
+
+/* El checkmark oculto por defecto */
+.custom-checkbox:after {
+    content: "";
+    position: absolute;
+    display: none;
+}
+
+/* Mostrar el checkmark cuando está marcado */
+.custom-checkbox-container input:checked ~ .custom-checkbox:after {
+    display: block;
+}
+
+/* Dibujar el checkmark */
+.custom-checkbox-container .custom-checkbox:after {
+    left: 7px;
+    top: 3px;
+    width: 5px;
+    height: 10px;
+    border: solid white;
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg);
+}
+
+
