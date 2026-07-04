@@ -97,6 +97,8 @@ const supabase = supabaseUrl ? createClient(supabaseUrl, supabaseKey) : null;
 
 if (!supabase) {
     console.warn("⚠️ Advertencia: SUPABASE_URL no está configurada. Supabase no estará disponible en el backend.");
+} else if (!process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    console.warn("⚠️ Advertencia: SUPABASE_SERVICE_ROLE_KEY no está configurada en Render. Las políticas RLS bloquearán las notificaciones en segundo plano.");
 }
 
 // Rate Limiter integrado y liviano (sin dependencias npm)
