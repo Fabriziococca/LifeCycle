@@ -698,7 +698,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         for (const sub of userSubs) {
                             try {
                                 await webpush.sendNotification(sub, payload);
-                                await new Promise(resolve => setTimeout(resolve, 200)); // Evitar saturación de Google FCM
+                                await new Promise(resolve => setTimeout(resolve, 1000)); // Evitar saturación de Google FCM y espaciar entrega
                             } catch (err) {
                                 console.error(`[Alert Engine] Falló enviar push de ${key}:`, err.message);
                             }
@@ -810,7 +810,7 @@ async function checkAndSendRobotReminders() {
                     for (const sub of userSubs) {
                         try {
                             await webpush.sendNotification(sub, payload);
-                            await new Promise(resolve => setTimeout(resolve, 200)); // Evitar saturación de Google FCM
+                            await new Promise(resolve => setTimeout(resolve, 1000)); // Evitar saturación de Google FCM y espaciar entrega
                         } catch (err) {
                             console.error(`[Robot Reminder] Falló enviar push a suscripción:`, err.message);
                         }
