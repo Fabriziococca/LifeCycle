@@ -999,25 +999,25 @@
         <section id="projects-section" class="main-section hidden">
             <!-- Dashboard Financiero -->
             <div class="dashboard-container" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 2rem;">
-                <div class="card" style="margin:0; padding: 15px;">
+                <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--primary-color);">
                     <div style="font-size: 0.8rem; color: var(--text-secondary);">Activos</div>
                     <div id="activeUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--primary-color); margin-top: 5px;">USD 0.00</div>
                 </div>
-                <div class="card" style="margin:0; padding: 15px;">
+                <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--status-green);">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Mes</span>
                         <button id="btnOpenMonthDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Detalle</button>
                     </div>
                     <div id="monthUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--status-green); margin-top: 5px;">USD 0.00</div>
                 </div>
-                <div class="card" style="margin:0; padding: 15px;">
+                <div class="card" style="margin:0; padding: 15px; border: 1px solid white;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Año</span>
                         <button id="btnOpenYearDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Detalle</button>
                     </div>
                     <div id="yearUSD" style="font-size: 1.4rem; font-weight: bold; color: white; margin-top: 5px;">USD 0.00</div>
                 </div>
-                <div class="card" style="margin:0; padding: 15px; border-bottom: 3px solid var(--status-orange);">
+                <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--status-orange);">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Histórico</span>
                         <button id="btnOpenHistory" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Mensual</button>

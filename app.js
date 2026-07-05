@@ -465,7 +465,7 @@ class HygieneModule {
                 else if (statusClass === 'status-red') colorVar = 'var(--status-red)';
                 
                 cardEl.className = `card ${statusClass}`;
-                cardEl.style.borderBottom = `3px solid ${colorVar}`;
+                cardEl.style.borderColor = colorVar;
 
                 clone.querySelector('.card-title').textContent = item.name;
                 clone.querySelector('.card-icon').className = `card-icon ph ${item.icon}`;
@@ -709,7 +709,7 @@ class HygieneModule {
                 else if (worstStatus === 'orange') groupColor = 'var(--status-orange)';
                 else if (worstStatus === 'red') groupColor = 'var(--status-red)';
                 
-                cardEl.style.borderBottom = `3px solid ${groupColor}`;
+                cardEl.style.borderColor = groupColor;
                 
                 this.container.appendChild(clone);
             }
@@ -778,7 +778,7 @@ class HygieneModule {
                     <span class="badge red"><i class="ph ph-warning-circle"></i> Alertas Activas (c/6h)</span>
                 </div>
                 <div class="card-body" style="padding-top: 0; margin-top: 0.5rem;">
-                    <p class="backup-text" style="font-size: 0.85rem; margin-bottom: 1rem; color: var(--text-secondary);">Tu hermano marcó el robot como usado. Lávalo para detener los recordatorios cada 6 horas en tu celular.</p>
+                    <p class="backup-text" style="font-size: 0.85rem; margin-bottom: 1rem; color: var(--text-secondary);">Marcaste el robot como usado. Lávalo para detener los recordatorios cada 6 horas en tu celular.</p>
                     <button id="btn-wash-robot" class="btn btn-secondary" style="width: 100%; border-color: rgba(34, 197, 94, 0.3); color: #4ade80;">
                         <i class="ph ph-sparkle"></i> ✓ Listo, ya lo lavé
                     </button>
@@ -1021,6 +1021,26 @@ class GroomingModule {
                     if (daysDiff <= 20) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
                     else if (daysDiff <= 29) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
                     else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
+                } else if (zone.id === 'pecho_panza') {
+                    if (daysDiff <= 40) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
+                    else if (daysDiff <= 50) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
+                    else if (daysDiff <= 59) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
+                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
+                } else if (zone.id === 'brazos') {
+                    if (daysDiff <= 120) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
+                    else if (daysDiff <= 150) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
+                    else if (daysDiff <= 179) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
+                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
+                } else if (zone.id === 'piernas') {
+                    if (daysDiff <= 80) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
+                    else if (daysDiff <= 100) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
+                    else if (daysDiff <= 119) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
+                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
+                } else if (zone.id === 'intimas') {
+                    if (daysDiff <= 15) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
+                    else if (daysDiff <= 22) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
+                    else if (daysDiff <= 29) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
+                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
                 } else {
                     colorVar = 'var(--primary-color)';
                 }
@@ -1244,20 +1264,36 @@ class LensModule {
         return Math.floor(diffTime / (1000 * 60 * 60 * 24));
     }
 
-    updateLabelStyle(element, days, limit) {
+    updateLabelStyle(element, days, limit, inputElement = null) {
         if (!element) return;
-        if (days === "--") {
+        if (days === "--" || days === null || days === undefined) {
             element.style.color = "var(--text-secondary)";
+            if (inputElement) {
+                inputElement.style.borderColor = "var(--surface-border)";
+                inputElement.style.boxShadow = "none";
+            }
             return;
         }
         
         const daysInt = parseInt(days);
+        let colorVar = "var(--status-green)";
+        let glowVar = "rgba(74, 222, 128, 0.1)";
+        
         if (daysInt >= limit) {
-            element.style.color = "var(--status-red)";
+            colorVar = "var(--status-red)";
+            glowVar = "rgba(239, 68, 68, 0.15)";
         } else if (daysInt >= limit * 0.85) {
-            element.style.color = "var(--status-yellow)";
-        } else {
-            element.style.color = "var(--status-green)";
+            colorVar = "var(--status-yellow)";
+            glowVar = "rgba(234, 179, 8, 0.15)";
+        } else if (daysInt >= limit * 0.70) {
+            colorVar = "var(--status-orange)";
+            glowVar = "rgba(249, 115, 22, 0.15)";
+        }
+        
+        element.style.color = colorVar;
+        if (inputElement) {
+            inputElement.style.borderColor = colorVar;
+            inputElement.style.boxShadow = `0 0 8px ${glowVar}`;
         }
     }
 
@@ -1280,7 +1316,7 @@ class LensModule {
         const elLDays = document.getElementById('lenses-lensDaysElapsed');
         if (elLDays) {
             elLDays.innerText = `${lDays} días de uso`;
-            this.updateLabelStyle(elLDays, lDays, LENS_LIMITS.lenses);
+            this.updateLabelStyle(elLDays, lDays, LENS_LIMITS.lenses, elLDate);
         }
 
         // Líquido
@@ -1290,7 +1326,7 @@ class LensModule {
         const elSDays = document.getElementById('lenses-solutionDaysElapsed');
         if (elSDays) {
             elSDays.innerText = `${sDays} días de uso`;
-            this.updateLabelStyle(elSDays, sDays, LENS_LIMITS.solution);
+            this.updateLabelStyle(elSDays, sDays, LENS_LIMITS.solution, elSDate);
         }
 
         // Estuche
@@ -1300,7 +1336,7 @@ class LensModule {
         const elCDays = document.getElementById('lenses-caseDaysElapsed');
         if (elCDays) {
             elCDays.innerText = `${cDays} días de uso`;
-            this.updateLabelStyle(elCDays, cDays, LENS_LIMITS.case);
+            this.updateLabelStyle(elCDays, cDays, LENS_LIMITS.case, elCDate);
         }
 
         // Systane
@@ -1310,7 +1346,7 @@ class LensModule {
         const elSysDays = document.getElementById('lenses-systaneDaysElapsed');
         if (elSysDays) {
             elSysDays.innerText = `${sysDays} días de uso`;
-            this.updateLabelStyle(elSysDays, sysDays, LENS_LIMITS.systane);
+            this.updateLabelStyle(elSysDays, sysDays, LENS_LIMITS.systane, elSysDate);
         }
 
         // Pañuelo lavado
@@ -1320,7 +1356,7 @@ class LensModule {
         const elCwDays = document.getElementById('lenses-clothWashDaysElapsed');
         if (elCwDays) {
             elCwDays.innerText = `${cwDays} días desde lavado`;
-            this.updateLabelStyle(elCwDays, cwDays, LENS_LIMITS.clothWash);
+            this.updateLabelStyle(elCwDays, cwDays, LENS_LIMITS.clothWash, elCwDate);
         }
 
         // Pañuelo cambio
@@ -1330,7 +1366,7 @@ class LensModule {
         const elCcDays = document.getElementById('lenses-clothChangeDaysElapsed');
         if (elCcDays) {
             elCcDays.innerText = `${ccDays} días de uso`;
-            this.updateLabelStyle(elCcDays, ccDays, LENS_LIMITS.clothChange);
+            this.updateLabelStyle(elCcDays, ccDays, LENS_LIMITS.clothChange, elCcDate);
         }
         this.app.notificationsCenter?.updateBadge();
     }
@@ -1703,6 +1739,9 @@ class HealthModule {
 
             const card = document.createElement('div');
             card.className = 'card';
+            if (daysElapsed !== null) {
+                card.style.borderColor = statusColor;
+            }
             
             let historyHtml = '';
             if (doc.history && doc.history.length > 0) {
@@ -1816,9 +1855,23 @@ class HealthModule {
     renderBloodTestsCard() {
         const lastTest = this.bloodTests[0];
         const daysElapsed = this.calculateDaysElapsed(lastTest?.date);
+        const elCard = document.getElementById('blood-tests-card');
+
+        let statusColor = 'var(--text-secondary)';
+        if (daysElapsed !== null) {
+            if (daysElapsed >= 365) statusColor = 'var(--status-red)';
+            else if (daysElapsed >= 330) statusColor = 'var(--status-orange)';
+            else if (daysElapsed >= 270) statusColor = 'var(--status-yellow)';
+            else statusColor = 'var(--status-green)';
+        }
+
+        if (elCard) {
+            elCard.style.borderColor = daysElapsed !== null ? statusColor : 'var(--surface-border)';
+        }
 
         if (this.bloodDaysCount) {
             this.bloodDaysCount.innerText = daysElapsed !== null ? daysElapsed : '--';
+            this.bloodDaysCount.style.color = daysElapsed !== null ? statusColor : 'var(--primary-color)';
         }
         if (this.bloodLastDate) {
             this.bloodLastDate.innerText = this.formatDate(lastTest?.date);
@@ -2162,6 +2215,7 @@ class VehicleModule {
 
     renderOilCard() {
         const lastOil = this.maintenanceLog.find(m => m.type === 'Aceite y Filtros');
+        const elCard = document.getElementById('vehicle-oil-card');
         
         if (lastOil) {
             const nextKm = lastOil.km + 10000;
@@ -2169,15 +2223,18 @@ class VehicleModule {
             const daysElapsed = this.calculateDaysElapsed(lastOil.date);
             const remainingDays = 365 - (daysElapsed || 0);
 
+            let colorVar = 'var(--status-green)';
+            if (remainingKm <= 0 || remainingDays <= 0) {
+                colorVar = 'var(--status-red)';
+            } else if (remainingKm <= 1000 || remainingDays <= 30) {
+                colorVar = 'var(--status-orange)';
+            }
+
+            if (elCard) elCard.style.borderColor = colorVar;
+
             if (this.oilRemainingKm) {
                 this.oilRemainingKm.innerText = remainingKm.toLocaleString('es-AR') + ' km';
-                if (remainingKm <= 0) {
-                    this.oilRemainingKm.style.color = 'var(--status-red)';
-                } else if (remainingKm <= 1000) {
-                    this.oilRemainingKm.style.color = 'var(--status-orange)';
-                } else {
-                    this.oilRemainingKm.style.color = 'var(--status-green)';
-                }
+                this.oilRemainingKm.style.color = colorVar;
             }
 
             if (this.oilRemainingDays) {
@@ -2198,7 +2255,11 @@ class VehicleModule {
                 this.oilNextService.innerText = `${nextKm.toLocaleString('es-AR')} km`;
             }
         } else {
-            if (this.oilRemainingKm) this.oilRemainingKm.innerText = '-- km';
+            if (elCard) elCard.style.borderColor = 'var(--surface-border)';
+            if (this.oilRemainingKm) {
+                this.oilRemainingKm.innerText = '-- km';
+                this.oilRemainingKm.style.color = 'var(--status-green)';
+            }
             if (this.oilRemainingDays) this.oilRemainingDays.innerText = 'Sin registros de cambio';
             if (this.oilLastService) this.oilLastService.innerText = 'Nunca';
             if (this.oilNextService) this.oilNextService.innerText = 'N/A';
@@ -2209,6 +2270,29 @@ class VehicleModule {
         const lastAlign = this.maintenanceLog.find(m => m.type === 'Alineación & Balanceo');
         const lastRot = this.maintenanceLog.find(m => m.type === 'Rotación de Neumáticos');
         const lastReplace = this.maintenanceLog.find(m => m.type === 'Reemplazo de Neumáticos');
+
+        let worstColor = 'var(--status-green)';
+        let hasAnyRecord = false;
+
+        const checkStatus = (lastRecord, limit) => {
+            if (!lastRecord) return;
+            hasAnyRecord = true;
+            const remaining = (lastRecord.km + limit) - this.odometer;
+            if (remaining <= 0) {
+                worstColor = 'var(--status-red)';
+            } else if (remaining <= 1000 && worstColor !== 'var(--status-red)') {
+                worstColor = 'var(--status-orange)';
+            }
+        };
+
+        checkStatus(lastAlign, 10000);
+        checkStatus(lastRot, 10000);
+        checkStatus(lastReplace, 60000);
+
+        const elTiresCard = document.getElementById('vehicle-tires-card');
+        if (elTiresCard) {
+            elTiresCard.style.borderColor = hasAnyRecord ? worstColor : 'var(--surface-border)';
+        }
 
         if (lastAlign) {
             const nextKm = lastAlign.km + 10000;
@@ -4160,27 +4244,28 @@ class ProjectsModule {
 
         // Reset class and styling
         badgeEl.className = 'badge';
-        cardEl.style.borderBottom = '';
+        cardEl.style.borderColor = '';
 
         if (diffDays > 15) {
             badgeEl.textContent = 'Activa';
             badgeEl.className = 'badge green';
             daysCountEl.style.color = 'var(--status-green)';
+            cardEl.style.borderColor = 'var(--status-green)';
         } else if (diffDays > 7) {
             badgeEl.textContent = 'Por vencer';
             badgeEl.className = 'badge yellow';
             daysCountEl.style.color = 'var(--status-yellow)';
-            cardEl.style.borderBottom = '3px solid var(--status-yellow)';
+            cardEl.style.borderColor = 'var(--status-yellow)';
         } else if (diffDays > 2) {
             badgeEl.textContent = 'Vence pronto';
             badgeEl.className = 'badge orange';
             daysCountEl.style.color = 'var(--status-orange)';
-            cardEl.style.borderBottom = '3px solid var(--status-orange)';
+            cardEl.style.borderColor = 'var(--status-orange)';
         } else {
             badgeEl.textContent = diffDays < 0 ? 'Vencida' : 'Crítico';
             badgeEl.className = 'badge red';
             daysCountEl.style.color = 'var(--status-red)';
-            cardEl.style.borderBottom = '3px solid var(--status-red)';
+            cardEl.style.borderColor = 'var(--status-red)';
         }
         this.app.notificationsCenter?.updateBadge();
     }
@@ -4330,7 +4415,7 @@ class ProjectsModule {
             card.className = 'card';
             card.setAttribute('data-project-id', p.id);
             card.style.background = p.isDelivered ? 'rgba(16, 185, 129, 0.05)' : 'var(--surface-color)';
-            card.style.border = p.isDelivered ? '1px solid rgba(16, 185, 129, 0.3)' : '1px solid var(--surface-border)';
+            card.style.borderColor = colorVar;
 
             card.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.5rem;">
@@ -5175,6 +5260,7 @@ class AuthSyncModule {
             gym_routine_focus: localStorage.getItem('gym_routine_focus'),
             gym_sessions: localStorage.getItem('gym_sessions'),
             gym_meals: localStorage.getItem('gym_meals'),
+            gym_general_meals: localStorage.getItem('gym_general_meals'),
             gym_supplements: localStorage.getItem('gym_supplements'),
             gym_weight: localStorage.getItem('gym_weight'),
             projectPulseData: localStorage.getItem('projectPulseData'),
@@ -5306,7 +5392,24 @@ class AuthSyncModule {
         this.updateSyncBadge('syncing', "Sincronizando...");
         
         try {
+            // 1. Obtener datos actuales en la nube para no sobreescribir alerts_sent_log
+            const { data: cloudRow } = await this.supabase
+                .from('user_data')
+                .select('data')
+                .eq('user_id', this.user.id)
+                .single();
+            
+            const cloudData = cloudRow?.data || {};
             const localData = this.gatherLocalData();
+
+            // Fusionar alerts_sent_log para conservar el log de alertas del servidor
+            if (cloudData.alerts_sent_log) {
+                const cloudLogStr = typeof cloudData.alerts_sent_log === 'string'
+                    ? cloudData.alerts_sent_log
+                    : JSON.stringify(cloudData.alerts_sent_log);
+                localData.alerts_sent_log = cloudLogStr;
+                localStorage.setItem('alerts_sent_log', cloudLogStr);
+            }
             
             const { error } = await this.supabase
                 .from('user_data')
