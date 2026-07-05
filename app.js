@@ -876,7 +876,14 @@ class GroomingModule {
     }
 
     loadData() {
-        return JSON.parse(localStorage.getItem('groomingData_v2')) || {};
+        const raw = localStorage.getItem('groomingData_v2');
+        if (!raw) return {};
+        try {
+            return JSON.parse(raw) || {};
+        } catch (e) {
+            console.error("Error parsing grooming data:", e);
+            return {};
+        }
     }
 
     saveData() {
@@ -1377,6 +1384,17 @@ class LensModule {
         else this.stockWarning.classList.add('hidden');
     }
 
+    getLensesHistory() {
+        const raw = localStorage.getItem('lensesHistory');
+        if (!raw) return [];
+        try {
+            return JSON.parse(raw) || [];
+        } catch (e) {
+            console.error("Error parsing lensesHistory:", e);
+            return [];
+        }
+    }
+
     saveToHistory(endTime = new Date()) {
         if (!this.startTime) return;
         const start = new Date(this.startTime);
@@ -1389,7 +1407,7 @@ class LensModule {
             duration: `${h}h ${m}m`
         };
 
-        let history = JSON.parse(localStorage.getItem('lensesHistory')) || [];
+        let history = this.getLensesHistory();
         history.unshift(session);
         if (history.length > 7) history.pop();
         
@@ -1399,7 +1417,7 @@ class LensModule {
 
     renderHistory() {
         if (!this.historyList) return;
-        const history = JSON.parse(localStorage.getItem('lensesHistory')) || [];
+        const history = this.getLensesHistory();
         this.historyList.innerHTML = '';
         
         if (history.length === 0) {
@@ -1423,7 +1441,7 @@ class LensModule {
             btn.addEventListener('click', (e) => {
                 const index = e.target.closest('button').getAttribute('data-index');
                 if (confirm('¿Borrar este registro del historial?')) {
-                    let history = JSON.parse(localStorage.getItem('lensesHistory')) || [];
+                    let history = this.getLensesHistory();
                     history.splice(index, 1);
                     localStorage.setItem('lensesHistory', JSON.stringify(history));
                     this.renderHistory();
@@ -1523,11 +1541,24 @@ class HealthModule {
         this.attachedFileName = null;
 
         // Configuración médica
-        this.medicalData = JSON.parse(localStorage.getItem('health_medical_data')) || {
+        try {
+            const rawMed = localStorage.getItem('health_medical_data');
+            this.medicalData = rawMed ? JSON.parse(rawMed) : null;
+        } catch (e) {
+            console.error("Error parsing health_medical_data:", e);
+        }
+        this.medicalData = this.medicalData || {
             dentista: { lastVisit: null, frequencyMonths: 6, history: [] },
             oculista: { lastVisit: null, frequencyMonths: 6, history: [] }
         };
-        this.bloodTests = JSON.parse(localStorage.getItem('health_blood_tests')) || [];
+
+        try {
+            const rawBlood = localStorage.getItem('health_blood_tests');
+            this.bloodTests = rawBlood ? JSON.parse(rawBlood) : null;
+        } catch (e) {
+            console.error("Error parsing health_blood_tests:", e);
+        }
+        this.bloodTests = this.bloodTests || [];
 
         this.init();
     }
@@ -1984,7 +2015,13 @@ class VehicleModule {
 
         // Load data
         this.odometer = Number(localStorage.getItem('vehicle_odometer')) || 0;
-        this.maintenanceLog = JSON.parse(localStorage.getItem('vehicle_maintenance_log')) || [];
+        try {
+            const rawLog = localStorage.getItem('vehicle_maintenance_log');
+            this.maintenanceLog = rawLog ? JSON.parse(rawLog) : null;
+        } catch (e) {
+            console.error("Error parsing vehicle_maintenance_log:", e);
+        }
+        this.maintenanceLog = this.maintenanceLog || [];
         
         this.init();
     }
@@ -5277,8 +5314,8 @@ class AuthSyncModule {
         if (!val1 || !val2) return false;
         
         try {
-            const obj1 = JSON.parse(val1);
-            const obj2 = JSON.parse(val2);
+            const obj1 = typeof val1 === 'object' ? val1 : JSON.parse(val1);
+            const obj2 = typeof val2 === 'object' ? val2 : JSON.parse(val2);
             return JSON.stringify(obj1) === JSON.stringify(obj2);
         } catch (e) {
             return String(val1).trim() === String(val2).trim();
@@ -5451,8 +5488,11 @@ class AuthSyncModule {
             'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 'projectPulseSubscription', 'alerts_config', 'alerts_sent_log'
         ];
         localKeys.forEach(key => {
-            const val = cloudData[key];
+            let val = cloudData[key];
             if (val !== null && val !== undefined) {
+                if (typeof val === 'object') {
+                    val = JSON.stringify(val);
+                }
                 localStorage.setItem(key, val);
             } else {
                 localStorage.removeItem(key);
