@@ -362,6 +362,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 } catch(e) {}
             }
 
+            let configFilled = false;
+
             // Migrar automáticamente si no existe alerts_config o está vacío
             if (Object.keys(alertsConfig).length === 0) {
                 let gymSupplements = {};
@@ -390,6 +392,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 Object.keys(defaultTimes).forEach(k => {
                     alertsConfig[k] = defaultTimes[k];
                 });
+                configFilled = true;
             } else {
                 // Rellenar dinámicamente llaves faltantes (como hoja_gillette)
                 const definitions = [
@@ -399,7 +402,6 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
                     'creatine', 'salmon', 'neck'
                 ];
-                let configFilled = false;
                 definitions.forEach(k => {
                     if (!alertsConfig[k]) {
                         if (k === 'creatine') alertsConfig[k] = { enabled: true, time: '23:00', days: [1,2,3,4,5,6,0] };
