@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lifecycle-cache-v1';
+const CACHE_NAME = 'lifecycle-cache-v2';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -48,19 +48,16 @@ self.addEventListener('fetch', (e) => {
     }
 
     e.respondWith(
-        caches.match(e.request).then((cachedResponse) => {
-            const fetchPromise = fetch(e.request).then((networkResponse) => {
-                if (networkResponse && networkResponse.status === 200) {
-                    caches.open(CACHE_NAME).then((cache) => {
-                        cache.put(e.request, networkResponse.clone());
-                    });
-                }
-                return networkResponse;
-            }).catch(() => {
-                return cachedResponse;
-            });
-
-            return cachedResponse || fetchPromise;
+        fetch(e.request).then((networkResponse) => {
+            if (networkResponse && networkResponse.status === 200) {
+                const responseClone = networkResponse.clone();
+                caches.open(CACHE_NAME).then((cache) => {
+                    cache.put(e.request, responseClone);
+                });
+            }
+            return networkResponse;
+        }).catch(() => {
+            return caches.match(e.request);
         })
     );
 });
