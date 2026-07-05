@@ -1,72 +1,58 @@
 # LifeCycle 🧼🧔👁️🚗
 
-> **Unified PWA for Personal Hygiene, Grooming, Health Tracking, and Vehicle Maintenance.**
+> **A premium, offline-first Progressive Web App (PWA) designed for unified tracking of daily habits, personal care cycles, health controls, vehicle maintenance, and financial projects.**
 
-LifeCycle is an offline-first Progressive Web App (PWA) designed to automate, monitor, and manage the life cycles of daily habits, personal care schedules, vehicle maintenance logs, contact lenses usage, financial projects, and medical visits. 
-
-It replaces standard notification fatigue and easily ignored calendar reminders with an adaptive, color-coded visual dashboard and a centralized, floating **Notifications Center**.
+LifeCycle is a showcase of full-stack architecture built to optimize personal workflows, replacing notification fatigue and easily ignored calendar reminders with an adaptive, color-coded visual dashboard and a centralized, floating **Notifications Center** with background push alerts.
 
 ---
 
-## 🚀 Key Modules & Features
+## 🛠️ Architecture & Technology Stack
 
-### 1. 🧼 Hygiene & Home Textiles (Higiene)
-*   **Washing Cycles:** Track time elapsed since washing or changing key items (African sponges, hand towels, body towels, bed sheets, pillowcases, and toothbrush replacements).
-*   **Interactive History Logs:** Keep up to 10 entries of previous washes/replacements, with the ability to delete entries.
-*   **Robot Vacuum Cleaner:** Log and track custom cleaning warnings for robotic vacuum sweepers.
+```mermaid
+graph TD
+    Client[Client PWA: HTML5 / CSS3 / ES6+] -->|Offline Storage| LS[(LocalStorage)]
+    Client -->|Bidirectional Sync / Real-time Subscription| Supabase{Supabase Database}
+    Supabase -->|Row-Level Security / RLS| Client
+    Server[Backend: Node.js Express / Render] -->|Cron Check every 5m| Supabase
+    Server -->|Web Push Protocol| Client
+```
 
-### 2. 🧔 Grooming & Care (Cuidado)
-*   **Body & Hair Care:** Custom counters for Beard Shaving, Haircuts, Axillary Grooming, and Gillette Blade usage.
-*   **Shaving Prediction:** Smart algorithm predicting the next optimal beard shave day based on average interval logs.
-*   **History Logs:** Delete and manage individual logs to clean up mistaken entries.
+*   **Frontend Client:** HTML5, Vanilla CSS3 (custom glassmorphism style, dark-mode first design), and ES6+ JavaScript.
+*   **Data Persistence:** Offline-first architecture utilizing `LocalStorage` with custom bidirectional cloud sync.
+*   **Database Cloud Sync:** Real-time database subscription and synchronization with **Supabase**, featuring automatic conflict resolution and client-side merge.
+*   **Backend Notification Server:** Node.js Express server hosted on **Render**, performing periodic database checks and dispatching secure Web Push Notifications.
+*   **PWA Features:** Service Workers with a **Network-First** caching strategy for instant online updates and offline capability, along with a standard web app manifest.
 
-### 3. 👁️ Contact Lenses Manager (Lentes)
-*   **Usage Timer & Stock:** Real-time day counter for lens wear time, solution, lens case, Systane drops, and microfiber cloth wash/change cycles.
-*   **Stock alerts:** Triggers low-stock warnings when contact lenses pairs fall below a safety threshold.
+---
 
-### 4. 🚗 Vehicle Maintenance (Vehículo)
-*   **Smart Odometer tracking:** Automatically tracks and flags services for Oil & Filters, Alignment & Balancing, Tire Rotation, and Tire Replacements.
-*   **Status Alert:** Shifts card colors (Green/Yellow/Red) based on km or days remaining.
+## 🔒 Security & Data Integrity Best Practices
 
-### 5. 💼 Financial Projects Tracker (ProjectPulse)
-*   **Workana Client & Subscriptions:** Track financial progress (active contracts in USD) and manage Workana subscription plans.
-*   **Visual Deadline Alert:** Color-coded warnings as the subscription renewal deadline approaches.
+*   **Zero Credentials Exposed:** All sensitive data (database connection strings, service role keys, VAPID private keys) are stored as encrypted environment variables in Render and never checked into the code.
+*   **Row-Level Security (RLS):** Supabase database tables enforce strict RLS policies ensuring that users can only read and write their own data, even when utilizing public anon keys.
+*   **Database-Level Constraints:** Implemented custom check constraints (`check_no_object_string`) at the Postgres level to reject malformed serialization attempts, safeguarding data integrity.
+*   **Safe Client Parsing:** The application features robust local storage parsers with isolated try/catch boundaries, ensuring that parsing anomalies in one module never disrupt the main application loop.
+
+---
+
+## 🚀 Key Modules
+
+### 1. 🧼 Hygiene & Textile Tracker
+Monitor time elapsed since washing or changing key home textiles (African sponges, hand towels, body towels, bed sheets, pillowcases) and schedule robotic vacuum cleaner warnings.
+
+### 2. 🧔 Grooming & Care
+Custom counters for personal care logs (beard shaves, haircuts, axillary grooming) with a predictive algorithm estimating the next optimal beard shave day based on average historical frequency.
+
+### 3. 👁️ Contact Lenses Manager
+Real-time day counters for contact lenses wear time, solutions, lens cases, Systane drops, and microfiber cloth usage, with automated low-stock safety threshold warnings.
+
+### 4. 🚗 Vehicle Maintenance Log
+Smart odometer tracking flagging services for oil changes, alignment, tire rotations, and replacements, shifting colors (green/yellow/red) based on km or days remaining.
+
+### 5. 💼 Financial Projects (ProjectPulse)
+Track active contracts in USD, manage Workana subscriptions, and display visual deadline warnings as the subscription renewal approaches.
 
 ### 6. 🩺 Health & Medicine (Salud)
-*   Track annual/periodical visits for Dentists, Ophthalmologists, Clinical Blood Tests, and generic custom health controls.
+Track annual/periodical visits for Dentists, Ophthalmologists, Clinical Blood Tests, and generic custom health controls.
 
-### 7. 🔔 Notifications & Alerts (Alertas)
-*   **Push Notifications:** Configure exact times and recurring days for system alerts.
-*   **Centralized Panel:** Active notification controls for all sections.
-*   **Floating Notifications Center:** A quick-action bell icon dropdown showing overdue (red) items across all sections, allowing immediate checklist completion (`✓ Listo`) from any screen.
-
----
-
-## 🛠️ Architecture & Tech Stack
-
-*   **Frontend:** HTML5, Vanilla CSS3 (custom glassmorphism style, dark-mode first design), and ES6+ JavaScript.
-*   **Data Persistence:** Offline-first architecture utilizing LocalStorage.
-*   **Cloud Sync:** Bidirectional real-time database sync with **Supabase**, featuring conflict resolution and automatic merge.
-*   **Backend Server:** Node.js Express server hosted on **Render**, performing catch-up checks every 5 minutes and dispatching Web Push Notifications.
-*   **PWA Assets:** Service Workers (caching assets & offline capabilities) and standard web manifest file.
-
----
-
-## 📦 Local Installation & Running
-
-Ensure you have [Node.js](https://nodejs.org/) installed:
-
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/Fabriziococca/HygieneTracker.git
-   cd HygieneTracker
-   ```
-2. Install dependencies:
-   ```bash
-   npm install
-   ```
-3. Run the backend server:
-   ```bash
-   node server.js
-   ```
-4. Access the client PWA by opening `index.html` in your browser.
+### 7. 🔔 Centralized Notifications Panel
+Float notification center displaying overdue items across all sections, permitting immediate checklist completion (`✓ Listo`) from any screen. Supports custom background push notification schedules.
