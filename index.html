@@ -478,6 +478,7 @@
                 <button class="tab-btn" data-gym-tab="routine"><i class="ph ph-clipboard-text"></i> Rutina</button>
                 <button class="tab-btn" data-gym-tab="sessions"><i class="ph ph-barbell"></i> Sesiones</button>
                 <button class="tab-btn" data-gym-tab="nutrition"><i class="ph ph-salad"></i> Nutrición</button>
+                <button class="tab-btn" data-gym-tab="general-meals"><i class="ph ph-notebook"></i> Comidas Generales</button>
             </div>
 
             <!-- SUB-TAB 1: RÉCORDS -->
@@ -593,25 +594,29 @@
                         <h3>Macros & Calorías Diarias</h3>
                     </div>
                     <div class="card-body">
-                        <div style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 10px; text-align: center;">
+                        <div style="display: grid; grid-template-columns: repeat(6, 1fr); gap: 10px; text-align: center;">
                             <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                                <div id="total-kcal" style="font-size: 1.2rem; font-weight: bold; color: var(--primary-color);">0</div>
+                                <div id="total-kcal" style="font-size: 1.2rem; font-weight: bold; color: white;">0</div>
                                 <div style="font-size: 0.75rem; color: var(--text-secondary);">Kcal</div>
                             </div>
                             <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                                <div id="total-protein" style="font-size: 1.2rem; font-weight: bold; color: var(--status-green);">0g</div>
+                                <div id="total-protein" style="font-size: 1.2rem; font-weight: bold; color: white;">0g</div>
                                 <div style="font-size: 0.75rem; color: var(--text-secondary);">Prot</div>
                             </div>
                             <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                                <div id="total-carbs" style="font-size: 1.2rem; font-weight: bold; color: var(--status-yellow);">0g</div>
+                                <div id="total-carbs" style="font-size: 1.2rem; font-weight: bold; color: white;">0g</div>
                                 <div style="font-size: 0.75rem; color: var(--text-secondary);">Carbs</div>
                             </div>
                             <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                                <div id="total-fat" style="font-size: 1.2rem; font-weight: bold; color: var(--status-orange);">0g</div>
+                                <div id="total-fat" style="font-size: 1.2rem; font-weight: bold; color: white;">0g</div>
                                 <div style="font-size: 0.75rem; color: var(--text-secondary);">Grasa</div>
                             </div>
                             <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
-                                <div id="total-sodium" style="font-size: 1.2rem; font-weight: bold; color: var(--status-red);">0mg</div>
+                                <div id="total-fiber" style="font-size: 1.2rem; font-weight: bold; color: white;">0g</div>
+                                <div style="font-size: 0.75rem; color: var(--text-secondary);">Fibra</div>
+                            </div>
+                            <div style="background: rgba(255,255,255,0.05); padding: 10px; border-radius: 8px;">
+                                <div id="total-sodium" style="font-size: 1.2rem; font-weight: bold; color: white;">0mg</div>
                                 <div style="font-size: 0.75rem; color: var(--text-secondary);">Sodio</div>
                             </div>
                         </div>
@@ -674,11 +679,11 @@
                     </div>
                 </div>
 
-                <!-- Comidas Fijas (70%) -->
+                <!-- Comidas Fijas -->
                 <div class="card" style="margin-bottom: 2rem;">
                     <div class="card-header" style="justify-content: space-between;">
-                        <h3>Comidas Fijas (70%)</h3>
-                        <button id="toggle-fixed-form-btn" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 0.85rem;"><i class="ph ph-plus"></i> Cargar Fija</button>
+                        <h3>Comidas Fijas</h3>
+                        <button id="toggle-fixed-form-btn" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 0.85rem;"><i class="ph ph-plus"></i> Cargar Comida</button>
                     </div>
                     <div class="card-body">
                         <form id="fixed-meal-form" class="hidden" style="margin-bottom: 1.5rem; background: rgba(0,0,0,0.15); padding: 15px; border-radius: 12px; border: 1px solid var(--surface-border);">
@@ -701,35 +706,39 @@
                                 </div>
                             </div>
                             <div class="form-row">
-                                <div class="input-group third">
+                                <div class="input-group">
                                     <label>Kcal</label>
                                     <input type="number" step="1" id="fixed-meal-kcal" class="number-input" placeholder="0" required>
                                 </div>
-                                <div class="input-group third">
+                                <div class="input-group">
                                     <label>Proteína (g)</label>
                                     <input type="number" step="0.1" id="fixed-meal-protein" class="number-input" placeholder="0" required>
                                 </div>
-                                <div class="input-group third">
+                                <div class="input-group">
                                     <label>Carbohidratos (g)</label>
                                     <input type="number" step="0.1" id="fixed-meal-carbs" class="number-input" placeholder="0" required>
                                 </div>
                             </div>
                             <div class="form-row">
-                                <div class="input-group third">
+                                <div class="input-group">
                                     <label>Grasas (g)</label>
                                     <input type="number" step="0.1" id="fixed-meal-fat" class="number-input" placeholder="0" required>
                                 </div>
-                                <div class="input-group third">
+                                <div class="input-group">
                                     <label>Sodio (mg)</label>
                                     <input type="number" step="1" id="fixed-meal-sodium" class="number-input" placeholder="0" required>
                                 </div>
-                                <div class="input-group third">
+                                <div class="input-group">
+                                    <label>Fibra (g)</label>
+                                    <input type="number" step="0.1" id="fixed-meal-fiber" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group">
                                     <label>Grupo / Receta</label>
                                     <input type="text" id="fixed-meal-group" list="fixed-groups-list" class="text-input" placeholder="Ej: Licuado">
                                     <datalist id="fixed-groups-list"></datalist>
                                 </div>
                             </div>
-                            <button type="submit" class="btn btn-primary" style="margin-top: 1rem;"><i class="ph ph-plus"></i> Agregar Comida Fija</button>
+                            <button type="submit" class="btn btn-primary" style="margin-top: 1rem;"><i class="ph ph-plus"></i> Agregar Comida</button>
                         </form>
 
                         <div class="table-container">
@@ -743,88 +752,11 @@
                                         <th style="padding: 8px;">C</th>
                                         <th style="padding: 8px;">G</th>
                                         <th style="padding: 8px;">Na</th>
-                                        <th style="padding: 8px; width: 30px;"></th>
+                                        <th style="padding: 8px;">Fib</th>
+                                        <th style="padding: 8px; width: 60px;"></th>
                                     </tr>
                                 </thead>
                                 <tbody id="fixed-meals-body"></tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Comidas Variables (30%) -->
-                <div class="card" style="margin-bottom: 2rem;">
-                    <div class="card-header" style="justify-content: space-between;">
-                        <h3>Comidas Variables (30%) - Hoy</h3>
-                        <button id="toggle-var-form-btn" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 0.85rem;"><i class="ph ph-plus"></i> Cargar Variable</button>
-                    </div>
-                    <div class="card-body">
-                        <form id="variable-meal-form" class="hidden" style="margin-bottom: 1.5rem; background: rgba(0,0,0,0.15); padding: 15px; border-radius: 12px; border: 1px solid var(--surface-border);">
-                            <div class="form-row">
-                                <div class="input-group" style="flex: 2;">
-                                    <label>Nombre de la comida</label>
-                                    <input type="text" id="variable-meal-name" class="text-input" placeholder="Ej: Pizza" required>
-                                </div>
-                                <div class="input-group" style="flex: 1;">
-                                    <label>Cant.</label>
-                                    <input type="number" step="0.1" id="variable-meal-qty" class="number-input" placeholder="1" required>
-                                </div>
-                                <div class="input-group" style="flex: 1;">
-                                    <label>Unidad</label>
-                                    <select id="variable-meal-unit" class="text-input">
-                                        <option value="u">u</option>
-                                        <option value="g">g</option>
-                                        <option value="ml">ml</option>
-                                    </select>
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="input-group third">
-                                    <label>Kcal</label>
-                                    <input type="number" step="1" id="variable-meal-kcal" class="number-input" placeholder="0" required>
-                                </div>
-                                <div class="input-group third">
-                                    <label>Proteína (g)</label>
-                                    <input type="number" step="0.1" id="variable-meal-protein" class="number-input" placeholder="0" required>
-                                </div>
-                                <div class="input-group third">
-                                    <label>Carbohidratos (g)</label>
-                                    <input type="number" step="0.1" id="variable-meal-carbs" class="number-input" placeholder="0" required>
-                                </div>
-                            </div>
-                            <div class="form-row">
-                                <div class="input-group third">
-                                    <label>Grasas (g)</label>
-                                    <input type="number" step="0.1" id="variable-meal-fat" class="number-input" placeholder="0" required>
-                                </div>
-                                <div class="input-group third">
-                                    <label>Sodio (mg)</label>
-                                    <input type="number" step="1" id="variable-meal-sodium" class="number-input" placeholder="0" required>
-                                </div>
-                                <div class="input-group third">
-                                    <label>Grupo / Receta</label>
-                                    <input type="text" id="variable-meal-group" list="variable-groups-list" class="text-input" placeholder="Ej: Almuerzo">
-                                    <datalist id="variable-groups-list"></datalist>
-                                </div>
-                            </div>
-                            <button type="submit" class="btn btn-primary" style="margin-top: 1rem;"><i class="ph ph-plus"></i> Agregar Comida Variable</button>
-                        </form>
-
-                        <div class="table-container">
-                            <table class="nutrition-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
-                                <thead>
-                                    <tr style="border-bottom: 1px solid var(--surface-border); text-align: left;">
-                                        <th style="padding: 8px;">Comida</th>
-                                        <th style="padding: 8px;">Cant</th>
-                                        <th style="padding: 8px;">Kcal</th>
-                                        <th style="padding: 8px;">P</th>
-                                        <th style="padding: 8px;">C</th>
-                                        <th style="padding: 8px;">G</th>
-                                        <th style="padding: 8px;">Na</th>
-                                        <th style="padding: 8px; width: 30px;"></th>
-                                    </tr>
-                                </thead>
-                                <tbody id="variable-meals-body"></tbody>
                             </table>
                         </div>
                     </div>
@@ -964,8 +896,103 @@
                 </div>
             </div>
 
+            <!-- SUB-TAB 5: COMIDAS GENERALES -->
+            <div id="gym-general-meals-content" class="gym-tab-content hidden">
+                <div class="card" style="margin-bottom: 2rem;">
+                    <div class="card-header" style="justify-content: space-between;">
+                        <div style="display: flex; align-items: center; gap: 10px;">
+                            <div class="icon-container">
+                                <i class="ph ph-notebook"></i>
+                            </div>
+                            <h3>Base de Comidas Generales</h3>
+                        </div>
+                        <button id="toggle-general-form-btn" class="btn btn-secondary" style="width: auto; padding: 6px 12px; font-size: 0.85rem;"><i class="ph ph-plus"></i> Cargar Comida General</button>
+                    </div>
+                    <div class="card-body">
+                        <!-- Formulario para agregar comida general -->
+                        <form id="general-meal-form" class="hidden" style="margin-bottom: 1.5rem; background: rgba(0,0,0,0.15); padding: 15px; border-radius: 12px; border: 1px solid var(--surface-border);">
+                            <div class="form-row">
+                                <div class="input-group" style="flex: 2;">
+                                    <label>Nombre de la comida</label>
+                                    <input type="text" id="general-meal-name" class="text-input" placeholder="Ej: Bife con Puré" required>
+                                </div>
+                                <div class="input-group" style="flex: 1;">
+                                    <label>Cant. de Referencia</label>
+                                    <input type="number" step="0.1" id="general-meal-qty" class="number-input" placeholder="1" required>
+                                </div>
+                                <div class="input-group" style="flex: 1;">
+                                    <label>Unidad</label>
+                                    <select id="general-meal-unit" class="text-input">
+                                        <option value="u">u</option>
+                                        <option value="g">g</option>
+                                        <option value="ml">ml</option>
+                                    </select>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="input-group">
+                                    <label>Kcal</label>
+                                    <input type="number" step="1" id="general-meal-kcal" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>Proteína (g)</label>
+                                    <input type="number" step="0.1" id="general-meal-protein" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>Carbohidratos (g)</label>
+                                    <input type="number" step="0.1" id="general-meal-carbs" class="number-input" placeholder="0" required>
+                                </div>
+                            </div>
+                            <div class="form-row">
+                                <div class="input-group">
+                                    <label>Grasas (g)</label>
+                                    <input type="number" step="0.1" id="general-meal-fat" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>Sodio (mg)</label>
+                                    <input type="number" step="1" id="general-meal-sodium" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>Fibra (g)</label>
+                                    <input type="number" step="0.1" id="general-meal-fiber" class="number-input" placeholder="0" required>
+                                </div>
+                                <div class="input-group">
+                                    <label>Grupo / Receta</label>
+                                    <input type="text" id="general-meal-group" list="general-groups-list" class="text-input" placeholder="Ej: Cena">
+                                    <datalist id="general-groups-list"></datalist>
+                                </div>
+                            </div>
+                            <button type="submit" class="btn btn-primary" style="margin-top: 1rem;"><i class="ph ph-plus"></i> Guardar Comida General</button>
+                        </form>
 
-        </section>
+                        <!-- Buscador de comida general para listas largas -->
+                        <div class="input-group" style="margin-bottom: 1.5rem; max-width: 400px;">
+                            <label><i class="ph ph-magnifying-glass"></i> Buscar en mis comidas</label>
+                            <input type="text" id="search-general-meals" class="text-input" placeholder="Escribí para buscar...">
+                        </div>
+
+                        <!-- Tabla de comidas generales -->
+                        <div class="table-container">
+                            <table class="nutrition-table" style="width: 100%; border-collapse: collapse; font-size: 0.85rem;">
+                                <thead>
+                                    <tr style="border-bottom: 1px solid var(--surface-border); text-align: left;">
+                                        <th style="padding: 8px;">Comida</th>
+                                        <th style="padding: 8px;">Cant Ref</th>
+                                        <th style="padding: 8px;">Kcal</th>
+                                        <th style="padding: 8px;">P</th>
+                                        <th style="padding: 8px;">C</th>
+                                        <th style="padding: 8px;">G</th>
+                                        <th style="padding: 8px;">Na</th>
+                                        <th style="padding: 8px;">Fib</th>
+                                        <th style="padding: 8px; width: 100px;">Acciones</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="general-meals-body"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
 
         <!-- SECCIÓN: PROYECTOS (ProjectPulse) -->
         <section id="projects-section" class="main-section hidden">
@@ -1311,6 +1338,70 @@
             <div class="modal-actions">
                 <button id="modal-cancel" class="btn btn-cancel">Cancelar</button>
                 <button id="modal-save" class="btn btn-save">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Edición de Comidas (Nutrición) -->
+    <div id="nutrition-edit-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 500px; width: 90%;">
+            <h3>Editar Comida</h3>
+            <p class="modal-desc" style="margin-bottom:1.5rem;">Modificá los valores nutricionales o cantidad.</p>
+            
+            <div class="form-row">
+                <div class="input-group" style="flex: 2;">
+                    <label>Nombre de la comida</label>
+                    <input type="text" id="edit-meal-name" class="text-input" placeholder="Ej: Licuado" required>
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label>Cant.</label>
+                    <input type="number" step="0.1" id="edit-meal-qty" class="number-input" placeholder="1" required>
+                </div>
+                <div class="input-group" style="flex: 1;">
+                    <label>Unidad</label>
+                    <select id="edit-meal-unit" class="text-input">
+                        <option value="u">u</option>
+                        <option value="g">g</option>
+                        <option value="ml">ml</option>
+                    </select>
+                </div>
+            </div>
+            <div class="form-row" style="margin-top: 1rem;">
+                <div class="input-group">
+                    <label>Kcal</label>
+                    <input type="number" step="1" id="edit-meal-kcal" class="number-input" placeholder="0" required>
+                </div>
+                <div class="input-group">
+                    <label>Proteína (g)</label>
+                    <input type="number" step="0.1" id="edit-meal-protein" class="number-input" placeholder="0" required>
+                </div>
+                <div class="input-group">
+                    <label>Carbohidratos (g)</label>
+                    <input type="number" step="0.1" id="edit-meal-carbs" class="number-input" placeholder="0" required>
+                </div>
+            </div>
+            <div class="form-row" style="margin-top: 1rem;">
+                <div class="input-group">
+                    <label>Grasas (g)</label>
+                    <input type="number" step="0.1" id="edit-meal-fat" class="number-input" placeholder="0" required>
+                </div>
+                <div class="input-group">
+                    <label>Sodio (mg)</label>
+                    <input type="number" step="1" id="edit-meal-sodium" class="number-input" placeholder="0" required>
+                </div>
+                <div class="input-group">
+                    <label>Fibra (g)</label>
+                    <input type="number" step="0.1" id="edit-meal-fiber" class="number-input" placeholder="0" required>
+                </div>
+                <div class="input-group">
+                    <label>Grupo</label>
+                    <input type="text" id="edit-meal-group" class="text-input" placeholder="Ej: Licuado">
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top:2rem;">
+                <button id="edit-meal-cancel" class="btn btn-cancel">Cancelar</button>
+                <button id="edit-meal-save" class="btn btn-save">Guardar Cambios</button>
             </div>
         </div>
     </div>

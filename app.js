@@ -2360,6 +2360,7 @@ class GymModule {
         this.routineFocus = {};
         this.sessions = [];
         this.meals = { fixed: [], variable: [] };
+        this.generalMeals = [];
         this.supplements = { vit_d_history: [], vit_d_days_interval: 45, painkillers_history: [] };
         this.weight = [];
         this.activeSession = null;
@@ -2377,12 +2378,17 @@ class GymModule {
 
             const routine = localStorage.getItem('gym_routine');
             if (routine) this.routine = JSON.parse(routine);
+            // Purgar ejercicios del fin de semana
+            this.routine = this.routine.filter(r => r.day !== 'Sábado' && r.day !== 'Domingo');
 
             const routineFocus = localStorage.getItem('gym_routine_focus');
             if (routineFocus) this.routineFocus = JSON.parse(routineFocus);
             this.routineFocus = Object.assign({
                 'Lunes': '', 'Martes': '', 'Miércoles': '', 'Jueves': '', 'Viernes': '', 'Sábado': '', 'Domingo': ''
             }, this.routineFocus);
+            // Purgar focos del fin de semana
+            delete this.routineFocus['Sábado'];
+            delete this.routineFocus['Domingo'];
 
             const sessions = localStorage.getItem('gym_sessions');
             if (sessions) this.sessions = JSON.parse(sessions);
@@ -2391,6 +2397,10 @@ class GymModule {
             if (meals) this.meals = JSON.parse(meals);
             if (!this.meals.fixed) this.meals.fixed = [];
             if (!this.meals.variable) this.meals.variable = [];
+
+            const generalMeals = localStorage.getItem('gym_general_meals');
+            if (generalMeals) this.generalMeals = JSON.parse(generalMeals);
+            if (!this.generalMeals) this.generalMeals = [];
 
             const supplements = localStorage.getItem('gym_supplements');
             if (supplements) this.supplements = JSON.parse(supplements);
@@ -2418,8 +2428,12 @@ class GymModule {
         else if (key === 'gym_routine_focus') localStorage.setItem('gym_routine_focus', JSON.stringify(this.routineFocus));
         else if (key === 'gym_sessions') localStorage.setItem('gym_sessions', JSON.stringify(this.sessions));
         else if (key === 'gym_meals') localStorage.setItem('gym_meals', JSON.stringify(this.meals));
+        else if (key === 'gym_general_meals') localStorage.setItem('gym_general_meals', JSON.stringify(this.generalMeals));
         else if (key === 'gym_supplements') localStorage.setItem('gym_supplements', JSON.stringify(this.supplements));
         else if (key === 'gym_weight') localStorage.setItem('gym_weight', JSON.stringify(this.weight));
+
+        // Sincronizar silenciosamente a la nube
+        this.app.auth?.syncToCloud(false).catch(() => {});
     }
 
     setupListeners() {
@@ -2615,14 +2629,14 @@ class GymModule {
             });
         }
 
-        // Form 4: Nutrition
+        // Form 4: Nutrition (Comidas Fijas)
         const toggleFixedBtn = document.getElementById('toggle-fixed-form-btn');
         const fixedForm = document.getElementById('fixed-meal-form');
         if (toggleFixedBtn && fixedForm) {
             toggleFixedBtn.addEventListener('click', () => {
                 fixedForm.classList.toggle('hidden');
                 const isHidden = fixedForm.classList.contains('hidden');
-                toggleFixedBtn.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Cargar Fija' : '<i class="ph ph-x"></i> Cancelar';
+                toggleFixedBtn.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Cargar Comida' : '<i class="ph ph-x"></i> Cancelar';
             });
         }
 
@@ -2637,52 +2651,121 @@ class GymModule {
                 const carbs = parseFloat(document.getElementById('fixed-meal-carbs').value) || 0;
                 const fat = parseFloat(document.getElementById('fixed-meal-fat').value) || 0;
                 const sodium = parseFloat(document.getElementById('fixed-meal-sodium').value) || 0;
+                const fiber = parseFloat(document.getElementById('fixed-meal-fiber').value) || 0;
                 const group = document.getElementById('fixed-meal-group').value.trim();
 
                 this.meals.fixed.push({
-                    id: Date.now(), name, qty, unit, kcal, protein, carbs, fat, sodium, group
+                    id: Date.now(), name, qty, unit, kcal, protein, carbs, fat, sodium, fiber, group
                 });
                 this.saveData('gym_meals');
                 this.renderNutrition();
                 fixedForm.reset();
                 fixedForm.classList.add('hidden');
-                if (toggleFixedBtn) toggleFixedBtn.innerHTML = '<i class="ph ph-plus"></i> Cargar Fija';
+                if (toggleFixedBtn) toggleFixedBtn.innerHTML = '<i class="ph ph-plus"></i> Cargar Comida';
             });
         }
 
-        const toggleVarBtn = document.getElementById('toggle-var-form-btn');
-        const varForm = document.getElementById('variable-meal-form');
-        if (toggleVarBtn && varForm) {
-            toggleVarBtn.addEventListener('click', () => {
-                varForm.classList.toggle('hidden');
-                const isHidden = varForm.classList.contains('hidden');
-                toggleVarBtn.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Cargar Variable' : '<i class="ph ph-x"></i> Cancelar';
+        // Form 5: Comidas Generales
+        const toggleGeneralBtn = document.getElementById('toggle-general-form-btn');
+        const generalForm = document.getElementById('general-meal-form');
+        if (toggleGeneralBtn && generalForm) {
+            toggleGeneralBtn.addEventListener('click', () => {
+                generalForm.classList.toggle('hidden');
+                const isHidden = generalForm.classList.contains('hidden');
+                toggleGeneralBtn.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Cargar Comida General' : '<i class="ph ph-x"></i> Cancelar';
             });
         }
 
-        if (varForm) {
-            varForm.addEventListener('submit', (e) => {
+        if (generalForm) {
+            generalForm.addEventListener('submit', (e) => {
                 e.preventDefault();
-                const name = document.getElementById('variable-meal-name').value.trim();
-                const qty = parseFloat(document.getElementById('variable-meal-qty').value) || 1;
-                const unit = document.getElementById('variable-meal-unit').value || 'u';
-                const kcal = parseFloat(document.getElementById('variable-meal-kcal').value) || 0;
-                const protein = parseFloat(document.getElementById('variable-meal-protein').value) || 0;
-                const carbs = parseFloat(document.getElementById('variable-meal-carbs').value) || 0;
-                const fat = parseFloat(document.getElementById('variable-meal-fat').value) || 0;
-                const sodium = parseFloat(document.getElementById('variable-meal-sodium').value) || 0;
-                const group = document.getElementById('variable-meal-group').value.trim();
+                const name = document.getElementById('general-meal-name').value.trim();
+                const qty = parseFloat(document.getElementById('general-meal-qty').value) || 1;
+                const unit = document.getElementById('general-meal-unit').value || 'u';
+                const kcal = parseFloat(document.getElementById('general-meal-kcal').value) || 0;
+                const protein = parseFloat(document.getElementById('general-meal-protein').value) || 0;
+                const carbs = parseFloat(document.getElementById('general-meal-carbs').value) || 0;
+                const fat = parseFloat(document.getElementById('general-meal-fat').value) || 0;
+                const sodium = parseFloat(document.getElementById('general-meal-sodium').value) || 0;
+                const fiber = parseFloat(document.getElementById('general-meal-fiber').value) || 0;
+                const group = document.getElementById('general-meal-group').value.trim();
 
-                this.meals.variable.push({
-                    id: Date.now(),
-                    name, qty, unit, kcal, protein, carbs, fat, sodium, group,
-                    date: new Date().toLocaleDateString('es-AR')
+                this.generalMeals.push({
+                    id: Date.now(), name, qty, unit, kcal, protein, carbs, fat, sodium, fiber, group
                 });
-                this.saveData('gym_meals');
-                this.renderNutrition();
-                varForm.reset();
-                varForm.classList.add('hidden');
-                if (toggleVarBtn) toggleVarBtn.innerHTML = '<i class="ph ph-plus"></i> Cargar Variable';
+                this.saveData('gym_general_meals');
+                this.renderGeneralMeals();
+                generalForm.reset();
+                generalForm.classList.add('hidden');
+                if (toggleGeneralBtn) toggleGeneralBtn.innerHTML = '<i class="ph ph-plus"></i> Cargar Comida General';
+            });
+        }
+
+        // Buscador de comidas generales
+        const searchInput = document.getElementById('search-general-meals');
+        if (searchInput) {
+            searchInput.addEventListener('input', () => {
+                this.renderGeneralMeals();
+            });
+        }
+
+        // Modal de edición de comida
+        const editModal = document.getElementById('nutrition-edit-modal');
+        const editCancelBtn = document.getElementById('edit-meal-cancel');
+        const editSaveBtn = document.getElementById('edit-meal-save');
+
+        if (editCancelBtn && editModal) {
+            editCancelBtn.addEventListener('click', () => {
+                editModal.classList.add('hidden');
+            });
+        }
+
+        if (editSaveBtn && editModal) {
+            editSaveBtn.addEventListener('click', (e) => {
+                e.preventDefault();
+                const type = editModal.dataset.mealType;
+                const id = parseInt(editModal.dataset.mealId);
+                let list = type === 'general' ? this.generalMeals : this.meals.fixed;
+                
+                const meal = list.find(m => m.id === id);
+                if (!meal) return;
+
+                const name = document.getElementById('edit-meal-name').value.trim();
+                const qty = parseFloat(document.getElementById('edit-meal-qty').value) || 1;
+                const unit = document.getElementById('edit-meal-unit').value || 'u';
+                const kcal = parseFloat(document.getElementById('edit-meal-kcal').value) || 0;
+                const protein = parseFloat(document.getElementById('edit-meal-protein').value) || 0;
+                const carbs = parseFloat(document.getElementById('edit-meal-carbs').value) || 0;
+                const fat = parseFloat(document.getElementById('edit-meal-fat').value) || 0;
+                const sodium = parseFloat(document.getElementById('edit-meal-sodium').value) || 0;
+                const fiber = parseFloat(document.getElementById('edit-meal-fiber').value) || 0;
+                const group = document.getElementById('edit-meal-group').value.trim();
+
+                if (!name) {
+                    alert('Por favor ingresá un nombre para la comida.');
+                    return;
+                }
+
+                meal.name = name;
+                meal.qty = qty;
+                meal.unit = unit;
+                meal.kcal = kcal;
+                meal.protein = protein;
+                meal.carbs = carbs;
+                meal.fat = fat;
+                meal.sodium = sodium;
+                meal.fiber = fiber;
+                meal.group = group;
+
+                if (type === 'general') {
+                    this.saveData('gym_general_meals');
+                    this.renderGeneralMeals();
+                } else {
+                    this.saveData('gym_meals');
+                    this.renderNutrition();
+                }
+                
+                editModal.classList.add('hidden');
             });
         }
 
@@ -2872,6 +2955,8 @@ class GymModule {
             this.renderSupplements();
             this.renderPainkillers();
             this.renderWeight();
+        } else if (tab === 'general-meals') {
+            this.renderGeneralMeals();
         }
     }
 
@@ -2926,7 +3011,7 @@ class GymModule {
         if (!container) return;
         container.innerHTML = '';
 
-        const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado', 'Domingo'];
+        const days = ['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'];
         days.forEach(day => {
             const dayExercises = this.routine.filter(r => r.day === day);
             const focus = this.routineFocus[day] || '';
@@ -2937,7 +3022,7 @@ class GymModule {
             card.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 0.5rem; margin-bottom: 1rem;">
                     <h3 style="margin: 0; color: var(--primary-color); font-size: 1.1rem;">${day}</h3>
-                    <input type="text" class="day-focus-input" data-day="${day}" placeholder="Ej: Pecho y Tríceps" value="${focus}" style="background:transparent; border:none; color:white; text-align:right; font-size:0.85rem; font-weight:bold; outline:none; max-width:140px;">
+                    <input type="text" class="day-focus-input" data-day="${day}" placeholder="Ej: Pecho y Tríceps" value="${focus}">
                 </div>
                 <div class="routine-exercises-list" style="display:flex; flex-direction:column; gap:8px;">
                     ${dayExercises.length === 0 ? '<p style="color:var(--text-secondary); font-size:0.8rem; font-style:italic; padding:5px 0;">Sin ejercicios programados.</p>' : ''}
@@ -3097,23 +3182,18 @@ class GymModule {
 
     renderNutrition() {
         const fixedBody = document.getElementById('fixed-meals-body');
-        const varBody = document.getElementById('variable-meals-body');
-        if (!fixedBody || !varBody) return;
+        if (!fixedBody) return;
 
         // Render fixed meals
         const fixedTotals = this.renderMealRows(fixedBody, this.meals.fixed, 'fixed');
 
-        // Render variable meals (solo las de hoy)
-        const todayStr = new Date().toLocaleDateString('es-AR');
-        const todayVarMeals = this.meals.variable.filter(m => m.date === todayStr);
-        const varTotals = this.renderMealRows(varBody, todayVarMeals, 'variable');
-
         // Sumar todo
-        const totalKcal = fixedTotals.kcal + varTotals.kcal;
-        const totalProtein = fixedTotals.protein + varTotals.protein;
-        const totalCarbs = fixedTotals.carbs + varTotals.carbs;
-        const totalFat = fixedTotals.fat + varTotals.fat;
-        const totalSodium = fixedTotals.sodium + varTotals.sodium;
+        const totalKcal = fixedTotals.kcal;
+        const totalProtein = fixedTotals.protein;
+        const totalCarbs = fixedTotals.carbs;
+        const totalFat = fixedTotals.fat;
+        const totalSodium = fixedTotals.sodium;
+        const totalFiber = fixedTotals.fiber;
 
         // Actualizar dashboard
         document.getElementById('total-kcal').textContent = totalKcal.toFixed(0);
@@ -3121,24 +3201,21 @@ class GymModule {
         document.getElementById('total-carbs').textContent = totalCarbs.toFixed(1) + 'g';
         document.getElementById('total-fat').textContent = totalFat.toFixed(1) + 'g';
         document.getElementById('total-sodium').textContent = totalSodium.toFixed(0) + 'mg';
+        document.getElementById('total-fiber').textContent = totalFiber.toFixed(1) + 'g';
 
-        // Auto-complete list
+        // Auto-complete list for groups
         const fixedGroups = [...new Set(this.meals.fixed.map(m => m.group).filter(Boolean))];
         const fixedDatalist = document.getElementById('fixed-groups-list');
         if (fixedDatalist) fixedDatalist.innerHTML = fixedGroups.map(g => `<option value="${g}">`).join('');
-
-        const varGroups = [...new Set(this.meals.variable.map(m => m.group).filter(Boolean))];
-        const varDatalist = document.getElementById('variable-groups-list');
-        if (varDatalist) varDatalist.innerHTML = varGroups.map(g => `<option value="${g}">`).join('');
     }
 
     renderMealRows(body, meals, type) {
         body.innerHTML = '';
-        let tKcal = 0, tProtein = 0, tCarbs = 0, tFat = 0, tSodium = 0;
+        let tKcal = 0, tProtein = 0, tCarbs = 0, tFat = 0, tSodium = 0, tFiber = 0;
 
         if (meals.length === 0) {
-            body.innerHTML = `<tr><td colspan="8" style="text-align:center; color:var(--text-secondary); padding: 15px 0;">No hay comidas cargadas.</td></tr>`;
-            return { kcal: tKcal, protein: tProtein, carbs: tCarbs, fat: tFat, sodium: tSodium };
+            body.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-secondary); padding: 15px 0;">No hay comidas cargadas.</td></tr>`;
+            return { kcal: tKcal, protein: tProtein, carbs: tCarbs, fat: tFat, sodium: tSodium, fiber: tFiber };
         }
 
         const order = [];
@@ -3165,15 +3242,14 @@ class GymModule {
 
                 delete groupsMap[grpName]; // Evitar duplicar
 
-                let grpKcal = 0, grpProtein = 0, grpCarbs = 0, grpFat = 0, grpSodium = 0;
+                let grpKcal = 0, grpProtein = 0, grpCarbs = 0, grpFat = 0, grpSodium = 0, grpFiber = 0;
                 grpMeals.forEach(m => {
-                    const q = parseFloat(m.qty) || 1;
-                    const mult = (m.unit === 'g' || m.unit === 'ml') ? (q / 100) : q;
-                    grpKcal += (parseFloat(m.kcal) || 0) * mult;
-                    grpProtein += (parseFloat(m.protein) || 0) * mult;
-                    grpCarbs += (parseFloat(m.carbs) || 0) * mult;
-                    grpFat += (parseFloat(m.fat) || 0) * mult;
-                    grpSodium += (parseFloat(m.sodium) || 0) * mult;
+                    grpKcal += parseFloat(m.kcal) || 0;
+                    grpProtein += parseFloat(m.protein) || 0;
+                    grpCarbs += parseFloat(m.carbs) || 0;
+                    grpFat += parseFloat(m.fat) || 0;
+                    grpSodium += parseFloat(m.sodium) || 0;
+                    grpFiber += parseFloat(m.fiber) || 0;
                 });
 
                 tKcal += grpKcal;
@@ -3181,6 +3257,7 @@ class GymModule {
                 tCarbs += grpCarbs;
                 tFat += grpFat;
                 tSodium += grpSodium;
+                tFiber += grpFiber;
 
                 const collapsedKey = `${type}-${grpName}`;
                 const isCollapsed = !!this.collapsedGroups[collapsedKey];
@@ -3195,32 +3272,39 @@ class GymModule {
                         <strong style="color: white;">📁 ${grpName}</strong>
                     </td>
                     <td style="color:var(--text-secondary);">-</td>
-                    <td style="font-weight:bold; color:var(--primary-color);">${grpKcal.toFixed(0)}</td>
-                    <td style="font-weight:bold;">${grpProtein.toFixed(1)}g</td>
-                    <td style="font-weight:bold;">${grpCarbs.toFixed(1)}g</td>
-                    <td style="font-weight:bold;">${grpFat.toFixed(1)}g</td>
-                    <td style="font-weight:bold; color:var(--status-red);">${grpSodium.toFixed(0)}mg</td>
+                    <td style="font-weight:bold; color:white;">${grpKcal.toFixed(0)}</td>
+                    <td style="font-weight:bold; color:white;">${grpProtein.toFixed(1)}g</td>
+                    <td style="font-weight:bold; color:white;">${grpCarbs.toFixed(1)}g</td>
+                    <td style="font-weight:bold; color:white;">${grpFat.toFixed(1)}g</td>
+                    <td style="font-weight:bold; color:white;">${grpSodium.toFixed(0)}mg</td>
+                    <td style="font-weight:bold; color:white;">${grpFiber.toFixed(1)}g</td>
                     <td style="text-align:right;">
-                        <button class="btn-history-delete" onclick="window.gym.deleteMealGroup('${type}', '${grpName.replace(/'/g, "\\'")}')" style="padding:0;"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                        <button class="btn-history-delete" onclick="window.gym.deleteMealGroup('${type}', '${grpName.replace(/'/g, "\\'")}')" style="padding:0;" title="Eliminar Grupo"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </td>
                 `;
                 body.appendChild(trHeader);
 
                 if (!isCollapsed) {
                     grpMeals.forEach(m => {
-                        const q = parseFloat(m.qty) || 1;
-                        const mult = (m.unit === 'g' || m.unit === 'ml') ? (q / 100) : q;
                         const trItem = document.createElement('tr');
+                        const mKcal = parseFloat(m.kcal) || 0;
+                        const mProtein = parseFloat(m.protein) || 0;
+                        const mCarbs = parseFloat(m.carbs) || 0;
+                        const mFat = parseFloat(m.fat) || 0;
+                        const mSodium = parseFloat(m.sodium) || 0;
+                        const mFiber = parseFloat(m.fiber) || 0;
                         trItem.innerHTML = `
                             <td style="padding: 8px 8px 8px 24px; color: var(--text-secondary);">↳ ${m.name}</td>
-                            <td style="color:var(--text-secondary);">${q}${m.unit}</td>
-                            <td>${((parseFloat(m.kcal) || 0) * mult).toFixed(0)}</td>
-                            <td>${((parseFloat(m.protein) || 0) * mult).toFixed(1)}g</td>
-                            <td>${((parseFloat(m.carbs) || 0) * mult).toFixed(1)}g</td>
-                            <td>${((parseFloat(m.fat) || 0) * mult).toFixed(1)}g</td>
-                            <td>${((parseFloat(m.sodium) || 0) * mult).toFixed(0)}mg</td>
-                            <td style="text-align:right;">
-                                <button class="btn-history-delete" onclick="window.gym.deleteMeal('${type}', ${m.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
+                            <td style="color:var(--text-secondary);">${m.qty || 1}${m.unit || 'u'}</td>
+                            <td style="color:white;">${mKcal.toFixed(0)}</td>
+                            <td style="color:white;">${mProtein.toFixed(1)}g</td>
+                            <td style="color:white;">${mCarbs.toFixed(1)}g</td>
+                            <td style="color:white;">${mFat.toFixed(1)}g</td>
+                            <td style="color:white;">${mSodium.toFixed(0)}mg</td>
+                            <td style="color:white;">${mFiber.toFixed(1)}g</td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <button class="btn-history-edit" onclick="window.gym.editMeal('${type}', ${m.id})" style="padding:0; margin-right:6px;" title="Editar Comida"><i class="ph ph-pencil" style="font-size:0.95rem;"></i></button>
+                                <button class="btn-history-delete" onclick="window.gym.deleteMeal('${type}', ${m.id})" style="padding:0;" title="Eliminar Comida"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
                             </td>
                         `;
                         body.appendChild(trItem);
@@ -3228,59 +3312,76 @@ class GymModule {
                 }
             } else {
                 const m = item.meal;
-                const q = parseFloat(m.qty) || 1;
-                const mult = (m.unit === 'g' || m.unit === 'ml') ? (q / 100) : q;
-
-                const mKcal = (parseFloat(m.kcal) || 0) * mult;
-                const mProtein = (parseFloat(m.protein) || 0) * mult;
-                const mCarbs = (parseFloat(m.carbs) || 0) * mult;
-                const mFat = (parseFloat(m.fat) || 0) * mult;
-                const mSodium = (parseFloat(m.sodium) || 0) * mult;
+                const mKcal = parseFloat(m.kcal) || 0;
+                const mProtein = parseFloat(m.protein) || 0;
+                const mCarbs = parseFloat(m.carbs) || 0;
+                const mFat = parseFloat(m.fat) || 0;
+                const mSodium = parseFloat(m.sodium) || 0;
+                const mFiber = parseFloat(m.fiber) || 0;
 
                 tKcal += mKcal;
                 tProtein += mProtein;
                 tCarbs += mCarbs;
                 tFat += mFat;
                 tSodium += mSodium;
+                tFiber += mFiber;
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
                     <td style="padding: 8px; font-weight:600; color:white;">${m.name}</td>
-                    <td>${q}${m.unit}</td>
-                    <td style="color:var(--primary-color);">${mKcal.toFixed(0)}</td>
-                    <td>${mProtein.toFixed(1)}g</td>
-                    <td>${mCarbs.toFixed(1)}g</td>
-                    <td>${mFat.toFixed(1)}g</td>
-                    <td style="color:var(--status-red);">${mSodium.toFixed(0)}mg</td>
-                    <td style="text-align:right;">
-                        <button class="btn-history-delete" onclick="window.gym.deleteMeal('${type}', ${m.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                    <td>${m.qty || 1}${m.unit || 'u'}</td>
+                    <td style="color:white;">${mKcal.toFixed(0)}</td>
+                    <td style="color:white;">${mProtein.toFixed(1)}g</td>
+                    <td style="color:white;">${mCarbs.toFixed(1)}g</td>
+                    <td style="color:white;">${mFat.toFixed(1)}g</td>
+                    <td style="color:white;">${mSodium.toFixed(0)}mg</td>
+                    <td style="color:white;">${mFiber.toFixed(1)}g</td>
+                    <td style="text-align:right; white-space:nowrap;">
+                        <button class="btn-history-edit" onclick="window.gym.editMeal('${type}', ${m.id})" style="padding:0; margin-right:6px;" title="Editar Comida"><i class="ph ph-pencil" style="font-size:1rem;"></i></button>
+                        <button class="btn-history-delete" onclick="window.gym.deleteMeal('${type}', ${m.id})" style="padding:0;" title="Eliminar Comida"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </td>
                 `;
                 body.appendChild(tr);
             }
         });
 
-        return { kcal: tKcal, protein: tProtein, carbs: tCarbs, fat: tFat, sodium: tSodium };
+        return { kcal: tKcal, protein: tProtein, carbs: tCarbs, fat: tFat, sodium: tSodium, fiber: tFiber };
     }
 
     toggleGroupCollapse(type, groupName) {
         const key = `${type}-${groupName}`;
         this.collapsedGroups[key] = !this.collapsedGroups[key];
-        this.renderNutrition();
-    }
-
-    deleteMealGroup(type, groupName) {
-        if (confirm(`¿Seguro que querés eliminar todo el grupo "${groupName}"?`)) {
-            this.meals[type] = this.meals[type].filter(m => (m.group || '') !== groupName);
-            this.saveData('gym_meals');
+        if (type === 'general') {
+            this.renderGeneralMeals();
+        } else {
             this.renderNutrition();
         }
     }
 
+    deleteMealGroup(type, groupName) {
+        if (confirm(`¿Seguro que querés eliminar todo el grupo "${groupName}"?`)) {
+            if (type === 'general') {
+                this.generalMeals = this.generalMeals.filter(m => (m.group || '') !== groupName);
+                this.saveData('gym_general_meals');
+                this.renderGeneralMeals();
+            } else {
+                this.meals[type] = this.meals[type].filter(m => (m.group || '') !== groupName);
+                this.saveData('gym_meals');
+                this.renderNutrition();
+            }
+        }
+    }
+
     deleteMeal(type, id) {
-        this.meals[type] = this.meals[type].filter(m => m.id !== id);
-        this.saveData('gym_meals');
-        this.renderNutrition();
+        if (type === 'general') {
+            this.generalMeals = this.generalMeals.filter(m => m.id !== id);
+            this.saveData('gym_general_meals');
+            this.renderGeneralMeals();
+        } else {
+            this.meals[type] = this.meals[type].filter(m => m.id !== id);
+            this.saveData('gym_meals');
+            this.renderNutrition();
+        }
     }
 
     renderWeight() {
@@ -3492,6 +3593,172 @@ class GymModule {
             this.saveData('gym_supplements');
             this.renderPainkillers();
         }
+    }
+
+    editMeal(type, id) {
+        let list = type === 'general' ? this.generalMeals : this.meals.fixed;
+        const meal = list.find(m => m.id === id);
+        if (!meal) return;
+
+        const modal = document.getElementById('nutrition-edit-modal');
+        if (!modal) return;
+
+        // Rellenar campos
+        document.getElementById('edit-meal-name').value = meal.name || '';
+        document.getElementById('edit-meal-qty').value = meal.qty !== undefined ? meal.qty : 1;
+        document.getElementById('edit-meal-unit').value = meal.unit || 'u';
+        document.getElementById('edit-meal-kcal').value = meal.kcal !== undefined ? meal.kcal : 0;
+        document.getElementById('edit-meal-protein').value = meal.protein !== undefined ? meal.protein : 0;
+        document.getElementById('edit-meal-carbs').value = meal.carbs !== undefined ? meal.carbs : 0;
+        document.getElementById('edit-meal-fat').value = meal.fat !== undefined ? meal.fat : 0;
+        document.getElementById('edit-meal-sodium').value = meal.sodium !== undefined ? meal.sodium : 0;
+        document.getElementById('edit-meal-fiber').value = meal.fiber !== undefined ? meal.fiber : 0;
+        document.getElementById('edit-meal-group').value = meal.group || '';
+
+        // Guardar metadata
+        modal.dataset.mealType = type;
+        modal.dataset.mealId = id;
+
+        modal.classList.remove('hidden');
+    }
+
+    copyToFixed(id) {
+        const meal = this.generalMeals.find(m => m.id === id);
+        if (!meal) return;
+
+        // Clonamos la comida a la lista de fijas
+        this.meals.fixed.push({
+            id: Date.now(),
+            name: meal.name,
+            qty: meal.qty,
+            unit: meal.unit,
+            kcal: meal.kcal,
+            protein: meal.protein,
+            carbs: meal.carbs,
+            fat: meal.fat,
+            sodium: meal.sodium,
+            fiber: meal.fiber,
+            group: meal.group
+        });
+
+        this.saveData('gym_meals');
+        alert(`¡"${meal.name}" copiado a Comidas Fijas con éxito!`);
+        this.renderNutrition();
+    }
+
+    renderGeneralMeals() {
+        const body = document.getElementById('general-meals-body');
+        if (!body) return;
+
+        const searchInput = document.getElementById('search-general-meals');
+        const query = searchInput ? searchInput.value.toLowerCase().trim() : '';
+
+        // Filtrar según búsqueda
+        let filtered = this.generalMeals;
+        if (query) {
+            filtered = this.generalMeals.filter(m => 
+                (m.name || '').toLowerCase().includes(query) || 
+                (m.group || '').toLowerCase().includes(query)
+            );
+        }
+
+        body.innerHTML = '';
+
+        if (filtered.length === 0) {
+            body.innerHTML = `<tr><td colspan="9" style="text-align:center; color:var(--text-secondary); padding: 15px 0;">No hay comidas generales guardadas.</td></tr>`;
+            return;
+        }
+
+        const order = [];
+        const groupsMap = {};
+
+        filtered.forEach(meal => {
+            const grp = meal.group ? meal.group.trim() : '';
+            if (grp) {
+                if (!groupsMap[grp]) {
+                    groupsMap[grp] = [];
+                    order.push({ isGroup: true, name: grp });
+                }
+                groupsMap[grp].push(meal);
+            } else {
+                order.push({ isGroup: false, meal: meal });
+            }
+        });
+
+        order.forEach(item => {
+            if (item.isGroup) {
+                const grpName = item.name;
+                const grpMeals = groupsMap[grpName];
+                if (!grpMeals || grpMeals.length === 0) return;
+
+                delete groupsMap[grpName];
+
+                const collapsedKey = `general-${grpName}`;
+                const isCollapsed = !!this.collapsedGroups[collapsedKey];
+
+                const trHeader = document.createElement('tr');
+                trHeader.style.background = 'rgba(255,255,255,0.02)';
+                trHeader.innerHTML = `
+                    <td style="padding: 8px;">
+                        <button type="button" onclick="window.gym.toggleGroupCollapse('general', '${grpName.replace(/'/g, "\\'")}')" style="background:transparent; border:none; color:var(--primary-color); cursor:pointer; padding: 2px 5px; font-size:0.8rem;">
+                            <i class="ph ${isCollapsed ? 'ph-caret-right' : 'ph-caret-down'}"></i>
+                        </button>
+                        <strong style="color: white;">📁 ${grpName}</strong>
+                    </td>
+                    <td colspan="7" style="color:var(--text-secondary);">-</td>
+                    <td style="text-align:right;">
+                        <button class="btn-history-delete" onclick="window.gym.deleteMealGroup('general', '${grpName.replace(/'/g, "\\'")}')" style="padding:0;" title="Eliminar Grupo"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                    </td>
+                `;
+                body.appendChild(trHeader);
+
+                if (!isCollapsed) {
+                    grpMeals.forEach(m => {
+                        const trItem = document.createElement('tr');
+                        trItem.innerHTML = `
+                            <td style="padding: 8px 8px 8px 24px; color: var(--text-secondary);">↳ ${m.name}</td>
+                            <td style="color:var(--text-secondary);">${m.qty || 1}${m.unit || 'u'}</td>
+                            <td style="color:white;">${(parseFloat(m.kcal) || 0).toFixed(0)}</td>
+                            <td style="color:white;">${(parseFloat(m.protein) || 0).toFixed(1)}g</td>
+                            <td style="color:white;">${(parseFloat(m.carbs) || 0).toFixed(1)}g</td>
+                            <td style="color:white;">${(parseFloat(m.fat) || 0).toFixed(1)}g</td>
+                            <td style="color:white;">${(parseFloat(m.sodium) || 0).toFixed(0)}mg</td>
+                            <td style="color:white;">${(parseFloat(m.fiber) || 0).toFixed(1)}g</td>
+                            <td style="text-align:right; white-space:nowrap;">
+                                <button class="btn-history-edit" onclick="window.gym.copyToFixed(${m.id})" style="padding:0; margin-right:6px;" title="Copiar a Comidas Fijas"><i class="ph ph-calendar-plus" style="font-size:0.95rem;"></i></button>
+                                <button class="btn-history-edit" onclick="window.gym.editMeal('general', ${m.id})" style="padding:0; margin-right:6px;" title="Editar Comida"><i class="ph ph-pencil" style="font-size:0.95rem;"></i></button>
+                                <button class="btn-history-delete" onclick="window.gym.deleteMeal('general', ${m.id})" style="padding:0;" title="Eliminar Comida"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
+                            </td>
+                        `;
+                        body.appendChild(trItem);
+                    });
+                }
+            } else {
+                const m = item.meal;
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td style="padding: 8px; font-weight:600; color:white;">${m.name}</td>
+                    <td>${m.qty || 1}${m.unit || 'u'}</td>
+                    <td style="color:white;">${(parseFloat(m.kcal) || 0).toFixed(0)}</td>
+                    <td style="color:white;">${(parseFloat(m.protein) || 0).toFixed(1)}g</td>
+                    <td style="color:white;">${(parseFloat(m.carbs) || 0).toFixed(1)}g</td>
+                    <td style="color:white;">${(parseFloat(m.fat) || 0).toFixed(1)}g</td>
+                    <td style="color:white;">${(parseFloat(m.sodium) || 0).toFixed(0)}mg</td>
+                    <td style="color:white;">${(parseFloat(m.fiber) || 0).toFixed(1)}g</td>
+                    <td style="text-align:right; white-space:nowrap;">
+                        <button class="btn-history-edit" onclick="window.gym.copyToFixed(${m.id})" style="padding:0; margin-right:6px;" title="Copiar a Comidas Fijas"><i class="ph ph-calendar-plus" style="font-size:1rem;"></i></button>
+                        <button class="btn-history-edit" onclick="window.gym.editMeal('general', ${m.id})" style="padding:0; margin-right:6px;" title="Editar Comida"><i class="ph ph-pencil" style="font-size:1rem;"></i></button>
+                        <button class="btn-history-delete" onclick="window.gym.deleteMeal('general', ${m.id})" style="padding:0;" title="Eliminar Comida"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                    </td>
+                `;
+                body.appendChild(tr);
+            }
+        });
+
+        // Datalist autocomplete for general groups
+        const generalGroups = [...new Set(this.generalMeals.map(m => m.group).filter(Boolean))];
+        const generalDatalist = document.getElementById('general-groups-list');
+        if (generalDatalist) generalDatalist.innerHTML = generalGroups.map(g => `<option value="${g}">`).join('');
     }
 }
 
@@ -4601,7 +4868,7 @@ class BackupModule {
                 // Gimnasio
                 const gymKeys = [
                     'gym_records', 'gym_routine', 'gym_routine_focus', 
-                    'gym_sessions', 'gym_meals', 'gym_supplements', 'gym_weight'
+                    'gym_sessions', 'gym_meals', 'gym_general_meals', 'gym_supplements', 'gym_weight'
                 ];
                 let gymFound = false;
                 gymKeys.forEach(key => {
@@ -5077,7 +5344,7 @@ class AuthSyncModule {
             'caseDate', 'systaneDate', 'clothWashDate', 'clothChangeDate', 
             'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
             'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
-            'gym_routine_focus', 'gym_sessions', 'gym_meals', 
+            'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
             'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 'projectPulseSubscription', 'alerts_config', 'alerts_sent_log'
         ];
         localKeys.forEach(key => {
@@ -6219,7 +6486,7 @@ class AppController {
             'caseDate', 'systaneDate', 'clothWashDate', 'clothChangeDate', 
             'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
             'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
-            'gym_routine_focus', 'gym_sessions', 'gym_meals', 
+            'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
             'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory',
             'projectPulseSubscription', 'alerts_config', 'alerts_sent_log'
         ];

@@ -1807,6 +1807,42 @@ textarea:focus {
     background-color: rgba(239, 68, 68, 0.15);
 }
 
+.btn-history-edit {
+    background: transparent;
+    border: none;
+    color: var(--text-secondary);
+    font-size: 1rem;
+    cursor: pointer;
+    padding: 2px 4px;
+    border-radius: 4px;
+    transition: color 0.2s, background-color 0.2s;
+}
+
+.btn-history-edit:hover {
+    color: var(--primary-color);
+    background-color: rgba(59, 130, 246, 0.15);
+}
+
+.day-focus-input {
+    background: transparent;
+    border: none;
+    color: white;
+    text-align: right;
+    font-size: 0.85rem;
+    font-weight: bold;
+    outline: none;
+    max-width: 250px;
+    width: 100%;
+    transition: color 0.2s;
+}
+
+.day-focus-input:focus {
+    outline: none !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: var(--primary-color);
+}
+
 /* Projects active list header styling */
 .projects-header {
     display: flex;
