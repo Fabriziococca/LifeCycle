@@ -105,32 +105,12 @@ const itemsConfig = [
         ]
     },
     {
-        id: 'pad_cepillado',
-        name: 'Pad XL (Cepillado en seco)',
-        icon: 'ph-paint-brush',
-        limits: { yellow: 7, orange: 14, red: 21 },
-        type: 'brush',
-        category: 'tecnologia',
-        group: 'pad_xl',
-        groupName: 'Pad XL',
-        groupIcon: 'ph-paint-brush',
-        subName: 'Cepillado en seco',
-        instructions: [
-            { step: 'Acción', text: 'Usa un cepillo de cerdas medianas o duras (como el de ropa o interiores de auto).' },
-            { step: 'Técnica', text: 'Frota de forma vertical y con firmeza sobre la tela para levantar el polvo depositado, las migas y las escamas de piel. Lleva el pad afuera y sacudilo con ganas para eliminar el polvillo suelto.' }
-        ]
-    },
-    {
         id: 'pad_lavado',
-        name: 'Pad XL (Lavado a fondo)',
-        icon: 'ph-waves',
+        name: 'Pad XL',
+        icon: 'ph-paint-brush',
         limits: { yellow: 60, orange: 75, red: 90 },
         type: 'wash',
         category: 'tecnologia',
-        group: 'pad_xl',
-        groupName: 'Pad XL',
-        groupIcon: 'ph-paint-brush',
-        subName: 'Lavado a fondo',
         instructions: [
             { step: 'Lavado', text: 'Sumerge el pad en la bacha con agua tibia (nunca caliente). Aplica un chorrito de shampoo para el pelo para cortar el sebo corporal. Frega suavemente en círculos con un cepillo de cerdas blandas.' },
             { step: 'Enjuague y Secado', text: 'Enjuaga con agua fría hasta retirar todo el jabón. No lo retuerzas. Apoyalo plano sobre una toalla, enrollalo como un pionono para sacar el exceso de agua y déjalo secar estirado a la sombra.' }
@@ -629,8 +609,8 @@ class HygieneModule {
                             </div>
                         </div>
                         
-                        <div class="instructions-collapse hidden" style="margin-bottom: 0.75rem;">
-                            <div class="instructions-content" style="font-size: 0.8rem; color: var(--text-secondary); background: rgba(0,0,0,0.15); border-radius: 6px; padding: 8px;"></div>
+                        <div class="instructions-collapse">
+                            <div class="instructions-content"></div>
                         </div>
 
                         <div style="display: flex; align-items: baseline; gap: 6px; margin-bottom: 0.5rem;">
@@ -673,8 +653,9 @@ class HygieneModule {
                         
                         infoBtn.addEventListener('click', (e) => {
                             e.stopPropagation();
-                            instCollapse.classList.toggle('hidden');
-                            infoBtn.classList.toggle('active');
+                            const isOpen = instCollapse.classList.contains('open');
+                            instCollapse.classList.toggle('open', !isOpen);
+                            infoBtn.classList.toggle('active', !isOpen);
                         });
                     } else {
                         infoBtn.style.display = 'none';

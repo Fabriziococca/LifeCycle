@@ -509,6 +509,25 @@ body {
     padding: 1.25rem;
 }
 
+/* Custom collapse styling for group sub-items to prevent cutoff */
+.group-subitem .instructions-collapse {
+    background: rgba(0, 0, 0, 0.15);
+    margin: 0;
+    border: none;
+}
+.group-subitem .instructions-collapse.open {
+    margin: 0 0 0.75rem 0;
+    border: 1px solid rgba(255, 255, 255, 0.06);
+}
+.group-subitem .instructions-content {
+    padding: 0 8px;
+    font-size: 0.8rem;
+}
+.group-subitem .instructions-collapse.open .instructions-content {
+    padding: 8px;
+}
+
+
 .instruction-step {
     margin-bottom: 0.75rem;
 }
