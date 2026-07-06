@@ -383,11 +383,15 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'esponja_africana', 'toalla_mano', 'toalla_cuerpo', 'sabanas', 'funda_almohada', 'alfombra_bano',
                     'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
-                    'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana'
+                    'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana', 'listerine'
                 ];
 
                 definitions.forEach(k => {
-                    alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
+                    if (k === 'listerine') {
+                        alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
+                    } else {
+                        alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
+                    }
                 });
                 Object.keys(defaultTimes).forEach(k => {
                     alertsConfig[k] = defaultTimes[k];
@@ -400,13 +404,14 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
                     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
-                    'creatine', 'salmon', 'neck'
+                    'creatine', 'salmon', 'neck', 'listerine'
                 ];
                 definitions.forEach(k => {
                     if (!alertsConfig[k]) {
                         if (k === 'creatine') alertsConfig[k] = { enabled: true, time: '23:00', days: [1,2,3,4,5,6,0] };
                         else if (k === 'salmon') alertsConfig[k] = { enabled: true, time: '17:00', days: [0] };
                         else if (k === 'neck') alertsConfig[k] = { enabled: true, time: '23:30', days: [5,6] };
+                        else if (k === 'listerine') alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
                         else alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
                         configFilled = true;
                     }
@@ -530,6 +535,26 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 if (history.length > 0) {
                                     const elapsed = getDaysElapsed(history[0]);
                                     if (elapsed >= 360) { shouldNotify = true; title = '🧪 Computadora (Pasta Térmica)'; body = `Pasaron ${elapsed} días, recordá cambiar la pasta térmica de tu PC.`; }
+                                }
+                            }
+                            break;
+                        case 'listerine':
+                            if (hygieneData.listerine && hygieneData.listerine.status === 'active' && hygieneData.listerine.startDate) {
+                                const daysSinceStart = getDaysElapsed(hygieneData.listerine.startDate);
+                                const cycleDay = daysSinceStart % 14;
+                                if (cycleDay === 5) {
+                                    shouldNotify = true;
+                                    title = '🧪 Listerine: Descanso';
+                                    body = 'Che, ya llegaste al límite, te toca descansar.';
+                                } else if (cycleDay === 0) {
+                                    const startMs = new Date(hygieneData.listerine.startDate).getTime();
+                                    const nowMs = Date.now();
+                                    const hoursSinceStart = (nowMs - startMs) / (1000 * 60 * 60);
+                                    if (hoursSinceStart > 12) {
+                                        shouldNotify = true;
+                                        title = '🧪 Listerine: Consumo';
+                                        body = 'Che, ya estás en la semana de consumo de listerine, volvé a meterle.';
+                                    }
                                 }
                             }
                             break;
