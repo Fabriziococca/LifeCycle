@@ -149,6 +149,18 @@ const itemsConfig = [
             { step: 'Limpieza', text: 'Limpiar la pasta vieja del chip y disipador usando un paño o hisopo humedecido en alcohol isopropílico al 99% hasta que brille el metal.' },
             { step: 'Aplicación', text: 'Colocar un grano de arroz o gota de pasta de buena calidad (ej. Arctic MX-4) en el centro del procesador, volver a montar el disipador ajustando tornillos en cruz.' }
         ]
+    },
+    {
+        id: 'listerine',
+        name: 'Listerine',
+        icon: 'ph-flask',
+        category: 'cuidado_personal',
+        isListerine: true,
+        instructions: [
+            { step: 'Esquema de Uso', text: '5 días de consumo consecutivo (de lunes a viernes, una vez a la mañana).' },
+            { step: 'Semana de Descanso', text: '9 días de descanso absoluto para preservar la flora bucal.' },
+            { step: 'Uso Seguro', text: 'Tomarlo preferentemente por la mañana para evitar deshidratación bucal nocturna.' }
+        ]
     }
 ];
 
@@ -268,6 +280,14 @@ class HygieneModule {
                 status: 'clean',
                 marked_dirty_at: null,
                 last_notified_at: null
+            };
+        }
+        
+        // Inicializar datos de listerine si no existen o están corruptos
+        if (parsedData.listerine === undefined || parsedData.listerine === null || typeof parsedData.listerine !== 'object') {
+            parsedData.listerine = {
+                status: 'paused',
+                startDate: null
             };
         }
         return parsedData;
@@ -426,6 +446,10 @@ class HygieneModule {
         renderedCards.forEach(cardData => {
             if (cardData.type === 'normal') {
                 const item = cardData.item;
+                if (item.id === 'listerine') {
+                    this.renderListerineCard(item);
+                    return;
+                }
                 const type = item.type || 'wash';
                 const history = Array.isArray(this.data[item.id]) 
                     ? this.data[item.id] 
@@ -836,6 +860,199 @@ class HygieneModule {
                 this.renderRobotCard();
             }
         }, 30000); // cada 30 segundos
+    }
+
+    getCalendarDaysBetween(date1, date2) {
+        const d1 = new Date(date1);
+        const d2 = new Date(date2);
+        d1.setHours(0, 0, 0, 0);
+        d2.setHours(0, 0, 0, 0);
+        const diffTime = d2 - d1;
+        return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    }
+
+    startListerineCycle() {
+        if (navigator.vibrate) navigator.vibrate(50);
+        const now = new Date();
+        this.data.listerine = {
+            status: 'active',
+            startDate: now.toISOString()
+        };
+        this.saveData();
+        this.render();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.app.notificationsCenter?.updateBadge();
+    }
+
+    pauseListerineCycle() {
+        if (navigator.vibrate) navigator.vibrate(50);
+        this.data.listerine = {
+            status: 'paused',
+            startDate: null
+        };
+        this.saveData();
+        this.render();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.app.notificationsCenter?.updateBadge();
+    }
+
+    renderListerineCard(item) {
+        const data = this.data.listerine || { status: 'paused', startDate: null };
+        
+        let statusClass = 'status-green';
+        let statusText = 'Pausado';
+        let colorVar = 'var(--text-secondary)';
+        let daysText = '--';
+        let daysLabel = 'días';
+        let lastDateLabel = 'Estado';
+        let lastDateText = 'Pausado';
+        let nextDateLabel = 'Próximo';
+        let nextDateText = 'N/A';
+        let progressWidth = '0%';
+        
+        if (data.status === 'active' && data.startDate) {
+            const now = new Date();
+            const daysSinceStart = this.getCalendarDaysBetween(data.startDate, now);
+            const cycleDay = daysSinceStart % 14;
+            
+            if (cycleDay < 5) {
+                // Semana de consumo (5 días)
+                statusClass = 'status-green';
+                colorVar = 'var(--status-green)';
+                statusText = 'Consumo';
+                
+                const currentDayOfUsage = cycleDay + 1;
+                daysText = `${currentDayOfUsage}`;
+                daysLabel = 'de 5 días';
+                
+                lastDateLabel = 'Fase actual';
+                lastDateText = 'Uso diario';
+                
+                const start = new Date(data.startDate);
+                const nextRestDate = new Date(start);
+                nextRestDate.setDate(start.getDate() + 5);
+                
+                nextDateLabel = 'Descanso en';
+                nextDateText = this.formatDate(nextRestDate.toISOString());
+                
+                progressWidth = `${(currentDayOfUsage / 5) * 100}%`;
+            } else {
+                // Semana de descanso (9 días)
+                statusClass = 'status-red';
+                colorVar = 'var(--status-red)';
+                statusText = 'Descanso';
+                
+                const currentDayOfRest = cycleDay - 4;
+                daysText = `${currentDayOfRest}`;
+                daysLabel = 'de 9 días';
+                
+                lastDateLabel = 'Fase actual';
+                lastDateText = 'Descanso';
+                
+                const start = new Date(data.startDate);
+                const nextUsageDate = new Date(start);
+                nextUsageDate.setDate(start.getDate() + 14);
+                
+                nextDateLabel = 'Permitido el';
+                nextDateText = this.formatDate(nextUsageDate.toISOString());
+                
+                progressWidth = `${(currentDayOfRest / 9) * 100}%`;
+            }
+        }
+        
+        const clone = this.template.content.cloneNode(true);
+        const cardEl = clone.querySelector('.card');
+        
+        cardEl.className = `card ${statusClass}`;
+        cardEl.style.borderColor = colorVar;
+        
+        clone.querySelector('.card-title').textContent = item.name;
+        clone.querySelector('.card-icon').className = `card-icon ph ${item.icon}`;
+        clone.querySelector('.days-count').textContent = daysText;
+        clone.querySelector('.days-count').style.color = colorVar;
+        clone.querySelector('.days-label').textContent = daysLabel;
+        clone.querySelector('.status-text').textContent = statusText;
+        clone.querySelector('.status-dot').style.backgroundColor = colorVar;
+        
+        clone.querySelector('.last-date-label').textContent = lastDateLabel;
+        clone.querySelector('.last-date').textContent = lastDateText;
+        clone.querySelector('.next-date-label').textContent = nextDateLabel;
+        clone.querySelector('.next-date').textContent = nextDateText;
+        
+        clone.querySelector('.progress-bar').style.width = progressWidth;
+        clone.querySelector('.progress-bar').style.backgroundColor = colorVar;
+        
+        // Ocultar botón editar
+        const editBtn = clone.querySelector('.btn-card-edit');
+        editBtn.style.display = 'none';
+        
+        // Configurar colapsable de instrucciones
+        const infoBtn = clone.querySelector('.btn-info');
+        const instructionsCollapse = clone.querySelector('.instructions-collapse');
+        const instructionsContent = clone.querySelector('.instructions-content');
+        
+        instructionsContent.innerHTML = item.instructions.map(inst => `
+            <div class="instruction-step">
+                <div class="instruction-step-title">${inst.step}</div>
+                <div class="instruction-step-text">${inst.text}</div>
+            </div>
+        `).join('');
+        
+        infoBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            const isOpen = instructionsCollapse.classList.contains('open');
+            instructionsCollapse.classList.toggle('open', !isOpen);
+            infoBtn.classList.toggle('active', !isOpen);
+        });
+        
+        // Ocultar historial
+        const histBtn = clone.querySelector('.hygiene-history-btn');
+        const logContainer = clone.querySelector('.hygiene-history-log');
+        histBtn.style.display = 'none';
+        logContainer.style.display = 'none';
+        
+        // Acciones del footer de Listerine
+        const footerEl = clone.querySelector('.card-footer');
+        footerEl.innerHTML = '';
+        
+        if (data.status === 'paused') {
+            const startBtn = document.createElement('button');
+            startBtn.className = 'btn-wash';
+            startBtn.style.background = 'var(--status-green)';
+            startBtn.style.borderColor = 'var(--status-green)';
+            startBtn.innerHTML = '<i class="ph-bold ph-play"></i><span>Iniciar Ciclo</span>';
+            startBtn.addEventListener('click', () => this.startListerineCycle());
+            footerEl.appendChild(startBtn);
+        } else {
+            const btnContainer = document.createElement('div');
+            btnContainer.style.display = 'grid';
+            btnContainer.style.gridTemplateColumns = '1fr 1fr';
+            btnContainer.style.gap = '8px';
+            btnContainer.style.width = '100%';
+            
+            const pauseBtn = document.createElement('button');
+            pauseBtn.className = 'btn-wash';
+            pauseBtn.style.background = 'rgba(255,255,255,0.05)';
+            pauseBtn.style.borderColor = 'rgba(255,255,255,0.1)';
+            pauseBtn.style.color = 'var(--text-secondary)';
+            pauseBtn.style.padding = '0.6rem 0.4rem';
+            pauseBtn.style.fontSize = '0.85rem';
+            pauseBtn.innerHTML = '<i class="ph-bold ph-pause"></i><span>Pausar</span>';
+            pauseBtn.addEventListener('click', () => this.pauseListerineCycle());
+            
+            const resetBtn = document.createElement('button');
+            resetBtn.className = 'btn-wash';
+            resetBtn.style.padding = '0.6rem 0.4rem';
+            resetBtn.style.fontSize = '0.85rem';
+            resetBtn.innerHTML = '<i class="ph-bold ph-arrows-clockwise"></i><span>Reiniciar hoy</span>';
+            resetBtn.addEventListener('click', () => this.startListerineCycle());
+            
+            btnContainer.appendChild(pauseBtn);
+            btnContainer.appendChild(resetBtn);
+            footerEl.appendChild(btnContainer);
+        }
+        
+        this.container.appendChild(clone);
     }
 }
 
