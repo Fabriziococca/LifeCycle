@@ -383,11 +383,12 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'esponja_africana', 'toalla_mano', 'toalla_cuerpo', 'sabanas', 'funda_almohada', 'alfombra_bano',
                     'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
-                    'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana', 'listerine'
+                    'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana', 'listerine',
+                    'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check'
                 ];
 
                 definitions.forEach(k => {
-                    if (k === 'listerine') {
+                    if (k === 'listerine' || k === 'projects_check') {
                         alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
                     } else {
                         alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
@@ -404,14 +405,14 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
                     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
-                    'creatine', 'salmon', 'neck', 'listerine'
+                    'creatine', 'salmon', 'neck', 'listerine', 'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check'
                 ];
                 definitions.forEach(k => {
                     if (!alertsConfig[k]) {
                         if (k === 'creatine') alertsConfig[k] = { enabled: true, time: '23:00', days: [1,2,3,4,5,6,0] };
                         else if (k === 'salmon') alertsConfig[k] = { enabled: true, time: '17:00', days: [0] };
                         else if (k === 'neck') alertsConfig[k] = { enabled: true, time: '23:30', days: [5,6] };
-                        else if (k === 'listerine') alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
+                        else if (k === 'listerine' || k === 'projects_check') alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
                         else alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
                         configFilled = true;
                     }
@@ -588,6 +589,34 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 if (elapsed >= 30) { shouldNotify = true; title = '🪒 Hoja Gillette'; body = `Sugerimos cambiar la hoja (pasaron ${elapsed} días).`; }
                             }
                             break;
+                        case 'pecho_panza':
+                            const ppHistory = groomingData.pecho_panza || [];
+                            if (ppHistory.length > 0) {
+                                const elapsed = getDaysElapsed(ppHistory[0]);
+                                if (elapsed >= 60) { shouldNotify = true; title = '✂️ Depilación: Pecho y Panza'; body = `Ya pasaron ${elapsed} días, recordá depilarte pecho y panza.`; }
+                            }
+                            break;
+                        case 'brazos':
+                            const brazosHistory = groomingData.brazos || [];
+                            if (brazosHistory.length > 0) {
+                                const elapsed = getDaysElapsed(brazosHistory[0]);
+                                if (elapsed >= 180) { shouldNotify = true; title = '✂️ Depilación: Brazos'; body = `Ya pasaron ${elapsed} días, recordá depilarte los brazos.`; }
+                            }
+                            break;
+                        case 'piernas':
+                            const piernasHistory = groomingData.piernas || [];
+                            if (piernasHistory.length > 0) {
+                                const elapsed = getDaysElapsed(piernasHistory[0]);
+                                if (elapsed >= 120) { shouldNotify = true; title = '✂️ Depilación: Piernas'; body = `Ya pasaron ${elapsed} días, recordá depilarte las piernas.`; }
+                            }
+                            break;
+                        case 'intimas':
+                            const intimasHistory = groomingData.intimas || [];
+                            if (intimasHistory.length > 0) {
+                                const elapsed = getDaysElapsed(intimasHistory[0]);
+                                if (elapsed >= 30) { shouldNotify = true; title = '✂️ Depilación: Zonas Íntimas'; body = `Ya pasaron ${elapsed} días, recordá depilarte las zonas íntimas.`; }
+                            }
+                            break;
 
                         // Lentes
                         case 'lenses_droplets':
@@ -709,6 +738,67 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                     shouldNotify = true;
                                     title = '💳 Suscripción Workana';
                                     body = `Vencimiento crítico en ${diffDays} días (${expiry.toLocaleDateString('es-AR')}).`;
+                                }
+                            }
+                            break;
+                        case 'projects_check':
+                            const projectsData = typeof data.projectPulseData === 'string'
+                                ? JSON.parse(data.projectPulseData || '[]')
+                                : (data.projectPulseData || []);
+                            
+                            for (const p of projectsData) {
+                                if (!p.isDelivered) {
+                                    const now = new Date();
+                                    const deadline = new Date(p.deadline);
+                                    const accepted = new Date(p.accepted);
+                                    const remainingMs = deadline - now;
+                                    const totalMs = deadline - accepted;
+                                    
+                                    if (totalMs > 0) {
+                                        const remPct = (remainingMs / totalMs) * 100;
+                                        let state = 'green';
+                                        let stateLabel = '';
+                                        if (remainingMs <= 0 || remPct <= 10) {
+                                            state = 'red';
+                                            stateLabel = 'CRÍTICO';
+                                        } else if (remPct <= 30) {
+                                            state = 'orange';
+                                            stateLabel = 'NARANJA';
+                                        } else if (remPct <= 50) {
+                                            state = 'yellow';
+                                            stateLabel = 'AMARILLO';
+                                        }
+                                        
+                                        if (state !== 'green') {
+                                            const logKey = `project_${p.id}_${state}`;
+                                            if (forceAll || data.alerts_sent_log[logKey] !== dateStr) {
+                                                const projTitle = `💼 Proyecto: ${p.project}`;
+                                                const daysRemaining = Math.max(0, Math.floor(remainingMs / 86400000));
+                                                const projBody = `El proyecto de ${p.client} se encuentra en estado ${stateLabel}. Quedan ${daysRemaining} días.`;
+                                                
+                                                console.log(`[Alert Engine] Enviando push de proyecto '${projTitle}' a usuario ${userId}`);
+                                                const payload = JSON.stringify({
+                                                    title: projTitle,
+                                                    body: projBody,
+                                                    url: '/'
+                                                });
+                                                
+                                                for (const sub of userSubs) {
+                                                    try {
+                                                        await webpush.sendNotification(sub, payload);
+                                                        await new Promise(resolve => setTimeout(resolve, 1000));
+                                                    } catch (err) {
+                                                        console.error(`[Alert Engine] Falló enviar push de proyecto:`, err.message);
+                                                    }
+                                                }
+                                                
+                                                if (!forceAll) {
+                                                    data.alerts_sent_log[logKey] = dateStr;
+                                                    dataChanged = true;
+                                                }
+                                            }
+                                        }
+                                    }
                                 }
                             }
                             break;

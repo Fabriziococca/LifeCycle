@@ -5697,12 +5697,39 @@ class AuthSyncModule {
             }
         });
 
+        // Reload in-memory data for all modules from localStorage first
+        try {
+            if (this.app.hygiene) this.app.hygiene.data = this.app.hygiene.loadData();
+            if (this.app.grooming) this.app.grooming.data = this.app.grooming.loadData();
+            if (this.app.lenses) {
+                this.app.lenses.loadDatesAndStock();
+            }
+            if (this.app.health) {
+                try {
+                    const rawMed = localStorage.getItem('health_medical_data');
+                    this.app.health.medicalData = rawMed ? JSON.parse(rawMed) : { dentista: { lastVisit: null, frequencyMonths: 6, history: [] }, oculista: { lastVisit: null, frequencyMonths: 6, history: [] } };
+                    const rawBlood = localStorage.getItem('health_blood_tests');
+                    this.app.health.bloodTests = rawBlood ? JSON.parse(rawBlood) : [];
+                } catch (e) { console.error("Error parsing health data in sync:", e); }
+            }
+            if (this.app.vehicle) {
+                this.app.vehicle.odometer = Number(localStorage.getItem('vehicle_odometer')) || 0;
+                try {
+                    const rawLog = localStorage.getItem('vehicle_maintenance_log');
+                    this.app.vehicle.maintenanceLog = rawLog ? JSON.parse(rawLog) : [];
+                } catch (e) { console.error("Error parsing vehicle log in sync:", e); }
+            }
+            if (this.app.gym) this.app.gym.loadData();
+            if (this.app.projects) this.app.projects.loadData();
+        } catch (e) {
+            console.error("Error reloading in-memory data during silent sync:", e);
+        }
+
         // Trigger UI updates for all active modules dynamically
         try {
             if (this.app.hygiene) this.app.hygiene.render();
             if (this.app.grooming) this.app.grooming.render();
             if (this.app.lenses) {
-                this.app.lenses.loadDatesAndStock();
                 this.app.lenses.updateUI();
                 this.app.lenses.renderHistory();
             }
@@ -5975,12 +6002,17 @@ const ALERT_DEFINITIONS = [
     { key: 'dentista', name: 'Control Dentista', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'compu_limpieza_int', name: 'Computadora (Limpieza Int.)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'compu_pasta_termica', name: 'Computadora (Pasta Térmica)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
+    { key: 'listerine', name: 'Enjuague Listerine', category: 'higiene', type: 'interval', defaultTime: '09:00' },
 
     // Cuidado Corporal
     { key: 'pelo', name: 'Corte de Pelo', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
     { key: 'barba', name: 'Afeitado de Barba', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
     { key: 'axilas', name: 'Depilación Axilas', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
     { key: 'hoja_gillette', name: 'Hoja Gillette', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
+    { key: 'pecho_panza', name: 'Depilación Pecho y Panza', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
+    { key: 'brazos', name: 'Depilación Brazos', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
+    { key: 'piernas', name: 'Depilación Piernas', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
+    { key: 'intimas', name: 'Depilación Zonas Íntimas', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
 
     // Lentes
     { key: 'lenses_droplets', name: 'Gotas de Ojos (Systane)', category: 'lentes', type: 'interval', defaultTime: '23:00' },
@@ -6004,7 +6036,8 @@ const ALERT_DEFINITIONS = [
 
     // Otros
     { key: 'robot', name: 'Robot Aspiradora', category: 'otros', type: 'interval', defaultTime: '23:00' },
-    { key: 'workana', name: 'Vencimiento Workana', category: 'otros', type: 'interval', defaultTime: '23:00' }
+    { key: 'workana', name: 'Vencimiento Workana', category: 'otros', type: 'interval', defaultTime: '23:00' },
+    { key: 'projects_check', name: 'Estado de Proyectos Activos', category: 'otros', type: 'interval', defaultTime: '09:00' }
 ];
 
 const CATEGORY_NAMES = {
@@ -6344,6 +6377,66 @@ class NotificationsCenterModule {
                     });
                 }
             }
+
+            // Pecho y Panza (límite: >= 60)
+            const pechoPanza = gData.pecho_panza || [];
+            if (pechoPanza.length > 0) {
+                const diff = this.app.grooming.getDaysDiff(pechoPanza[0]);
+                if (diff >= 60) {
+                    items.push({
+                        module: 'grooming',
+                        id: 'pecho_panza',
+                        name: 'Depilación Pecho y Panza',
+                        icon: 'ph-user',
+                        desc: `Pasaron ${diff} de 60 días.`
+                    });
+                }
+            }
+
+            // Brazos (límite: >= 180)
+            const brazos = gData.brazos || [];
+            if (brazos.length > 0) {
+                const diff = this.app.grooming.getDaysDiff(brazos[0]);
+                if (diff >= 180) {
+                    items.push({
+                        module: 'grooming',
+                        id: 'brazos',
+                        name: 'Depilación Brazos',
+                        icon: 'ph-user',
+                        desc: `Pasaron ${diff} de 180 días.`
+                    });
+                }
+            }
+
+            // Piernas (límite: >= 120)
+            const piernas = gData.piernas || [];
+            if (piernas.length > 0) {
+                const diff = this.app.grooming.getDaysDiff(piernas[0]);
+                if (diff >= 120) {
+                    items.push({
+                        module: 'grooming',
+                        id: 'piernas',
+                        name: 'Depilación Piernas',
+                        icon: 'ph-user',
+                        desc: `Pasaron ${diff} de 120 días.`
+                    });
+                }
+            }
+
+            // Zonas Íntimas (límite: >= 30)
+            const intimas = gData.intimas || [];
+            if (intimas.length > 0) {
+                const diff = this.app.grooming.getDaysDiff(intimas[0]);
+                if (diff >= 30) {
+                    items.push({
+                        module: 'grooming',
+                        id: 'intimas',
+                        name: 'Depilación Zonas Íntimas',
+                        icon: 'ph-user',
+                        desc: `Pasaron ${diff} de 30 días.`
+                    });
+                }
+            }
         }
 
         // 3. LENTES DE CONTACTO
@@ -6459,6 +6552,30 @@ class NotificationsCenterModule {
                         desc: diffDays < 0 ? 'Plazo de suscripción vencido.' : `Vence en ${diffDays} días.`
                     });
                 }
+            }
+            // 5.2. PROYECTOS ACTIVOS (Entrega demorada o muy próxima)
+            if (this.app.projects.projects) {
+                this.app.projects.projects.forEach(p => {
+                    if (!p.isDelivered) {
+                        const deadline = new Date(p.deadline);
+                        const remainingMs = deadline - now;
+                        const totalMs = deadline - new Date(p.accepted);
+                        
+                        if (totalMs > 0) {
+                            const remPct = (remainingMs / totalMs) * 100;
+                            if (remainingMs <= 0 || remPct <= 10) {
+                                const days = Math.max(0, Math.floor(remainingMs / 86400000));
+                                items.push({
+                                    module: 'projects',
+                                    id: p.id,
+                                    name: `Proyecto: ${p.project}`,
+                                    icon: 'ph-briefcase',
+                                    desc: remainingMs <= 0 ? '¡Entrega demorada!' : `Vence pronto. Quedan ${days} días.`
+                                });
+                            }
+                        }
+                    }
+                });
             }
         }
 
