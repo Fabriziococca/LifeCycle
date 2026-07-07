@@ -1199,27 +1199,69 @@ textarea:focus {
     color: var(--text-primary);
 }
 
-/* --- Ajustes & Backups --- */
-.profile-grid {
-    display: grid;
-    grid-template-columns: 1fr;
+/* --- Rediseño Tabulado de Perfil --- */
+.profile-layout {
+    display: flex;
+    flex-direction: column;
     gap: 1.5rem;
-    align-items: start;
-    max-width: 1000px;
+    max-width: 950px;
     margin: 0 auto;
     width: 100%;
 }
 
-@media (min-width: 768px) {
-    .profile-grid {
-        grid-template-columns: 1fr 1fr;
-    }
+.profile-sidebar {
+    display: flex;
+    flex-direction: row;
+    gap: 0.5rem;
+    padding-bottom: 0.75rem;
+    border-bottom: 1px solid var(--surface-border);
+    overflow-x: auto;
+    scrollbar-width: none; /* Firefox */
 }
 
-.profile-col {
+.profile-sidebar::-webkit-scrollbar {
+    display: none; /* Safari & Chrome */
+}
+
+.profile-menu-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid var(--surface-border);
+    color: var(--text-secondary);
+    padding: 0.75rem 1rem;
+    border-radius: var(--border-radius-md);
+    cursor: pointer;
+    font-size: 0.9rem;
     display: flex;
-    flex-direction: column;
-    gap: 1.5rem;
+    align-items: center;
+    gap: 0.5rem;
+    white-space: nowrap;
+    transition: var(--transition);
+    font-family: inherit;
+}
+
+.profile-menu-item i {
+    font-size: 1.1rem;
+}
+
+.profile-menu-item:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: white;
+}
+
+.profile-menu-item.active {
+    background: var(--primary-color);
+    border-color: var(--primary-color);
+    color: white;
+    box-shadow: var(--shadow-btn);
+}
+
+.profile-main-content {
+    flex: 1;
+    min-width: 0;
+}
+
+.profile-tab-content {
+    animation: fadeIn 0.3s ease-out;
 }
 
 #perfil-section .card,
@@ -1227,6 +1269,29 @@ textarea:focus {
     max-width: none;
     margin: 0;
     width: 100%;
+}
+
+@media (min-width: 768px) {
+    .profile-layout {
+        display: grid;
+        grid-template-columns: 240px 1fr;
+        gap: 2rem;
+    }
+    
+    .profile-sidebar {
+        flex-direction: column;
+        border-bottom: none;
+        border-right: 1px solid var(--surface-border);
+        padding-bottom: 0;
+        padding-right: 1.5rem;
+        overflow-x: visible;
+        gap: 0.75rem;
+    }
+    
+    .profile-menu-item {
+        width: 100%;
+        justify-content: flex-start;
+    }
 }
 
 .backup-text {

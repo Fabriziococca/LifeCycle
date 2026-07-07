@@ -6771,6 +6771,7 @@ class AppController {
         this.initModalListeners();
         this.deferredPrompt = null;
         this.initPWAInstall();
+        this.initProfileTabs();
     }
 
     initNavigation() {
@@ -6808,6 +6809,24 @@ class AppController {
             } else if (activeSectionId === 'alerts-section') {
                 this.alerts.render();
             }
+        });
+    }
+
+    initProfileTabs() {
+        const sidebar = document.querySelector('.profile-sidebar');
+        if (!sidebar) return;
+        
+        sidebar.addEventListener('click', (e) => {
+            const btn = e.target.closest('.profile-menu-item');
+            if (!btn) return;
+            
+            sidebar.querySelectorAll('.profile-menu-item').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            
+            const targetTab = btn.dataset.tab;
+            document.querySelectorAll('.profile-tab-content').forEach(content => {
+                content.classList.toggle('hidden', content.id !== `tab-${targetTab}`);
+            });
         });
     }
 
