@@ -6042,7 +6042,6 @@ const ALERT_DEFINITIONS = [
     { key: 'toalla_cuerpo', name: 'Toalla de Cuerpo', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'sabanas', name: 'Sábanas (Completas)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'funda_almohada', name: 'Funda de Almohada', category: 'higiene', type: 'interval', defaultTime: '23:00' },
-    { key: 'alfombra_bano', name: 'Alfombra de Baño', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'cepillo_dientes', name: 'Cepillo de Dientes', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'dentista', name: 'Control Dentista', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'compu_limpieza_int', name: 'Computadora (Limpieza Int.)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
