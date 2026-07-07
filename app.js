@@ -6326,6 +6326,7 @@ class NotificationsCenterModule {
             if (this.app.hygiene) {
                 const hData = this.app.hygiene.data || {};
                 itemsConfig.forEach(item => {
+                    if (!item.limits) return;
                     const val = hData[item.id];
                     // Permitir soporte para arrays (historial) o strings
                     const history = Array.isArray(val) ? val : (val ? [val] : []);
