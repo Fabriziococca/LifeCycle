@@ -266,7 +266,7 @@ class DateUtils {
 class HygieneModule {
     constructor(appController) {
         this.app = appController;
-        this.currentCategory = 'todos';
+        this.currentCategory = 'tecnologia';
         this.robotCard = document.getElementById('robot-cleaner-card');
         this.data = this.loadData();
         this.container = document.getElementById('tracker-container');
@@ -415,7 +415,7 @@ class HygieneModule {
         
         // Mostrar u ocultar la tarjeta del robot según la categoría seleccionada
         if (this.robotCard) {
-            if (this.currentCategory === 'todos' || this.currentCategory === 'tecnologia') {
+            if (this.currentCategory === 'tecnologia') {
                 this.robotCard.style.display = 'block';
                 this.renderRobotCard();
             } else {
@@ -425,9 +425,7 @@ class HygieneModule {
 
         this.container.innerHTML = '';
 
-        const filteredItems = this.currentCategory === 'todos' 
-            ? itemsConfig 
-            : itemsConfig.filter(item => item.category === this.currentCategory);
+        const filteredItems = itemsConfig.filter(item => item.category === this.currentCategory);
 
         // Agrupación visual
         const groups = {};
@@ -868,7 +866,7 @@ class HygieneModule {
         
         // Timer de actualización para refrescar el "hace X min" dinámicamente si el robot está sucio
         setInterval(() => {
-            if (this.data?.robot_cleaner?.status === 'dirty' && this.currentCategory === 'todos') {
+            if (this.data?.robot_cleaner?.status === 'dirty' && this.currentCategory === 'tecnologia') {
                 this.renderRobotCard();
             }
         }, 30000); // cada 30 segundos
