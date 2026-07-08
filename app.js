@@ -161,6 +161,18 @@ const itemsConfig = [
             { step: 'Semana de Descanso', text: '9 días de descanso absoluto para preservar la flora bucal.' },
             { step: 'Uso Seguro', text: 'Tomarlo preferentemente por la mañana para evitar deshidratación bucal nocturna.' }
         ]
+    },
+    {
+        id: 'botella_vidrio',
+        name: 'Botella de Vidrio (1L)',
+        icon: 'ph-drop',
+        limits: { yellow: 14, orange: 21, red: 30 },
+        type: 'wash',
+        category: 'cuidado_personal',
+        instructions: [
+            { step: 'Lavado Regular', text: 'Limpiar con agua tibia, detergente común y un cepillo largo para botellas que remueva el biofilm interno.' },
+            { step: 'Desinfección profunda', text: 'Remojar unos minutos con agua y unas gotas de lavandina o vinagre blanco, enjuagar abundantemente y dejar secar boca abajo.' }
+        ]
     }
 ];
 
@@ -6047,6 +6059,7 @@ const ALERT_DEFINITIONS = [
     { key: 'compu_limpieza_int', name: 'Computadora (Limpieza Int.)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'compu_pasta_termica', name: 'Computadora (Pasta Térmica)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'listerine', name: 'Enjuague Listerine', category: 'higiene', type: 'interval', defaultTime: '09:00' },
+    { key: 'botella_vidrio', name: 'Lavado Botella de Vidrio', category: 'higiene', type: 'interval', defaultTime: '23:00' },
 
     // Cuidado Corporal
     { key: 'pelo', name: 'Corte de Pelo', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
