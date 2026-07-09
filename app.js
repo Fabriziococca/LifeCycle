@@ -5659,6 +5659,7 @@ class AuthSyncModule {
         }
         
         this.isSyncing = true;
+        this.isRestoring = true;
         this.updateSyncBadge('syncing', "Sincronizando...");
         
         try {
@@ -5702,6 +5703,7 @@ class AuthSyncModule {
             this.updateSyncBadge('error', "Error de sincronización");
         } finally {
             this.isSyncing = false;
+            this.isRestoring = false;
             if (this.pendingSync) {
                 this.pendingSync = false;
                 // Executing pending sync to send latest modifications
@@ -5711,90 +5713,95 @@ class AuthSyncModule {
     }
 
     restoreDataLocally(cloudData) {
-        const localKeys = [
-            'hygiene_tracker_data', 'groomingData_v2', 'lensesStartTime', 
-            'lensesHistory', 'lensStock', 'lensDate', 'solutionDate', 
-            'caseDate', 'systaneDate', 'clothWashDate', 'clothChangeDate', 
-            'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
-            'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
-            'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
-            'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 'projectPulseSubscription', 'alerts_config', 'alerts_sent_log'
-        ];
-        localKeys.forEach(key => {
-            let val = cloudData[key];
-            if (val !== null && val !== undefined) {
-                if (typeof val === 'object') {
-                    val = JSON.stringify(val);
-                }
-                localStorage.setItem(key, val);
-            } else {
-                localStorage.removeItem(key);
-            }
-        });
-
-        // Reload in-memory data for all modules from localStorage first (isolated blocks)
+        this.isRestoring = true;
         try {
+            const localKeys = [
+                'hygiene_tracker_data', 'groomingData_v2', 'lensesStartTime', 
+                'lensesHistory', 'lensStock', 'lensDate', 'solutionDate', 
+                'caseDate', 'systaneDate', 'clothWashDate', 'clothChangeDate', 
+                'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
+                'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
+                'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
+                'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 'projectPulseSubscription', 'alerts_config', 'alerts_sent_log'
+            ];
+            localKeys.forEach(key => {
+                let val = cloudData[key];
+                if (val !== null && val !== undefined) {
+                    if (typeof val === 'object') {
+                        val = JSON.stringify(val);
+                    }
+                    localStorage.setItem(key, val);
+                } else {
+                    localStorage.removeItem(key);
+                }
+            });
+
+            // Reload in-memory data for all modules from localStorage first (isolated blocks)
+            try {
+                if (this.app.hygiene) {
+                    try { this.app.hygiene.data = this.app.hygiene.loadData(); } catch (e) { console.error("Error reloading hygiene:", e); }
+                }
+                if (this.app.grooming) {
+                    try { this.app.grooming.data = this.app.grooming.loadData(); } catch (e) { console.error("Error reloading grooming:", e); }
+                }
+                if (this.app.lenses) {
+                    try { this.app.lenses.loadDatesAndStock(); } catch (e) { console.error("Error reloading lenses:", e); }
+                }
+                if (this.app.health) {
+                    try {
+                        const rawMed = localStorage.getItem('health_medical_data');
+                        this.app.health.medicalData = rawMed ? JSON.parse(rawMed) : { dentista: { lastVisit: null, frequencyMonths: 6, history: [] }, oculista: { lastVisit: null, frequencyMonths: 6, history: [] } };
+                        const rawBlood = localStorage.getItem('health_blood_tests');
+                        this.app.health.bloodTests = rawBlood ? JSON.parse(rawBlood) : [];
+                    } catch (e) { console.error("Error parsing health data in sync:", e); }
+                }
+                if (this.app.vehicle) {
+                    try {
+                        this.app.vehicle.odometer = Number(localStorage.getItem('vehicle_odometer')) || 0;
+                        const rawLog = localStorage.getItem('vehicle_maintenance_log');
+                        this.app.vehicle.maintenanceLog = rawLog ? JSON.parse(rawLog) : [];
+                    } catch (e) { console.error("Error parsing vehicle log in sync:", e); }
+                }
+                if (this.app.gym) {
+                    try { this.app.gym.loadData(); } catch (e) { console.error("Error reloading gym:", e); }
+                }
+                if (this.app.projects) {
+                    try { this.app.projects.loadData(); } catch (e) { console.error("Error reloading projects:", e); }
+                }
+            } catch (e) {
+                console.error("Critical error reloading in-memory data during silent sync:", e);
+            }
+
+            // Trigger UI updates for all active modules dynamically (isolated blocks)
             if (this.app.hygiene) {
-                try { this.app.hygiene.data = this.app.hygiene.loadData(); } catch (e) { console.error("Error reloading hygiene:", e); }
+                try { this.app.hygiene.render(); } catch (e) { console.error("Error rendering hygiene:", e); }
             }
             if (this.app.grooming) {
-                try { this.app.grooming.data = this.app.grooming.loadData(); } catch (e) { console.error("Error reloading grooming:", e); }
+                try { this.app.grooming.render(); } catch (e) { console.error("Error rendering grooming:", e); }
             }
             if (this.app.lenses) {
-                try { this.app.lenses.loadDatesAndStock(); } catch (e) { console.error("Error reloading lenses:", e); }
+                try {
+                    this.app.lenses.updateUI();
+                    this.app.lenses.renderHistory();
+                } catch (e) { console.error("Error rendering lenses:", e); }
             }
             if (this.app.health) {
-                try {
-                    const rawMed = localStorage.getItem('health_medical_data');
-                    this.app.health.medicalData = rawMed ? JSON.parse(rawMed) : { dentista: { lastVisit: null, frequencyMonths: 6, history: [] }, oculista: { lastVisit: null, frequencyMonths: 6, history: [] } };
-                    const rawBlood = localStorage.getItem('health_blood_tests');
-                    this.app.health.bloodTests = rawBlood ? JSON.parse(rawBlood) : [];
-                } catch (e) { console.error("Error parsing health data in sync:", e); }
+                try { this.app.health.render(); } catch (e) { console.error("Error rendering health:", e); }
             }
             if (this.app.vehicle) {
-                try {
-                    this.app.vehicle.odometer = Number(localStorage.getItem('vehicle_odometer')) || 0;
-                    const rawLog = localStorage.getItem('vehicle_maintenance_log');
-                    this.app.vehicle.maintenanceLog = rawLog ? JSON.parse(rawLog) : [];
-                } catch (e) { console.error("Error parsing vehicle log in sync:", e); }
+                try { this.app.vehicle.render(); } catch (e) { console.error("Error rendering vehicle:", e); }
             }
             if (this.app.gym) {
-                try { this.app.gym.loadData(); } catch (e) { console.error("Error reloading gym:", e); }
+                try { this.app.gym.render(); } catch (e) { console.error("Error rendering gym:", e); }
             }
             if (this.app.projects) {
-                try { this.app.projects.loadData(); } catch (e) { console.error("Error reloading projects:", e); }
+                try { this.app.projects.render(); } catch (e) { console.error("Error rendering projects:", e); }
             }
-        } catch (e) {
-            console.error("Critical error reloading in-memory data during silent sync:", e);
-        }
-
-        // Trigger UI updates for all active modules dynamically (isolated blocks)
-        if (this.app.hygiene) {
-            try { this.app.hygiene.render(); } catch (e) { console.error("Error rendering hygiene:", e); }
-        }
-        if (this.app.grooming) {
-            try { this.app.grooming.render(); } catch (e) { console.error("Error rendering grooming:", e); }
-        }
-        if (this.app.lenses) {
-            try {
-                this.app.lenses.updateUI();
-                this.app.lenses.renderHistory();
-            } catch (e) { console.error("Error rendering lenses:", e); }
-        }
-        if (this.app.health) {
-            try { this.app.health.render(); } catch (e) { console.error("Error rendering health:", e); }
-        }
-        if (this.app.vehicle) {
-            try { this.app.vehicle.render(); } catch (e) { console.error("Error rendering vehicle:", e); }
-        }
-        if (this.app.gym) {
-            try { this.app.gym.render(); } catch (e) { console.error("Error rendering gym:", e); }
-        }
-        if (this.app.projects) {
-            try { this.app.projects.render(); } catch (e) { console.error("Error rendering projects:", e); }
-        }
-        if (this.app.notificationsCenter) {
-            try { this.app.notificationsCenter.updateBadge(); } catch (e) { console.error("Error updating notifications badge:", e); }
+            if (this.app.notificationsCenter) {
+                try { this.app.notificationsCenter.updateBadge(); } catch (e) { console.error("Error updating notifications badge:", e); }
+            }
+        } finally {
+            this.isRestoring = false;
         }
     }
 
@@ -7039,8 +7046,12 @@ class AppController {
 // Intercept localStorage.setItem to trigger automatic background sync
 const originalSetItem = localStorage.setItem;
 localStorage.setItem = function(key, value) {
+    const oldValue = localStorage.getItem(key);
     originalSetItem.apply(this, arguments);
-    if (window.lifecycle_controller) {
+    if (window.lifecycle_controller && window.lifecycle_controller.auth && window.lifecycle_controller.auth.isRestoring) {
+        return;
+    }
+    if (oldValue !== value && window.lifecycle_controller) {
         window.lifecycle_controller.triggerDataSync(key);
     }
 };

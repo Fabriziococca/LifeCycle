@@ -126,11 +126,11 @@ app.use('/api/', rateLimiter);
 app.use(express.static(__dirname, {
     maxAge: '7d', // Cache static assets for 7 days by default
     setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html') || filePath.includes('sw.js')) {
-            // HTML files and Service Worker must not be cached strongly to guarantee updates
+        if (filePath.endsWith('.html') || filePath.includes('sw.js') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
+            // HTML, JS, CSS files and Service Worker must not be cached strongly to guarantee updates
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
-        } else if (filePath.endsWith('.js') || filePath.endsWith('.css') || filePath.endsWith('.json') || filePath.endsWith('.png') || filePath.endsWith('.ico')) {
-            // JS, CSS, JSON, and images cached for 1 week
+        } else if (filePath.endsWith('.json') || filePath.endsWith('.png') || filePath.endsWith('.ico')) {
+            // JSON and images cached for 1 week
             res.setHeader('Cache-Control', 'public, max-age=604800');
         }
     }
@@ -851,10 +851,16 @@ async function checkAndSendAllAlerts(forceAll = false) {
 function getDaysElapsed(dateString) {
     if (!dateString) return null;
     const start = new Date(dateString);
-    start.setHours(0,0,0,0);
     const today = new Date();
-    today.setHours(0,0,0,0);
-    const diffTime = today - start;
+    
+    // Shift dates by -3 hours to align with Argentina's timezone (UTC-3)
+    const localStart = new Date(start.getTime() - 3 * 60 * 60 * 1000);
+    const localToday = new Date(today.getTime() - 3 * 60 * 60 * 1000);
+    
+    localStart.setUTCHours(0,0,0,0);
+    localToday.setUTCHours(0,0,0,0);
+    
+    const diffTime = localToday - localStart;
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
 }
 
