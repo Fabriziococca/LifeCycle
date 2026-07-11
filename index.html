@@ -80,9 +80,6 @@
             <button class="nav-btn" data-section="finanzas-section">
                 <i class="ph ph-trend-up"></i> Finanzas
             </button>
-            <button class="nav-btn" data-section="alerts-section">
-                <i class="ph ph-bell"></i> Alertas
-            </button>
             <button class="nav-btn" data-section="perfil-section">
                 <i class="ph ph-user-circle"></i> Perfil
             </button>
@@ -542,16 +539,31 @@
             <div id="gym-sessions-content" class="gym-tab-content hidden">
                 <!-- Sesión activa -->
                 <div id="current-session" class="card hidden" style="margin-bottom: 2rem; border: 1px solid var(--primary-color);">
-                    <div class="card-header">
-                        <div class="icon-container" style="background: var(--primary-color); color: white;">
-                            <i class="ph ph-play-circle"></i>
+                    <div class="card-header" style="display:flex; justify-content:space-between; align-items:center;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div class="icon-container" style="background: var(--primary-color); color: white;">
+                                <i class="ph ph-play-circle"></i>
+                            </div>
+                            <div>
+                                <h3 id="current-session-title" style="margin: 0; font-size: 1.1rem; color: white;">Entrenamiento Activo</h3>
+                                <p id="current-session-subtitle" style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-secondary);">Registrando rutina.</p>
+                            </div>
                         </div>
-                        <h3>Entrenamiento Activo</h3>
+                        <button id="finish-session-btn" class="btn btn-secondary" style="margin: 0; background: var(--status-green); color: white; width: auto; height: 38px; display: flex; align-items: center; gap: 8px;">
+                            <i class="ph ph-check-circle"></i> Finalizar
+                        </button>
                     </div>
                     <div class="card-body">
+                        <!-- Contenedor dinámico de ejercicios y series -->
+                        <div id="session-exercises-container" style="display: flex; flex-direction: column; gap: 1.5rem; margin-bottom: 1.5rem;"></div>
+
+                        <hr style="border: 0; border-top: 1px dashed var(--surface-border); margin: 1.5rem 0;">
+
+                        <!-- Agregar ejercicio extra -->
+                        <h4 style="margin: 0 0 1rem 0; color: white; font-size: 0.9rem; font-weight:600;">¿Hiciste algún ejercicio extra?</h4>
                         <div class="form-row">
                             <div class="input-group" style="flex: 2;">
-                                <label for="session-exercise">Ejercicio</label>
+                                <label for="session-exercise">Ejercicio Extra</label>
                                 <input type="text" id="session-exercise" class="text-input" placeholder="Buscar o ingresar ejercicio..." list="routine-exercises-list">
                                 <datalist id="routine-exercises-list"></datalist>
                             </div>
@@ -564,18 +576,23 @@
                                 <input type="number" id="session-reps" class="number-input" placeholder="0">
                             </div>
                         </div>
-                        <div style="display: flex; gap: 10px; margin-top: 1rem;">
-                            <button id="add-set-btn" class="btn btn-primary" style="flex: 2;">Agregar Serie</button>
-                            <button id="finish-session-btn" class="btn btn-secondary" style="flex: 1; background: var(--status-green); color: white;">Finalizar</button>
-                        </div>
-                        
-                        <div id="current-sets-list" class="table-container" style="margin-top: 1.5rem;">
-                            <!-- Series agregadas -->
+                        <div style="margin-top: 1rem;">
+                            <button id="add-set-btn" class="btn btn-primary" style="width: auto; margin:0;"><i class="ph ph-plus-circle"></i> Agregar Ejercicio Extra</button>
                         </div>
                     </div>
                 </div>
 
-                <div id="start-session-container" style="text-align: center; margin: 3rem 0;">
+                <div id="start-session-container" style="text-align: center; margin: 3rem 0; display:flex; flex-direction:column; align-items:center; gap: 15px;">
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <label style="font-size:0.85rem; font-weight:600; color:white;">Cargar Rutina de:</label>
+                        <select id="start-session-day-select" class="number-input" style="width:auto; padding:6px 12px; margin:0; font-size:0.85rem; height: auto;">
+                            <option value="Lunes">Lunes</option>
+                            <option value="Martes">Martes</option>
+                            <option value="Miércoles">Miércoles</option>
+                            <option value="Jueves">Jueves</option>
+                            <option value="Viernes">Viernes</option>
+                        </select>
+                    </div>
                     <button id="start-session-btn" class="btn btn-primary" style="font-size: 1.1rem; padding: 1rem 2rem; width: auto;"><i class="ph ph-play-circle"></i> Iniciar Nuevo Entrenamiento</button>
                 </div>
 
@@ -1255,31 +1272,7 @@
             <div id="finanzasList" style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; margin-bottom: 2rem;"></div>
         </section>
 
-        <!-- SECCIÓN: ALERTAS (Gestor de Notificaciones) -->
-        <section id="alerts-section" class="main-section hidden">
-            <div class="card" style="margin-bottom: 2rem;">
-                <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 12px; margin-bottom: 12px;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <div class="icon-container" style="background: rgba(59, 130, 246, 0.15); color: var(--primary-color);">
-                            <i class="ph ph-bell-ringing"></i>
-                        </div>
-                        <div>
-                            <h3 style="margin: 0; font-size: 1.1rem; color: white;">Gestor de Alertas</h3>
-                            <p style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-secondary);">Configurá el horario y activación de tus notificaciones push.</p>
-                        </div>
-                    </div>
-                    <button id="btn-save-all-alerts" class="btn btn-primary" style="margin: 0; height: 38px; display: flex; align-items: center; gap: 8px;">
-                        <i class="ph ph-floppy-disk"></i> Guardar
-                    </button>
-                </div>
-                <div class="card-body" style="padding-top: 0;">
-                    <!-- Categorías de Alertas Renderizadas Dinámicamente -->
-                    <div id="alerts-categories-container" style="display: flex; flex-direction: column; gap: 2rem;">
-                        <!-- Se insertan dinámicamente desde el JS -->
-                    </div>
-                </div>
-            </div>
-        </section>
+
 
         <!-- SECCIÓN 4: AJUSTES Y MIGRACIÓN -->
         <section id="perfil-section" class="main-section hidden">
@@ -1301,6 +1294,10 @@
                     <button class="profile-menu-item" data-tab="backup">
                         <i class="ph ph-shield-check"></i>
                         <span>Copia de Seguridad</span>
+                    </button>
+                    <button class="profile-menu-item" data-tab="alertas">
+                        <i class="ph ph-bell-ringing"></i>
+                        <span>Gestor de Alertas</span>
                     </button>
                 </aside>
 
@@ -1443,6 +1440,32 @@
                                         <i class="ph-bold ph-upload-simple"></i> Importar Backup (.json)
                                     </label>
                                     <input type="file" id="importFileUnified" class="hidden" accept=".json">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Pestaña 5: Gestor de Alertas -->
+                    <div class="profile-tab-content hidden" id="tab-alertas">
+                        <div class="card" style="margin-bottom: 2rem;">
+                            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 12px; margin-bottom: 12px;">
+                                <div style="display: flex; align-items: center; gap: 0.75rem;">
+                                    <div class="icon-container" style="background: rgba(59, 130, 246, 0.15); color: var(--primary-color);">
+                                        <i class="ph ph-bell-ringing"></i>
+                                    </div>
+                                    <div>
+                                        <h3 style="margin: 0; font-size: 1.1rem; color: white;">Gestor de Alertas</h3>
+                                        <p style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-secondary);">Configurá el horario y activación de tus notificaciones push.</p>
+                                    </div>
+                                </div>
+                                <button id="btn-save-all-alerts" class="btn btn-primary" style="margin: 0; height: 38px; display: flex; align-items: center; gap: 8px;">
+                                    <i class="ph ph-floppy-disk"></i> Guardar
+                                </button>
+                            </div>
+                            <div class="card-body" style="padding-top: 0;">
+                                <!-- Categorías de Alertas Renderizadas Dinámicamente -->
+                                <div id="alerts-categories-container" style="display: flex; flex-direction: column; gap: 2rem;">
+                                    <!-- Se insertan dinámicamente desde el JS -->
                                 </div>
                             </div>
                         </div>

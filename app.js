@@ -151,18 +151,6 @@ const itemsConfig = [
         ]
     },
     {
-        id: 'listerine',
-        name: 'Listerine',
-        icon: 'ph-flask',
-        category: 'cuidado_personal',
-        isListerine: true,
-        instructions: [
-            { step: 'Esquema de Uso', text: '5 días de consumo consecutivo (de lunes a viernes, una vez a la mañana).' },
-            { step: 'Semana de Descanso', text: '9 días de descanso absoluto para preservar la flora bucal.' },
-            { step: 'Uso Seguro', text: 'Tomarlo preferentemente por la mañana para evitar deshidratación bucal nocturna.' }
-        ]
-    },
-    {
         id: 'botella_vidrio',
         name: 'Botella de Vidrio (1L)',
         icon: 'ph-drop',
@@ -294,14 +282,6 @@ class HygieneModule {
                 status: 'clean',
                 marked_dirty_at: null,
                 last_notified_at: null
-            };
-        }
-        
-        // Inicializar datos de listerine si no existen o están corruptos
-        if (parsedData.listerine === undefined || parsedData.listerine === null || typeof parsedData.listerine !== 'object') {
-            parsedData.listerine = {
-                status: 'paused',
-                startDate: null
             };
         }
         return parsedData;
@@ -458,10 +438,6 @@ class HygieneModule {
         renderedCards.forEach(cardData => {
             if (cardData.type === 'normal') {
                 const item = cardData.item;
-                if (item.id === 'listerine') {
-                    this.renderListerineCard(item);
-                    return;
-                }
                 const type = item.type || 'wash';
                 const history = Array.isArray(this.data[item.id]) 
                     ? this.data[item.id] 
@@ -881,190 +857,6 @@ class HygieneModule {
         d2.setHours(0, 0, 0, 0);
         const diffTime = d2 - d1;
         return Math.floor(diffTime / (1000 * 60 * 60 * 24));
-    }
-
-    startListerineCycle() {
-        if (navigator.vibrate) navigator.vibrate(50);
-        const now = new Date();
-        this.data.listerine = {
-            status: 'active',
-            startDate: now.toISOString()
-        };
-        this.saveData();
-        this.render();
-        this.app.auth?.syncToCloud(false).catch(() => {});
-        this.app.notificationsCenter?.updateBadge();
-    }
-
-    pauseListerineCycle() {
-        if (navigator.vibrate) navigator.vibrate(50);
-        this.data.listerine = {
-            status: 'paused',
-            startDate: null
-        };
-        this.saveData();
-        this.render();
-        this.app.auth?.syncToCloud(false).catch(() => {});
-        this.app.notificationsCenter?.updateBadge();
-    }
-
-    renderListerineCard(item) {
-        const data = this.data.listerine || { status: 'paused', startDate: null };
-        
-        let statusClass = 'status-green';
-        let statusText = 'Pausado';
-        let colorVar = 'var(--text-secondary)';
-        let daysText = '--';
-        let daysLabel = 'días';
-        let lastDateLabel = 'Estado';
-        let lastDateText = 'Pausado';
-        let nextDateLabel = 'Próximo';
-        let nextDateText = 'N/A';
-        let progressWidth = '0%';
-        
-        if (data.status === 'active' && data.startDate) {
-            const now = new Date();
-            const daysSinceStart = this.getCalendarDaysBetween(data.startDate, now);
-            const cycleDay = daysSinceStart % 14;
-            
-            if (cycleDay < 5) {
-                // Semana de consumo (5 días)
-                statusClass = 'status-green';
-                colorVar = 'var(--status-green)';
-                statusText = 'Consumo';
-                
-                const currentDayOfUsage = cycleDay + 1;
-                daysText = `${currentDayOfUsage}`;
-                daysLabel = 'de 5 días';
-                
-                lastDateLabel = 'Fase actual';
-                lastDateText = 'Uso diario';
-                
-                const start = new Date(data.startDate);
-                const nextRestDate = new Date(start);
-                nextRestDate.setDate(start.getDate() + 5);
-                
-                nextDateLabel = 'Descanso en';
-                nextDateText = this.formatDate(nextRestDate.toISOString());
-                
-                progressWidth = `${(currentDayOfUsage / 5) * 100}%`;
-            } else {
-                // Semana de descanso (9 días)
-                statusClass = 'status-red';
-                colorVar = 'var(--status-red)';
-                statusText = 'Descanso';
-                
-                const currentDayOfRest = cycleDay - 4;
-                daysText = `${currentDayOfRest}`;
-                daysLabel = 'de 9 días';
-                
-                lastDateLabel = 'Fase actual';
-                lastDateText = 'Descanso';
-                
-                const start = new Date(data.startDate);
-                const nextUsageDate = new Date(start);
-                nextUsageDate.setDate(start.getDate() + 14);
-                
-                nextDateLabel = 'Permitido el';
-                nextDateText = this.formatDate(nextUsageDate.toISOString());
-                
-                progressWidth = `${(currentDayOfRest / 9) * 100}%`;
-            }
-        }
-        
-        const clone = this.template.content.cloneNode(true);
-        const cardEl = clone.querySelector('.card');
-        
-        cardEl.className = `card ${statusClass}`;
-        cardEl.style.borderColor = colorVar;
-        
-        clone.querySelector('.card-title').textContent = item.name;
-        clone.querySelector('.card-icon').className = `card-icon ph ${item.icon}`;
-        clone.querySelector('.days-count').textContent = daysText;
-        clone.querySelector('.days-count').style.color = colorVar;
-        clone.querySelector('.days-label').textContent = daysLabel;
-        clone.querySelector('.status-text').textContent = statusText;
-        clone.querySelector('.status-dot').style.backgroundColor = colorVar;
-        
-        clone.querySelector('.last-date-label').textContent = lastDateLabel;
-        clone.querySelector('.last-date').textContent = lastDateText;
-        clone.querySelector('.next-date-label').textContent = nextDateLabel;
-        clone.querySelector('.next-date').textContent = nextDateText;
-        
-        clone.querySelector('.progress-bar').style.width = progressWidth;
-        clone.querySelector('.progress-bar').style.backgroundColor = colorVar;
-        
-        // Ocultar botón editar
-        const editBtn = clone.querySelector('.btn-card-edit');
-        editBtn.style.display = 'none';
-        
-        // Configurar colapsable de instrucciones
-        const infoBtn = clone.querySelector('.btn-info');
-        const instructionsCollapse = clone.querySelector('.instructions-collapse');
-        const instructionsContent = clone.querySelector('.instructions-content');
-        
-        instructionsContent.innerHTML = item.instructions.map(inst => `
-            <div class="instruction-step">
-                <div class="instruction-step-title">${inst.step}</div>
-                <div class="instruction-step-text">${inst.text}</div>
-            </div>
-        `).join('');
-        
-        infoBtn.addEventListener('click', (e) => {
-            e.stopPropagation();
-            const isOpen = instructionsCollapse.classList.contains('open');
-            instructionsCollapse.classList.toggle('open', !isOpen);
-            infoBtn.classList.toggle('active', !isOpen);
-        });
-        
-        // Ocultar historial
-        const histBtn = clone.querySelector('.hygiene-history-btn');
-        const logContainer = clone.querySelector('.hygiene-history-log');
-        histBtn.style.display = 'none';
-        logContainer.style.display = 'none';
-        
-        // Acciones del footer de Listerine
-        const footerEl = clone.querySelector('.card-footer');
-        footerEl.innerHTML = '';
-        
-        if (data.status === 'paused') {
-            const startBtn = document.createElement('button');
-            startBtn.className = 'btn-wash';
-            startBtn.style.background = 'var(--status-green)';
-            startBtn.style.borderColor = 'var(--status-green)';
-            startBtn.innerHTML = '<i class="ph-bold ph-play"></i><span>Iniciar Ciclo</span>';
-            startBtn.addEventListener('click', () => this.startListerineCycle());
-            footerEl.appendChild(startBtn);
-        } else {
-            const btnContainer = document.createElement('div');
-            btnContainer.style.display = 'grid';
-            btnContainer.style.gridTemplateColumns = '1fr 1fr';
-            btnContainer.style.gap = '8px';
-            btnContainer.style.width = '100%';
-            
-            const pauseBtn = document.createElement('button');
-            pauseBtn.className = 'btn-wash';
-            pauseBtn.style.background = 'rgba(255,255,255,0.05)';
-            pauseBtn.style.borderColor = 'rgba(255,255,255,0.1)';
-            pauseBtn.style.color = 'var(--text-secondary)';
-            pauseBtn.style.padding = '0.6rem 0.4rem';
-            pauseBtn.style.fontSize = '0.85rem';
-            pauseBtn.innerHTML = '<i class="ph-bold ph-pause"></i><span>Pausar</span>';
-            pauseBtn.addEventListener('click', () => this.pauseListerineCycle());
-            
-            const resetBtn = document.createElement('button');
-            resetBtn.className = 'btn-wash';
-            resetBtn.style.padding = '0.6rem 0.4rem';
-            resetBtn.style.fontSize = '0.85rem';
-            resetBtn.innerHTML = '<i class="ph-bold ph-arrows-clockwise"></i><span>Reiniciar hoy</span>';
-            resetBtn.addEventListener('click', () => this.startListerineCycle());
-            
-            btnContainer.appendChild(pauseBtn);
-            btnContainer.appendChild(resetBtn);
-            footerEl.appendChild(btnContainer);
-        }
-        
-        this.container.appendChild(clone);
     }
 }
 
@@ -1605,9 +1397,37 @@ class LensModule {
     }
 
     checkStockWarning(stock) {
-        if (!this.stockWarning) return;
-        if (parseInt(stock) <= 1) this.stockWarning.classList.remove('hidden');
-        else this.stockWarning.classList.add('hidden');
+        if (!this.stockWarning || !this.inputStock) return;
+        const val = parseInt(stock) || 0;
+        
+        let colorVar = 'var(--status-green)';
+        let glowVar = 'rgba(16, 185, 129, 0.15)';
+        
+        if (val <= 1) {
+            colorVar = 'var(--status-red)';
+            glowVar = 'rgba(239, 68, 68, 0.15)';
+            this.stockWarning.innerText = "⚠️ ¡Atención! Stock crítico. Comprar repuestos urgente.";
+            this.stockWarning.classList.remove('hidden');
+            this.stockWarning.style.color = colorVar;
+        } else if (val === 2) {
+            colorVar = 'var(--status-orange)';
+            glowVar = 'rgba(249, 115, 22, 0.15)';
+            this.stockWarning.innerText = "⚠️ Stock bajo. Recordar comprar repuestos pronto.";
+            this.stockWarning.classList.remove('hidden');
+            this.stockWarning.style.color = colorVar;
+        } else if (val === 3) {
+            colorVar = 'var(--status-yellow)';
+            glowVar = 'rgba(245, 158, 11, 0.15)';
+            this.stockWarning.innerText = "Stock aceptable (3 pares restantes).";
+            this.stockWarning.classList.remove('hidden');
+            this.stockWarning.style.color = colorVar;
+        } else {
+            this.stockWarning.classList.add('hidden');
+        }
+
+        this.inputStock.style.borderColor = colorVar;
+        this.inputStock.style.color = colorVar;
+        this.inputStock.style.boxShadow = `0 0 8px ${glowVar}`;
     }
 
     getLensesHistory() {
@@ -2858,19 +2678,12 @@ class GymModule {
                         ex.reps = isNaN(val) ? null : val;
                         this.saveData('gym_routine');
                     }
-                } else if (target.classList.contains('routine-rir-input')) {
+                } else if (target.classList.contains('routine-series-input')) {
                     const id = parseInt(target.getAttribute('data-id'));
                     const val = parseInt(target.value);
                     const ex = this.routine.find(r => r.id === id);
                     if (ex) {
-                        ex.rir = isNaN(val) ? null : val;
-                        this.saveData('gym_routine');
-                    }
-                } else if (target.classList.contains('routine-failed-input')) {
-                    const id = parseInt(target.getAttribute('data-id'));
-                    const ex = this.routine.find(r => r.id === id);
-                    if (ex) {
-                        ex.failed = target.checked;
+                        ex.series = isNaN(val) || val < 1 ? 3 : val;
                         this.saveData('gym_routine');
                     }
                 }
@@ -2890,8 +2703,7 @@ class GymModule {
                         name,
                         weight: null,
                         reps: null,
-                        rir: null,
-                        failed: false
+                        series: 3
                     });
 
                     this.saveData('gym_routine');
@@ -2904,6 +2716,18 @@ class GymModule {
             });
         }
 
+        // Set today as default in the day selector (Lunes-Viernes)
+        const daySelect = document.getElementById('start-session-day-select');
+        if (daySelect) {
+            const daysMap = ['Domingo', 'Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes', 'Sábado'];
+            const todayStr = daysMap[new Date().getDay()];
+            if (['Lunes', 'Martes', 'Miércoles', 'Jueves', 'Viernes'].includes(todayStr)) {
+                daySelect.value = todayStr;
+            } else {
+                daySelect.value = 'Lunes';
+            }
+        }
+
         // Form 3: Sessions
         const btnStart = document.getElementById('start-session-btn');
         const btnEnd = document.getElementById('finish-session-btn');
@@ -2912,16 +2736,64 @@ class GymModule {
 
         if (btnStart) {
             btnStart.addEventListener('click', () => {
+                const daySel = document.getElementById('start-session-day-select');
+                const selectedDay = daySel ? daySel.value : 'Lunes';
+
+                const dayExercises = this.routine.filter(r => r.day === selectedDay);
+
                 this.activeSession = {
                     id: Date.now(),
                     date: new Date().toLocaleDateString('es-AR'),
                     exercises: {}
                 };
+
+                dayExercises.forEach(ex => {
+                    const seriesCount = ex.series || 3;
+                    this.activeSession.exercises[ex.name] = Array.from({ length: seriesCount }, () => ({
+                        weight: ex.weight !== null ? ex.weight : 0,
+                        reps: ex.reps !== null ? ex.reps : 0,
+                        rir: null,
+                        failed: false
+                    }));
+                });
+
                 document.getElementById('start-session-container').classList.add('hidden');
                 activeBox?.classList.remove('hidden');
-                const preview = document.getElementById('current-sets-list');
-                if (preview) preview.innerHTML = '<p style="color:var(--text-secondary); padding: 10px;">Entrenamiento iniciado. Registrá tu primer serie.</p>';
+
+                const titleEl = document.getElementById('current-session-title');
+                const subtitleEl = document.getElementById('current-session-subtitle');
+                if (titleEl) titleEl.innerText = `Entrenamiento: ${selectedDay}`;
+                if (subtitleEl) {
+                    const focus = this.routineFocus[selectedDay] || '';
+                    subtitleEl.innerText = focus ? `Foco: ${focus}` : 'Registrando rutina.';
+                }
+
+                this.renderActiveSessionForm();
                 this.updateRoutineExercisesList();
+            });
+        }
+
+        const activeContainer = document.getElementById('session-exercises-container');
+        if (activeContainer) {
+            activeContainer.addEventListener('change', (e) => {
+                const target = e.target;
+                const exName = target.getAttribute('data-exercise');
+                const idx = parseInt(target.getAttribute('data-index'));
+                if (!exName || isNaN(idx) || !this.activeSession) return;
+
+                const sets = this.activeSession.exercises[exName];
+                if (!sets || !sets[idx]) return;
+
+                if (target.classList.contains('session-set-weight')) {
+                    sets[idx].weight = parseFloat(target.value) || 0;
+                } else if (target.classList.contains('session-set-reps')) {
+                    sets[idx].reps = parseInt(target.value) || 0;
+                } else if (target.classList.contains('session-set-rir')) {
+                    const val = parseInt(target.value);
+                    sets[idx].rir = isNaN(val) ? null : val;
+                } else if (target.classList.contains('session-set-failed')) {
+                    sets[idx].failed = target.checked;
+                }
             });
         }
 
@@ -2943,10 +2815,9 @@ class GymModule {
                     this.activeSession.exercises[exName] = [];
                 }
 
-                this.activeSession.exercises[exName].push({ weight, reps });
-                this.renderCurrentSessionSets();
+                this.activeSession.exercises[exName].push({ weight, reps, rir: null, failed: false });
+                this.renderActiveSessionForm();
 
-                // Resetear peso/reps pero dejar el nombre
                 document.getElementById('session-weight').value = '';
                 document.getElementById('session-reps').value = '';
             });
@@ -2967,7 +2838,6 @@ class GymModule {
                 activeBox?.classList.add('hidden');
                 document.getElementById('start-session-container').classList.remove('hidden');
 
-                // Limpiar inputs
                 document.getElementById('session-exercise').value = '';
                 document.getElementById('session-weight').value = '';
                 document.getElementById('session-reps').value = '';
@@ -3295,7 +3165,7 @@ class GymModule {
         if (tab === 'records') this.renderRecords();
         else if (tab === 'routine') this.renderRoutine();
         else if (tab === 'sessions') {
-            this.renderCurrentSessionSets();
+            this.renderActiveSessionForm();
             this.renderSessionsLog();
         } else if (tab === 'nutrition') {
             this.renderNutrition();
@@ -3387,8 +3257,7 @@ class GymModule {
 
                 const w = ex.weight !== null ? ex.weight : '';
                 const reps = ex.reps !== null ? ex.reps : '';
-                const rir = ex.rir !== null ? ex.rir : '';
-                const failed = ex.failed ? 'checked' : '';
+                const series = ex.series !== undefined && ex.series !== null ? ex.series : 3;
 
                 item.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
@@ -3407,13 +3276,9 @@ class GymModule {
                         </div>
                         <span class="separator">|</span>
                         <div class="input-unit-wrapper">
-                            <span class="unit-label-prefix">RIR</span>
-                            <input type="number" class="routine-rir-input" data-id="${ex.id}" placeholder="-" value="${rir}" min="0" max="5">
+                            <input type="number" class="routine-series-input" data-id="${ex.id}" placeholder="3" value="${series}" min="1">
+                            <span class="unit-label">series</span>
                         </div>
-                        <label class="fail-checkbox-wrapper">
-                            <input type="checkbox" class="routine-failed-input" data-id="${ex.id}" ${failed}>
-                            <span>Fallo</span>
-                        </label>
                     </div>
                 `;
                 listContainer.appendChild(item);
@@ -3441,25 +3306,71 @@ class GymModule {
         }
     }
 
-    renderCurrentSessionSets() {
-        const box = document.getElementById('current-sets-list');
-        if (!box) return;
+    renderActiveSessionForm() {
+        const container = document.getElementById('session-exercises-container');
+        if (!container || !this.activeSession) return;
+        container.innerHTML = '';
 
-        if (!this.activeSession || Object.keys(this.activeSession.exercises).length === 0) {
-            box.innerHTML = '<p style="color:var(--text-secondary); padding: 10px; text-align:center;">Ninguna serie cargada todavía.</p>';
+        if (Object.keys(this.activeSession.exercises).length === 0) {
+            container.innerHTML = '<p style="color:var(--text-secondary); padding: 20px; text-align:center;">Ningún ejercicio cargado todavía.</p>';
             return;
         }
 
-        let html = '<table style="width:100%; border-collapse:collapse; font-size:0.85rem; text-align:left;">';
-        html += `<tr style="border-bottom:1px solid var(--surface-border);"><th style="padding:6px;">Ejercicio</th><th style="padding:6px;">Series</th></tr>`;
+        Object.keys(this.activeSession.exercises).forEach(exName => {
+            const sets = this.activeSession.exercises[exName];
+            const exDiv = document.createElement('div');
+            exDiv.className = 'card';
+            exDiv.style.background = 'rgba(255, 255, 255, 0.02)';
+            exDiv.style.padding = '15px';
+            exDiv.style.border = '1px solid var(--surface-border)';
 
-        Object.keys(this.activeSession.exercises).forEach(ex => {
-            const sets = this.activeSession.exercises[ex];
-            const setsStr = sets.map((s, idx) => `S${idx+1}: <strong>${s.weight}kg</strong> x ${s.reps}`).join(' | ');
-            html += `<tr style="border-bottom:1px dashed rgba(255,255,255,0.05);"><td style="padding:6px; color:white; font-weight:500;">${ex}</td><td style="padding:6px;">${setsStr}</td></tr>`;
+            let setsHtml = '';
+            sets.forEach((set, idx) => {
+                const rirVal = set.rir !== null ? set.rir : '';
+                const isFailedChecked = set.failed ? 'checked' : '';
+                setsHtml += `
+                    <div style="display: grid; grid-template-columns: auto 1.2fr 1.2fr 1.2fr auto; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.85rem;">
+                        <span style="color: var(--text-secondary); font-weight:600; min-width: 50px;">Serie ${idx + 1}</span>
+                        <div class="input-unit-wrapper" style="margin:0;">
+                            <input type="number" step="0.5" class="session-set-weight" data-exercise="${exName}" data-index="${idx}" value="${set.weight}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
+                            <span class="unit-label" style="font-size:0.75rem;">kg</span>
+                        </div>
+                        <div class="input-unit-wrapper" style="margin:0;">
+                            <input type="number" class="session-set-reps" data-exercise="${exName}" data-index="${idx}" value="${set.reps}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
+                            <span class="unit-label" style="font-size:0.75rem;">reps</span>
+                        </div>
+                        <div class="input-unit-wrapper" style="margin:0;">
+                            <span class="unit-label-prefix" style="font-size:0.75rem;">RIR</span>
+                            <input type="number" class="session-set-rir" data-exercise="${exName}" data-index="${idx}" placeholder="-" value="${rirVal}" min="0" max="10" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
+                        </div>
+                        <label class="fail-checkbox-wrapper" style="margin:0; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" class="session-set-failed" data-exercise="${exName}" data-index="${idx}" ${isFailedChecked}>
+                            <span style="font-size: 0.8rem;">Fallo</span>
+                        </label>
+                    </div>
+                `;
+            });
+
+            exDiv.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px dashed var(--surface-border); padding-bottom: 5px;">
+                    <strong style="color: white; font-size: 0.95rem;">${exName}</strong>
+                    <button type="button" class="btn-history-delete" onclick="window.gym.removeExerciseFromActiveSession('${exName}')" style="padding:0;" title="Quitar Ejercicio"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
+                </div>
+                <div style="display:flex; flex-direction:column;">
+                    ${setsHtml}
+                </div>
+            `;
+            container.appendChild(exDiv);
         });
-        html += '</table>';
-        box.innerHTML = html;
+    }
+
+    removeExerciseFromActiveSession(exName) {
+        if (confirm(`¿Seguro que querés quitar el ejercicio "${exName}" de este entrenamiento?`)) {
+            if (this.activeSession && this.activeSession.exercises[exName]) {
+                delete this.activeSession.exercises[exName];
+                this.renderActiveSessionForm();
+            }
+        }
     }
 
     renderSessionsLog() {
@@ -3480,7 +3391,16 @@ class GymModule {
             let exHtml = '<div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">';
             Object.keys(s.exercises).forEach(ex => {
                 const sets = s.exercises[ex];
-                const setsStr = sets.map((val, idx) => `S${idx+1}: <strong>${val.weight}kg</strong> x ${val.reps}`).join(' | ');
+                const setsStr = sets.map((val, idx) => {
+                    let suffix = '';
+                    if (val.rir !== undefined && val.rir !== null && val.rir !== '') {
+                        suffix += ` (RIR ${val.rir})`;
+                    }
+                    if (val.failed) {
+                        suffix += ' 💥';
+                    }
+                    return `S${idx+1}: <strong>${val.weight}kg</strong> x ${val.reps}${suffix}`;
+                }).join(' | ');
                 exHtml += `
                     <div style="font-size:0.85rem; background:rgba(0,0,0,0.15); padding:8px; border-radius:6px; border:1px solid var(--surface-border);">
                         <div style="font-weight:600; color:white; margin-bottom:3px;">${ex}</div>
@@ -6702,7 +6622,6 @@ const ALERT_DEFINITIONS = [
     { key: 'dentista', name: 'Control Dentista', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'compu_limpieza_int', name: 'Computadora (Limpieza Int.)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'compu_pasta_termica', name: 'Computadora (Pasta Térmica)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
-    { key: 'listerine', name: 'Enjuague Listerine', category: 'higiene', type: 'interval', defaultTime: '09:00' },
     { key: 'botella_vidrio', name: 'Lavado Botella de Vidrio', category: 'higiene', type: 'interval', defaultTime: '23:00' },
 
     // Cuidado Corporal
@@ -7497,8 +7416,6 @@ class AppController {
                 this.projects.render();
             } else if (activeSectionId === 'finanzas-section') {
                 this.finanzas.render();
-            } else if (activeSectionId === 'alerts-section') {
-                this.alerts.render();
             }
         });
     }
@@ -7518,6 +7435,9 @@ class AppController {
             document.querySelectorAll('.profile-tab-content').forEach(content => {
                 content.classList.toggle('hidden', content.id !== `tab-${targetTab}`);
             });
+            if (targetTab === 'alertas') {
+                this.alerts.render();
+            }
         });
     }
 
