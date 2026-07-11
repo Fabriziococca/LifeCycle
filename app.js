@@ -4164,14 +4164,16 @@ class ProjectsModule {
 
     calculateNet(gross, feeType, manualPercent, isDelegated = false, isReceived = false) {
         let finalNet = 0;
-        if (feeType === 'direct') {
+        const feeVal = (feeType === null || feeType === undefined || feeType === '') ? 20 : feeType;
+        if (feeVal === 'direct') {
             finalNet = gross;
-        } else if (feeType === 'paypal_direct') {
+        } else if (feeVal === 'paypal_direct') {
             const netAfterPayPal = (gross * (1 - 0.054)) - 0.30;
             finalNet = netAfterPayPal * 0.9457;
             if (finalNet < 0) finalNet = 0;
         } else {
-            let pct = (feeType === 'custom') ? (parseFloat(manualPercent) || 0) : parseFloat(feeType);
+            let pct = (feeVal === 'custom') ? (parseFloat(manualPercent) || 0) : parseFloat(feeVal);
+            if (isNaN(pct)) pct = 20;
             const amountAfterWorkana = gross * (1 - (pct / 100));
             finalNet = amountAfterWorkana * (1 - this.FIXED_FEE);
         }
