@@ -1282,7 +1282,7 @@ class GroomingModule {
             let iconClass = 'ph-user';
             if (zone.id === 'barba') iconClass = 'ph-scissors';
             else if (zone.id === 'unas_manos') iconClass = 'ph-hand';
-            else if (zone.id === 'unas_pies') iconClass = 'ph-footprint';
+            else if (zone.id === 'unas_pies') iconClass = 'ph-scissors';
             else if (zone.isTool) iconClass = 'ph-sparkle';
 
             card.innerHTML = `
@@ -6300,6 +6300,26 @@ class FinanzasModule {
         this.monthSelect?.addEventListener('change', () => {
             this.renderBreakdownAndList();
         });
+
+        // Listeners para modal de desglose anual
+        const btnOpenYear = document.getElementById('btnOpenFinYearDetails');
+        const yearModal = document.getElementById('finanzas-year-details-modal');
+        const closeYearBtn = document.getElementById('fin-year-modal-close');
+        const yearSelect = document.getElementById('fin-year-select');
+
+        btnOpenYear?.addEventListener('click', () => {
+            this.populateYearsSelector();
+            this.renderAnnualBreakdown();
+            yearModal?.classList.remove('hidden');
+        });
+
+        closeYearBtn?.addEventListener('click', () => {
+            yearModal?.classList.add('hidden');
+        });
+
+        yearSelect?.addEventListener('change', () => {
+            this.renderAnnualBreakdown();
+        });
     }
 
     toggleModalFields() {
@@ -6393,6 +6413,101 @@ class FinanzasModule {
         return list;
     }
 
+    populateYearsSelector() {
+        const yearSelect = document.getElementById('fin-year-select');
+        if (!yearSelect) return;
+
+        const combined = this.getCombinedEntries();
+        const yearsSet = new Set();
+        yearsSet.add(new Date().getFullYear());
+
+        combined.forEach(e => {
+            if (e.date) {
+                const yr = parseInt(e.date.slice(0, 4));
+                if (!isNaN(yr)) yearsSet.add(yr);
+            }
+        });
+
+        const sortedYears = Array.from(yearsSet).sort((a, b) => b - a);
+        const selected = yearSelect.value || String(new Date().getFullYear());
+
+        yearSelect.innerHTML = sortedYears.map(y => `<option value="${y}">${y}</option>`).join('');
+        yearSelect.value = sortedYears.includes(parseInt(selected)) ? selected : String(sortedYears[0]);
+    }
+
+    renderAnnualBreakdown() {
+        const yearSelect = document.getElementById('fin-year-select');
+        const tableBody = document.getElementById('fin-year-table-body');
+        if (!yearSelect || !tableBody) return;
+
+        const selectedYear = parseInt(yearSelect.value) || new Date().getFullYear();
+        const combined = this.getCombinedEntries();
+        
+        const yearEntries = combined.filter(e => e.date && parseInt(e.date.slice(0, 4)) === selectedYear);
+
+        const monthlyData = Array.from({ length: 12 }, (_, i) => ({
+            monthIndex: i,
+            freelance: 0,
+            discord: 0,
+            trading: 0,
+            extraordinary: 0,
+            total: 0
+        }));
+
+        yearEntries.forEach(e => {
+            const monthIdx = parseInt(e.date.slice(5, 7)) - 1;
+            if (monthIdx >= 0 && monthIdx < 12) {
+                const amt = Number(e.amount || 0);
+                if (e.category === 'freelance') monthlyData[monthIdx].freelance += amt;
+                else if (e.category === 'discord') monthlyData[monthIdx].discord += amt;
+                else if (e.category === 'trading') monthlyData[monthIdx].trading += amt;
+                else if (e.category === 'extraordinary') monthlyData[monthIdx].extraordinary += amt;
+                monthlyData[monthIdx].total += amt;
+            }
+        });
+
+        let totFreelance = 0;
+        let totDiscord = 0;
+        let totTrading = 0;
+        let totExtraordinary = 0;
+        let totGrand = 0;
+
+        tableBody.innerHTML = monthlyData.map(m => {
+            totFreelance += m.freelance;
+            totDiscord += m.discord;
+            totTrading += m.trading;
+            totExtraordinary += m.extraordinary;
+            totGrand += m.total;
+
+            const d = new Date(selectedYear, m.monthIndex, 1);
+            const monthName = d.toLocaleDateString('es-AR', { month: 'long' });
+            const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+
+            return `
+                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-secondary);">
+                    <td style="padding:10px 8px; font-weight:600; color:white;">${capitalizedMonth}</td>
+                    <td style="padding:10px 8px; text-align:right;">USD ${m.freelance.toFixed(2)}</td>
+                    <td style="padding:10px 8px; text-align:right;">USD ${m.discord.toFixed(2)}</td>
+                    <td style="padding:10px 8px; text-align:right;">USD ${m.trading.toFixed(2)}</td>
+                    <td style="padding:10px 8px; text-align:right;">USD ${m.extraordinary.toFixed(2)}</td>
+                    <td style="padding:10px 8px; text-align:right; font-weight:bold; color:white;">USD ${m.total.toFixed(2)}</td>
+                </tr>
+            `;
+        }).join('');
+
+        const tf = document.getElementById('fin-year-tot-freelance');
+        const td = document.getElementById('fin-year-tot-discord');
+        const tt = document.getElementById('fin-year-tot-trading');
+        const te = document.getElementById('fin-year-tot-extraordinary');
+        const tg = document.getElementById('fin-year-tot-grand');
+
+        if (tf) tf.innerText = `USD ${totFreelance.toFixed(2)}`;
+        if (td) td.innerText = `USD ${totDiscord.toFixed(2)}`;
+        if (tt) tt.innerText = `USD ${totTrading.toFixed(2)}`;
+        if (te) te.innerText = `USD ${totExtraordinary.toFixed(2)}`;
+        if (tg) tg.innerText = `USD ${totGrand.toFixed(2)}`;
+    }
+
     populateMonthsSelector(combinedEntries) {
         if (!this.monthSelect) return;
         const monthsSet = new Set();
@@ -6484,6 +6599,17 @@ class FinanzasModule {
         });
 
         const totalMonth = catFreelance + catDiscord + catTrading + catExtraordinary;
+
+        const mEl = document.getElementById('fin-monthUSD');
+        if (mEl) mEl.innerText = `USD ${totalMonth.toFixed(2)}`;
+
+        const labelEl = document.getElementById('fin-month-label');
+        if (labelEl) {
+            const [yr, mn] = selectedMonth.split('-');
+            const d = new Date(parseInt(yr), parseInt(mn) - 1, 1);
+            const label = d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+            labelEl.innerText = `Ingresos de ${label.charAt(0).toUpperCase() + label.slice(1)}`;
+        }
 
         const pctFreelance = totalMonth > 0 ? (catFreelance / totalMonth) * 100 : 0;
         const pctDiscord = totalMonth > 0 ? (catDiscord / totalMonth) * 100 : 0;
@@ -7041,7 +7167,7 @@ class NotificationsCenterModule {
                             module: 'grooming',
                             id: 'unas_pies',
                             name: 'Cortar Uñas de Pies',
-                            icon: 'ph-footprint',
+                            icon: 'ph-scissors',
                             desc: `Pasaron ${diff} de 40 días.`
                         });
                     }

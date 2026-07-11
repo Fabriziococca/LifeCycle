@@ -1177,11 +1177,14 @@
             <!-- Dashboard Financiero -->
             <div class="dashboard-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 2rem;">
                 <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--status-green);">
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Ingresos del Mes</div>
+                    <div id="fin-month-label" style="font-size: 0.8rem; color: var(--text-secondary);">Ingresos del Mes</div>
                     <div id="fin-monthUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--status-green); margin-top: 5px;">USD 0.00</div>
                 </div>
                 <div class="card" style="margin:0; padding: 15px; border: 1px solid white;">
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Ingresos del Año</div>
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Ingresos del Año</span>
+                        <button id="btnOpenFinYearDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Detalle</button>
+                    </div>
                     <div id="fin-yearUSD" style="font-size: 1.4rem; font-weight: bold; color: white; margin-top: 5px;">USD 0.00</div>
                 </div>
                 <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--status-orange);">
@@ -1655,6 +1658,51 @@
                     <button type="submit" id="fin-log-save" class="btn btn-save">Guardar Ingreso</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE DESGLOSE ANUAL (FINANZAS) -->
+    <div id="finanzas-year-details-modal" class="modal hidden">
+        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <h3 id="fin-year-modal-title" style="margin: 0;">Detalle Anual de Ingresos</h3>
+                <button id="fin-year-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <p class="modal-desc" style="margin-bottom: 15px;">Desglose mensual de ingresos por categoría del año seleccionado.</p>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; gap:10px;">
+                <label style="font-size:0.85rem; font-weight:600; color:white;">Seleccionar Año:</label>
+                <select id="fin-year-select" class="number-input" style="width:auto; padding:6px 12px; margin:0; font-size:0.85rem; height: auto;"></select>
+            </div>
+
+            <!-- Tabla de desglose de meses -->
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.85rem; color:var(--text-secondary);">
+                    <thead>
+                        <tr style="border-bottom:2px solid var(--surface-border); color:white;">
+                            <th style="padding:10px 8px; font-weight:600;">Mes</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Freelance</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Discord</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Trading</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Extraordinario</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right; color:var(--status-green);">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fin-year-table-body">
+                        <!-- Carga dinámica por JS -->
+                    </tbody>
+                    <tfoot>
+                        <tr style="border-top:2px solid var(--surface-border); font-weight:bold; color:white;">
+                            <th style="padding:12px 8px;">Total Año</th>
+                            <th id="fin-year-tot-freelance" style="padding:12px 8px; text-align:right;">USD 0.00</th>
+                            <th id="fin-year-tot-discord" style="padding:12px 8px; text-align:right;">USD 0.00</th>
+                            <th id="fin-year-tot-trading" style="padding:12px 8px; text-align:right;">USD 0.00</th>
+                            <th id="fin-year-tot-extraordinary" style="padding:12px 8px; text-align:right;">USD 0.00</th>
+                            <th id="fin-year-tot-grand" style="padding:12px 8px; text-align:right; color:var(--status-green);">USD 0.00</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
         </div>
     </div>
 
