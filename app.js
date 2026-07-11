@@ -4342,10 +4342,49 @@ class ProjectsModule {
                 p.timerStart = new Date().toISOString();
             }
 
+            // Arbitraje status
+            const isArbitrationChecked = document.getElementById('proj-isArbitration')?.checked || false;
+            if (isArbitrationChecked && !p.isArbitration) {
+                // Entrando en arbitraje: pausar timer
+                if (p.timerStart) {
+                    const elapsed = new Date() - new Date(p.timerStart);
+                    p.timeSpent = (p.timeSpent || 0) + elapsed;
+                    p.timerStart = null;
+                }
+                p.isArbitration = true;
+                p.isDelivered = false; // Congelado
+            } else if (!isArbitrationChecked && p.isArbitration) {
+                // Saliendo de arbitraje
+                p.isArbitration = false;
+            }
+
             this.saveData();
             this.render();
             editModal?.classList.add('hidden');
             this.currentProjectId = null;
+        });
+
+        // Resolve Arbitration Modal Listeners
+        const resolveCancel = document.getElementById('proj-resolve-cancel');
+        const resolveConfirm = document.getElementById('proj-resolve-confirm');
+        const resolveModal = document.getElementById('projects-resolve-arbitration-modal');
+        const arbitrationPctInput = document.getElementById('proj-arbitration-pct');
+
+        resolveCancel?.addEventListener('click', () => {
+            resolveModal?.classList.add('hidden');
+            this.currentProjectId = null;
+        });
+
+        arbitrationPctInput?.addEventListener('input', () => {
+            let val = parseFloat(arbitrationPctInput.value);
+            if (isNaN(val)) val = 0;
+            if (val < 0) arbitrationPctInput.value = 0;
+            if (val > 100) arbitrationPctInput.value = 100;
+            this.updateArbitrationPreview();
+        });
+
+        resolveConfirm?.addEventListener('click', () => {
+            this.confirmResolveArbitration();
         });
 
         // Plan Modal Save & Close & Task addition
@@ -4602,7 +4641,15 @@ class ProjectsModule {
             let rightDateLabel = `Límite (${p.days}d):`;
             let rightDateVal = this.formatDate(p.deadline);
 
-            if (p.isDelivered) {
+            if (p.isArbitration) {
+                progress = 100;
+                colorVar = "var(--status-red)";
+                countdownText = "⚠️ EN ARBITRAJE";
+                leftDateLabel = "Entró en Disputa:";
+                leftDateVal = this.formatDate(p.deliveredAt || p.accepted);
+                rightDateLabel = "Estado:";
+                rightDateVal = "FONDOS CONGELADOS";
+            } else if (p.isDelivered) {
                 if (!p.deliveredAt) p.deliveredAt = now.toISOString();
                 const del = new Date(p.deliveredAt);
                 const releaseDate = new Date(del.getTime() + 15 * 24 * 60 * 60 * 1000);
@@ -4655,9 +4702,9 @@ class ProjectsModule {
             }
 
             const isRunning = p.timerStart !== null;
-            const btnIcon = isRunning ? '⏸️' : '▶️';
-            const btnBg = isRunning ? 'var(--status-red)' : 'var(--primary-color)';
-            const btnColor = 'white';
+            const btnIcon = p.isArbitration ? '🔒' : (isRunning ? '⏸️' : '▶️');
+            const btnBg = p.isArbitration ? 'rgba(255,255,255,0.05)' : (isRunning ? 'var(--status-red)' : 'var(--primary-color)');
+            const btnColor = p.isArbitration ? 'var(--text-secondary)' : 'white';
 
             let initialMs = p.timeSpent || 0;
             if (p.timerStart) {
@@ -4735,7 +4782,13 @@ class ProjectsModule {
                 <div class="countdown" style="color:${colorVar}">${countdownText}</div>
                 
                 <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
-                    ${!p.isDelivered ? `
+                    ${p.isArbitration ? `
+                        <button class="btn btn-secondary" style="margin: 0;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan de Acción</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary half" style="margin:0;" onclick="window.projects.openEditModal('${p.id}')"><i class="ph ph-gear"></i> Gestionar</button>
+                            <button class="btn btn-primary half" style="margin:0; background: var(--status-red); color: white;" onclick="window.projects.openResolveArbitrationModal('${p.id}')"><i class="ph ph-scales"></i> Resolver</button>
+                        </div>
+                    ` : (!p.isDelivered ? `
                         <button class="btn btn-secondary" style="margin: 0;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan de Acción</button>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-secondary half" style="margin:0;" onclick="window.projects.openEditModal('${p.id}')"><i class="ph ph-gear"></i> Gestionar</button>
@@ -4744,7 +4797,7 @@ class ProjectsModule {
                     ` : `
                         <button class="btn btn-secondary" style="margin: 0;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan de Acción</button>
                         <button class="btn btn-primary" style="background:var(--status-green); color:white; width:100%; border:none; padding:12px; font-size:1rem; border-radius:8px; cursor:pointer; margin:0;" onclick="window.projects.confirmPayment('${p.id}')"><i class="ph ph-coins"></i> Pago Confirmado</button>
-                    `}
+                    `)}
                 </div>
             `;
             list.appendChild(card);
@@ -4765,6 +4818,11 @@ class ProjectsModule {
         const now = new Date();
         const p = this.projects.find(proj => proj.id == id);
         if (!p) return;
+
+        if (p.isArbitration) {
+            alert("No se puede iniciar el temporizador en un proyecto en arbitraje.");
+            return;
+        }
 
         if (p.timerStart) {
             // Pausar timer
@@ -4856,6 +4914,12 @@ class ProjectsModule {
             
             document.getElementById('proj-manualHours').value = hrs;
             document.getElementById('proj-manualMinutes').value = mins;
+            
+            const isArbitrationCheckbox = document.getElementById('proj-isArbitration');
+            if (isArbitrationCheckbox) {
+                isArbitrationCheckbox.checked = !!p.isArbitration;
+            }
+            
             modal.classList.remove('hidden');
         }
     }
@@ -4887,6 +4951,71 @@ class ProjectsModule {
             this.saveData();
             this.render();
         }
+    }
+
+    openResolveArbitrationModal(id) {
+        this.currentProjectId = id;
+        const p = this.projects.find(proj => String(proj.id) === String(id));
+        const modal = document.getElementById('projects-resolve-arbitration-modal');
+        if (modal && p) {
+            document.getElementById('proj-resolve-desc').innerText = `Proyecto de ${p.client} - ${p.project}. Se recalculará el presupuesto final según el porcentaje que decida el arbitraje.`;
+            document.getElementById('proj-resolve-orig-gross').innerText = `USD ${Number(p.budgetGross || 0).toFixed(2)}`;
+            document.getElementById('proj-arbitration-pct').value = 70; // 70% por defecto
+            
+            modal.classList.remove('hidden');
+            this.updateArbitrationPreview();
+        }
+    }
+
+    updateArbitrationPreview() {
+        if (!this.currentProjectId) return;
+        const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId));
+        if (!p) return;
+
+        let pct = parseFloat(document.getElementById('proj-arbitration-pct').value);
+        if (isNaN(pct)) pct = 0;
+        if (pct < 0) pct = 0;
+        if (pct > 100) pct = 100;
+
+        const targetGross = p.budgetGross * (pct / 100);
+        const targetNet = this.calculateNet(targetGross, p.feeType, p.manualPercent, p.isDelegated, p.isReceived);
+
+        document.getElementById('proj-resolve-new-gross').innerText = `USD ${targetGross.toFixed(2)}`;
+        document.getElementById('proj-resolve-new-net').innerText = `USD ${targetNet.toFixed(2)}`;
+    }
+
+    confirmResolveArbitration() {
+        if (!this.currentProjectId) return;
+        const pIndex = this.projects.findIndex(proj => String(proj.id) === String(this.currentProjectId));
+        if (pIndex === -1) return;
+
+        const p = this.projects[pIndex];
+        let pct = parseFloat(document.getElementById('proj-arbitration-pct').value);
+        if (isNaN(pct)) pct = 0;
+        if (pct < 0) pct = 0;
+        if (pct > 100) pct = 100;
+
+        const targetGross = p.budgetGross * (pct / 100);
+        const targetNet = this.calculateNet(targetGross, p.feeType, p.manualPercent, p.isDelegated, p.isReceived);
+
+        // Guardar valores resueltos
+        p.budgetGross = parseFloat(targetGross.toFixed(2));
+        p.budgetNet = parseFloat(targetNet.toFixed(2));
+        p.isArbitration = false;
+        p.resolvedViaArbitration = true;
+        p.arbitrationPercent = pct;
+        p.deliveredDate = new Date().toISOString().split('T')[0];
+
+        // Mover al historial
+        this.history.unshift(p);
+        this.projects.splice(pIndex, 1);
+
+        this.saveData();
+        this.render();
+
+        const modal = document.getElementById('projects-resolve-arbitration-modal');
+        modal?.classList.add('hidden');
+        this.currentProjectId = null;
     }
 
     renderMonthlyHistory(filterType = 'all') {

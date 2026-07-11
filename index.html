@@ -1471,9 +1471,58 @@
                 </div>
             </div>
 
+            <div class="input-group" style="margin-top: 1.25rem; display: flex; align-items: center; gap: 8px;">
+                <input type="checkbox" id="proj-isArbitration" style="width: 18px; height: 18px; cursor: pointer;">
+                <label for="proj-isArbitration" style="font-size: 0.85rem; cursor: pointer; color: var(--status-red); font-weight: 600; display: flex; align-items: center; gap: 4px; user-select: none;">
+                    <i class="ph ph-warning-circle" style="font-size: 1.1rem;"></i> En Arbitraje (Congelar plazos/pagos)
+                </label>
+            </div>
+
             <div class="modal-actions" style="margin-top:1.5rem;">
                 <button id="proj-edit-cancel" class="btn btn-cancel">Cancelar</button>
                 <button id="proj-edit-save" class="btn btn-save">Guardar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE RESOLUCIÓN DE ARBITRAJE -->
+    <div id="projects-resolve-arbitration-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Resolver Arbitraje</h3>
+            <p id="proj-resolve-desc" class="modal-desc" style="margin-bottom: 1.5rem;"></p>
+            
+            <div class="input-group">
+                <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Porcentaje Adjudicado a tu Favor (%)</label>
+                <input type="number" id="proj-arbitration-pct" class="number-input" min="0" max="100" value="70">
+            </div>
+
+            <!-- Botones de selección rápida -->
+            <div style="display:flex; gap:8px; margin-top: 0.75rem; flex-wrap:wrap;">
+                <button type="button" class="btn btn-secondary" style="margin:0; padding:6px 12px; font-size:0.75rem; flex:1;" onclick="document.getElementById('proj-arbitration-pct').value = 100; window.projects.updateArbitrationPreview();">100%</button>
+                <button type="button" class="btn btn-secondary" style="margin:0; padding:6px 12px; font-size:0.75rem; flex:1;" onclick="document.getElementById('proj-arbitration-pct').value = 70; window.projects.updateArbitrationPreview();">70%</button>
+                <button type="button" class="btn btn-secondary" style="margin:0; padding:6px 12px; font-size:0.75rem; flex:1;" onclick="document.getElementById('proj-arbitration-pct').value = 50; window.projects.updateArbitrationPreview();">50%</button>
+                <button type="button" class="btn btn-secondary" style="margin:0; padding:6px 12px; font-size:0.75rem; flex:1;" onclick="document.getElementById('proj-arbitration-pct').value = 30; window.projects.updateArbitrationPreview();">30%</button>
+                <button type="button" class="btn btn-secondary" style="margin:0; padding:6px 12px; font-size:0.75rem; flex:1;" onclick="document.getElementById('proj-arbitration-pct').value = 0; window.projects.updateArbitrationPreview();">0%</button>
+            </div>
+
+            <div class="finance-block" style="margin-top: 1.5rem; padding: 12px; background: rgba(239, 68, 68, 0.05); border: 1px dashed var(--status-red); border-radius: 8px; display: flex; flex-direction: column; gap: 8px;">
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem;">
+                    <span style="color:var(--text-secondary);">Presupuesto Bruto original:</span>
+                    <strong id="proj-resolve-orig-gross" style="color:white;">USD 0.00</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:0.85rem; border-top:1px solid rgba(255,255,255,0.05); padding-top:6px;">
+                    <span style="color:var(--text-secondary);">Presupuesto Bruto adjudicado:</span>
+                    <strong id="proj-resolve-new-gross" style="color:var(--status-yellow);">USD 0.00</strong>
+                </div>
+                <div style="display:flex; justify-content:space-between; font-size:0.95rem; border-top:1px solid rgba(255,255,255,0.05); padding-top:6px; font-weight:bold;">
+                    <span style="color:white;">Presupuesto Neto resultante:</span>
+                    <strong id="proj-resolve-new-net" style="color:var(--status-green);">USD 0.00</strong>
+                </div>
+            </div>
+
+            <div class="modal-actions" style="margin-top:1.5rem;">
+                <button id="proj-resolve-cancel" class="btn btn-cancel">Cancelar</button>
+                <button id="proj-resolve-confirm" class="btn btn-save" style="background:var(--status-red); color:white;">Confirmar Resolución</button>
             </div>
         </div>
     </div>

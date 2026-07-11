@@ -747,7 +747,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 : (data.projectPulseData || []);
                             
                             for (const p of projectsData) {
-                                if (!p.isDelivered) {
+                                if (!p.isDelivered && !p.isArbitration) {
                                     const now = new Date();
                                     const deadline = new Date(p.deadline);
                                     const accepted = new Date(p.accepted);
