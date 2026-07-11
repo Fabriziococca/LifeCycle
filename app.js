@@ -4097,13 +4097,17 @@ class GymModule {
         }
 
         const last = new Date(this.supplements.vit_d_history[0].date);
+        last.setHours(0, 0, 0, 0);
         const interval = this.supplements.vit_d_days_interval;
         const next = new Date(last.getTime() + interval * 24 * 60 * 60 * 1000);
+        next.setHours(0, 0, 0, 0);
 
         lastSpan.textContent = last.toLocaleDateString('es-AR');
         nextSpan.textContent = next.toLocaleDateString('es-AR');
 
-        const remainingDays = Math.ceil((next - new Date()) / 86400000);
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const remainingDays = Math.ceil((next - today) / 86400000);
         timerSpan.textContent = remainingDays;
 
         if (badge) {
@@ -7015,6 +7019,9 @@ const ALERT_DEFINITIONS = [
     { key: 'vehicle_align', name: 'Alineación & Balanceo', category: 'vehiculo', type: 'interval', defaultTime: '23:00' },
     { key: 'vehicle_rot', name: 'Rotación de Neumáticos', category: 'vehiculo', type: 'interval', defaultTime: '23:00' },
     { key: 'vehicle_replace', name: 'Reemplazo de Neumáticos', category: 'vehiculo', type: 'interval', defaultTime: '23:00' },
+    { key: 'vehicle_issues_check', name: 'Fallas y Pendientes', category: 'vehiculo', type: 'interval', defaultTime: '09:00' },
+    { key: 'vehicle_docs_check', name: 'Vencimiento de Documentación', category: 'vehiculo', type: 'interval', defaultTime: '09:00' },
+    { key: 'vehicle_fluids_check', name: 'Control de Fluidos y Matafuegos', category: 'vehiculo', type: 'interval', defaultTime: '09:00' },
 
     // Nutrición & Hábitos
     { key: 'vitamina_d', name: 'Vitamina D', category: 'gym', type: 'interval', defaultTime: '23:00' },

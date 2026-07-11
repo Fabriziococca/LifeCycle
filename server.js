@@ -457,13 +457,26 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     let title = '';
                     let body = '';
 
-                    const hygieneData = data.hygiene_tracker_data || {};
-                    const groomingData = data.groomingData_v2 || {};
-                    const healthData = data.health_medical_data || {};
+                    const parseJSONField = (field, defaultVal) => {
+                        if (!field) return defaultVal;
+                        if (typeof field === 'string') {
+                            try {
+                                return JSON.parse(field);
+                            } catch (e) {
+                                console.error(`[Alert Engine] Error parsing JSON field:`, e);
+                                return defaultVal;
+                            }
+                        }
+                        return field;
+                    };
+
+                    const hygieneData = parseJSONField(data.hygiene_tracker_data, {});
+                    const groomingData = parseJSONField(data.groomingData_v2, {});
+                    const healthData = parseJSONField(data.health_medical_data, {});
                     const dentista = healthData.dentista || {};
-                    const maintenanceLog = data.vehicle_maintenance_log || [];
+                    const maintenanceLog = parseJSONField(data.vehicle_maintenance_log, []);
                     const currentOdo = Number(data.vehicle_odometer) || 0;
-                    const gymSupplements = data.gym_supplements || {};
+                    const gymSupplements = parseJSONField(data.gym_supplements, {});
 
                     switch(key) {
                         // Higiene
@@ -756,11 +769,19 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'vitamina_d':
                             const vitDHistory = gymSupplements.vit_d_history || [];
                             if (vitDHistory.length > 0) {
-                                const lastTake = new Date(vitDHistory[0].date);
-                                const interval = gymSupplements.vit_d_days_interval || 30;
-                                const nextTake = new Date(lastTake.getTime() + interval * 24 * 60 * 60 * 1000);
-                                const remainingDays = Math.ceil((nextTake - new Date()) / 86400000);
-                                if (remainingDays <= 0) { shouldNotify = true; title = '💊 Vitamina D'; body = 'Debes tomar tu suplemento ahora.'; }
+                                const lastTakeStr = vitDHistory[0].date;
+                                const lastParts = lastTakeStr.split('T')[0].split('-');
+                                if (lastParts.length === 3) {
+                                    const interval = gymSupplements.vit_d_days_interval || 30;
+                                    const nextTakeDate = new Date(Date.UTC(parseInt(lastParts[0]), parseInt(lastParts[1]) - 1, parseInt(lastParts[2]) + interval));
+                                    const nextTakeStr = nextTakeDate.toISOString().split('T')[0];
+                                    const remainingDays = getDaysUntil(nextTakeStr);
+                                    if (remainingDays !== null && remainingDays <= 0) {
+                                        shouldNotify = true;
+                                        title = '💊 Vitamina D';
+                                        body = `Debes tomar tu suplemento ahora (${remainingDays === 0 ? 'hoy te toca' : 'vencido hace ' + Math.abs(remainingDays) + ' días'}).`;
+                                    }
+                                }
                             }
                             break;
                         case 'creatine':
@@ -914,32 +935,31 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
 function getDaysElapsed(dateString) {
     if (!dateString) return null;
-    const start = new Date(dateString);
-    const today = new Date();
+    const { dateStr } = getArgentinaTime();
     
-    // Shift dates by -3 hours to align with Argentina's timezone (UTC-3)
-    const localStart = new Date(start.getTime() - 3 * 60 * 60 * 1000);
-    const localToday = new Date(today.getTime() - 3 * 60 * 60 * 1000);
+    const startParts = dateString.split('T')[0].split('-');
+    if (startParts.length !== 3) return null;
+    const startUTC = new Date(Date.UTC(parseInt(startParts[0]), parseInt(startParts[1]) - 1, parseInt(startParts[2])));
     
-    localStart.setUTCHours(0,0,0,0);
-    localToday.setUTCHours(0,0,0,0);
+    const todayParts = dateStr.split('-');
+    const todayUTC = new Date(Date.UTC(parseInt(todayParts[0]), parseInt(todayParts[1]) - 1, parseInt(todayParts[2])));
     
-    const diffTime = localToday - localStart;
+    const diffTime = todayUTC - startUTC;
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
 }
 
 function getDaysUntil(dateString) {
     if (!dateString) return null;
-    const target = new Date(dateString);
-    const today = new Date();
+    const { dateStr } = getArgentinaTime();
     
-    const localTarget = new Date(target.getTime() - 3 * 60 * 60 * 1000);
-    const localToday = new Date(today.getTime() - 3 * 60 * 60 * 1000);
+    const targetParts = dateString.split('T')[0].split('-');
+    if (targetParts.length !== 3) return null;
+    const targetUTC = new Date(Date.UTC(parseInt(targetParts[0]), parseInt(targetParts[1]) - 1, parseInt(targetParts[2])));
     
-    localTarget.setUTCHours(0,0,0,0);
-    localToday.setUTCHours(0,0,0,0);
+    const todayParts = dateStr.split('-');
+    const todayUTC = new Date(Date.UTC(parseInt(todayParts[0]), parseInt(todayParts[1]) - 1, parseInt(todayParts[2])));
     
-    const diffTime = localTarget - localToday;
+    const diffTime = targetUTC - todayUTC;
     return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
