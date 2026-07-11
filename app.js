@@ -4364,6 +4364,16 @@ class ProjectsModule {
             this.currentProjectId = null;
         });
 
+        // Checkbox visual change listener
+        const isArbitrationCheckbox = document.getElementById('proj-isArbitration');
+        isArbitrationCheckbox?.addEventListener('change', () => {
+            const visual = document.getElementById('proj-isArbitration-visual');
+            if (visual) {
+                visual.innerHTML = isArbitrationCheckbox.checked ? '✓' : '';
+                visual.style.background = isArbitrationCheckbox.checked ? 'var(--status-red)' : 'transparent';
+            }
+        });
+
         // Resolve Arbitration Modal Listeners
         const resolveCancel = document.getElementById('proj-resolve-cancel');
         const resolveConfirm = document.getElementById('proj-resolve-confirm');
@@ -4796,8 +4806,11 @@ class ProjectsModule {
                         </div>
                     ` : `
                         <button class="btn btn-secondary" style="margin: 0;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan de Acción</button>
-                        <button class="btn btn-primary" style="background:var(--status-green); color:white; width:100%; border:none; padding:12px; font-size:1rem; border-radius:8px; cursor:pointer; margin:0;" onclick="window.projects.confirmPayment('${p.id}')"><i class="ph ph-coins"></i> Pago Confirmado</button>
-                    `)}
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary half" style="margin:0;" onclick="window.projects.openEditModal('${p.id}')"><i class="ph ph-gear"></i> Gestionar</button>
+                            <button class="btn btn-primary half" style="margin:0; background: var(--status-green); color: white;" onclick="window.projects.confirmPayment('${p.id}')"><i class="ph ph-coins"></i> Pago Confirmado</button>
+                        </div>
+                    `) }
                 </div>
             `;
             list.appendChild(card);
@@ -4918,6 +4931,11 @@ class ProjectsModule {
             const isArbitrationCheckbox = document.getElementById('proj-isArbitration');
             if (isArbitrationCheckbox) {
                 isArbitrationCheckbox.checked = !!p.isArbitration;
+                const visual = document.getElementById('proj-isArbitration-visual');
+                if (visual) {
+                    visual.innerHTML = isArbitrationCheckbox.checked ? '✓' : '';
+                    visual.style.background = isArbitrationCheckbox.checked ? 'var(--status-red)' : 'transparent';
+                }
             }
             
             modal.classList.remove('hidden');
