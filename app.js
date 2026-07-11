@@ -2021,6 +2021,7 @@ class HealthModule {
 class VehicleModule {
     constructor(controller) {
         this.controller = controller;
+        window.vehicle = this;
 
         this.odometerInput = document.getElementById('vehicle-odometer-input');
         
@@ -2059,6 +2060,39 @@ class VehicleModule {
         this.btnToggleTiresHist = document.getElementById('btn-toggle-tires-history');
         this.tiresHistoryLog = document.getElementById('tires-service-history');
 
+        // Fluids UI Elements
+        this.refrigeranteElapsed = document.getElementById('fluid-refrigerante-elapsed');
+        this.refrigeranteBadge = document.getElementById('fluid-refrigerante-badge');
+        this.btnCheckRefrigerante = document.getElementById('btn-check-refrigerante');
+
+        this.sapitoElapsed = document.getElementById('fluid-sapito-elapsed');
+        this.sapitoBadge = document.getElementById('fluid-sapito-badge');
+        this.btnCheckSapito = document.getElementById('btn-check-sapito');
+
+        this.extintorExpDate = document.getElementById('extintor-exp-date');
+        this.extintorRemaining = document.getElementById('extintor-remaining');
+        this.extintorDateInput = document.getElementById('extintor-date-input');
+        this.btnSaveExtintor = document.getElementById('btn-save-extintor');
+
+        // Docs UI Elements
+        this.docDniDate = document.getElementById('doc-dni-date');
+        this.docDniDays = document.getElementById('doc-dni-days');
+        this.docDniInput = document.getElementById('doc-dni-input');
+
+        this.docLicenseDate = document.getElementById('doc-license-date');
+        this.docLicenseDays = document.getElementById('doc-license-days');
+        this.docLicenseInput = document.getElementById('doc-license-input');
+
+        this.docInsuranceDate = document.getElementById('doc-insurance-date');
+        this.docInsuranceDays = document.getElementById('doc-insurance-days');
+        this.docInsuranceInput = document.getElementById('doc-insurance-input');
+
+        // Issues UI Elements
+        this.addIssueForm = document.getElementById('vehicle-add-issue-form');
+        this.issueTitleInput = document.getElementById('issue-title-input');
+        this.issueUrgencySelect = document.getElementById('issue-urgency-select');
+        this.issuesListContainer = document.getElementById('vehicle-issues-list');
+
         // Load data
         this.odometer = Number(localStorage.getItem('vehicle_odometer')) || 0;
         try {
@@ -2068,6 +2102,32 @@ class VehicleModule {
             console.error("Error parsing vehicle_maintenance_log:", e);
         }
         this.maintenanceLog = this.maintenanceLog || [];
+
+        // Load documents tracker data
+        try {
+            const rawTracker = localStorage.getItem('vehicle_tracker_data');
+            this.trackerData = rawTracker ? JSON.parse(rawTracker) : {};
+        } catch (e) {
+            console.error("Error parsing vehicle_tracker_data:", e);
+            this.trackerData = {};
+        }
+        this.trackerData = Object.assign({
+            dniExpDate: "",
+            licenseExpDate: "",
+            insuranceExpDate: "",
+            extintorDate: "",
+            refrigeranteDate: "",
+            sapitoDate: ""
+        }, this.trackerData);
+
+        // Load issues checklist
+        try {
+            const rawIssues = localStorage.getItem('vehicle_issues');
+            this.issues = rawIssues ? JSON.parse(rawIssues) : [];
+        } catch (e) {
+            console.error("Error parsing vehicle_issues:", e);
+            this.issues = [];
+        }
         
         this.init();
     }
@@ -2081,6 +2141,23 @@ class VehicleModule {
     }
 
     init() {
+        // Navigation (sub-tabs)
+        const tabsContainer = document.getElementById('vehicle-tabs-container');
+        if (tabsContainer) {
+            tabsContainer.addEventListener('click', (e) => {
+                const btn = e.target.closest('.tab-btn');
+                if (!btn) return;
+                tabsContainer.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+                btn.classList.add('active');
+
+                const targetTab = btn.dataset.vehicleTab;
+                document.querySelectorAll('.vehicle-tab-content').forEach(content => {
+                    content.classList.toggle('hidden', content.id !== `vehicle-${targetTab}-content`);
+                });
+                this.render();
+            });
+        }
+
         if (this.odometerInput) {
             this.odometerInput.value = this.odometer;
             this.odometerInput.addEventListener('change', (e) => {
@@ -2148,6 +2225,61 @@ class VehicleModule {
                     this.tiresHistoryLog.classList.add('hidden');
                     this.btnToggleTiresHist.innerText = 'Ver historial mecánico';
                 }
+            }
+        });
+
+        // Fluidos
+        this.btnCheckRefrigerante?.addEventListener('click', () => {
+            this.updateFluidCheck('refrigeranteDate');
+        });
+
+        this.btnCheckSapito?.addEventListener('click', () => {
+            this.updateFluidCheck('sapitoDate');
+        });
+
+        this.btnSaveExtintor?.addEventListener('click', () => {
+            const dateVal = this.extintorDateInput?.value;
+            if (!dateVal) {
+                alert('Por favor selecciona una fecha de vencimiento.');
+                return;
+            }
+            this.updateDocDate('extintorDate', dateVal);
+        });
+
+        // Documentos
+        document.querySelectorAll('.btn-save-doc').forEach(btn => {
+            btn.addEventListener('click', (e) => {
+                const docType = btn.getAttribute('data-doc');
+                let inputEl = null;
+                let key = '';
+
+                if (docType === 'dni') {
+                    inputEl = this.docDniInput;
+                    key = 'dniExpDate';
+                } else if (docType === 'license') {
+                    inputEl = this.docLicenseInput;
+                    key = 'licenseExpDate';
+                } else if (docType === 'insurance') {
+                    inputEl = this.docInsuranceInput;
+                    key = 'insuranceExpDate';
+                }
+
+                if (inputEl && inputEl.value) {
+                    this.updateDocDate(key, inputEl.value);
+                } else {
+                    alert('Por favor selecciona una fecha válida.');
+                }
+            });
+        });
+
+        // Fallas
+        this.addIssueForm?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const title = this.issueTitleInput?.value.trim();
+            const urgency = this.issueUrgencySelect?.value || 'baja';
+            if (title) {
+                this.addIssue(title, urgency);
+                if (this.issueTitleInput) this.issueTitleInput.value = '';
             }
         });
 
@@ -2289,11 +2421,239 @@ class VehicleModule {
         return DateUtils.getDaysElapsed(dateStr);
     }
 
+    calculateDaysUntil(dateStr) {
+        if (!dateStr) return null;
+        const target = new Date(dateStr);
+        const today = new Date();
+        target.setHours(0, 0, 0, 0);
+        today.setHours(0, 0, 0, 0);
+        const diffTime = target - today;
+        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    }
+
     render() {
-        this.renderOilCard();
-        this.renderTiresCard();
-        this.renderHistories();
+        const activeBtn = document.querySelector('#vehicle-tabs-container .tab-btn.active');
+        const tab = activeBtn ? activeBtn.dataset.vehicleTab : 'maint';
+
+        if (tab === 'maint') {
+            this.renderOilCard();
+            this.renderTiresCard();
+            this.renderFluidsCard();
+            this.renderHistories();
+        } else if (tab === 'docs') {
+            this.renderDocs();
+        } else if (tab === 'issues') {
+            this.renderIssues();
+        }
+
         this.controller.notificationsCenter?.updateBadge();
+    }
+
+    renderFluidsCard() {
+        const elCard = document.getElementById('vehicle-fluids-card');
+        if (!elCard) return;
+
+        // Refrigerante
+        const refDate = this.trackerData.refrigeranteDate;
+        const refDays = refDate ? this.calculateDaysElapsed(refDate) : null;
+        if (this.refrigeranteElapsed) {
+            this.refrigeranteElapsed.innerText = refDays !== null ? `${refDays} días desde última revisión` : 'Sin registros de revisión';
+        }
+        if (this.refrigeranteBadge) {
+            this.refrigeranteBadge.className = 'badge';
+            if (refDays === null) {
+                this.refrigeranteBadge.innerText = 'N/A';
+                this.refrigeranteBadge.classList.add('gray');
+            } else if (refDays >= 90) {
+                this.refrigeranteBadge.innerText = 'REVISAR';
+                this.refrigeranteBadge.classList.add('red');
+            } else if (refDays >= 75) {
+                this.refrigeranteBadge.innerText = 'PRONTO';
+                this.refrigeranteBadge.classList.add('orange');
+            } else {
+                this.refrigeranteBadge.innerText = 'OK';
+                this.refrigeranteBadge.classList.add('green');
+            }
+        }
+
+        // Sapito
+        const sapDate = this.trackerData.sapitoDate;
+        const sapDays = sapDate ? this.calculateDaysElapsed(sapDate) : null;
+        if (this.sapitoElapsed) {
+            this.sapitoElapsed.innerText = sapDays !== null ? `${sapDays} días desde última revisión` : 'Sin registros de revisión';
+        }
+        if (this.sapitoBadge) {
+            this.sapitoBadge.className = 'badge';
+            if (sapDays === null) {
+                this.sapitoBadge.innerText = 'N/A';
+                this.sapitoBadge.classList.add('gray');
+            } else if (sapDays >= 45) {
+                this.sapitoBadge.innerText = 'REVISAR';
+                this.sapitoBadge.classList.add('red');
+            } else if (sapDays >= 35) {
+                this.sapitoBadge.innerText = 'PRONTO';
+                this.sapitoBadge.classList.add('orange');
+            } else {
+                this.sapitoBadge.innerText = 'OK';
+                this.sapitoBadge.classList.add('green');
+            }
+        }
+
+        // Extintor
+        const extDate = this.trackerData.extintorDate;
+        const extRemaining = extDate ? this.calculateDaysUntil(extDate) : null;
+        if (this.extintorExpDate) {
+            this.extintorExpDate.innerText = extDate ? this.formatDate(extDate) : 'No registrado';
+        }
+        if (this.extintorRemaining) {
+            if (extRemaining === null) {
+                this.extintorRemaining.innerText = '--';
+                this.extintorRemaining.style.color = 'var(--text-secondary)';
+            } else if (extRemaining <= 0) {
+                this.extintorRemaining.innerText = `⚠️ Vencido (hace ${Math.abs(extRemaining)} días)`;
+                this.extintorRemaining.style.color = 'var(--status-red)';
+            } else if (extRemaining <= 30) {
+                this.extintorRemaining.innerText = `⚠️ Vence en ${extRemaining} días`;
+                this.extintorRemaining.style.color = 'var(--status-orange)';
+            } else {
+                this.extintorRemaining.innerText = `${extRemaining} días restantes`;
+                this.extintorRemaining.style.color = 'var(--status-green)';
+            }
+        }
+        if (this.extintorDateInput) {
+            this.extintorDateInput.value = extDate || '';
+        }
+    }
+
+    renderDocs() {
+        const docs = [
+            { key: 'dniExpDate', dateEl: this.docDniDate, daysEl: this.docDniDays, inputEl: this.docDniInput, label: 'DNI' },
+            { key: 'licenseExpDate', dateEl: this.docLicenseDate, daysEl: this.docLicenseDays, inputEl: this.docLicenseInput, label: 'Registro de Conducir' },
+            { key: 'insuranceExpDate', dateEl: this.docInsuranceDate, daysEl: this.docInsuranceDays, inputEl: this.docInsuranceInput, label: 'Seguro' }
+        ];
+
+        docs.forEach(d => {
+            const expDate = this.trackerData[d.key];
+            const remaining = expDate ? this.calculateDaysUntil(expDate) : null;
+
+            if (d.dateEl) {
+                d.dateEl.innerText = expDate ? this.formatDate(expDate) : 'No registrado';
+            }
+            if (d.inputEl) {
+                d.inputEl.value = expDate || '';
+            }
+
+            if (d.daysEl) {
+                if (remaining === null) {
+                    d.daysEl.innerText = 'Sin registrar fecha de vencimiento.';
+                    d.daysEl.style.color = 'var(--text-secondary)';
+                } else if (remaining <= 0) {
+                    d.daysEl.innerText = `⚠️ VENCIDO (hace ${Math.abs(remaining)} días). Renovar urgente.`;
+                    d.daysEl.style.color = 'var(--status-red)';
+                } else if (remaining <= 30) {
+                    d.daysEl.innerText = `⚠️ Vence en ${remaining} días. Recordar renovar.`;
+                    d.daysEl.style.color = 'var(--status-red)';
+                } else if (remaining <= 90) {
+                    d.daysEl.innerText = `Vence en ${remaining} días.`;
+                    d.daysEl.style.color = 'var(--status-orange)';
+                } else {
+                    d.daysEl.innerText = `Vence en ${remaining} días. Todo OK.`;
+                    d.daysEl.style.color = 'var(--status-green)';
+                }
+            }
+        });
+    }
+
+    renderIssues() {
+        if (!this.issuesListContainer) return;
+        this.issuesListContainer.innerHTML = '';
+
+        const activeIssues = this.issues.filter(i => !i.resolvedAt);
+
+        if (activeIssues.length === 0) {
+            this.issuesListContainer.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay fallas ni pendientes registrados.</p>';
+            return;
+        }
+
+        activeIssues.forEach(issue => {
+            const div = document.createElement('div');
+            div.className = 'routine-exercise-item';
+            div.style.display = 'flex';
+            div.style.justifyContent = 'space-between';
+            div.style.alignItems = 'center';
+            div.style.padding = '10px';
+            div.style.background = 'rgba(255,255,255,0.02)';
+            div.style.border = '1px solid var(--surface-border)';
+            div.style.borderRadius = '6px';
+
+            const urgencyBadge = issue.urgency === 'alta' 
+                ? '<span class="badge red" style="margin-left: 8px; font-size: 0.7rem;">URGENCIA ALTA</span>' 
+                : '<span class="badge gray" style="margin-left: 8px; font-size: 0.7rem;">Baja Urgencia</span>';
+
+            const dateStr = this.formatDate(issue.createdAt);
+
+            div.innerHTML = `
+                <div>
+                    <div style="display:flex; align-items:center; flex-wrap:wrap;">
+                        <strong style="color:white; font-size:0.9rem;">${issue.title}</strong>
+                        ${urgencyBadge}
+                    </div>
+                    <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">Reportado el: ${dateStr}</div>
+                </div>
+                <button class="btn btn-secondary" onclick="window.vehicle.resolveIssue('${issue.id}')" style="margin:0; padding:6px 12px; height:auto; font-size:0.8rem; background: var(--status-green); color: white;">
+                    <i class="ph ph-check-circle"></i> Solucionar
+                </button>
+            `;
+            this.issuesListContainer.appendChild(div);
+        });
+    }
+
+    updateFluidCheck(key) {
+        this.trackerData[key] = new Date().toISOString().split('T')[0];
+        this.saveTrackerData();
+        this.render();
+    }
+
+    updateDocDate(key, value) {
+        this.trackerData[key] = value;
+        this.saveTrackerData();
+        this.render();
+    }
+
+    addIssue(title, urgency) {
+        const issue = {
+            id: 'issue_' + Date.now(),
+            title,
+            urgency,
+            createdAt: new Date().toISOString().split('T')[0],
+            resolvedAt: null
+        };
+        this.issues.push(issue);
+        this.saveIssues();
+        this.render();
+    }
+
+    resolveIssue(id) {
+        if (confirm('¿Marcar esta falla como solucionada?')) {
+            const issue = this.issues.find(i => i.id === id);
+            if (issue) {
+                issue.resolvedAt = new Date().toISOString().split('T')[0];
+                // Para mantener el localStorage limpio, eliminamos o filtramos los resueltos
+                this.issues = this.issues.filter(i => i.id !== id);
+                this.saveIssues();
+                this.render();
+            }
+        }
+    }
+
+    saveTrackerData() {
+        localStorage.setItem('vehicle_tracker_data', JSON.stringify(this.trackerData));
+        this.controller.triggerDataSync('vehicle_tracker_data');
+    }
+
+    saveIssues() {
+        localStorage.setItem('vehicle_issues', JSON.stringify(this.issues));
+        this.controller.triggerDataSync('vehicle_issues');
     }
 
     renderOilCard() {
@@ -5637,7 +5997,9 @@ class AuthSyncModule {
             projectPulseSubscription: localStorage.getItem('projectPulseSubscription'),
             alerts_config: localStorage.getItem('alerts_config'),
             alerts_sent_log: localStorage.getItem('alerts_sent_log'),
-            finanzasData: localStorage.getItem('finanzasData')
+            finanzasData: localStorage.getItem('finanzasData'),
+            vehicle_tracker_data: localStorage.getItem('vehicle_tracker_data'),
+            vehicle_issues: localStorage.getItem('vehicle_issues')
         };
     }
 
@@ -5860,6 +6222,10 @@ class AuthSyncModule {
                         this.app.vehicle.odometer = Number(localStorage.getItem('vehicle_odometer')) || 0;
                         const rawLog = localStorage.getItem('vehicle_maintenance_log');
                         this.app.vehicle.maintenanceLog = rawLog ? JSON.parse(rawLog) : [];
+                        const rawTracker = localStorage.getItem('vehicle_tracker_data');
+                        this.app.vehicle.trackerData = rawTracker ? JSON.parse(rawTracker) : {};
+                        const rawIssues = localStorage.getItem('vehicle_issues');
+                        this.app.vehicle.issues = rawIssues ? JSON.parse(rawIssues) : [];
                     } catch (e) { console.error("Error parsing vehicle log in sync:", e); }
                 }
                 if (this.app.gym) {
@@ -7626,7 +7992,8 @@ class AppController {
             'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
             'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
             'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory',
-            'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData'
+            'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData',
+            'vehicle_tracker_data', 'vehicle_issues'
         ];
         
         if (trackedKeys.includes(key) && this.auth && this.auth.user) {

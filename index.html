@@ -316,154 +316,320 @@
 
         <!-- SECCIÓN: VEHÍCULO -->
         <section id="vehiculo-section" class="main-section hidden">
-            <!-- Odómetro -->
-            <div class="card" style="max-width: 600px; margin: 0 auto 2rem auto; border: 1px dashed var(--primary-color);">
-                <div class="card-body" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1.25rem;">
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
-                        <div class="icon-container" style="width: 40px; height: 40px;">
-                            <i class="ph ph-gauge" style="font-size: 1.4rem; color: var(--primary-color);"></i>
+            <!-- Pestañas de Navegación del Auto -->
+            <div id="vehicle-tabs-container" class="tabs-container" style="margin-bottom: 2rem;">
+                <button class="tab-btn active" data-vehicle-tab="maint">
+                    <i class="ph ph-wrench"></i> Mantenimiento
+                </button>
+                <button class="tab-btn" data-vehicle-tab="docs">
+                    <i class="ph ph-file-text"></i> Documentación
+                </button>
+                <button class="tab-btn" data-vehicle-tab="issues">
+                    <i class="ph ph-warning-octagon"></i> Fallas y Pendientes
+                </button>
+            </div>
+
+            <!-- CONTENIDO 1: MANTENIMIENTO -->
+            <div id="vehicle-maint-content" class="vehicle-tab-content">
+                <!-- Odómetro -->
+                <div class="card" style="max-width: 600px; margin: 0 auto 2rem auto; border: 1px dashed var(--primary-color);">
+                    <div class="card-body" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1.25rem;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div class="icon-container" style="width: 40px; height: 40px;">
+                                <i class="ph ph-gauge" style="font-size: 1.4rem; color: var(--primary-color);"></i>
+                            </div>
+                            <strong style="font-size: 1.05rem;">Kilometraje Actual del Auto:</strong>
                         </div>
-                        <strong style="font-size: 1.05rem;">Kilometraje Actual del Auto:</strong>
+                        <div style="display: flex; align-items: center; gap: 0.5rem;">
+                            <input type="number" id="vehicle-odometer-input" class="number-input" style="width: 120px; font-size: 1.1rem; font-weight: 700; text-align: right;" value="0">
+                            <span style="font-weight: 600; color: var(--text-secondary);">km</span>
+                        </div>
                     </div>
-                    <div style="display: flex; align-items: center; gap: 0.5rem;">
-                        <input type="number" id="vehicle-odometer-input" class="number-input" style="width: 120px; font-size: 1.1rem; font-weight: 700; text-align: right;" value="0">
-                        <span style="font-weight: 600; color: var(--text-secondary);">km</span>
+                </div>
+
+                <div class="lenses-dashboard">
+                    <!-- Tarjeta Aceite y Filtros -->
+                    <div class="card" id="vehicle-oil-card">
+                        <div class="card-header">
+                            <div class="icon-container">
+                                <i class="ph ph-drop-half-bottom"></i>
+                            </div>
+                            <h3>Aceite y Filtros</h3>
+                        </div>
+                        <div class="card-body">
+                            <div class="time-display" style="margin-bottom: 0.5rem;">
+                                <span class="days-count" id="oil-remaining-km" style="font-size: 2.2rem; color: var(--status-green);">--</span>
+                                <span class="days-label">km restantes</span>
+                            </div>
+                            <div class="days-info" id="oil-remaining-days" style="margin-bottom: 1.5rem;">-- días restantes</div>
+
+                            <div class="date-info-container" style="margin-bottom: 1.5rem;">
+                                <div class="date-info">
+                                    <i class="ph ph-clock-counter-clockwise"></i>
+                                    <span>Último cambio: <strong id="oil-last-service">Nunca</strong></span>
+                                </div>
+                                <div class="date-info">
+                                    <i class="ph ph-calendar"></i>
+                                    <span>Próximo cambio: <strong id="oil-next-service">N/A</strong></span>
+                                </div>
+                            </div>
+
+                            <button id="btn-add-oil-service" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">
+                                <i class="ph-bold ph-plus-circle"></i> Registrar Cambio
+                            </button>
+
+                            <!-- Formulario de Servicio de Aceite -->
+                            <div id="oil-service-form" class="migration-guide hidden" style="margin-bottom: 1.5rem; padding: 1.25rem;">
+                                <h4 style="margin-bottom: 0.75rem;">Registrar Cambio Aceite/Filtros</h4>
+                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                    <div class="input-group">
+                                        <label>Fecha:</label>
+                                        <input type="date" id="oil-form-date" class="date-input">
+                                    </div>
+                                    <div class="input-group">
+                                        <label>Kilometraje del Auto:</label>
+                                        <input type="number" id="oil-form-km" class="number-input" style="width: 100%; text-align: left;">
+                                    </div>
+                                    <div class="input-group">
+                                        <label>Componentes cambiados:</label>
+                                        <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.25rem;">
+                                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-oil" checked> Aceite</label>
+                                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-oil" checked> Filtro Aceite</label>
+                                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-air" checked> Filtro Aire</label>
+                                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-cab" checked> Filtro A/A (Hab.)</label>
+                                        </div>
+                                    </div>
+                                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                        <button id="oil-form-cancel" class="btn btn-cancel" style="flex: 1; padding: 0.6rem;">Cancelar</button>
+                                        <button id="oil-form-save" class="btn btn-save" style="flex: 1; padding: 0.6rem;">Guardar</button>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button id="btn-toggle-oil-history" class="btn btn-history">Ver historial de servicios</button>
+                            <div id="oil-service-history" class="history-log hidden" style="margin-top: 1rem;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Tarjeta Neumáticos y Geometría -->
+                    <div class="card" id="vehicle-tires-card">
+                        <div class="card-header">
+                            <div class="icon-container">
+                                <i class="ph ph-arrows-clockwise"></i>
+                            </div>
+                            <h3>Neumáticos y Geometría</h3>
+                        </div>
+                        <div class="card-body">
+                            <!-- Alineación & Balanceo -->
+                            <div style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
+                                <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Alineación & Balanceo</h4>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                    <span>Último: <strong id="align-last">Nunca</strong></span>
+                                    <span id="align-remaining">-- km rest.</span>
+                                </div>
+                                <button id="btn-record-align" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;">Alinear & Balancear hoy</button>
+                            </div>
+
+                            <!-- Rotación -->
+                            <div style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
+                                <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Rotación de Neumáticos</h4>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                    <span>Última: <strong id="rot-last">Nunca</strong></span>
+                                    <span id="rot-remaining">-- km rest.</span>
+                                </div>
+                                <button id="btn-record-rot" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;">Rotar neumáticos hoy</button>
+                            </div>
+
+                            <!-- Reemplazo -->
+                            <div style="margin-bottom: 1rem;">
+                                <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Reemplazo de Ruedas</h4>
+                                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
+                                    <span>Último: <strong id="replace-last">Nunca</strong></span>
+                                    <span id="replace-remaining">-- km rest.</span>
+                                </div>
+                                <button id="btn-add-replace-service" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;">Registrar Neumáticos Nuevos</button>
+                                
+                                <!-- Formulario de Reemplazo Neumáticos -->
+                                <div id="replace-service-form" class="migration-guide hidden" style="margin-top: 1rem; padding: 1.25rem;">
+                                    <h4 style="margin-bottom: 0.75rem;">Registrar Cambio Neumáticos</h4>
+                                    <div style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                        <div class="input-group">
+                                            <label>Fecha:</label>
+                                            <input type="date" id="replace-form-date" class="date-input">
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Kilometraje del Auto:</label>
+                                            <input type="number" id="replace-form-km" class="number-input" style="width: 100%; text-align: left;">
+                                        </div>
+                                        <div class="input-group">
+                                            <label>Neumáticos cambiados:</label>
+                                            <select id="replace-form-pos" class="time-input" style="width: 100%;">
+                                                <option value="4">Las 4 Ruedas</option>
+                                                <option value="2-del">Las 2 Delanteras</option>
+                                                <option value="2-tras">Las 2 Traseras</option>
+                                            </select>
+                                        </div>
+                                        <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                                            <button id="replace-form-cancel" class="btn btn-cancel" style="flex: 1; padding: 0.6rem;">Cancelar</button>
+                                            <button id="replace-form-save" class="btn btn-save" style="flex: 1; padding: 0.6rem;">Guardar</button>
+                                        </div>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <button id="btn-toggle-tires-history" class="btn btn-history">Ver historial mecánico</button>
+                            <div id="tires-service-history" class="history-log hidden" style="margin-top: 1rem;"></div>
+                        </div>
+                    </div>
+
+                    <!-- Tarjeta Fluidos y Seguridad -->
+                    <div class="card" id="vehicle-fluids-card">
+                        <div class="card-header">
+                            <div class="icon-container">
+                                <i class="ph ph-drop"></i>
+                            </div>
+                            <h3>Fluidos y Seguridad</h3>
+                        </div>
+                        <div class="card-body" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                            <!-- Refrigerante -->
+                            <div style="border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
+                                <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Refrigerante de Motor</h4>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                    <div id="fluid-refrigerante-elapsed" class="days-info" style="margin: 0; font-size: 0.85rem;">-- días desde última revisión</div>
+                                    <span id="fluid-refrigerante-badge" class="badge">--</span>
+                                </div>
+                                <button id="btn-check-refrigerante" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0; width: 100%;">Revisado / Cargado hoy</button>
+                            </div>
+
+                            <!-- Sapito -->
+                            <div style="border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
+                                <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Limpiavidrios (Sapito)</h4>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                    <div id="fluid-sapito-elapsed" class="days-info" style="margin: 0; font-size: 0.85rem;">-- días desde última revisión</div>
+                                    <span id="fluid-sapito-badge" class="badge">--</span>
+                                </div>
+                                <button id="btn-check-sapito" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0; width: 100%;">Revisado / Cargado hoy</button>
+                            </div>
+
+                            <!-- Extintor -->
+                            <div>
+                                <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Matafuegos (Extintor)</h4>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.85rem;">
+                                    <span>Vence: <strong id="extintor-exp-date">Nunca</strong></span>
+                                    <span id="extintor-remaining" style="font-weight:600; font-size: 0.8rem;">-- días rest.</span>
+                                </div>
+                                <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                    <input type="date" id="extintor-date-input" class="date-input" style="flex: 2; padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0;">
+                                    <button id="btn-save-extintor" class="btn btn-primary" style="flex: 1; padding: 0.4rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center; gap: 4px;"><i class="ph ph-floppy-disk"></i> Guardar</button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
             </div>
 
-            <div class="lenses-dashboard">
-                <!-- Tarjeta Aceite y Filtros -->
-                <div class="card" id="vehicle-oil-card">
+            <!-- CONTENIDO 2: DOCUMENTACIÓN -->
+            <div id="vehicle-docs-content" class="vehicle-tab-content hidden">
+                <div class="card" style="max-width: 700px; margin: 0 auto;">
                     <div class="card-header">
                         <div class="icon-container">
-                            <i class="ph ph-drop-half-bottom"></i>
+                            <i class="ph ph-file-text"></i>
                         </div>
-                        <h3>Aceite y Filtros</h3>
+                        <h3>Documentación Personal y del Auto</h3>
                     </div>
-                    <div class="card-body">
-                        <div class="time-display" style="margin-bottom: 0.5rem;">
-                            <span class="days-count" id="oil-remaining-km" style="font-size: 2.2rem; color: var(--status-green);">--</span>
-                            <span class="days-label">km restantes</span>
-                        </div>
-                        <div class="days-info" id="oil-remaining-days" style="margin-bottom: 1.5rem;">-- días restantes</div>
-
-                        <div class="date-info-container" style="margin-bottom: 1.5rem;">
-                            <div class="date-info">
-                                <i class="ph ph-clock-counter-clockwise"></i>
-                                <span>Último cambio: <strong id="oil-last-service">Nunca</strong></span>
+                    <div class="card-body" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <!-- DNI -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <h4 style="font-size: 0.95rem; font-weight:600; margin: 0 0 0.25rem 0; color: white;">DNI (Documento Nacional de Identidad)</h4>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                    Vence: <strong id="doc-dni-date" style="color: white;">No registrado</strong>
+                                </div>
+                                <div id="doc-dni-days" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">--</div>
                             </div>
-                            <div class="date-info">
-                                <i class="ph ph-calendar"></i>
-                                <span>Próximo cambio: <strong id="oil-next-service">N/A</strong></span>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="date" id="doc-dni-input" class="date-input" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
+                                <button class="btn btn-primary btn-save-doc" data-doc="dni" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
                             </div>
                         </div>
 
-                        <button id="btn-add-oil-service" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">
-                            <i class="ph-bold ph-plus-circle"></i> Registrar Cambio
-                        </button>
-
-                        <!-- Formulario de Servicio de Aceite -->
-                        <div id="oil-service-form" class="migration-guide hidden" style="margin-bottom: 1.5rem; padding: 1.25rem;">
-                            <h4 style="margin-bottom: 0.75rem;">Registrar Cambio Aceite/Filtros</h4>
-                            <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                <div class="input-group">
-                                    <label>Fecha:</label>
-                                    <input type="date" id="oil-form-date" class="date-input">
+                        <!-- Registro -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <h4 style="font-size: 0.95rem; font-weight:600; margin: 0 0 0.25rem 0; color: white;">Registro de Conducir</h4>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                    Vence: <strong id="doc-license-date" style="color: white;">No registrado</strong>
                                 </div>
-                                <div class="input-group">
-                                    <label>Kilometraje del Auto:</label>
-                                    <input type="number" id="oil-form-km" class="number-input" style="width: 100%; text-align: left;">
-                                </div>
-                                <div class="input-group">
-                                    <label>Componentes cambiados:</label>
-                                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.25rem;">
-                                        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-oil" checked> Aceite</label>
-                                        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-oil" checked> Filtro Aceite</label>
-                                        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-air" checked> Filtro Aire</label>
-                                        <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-cab" checked> Filtro A/A (Hab.)</label>
-                                    </div>
-                                </div>
-                                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                                    <button id="oil-form-cancel" class="btn btn-cancel" style="flex: 1; padding: 0.6rem;">Cancelar</button>
-                                    <button id="oil-form-save" class="btn btn-save" style="flex: 1; padding: 0.6rem;">Guardar</button>
-                                </div>
+                                <div id="doc-license-days" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">--</div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="date" id="doc-license-input" class="date-input" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
+                                <button class="btn btn-primary btn-save-doc" data-doc="license" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
                             </div>
                         </div>
 
-                        <button id="btn-toggle-oil-history" class="btn btn-history">Ver historial de servicios</button>
-                        <div id="oil-service-history" class="history-log hidden" style="margin-top: 1rem;"></div>
+                        <!-- Seguro -->
+                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <h4 style="font-size: 0.95rem; font-weight:600; margin: 0 0 0.25rem 0; color: white;">Seguro del Auto (Renovación/Pago)</h4>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                    Vence: <strong id="doc-insurance-date" style="color: white;">No registrado</strong>
+                                </div>
+                                <div id="doc-insurance-days" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">--</div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="date" id="doc-insurance-input" class="date-input" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
+                                <button class="btn btn-primary btn-save-doc" data-doc="insurance" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
+                            </div>
+                        </div>
                     </div>
                 </div>
+            </div>
 
-                <!-- Tarjeta Neumáticos y Geometría -->
-                <div class="card" id="vehicle-tires-card">
-                    <div class="card-header">
-                        <div class="icon-container">
-                            <i class="ph ph-arrows-clockwise"></i>
-                        </div>
-                        <h3>Neumáticos y Geometría</h3>
-                    </div>
-                    <div class="card-body">
-                        <!-- Alineación & Balanceo -->
-                        <div style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
-                            <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Alineación & Balanceo</h4>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
-                                <span>Último: <strong id="align-last">Nunca</strong></span>
-                                <span id="align-remaining">-- km rest.</span>
+            <!-- CONTENIDO 3: FALLAS Y PENDIENTES -->
+            <div id="vehicle-issues-content" class="vehicle-tab-content hidden">
+                <div class="lenses-dashboard">
+                    <!-- Formulario de Reporte -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="icon-container">
+                                <i class="ph ph-warning-octagon"></i>
                             </div>
-                            <button id="btn-record-align" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;">Alinear & Balancear hoy</button>
+                            <h3>Reportar Falla o Pendiente</h3>
                         </div>
-
-                        <!-- Rotación -->
-                        <div style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
-                            <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Rotación de Neumáticos</h4>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
-                                <span>Última: <strong id="rot-last">Nunca</strong></span>
-                                <span id="rot-remaining">-- km rest.</span>
-                            </div>
-                            <button id="btn-record-rot" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;">Rotar neumáticos hoy</button>
-                        </div>
-
-                        <!-- Reemplazo -->
-                        <div style="margin-bottom: 1rem;">
-                            <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Reemplazo de Ruedas</h4>
-                            <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
-                                <span>Último: <strong id="replace-last">Nunca</strong></span>
-                                <span id="replace-remaining">-- km rest.</span>
-                            </div>
-                            <button id="btn-add-replace-service" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0;">Registrar Neumáticos Nuevos</button>
-                            
-                            <!-- Formulario de Reemplazo Neumáticos -->
-                            <div id="replace-service-form" class="migration-guide hidden" style="margin-top: 1rem; padding: 1.25rem;">
-                                <h4 style="margin-bottom: 0.75rem;">Registrar Cambio Neumáticos</h4>
-                                <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                                    <div class="input-group">
-                                        <label>Fecha:</label>
-                                        <input type="date" id="replace-form-date" class="date-input">
-                                    </div>
-                                    <div class="input-group">
-                                        <label>Kilometraje del Auto:</label>
-                                        <input type="number" id="replace-form-km" class="number-input" style="width: 100%; text-align: left;">
-                                    </div>
-                                    <div class="input-group">
-                                        <label>Neumáticos cambiados:</label>
-                                        <select id="replace-form-pos" class="time-input" style="width: 100%;">
-                                            <option value="4">Las 4 Ruedas</option>
-                                            <option value="2-del">Las 2 Delanteras</option>
-                                            <option value="2-tras">Las 2 Traseras</option>
-                                        </select>
-                                    </div>
-                                    <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                                        <button id="replace-form-cancel" class="btn btn-cancel" style="flex: 1; padding: 0.6rem;">Cancelar</button>
-                                        <button id="replace-form-save" class="btn btn-save" style="flex: 1; padding: 0.6rem;">Guardar</button>
-                                    </div>
+                        <div class="card-body">
+                            <form id="vehicle-add-issue-form" style="display:flex; flex-direction:column; gap:1rem;">
+                                <div class="input-group">
+                                    <label for="issue-title-input">Descripción de la falla:</label>
+                                    <input type="text" id="issue-title-input" class="text-input" placeholder="Ej: Arreglar baúl roto" required>
                                 </div>
+                                <div class="input-group">
+                                    <label for="issue-urgency-select">Nivel de Urgencia:</label>
+                                    <select id="issue-urgency-select" class="time-input" style="width: 100%;">
+                                        <option value="baja">Baja Urgencia (Recordatorio visual)</option>
+                                        <option value="alta">Alta Urgencia (Notificación push diaria)</option>
+                                    </select>
+                                </div>
+                                <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem; width: 100%;">
+                                    <i class="ph ph-plus-circle"></i> Agregar Falla
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Listado de Fallas -->
+                    <div class="card">
+                        <div class="card-header">
+                            <div class="icon-container">
+                                <i class="ph ph-list-checks"></i>
+                            </div>
+                            <h3>Fallas Registradas</h3>
+                        </div>
+                        <div class="card-body">
+                            <div id="vehicle-issues-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                                <!-- Renderizado dinámico de fallas -->
                             </div>
                         </div>
-
-                        <button id="btn-toggle-tires-history" class="btn btn-history">Ver historial mecánico</button>
-                        <div id="tires-service-history" class="history-log hidden" style="margin-top: 1rem;"></div>
                     </div>
                 </div>
             </div>

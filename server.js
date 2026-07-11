@@ -384,11 +384,12 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
                     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
-                    'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check'
+                    'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check',
+                    'vehicle_issues_check', 'vehicle_docs_check', 'vehicle_fluids_check'
                 ];
 
                 definitions.forEach(k => {
-                    if (k === 'projects_check') {
+                    if (k === 'projects_check' || k === 'vehicle_issues_check' || k === 'vehicle_docs_check' || k === 'vehicle_fluids_check') {
                         alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
                     } else {
                         alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
@@ -405,15 +406,19 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
                     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
-                    'creatine', 'salmon', 'neck', 'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check'
+                    'creatine', 'salmon', 'neck', 'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check',
+                    'vehicle_issues_check', 'vehicle_docs_check', 'vehicle_fluids_check'
                 ];
                 definitions.forEach(k => {
                     if (!alertsConfig[k]) {
                         if (k === 'creatine') alertsConfig[k] = { enabled: true, time: '23:00', days: [1,2,3,4,5,6,0] };
                         else if (k === 'salmon') alertsConfig[k] = { enabled: true, time: '17:00', days: [0] };
                         else if (k === 'neck') alertsConfig[k] = { enabled: true, time: '23:30', days: [5,6] };
-                        else if (k === 'projects_check') alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
-                        else alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
+                        else if (k === 'projects_check' || k === 'vehicle_issues_check' || k === 'vehicle_docs_check' || k === 'vehicle_fluids_check') {
+                            alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
+                        } else {
+                            alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
+                        }
                         configFilled = true;
                     }
                 });
@@ -682,6 +687,70 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 if (remainingKm <= 0) { shouldNotify = true; title = '🚗 Reemplazo de Neumáticos'; body = 'Cambio de Neumáticos vencido.'; }
                             }
                             break;
+                        case 'vehicle_issues_check':
+                            const activeIssuesList = data.vehicle_issues || [];
+                            const highCount = activeIssuesList.filter(i => i.urgency === 'alta' && !i.resolvedAt).length;
+                            if (highCount > 0) {
+                                const sample = activeIssuesList.find(i => i.urgency === 'alta' && !i.resolvedAt);
+                                shouldNotify = true;
+                                title = '🚗 Fallas del Auto';
+                                body = `Tenés ${highCount} fallas urgentes pendientes (ej: ${sample.title}).`;
+                            }
+                            break;
+                        case 'vehicle_docs_check':
+                            const tracker = data.vehicle_tracker_data || {};
+                            if (tracker.dniExpDate) {
+                                const dniDays = getDaysUntil(tracker.dniExpDate);
+                                if (dniDays !== null && dniDays <= 30 && dniDays > 0) {
+                                    shouldNotify = true;
+                                    title = '📄 Vencimiento DNI';
+                                    body = `Tu DNI vence en ${dniDays} días (${tracker.dniExpDate}).`;
+                                }
+                            }
+                            if (tracker.licenseExpDate) {
+                                const licDays = getDaysUntil(tracker.licenseExpDate);
+                                if (licDays !== null && licDays <= 30 && licDays > 0) {
+                                    shouldNotify = true;
+                                    title = '🚗 Vencimiento Registro';
+                                    body = `Tu registro de conducir vence en ${licDays} días (${tracker.licenseExpDate}).`;
+                                }
+                            }
+                            if (tracker.insuranceExpDate) {
+                                const insDays = getDaysUntil(tracker.insuranceExpDate);
+                                if (insDays !== null && insDays <= 7 && insDays > 0) {
+                                    shouldNotify = true;
+                                    title = '🚗 Vencimiento Seguro';
+                                    body = `Tu seguro debe renovarse en ${insDays} días (${tracker.insuranceExpDate}).`;
+                                }
+                            }
+                            break;
+                        case 'vehicle_fluids_check':
+                            const trk = data.vehicle_tracker_data || {};
+                            if (trk.refrigeranteDate) {
+                                const refElapsed = getDaysElapsed(trk.refrigeranteDate);
+                                if (refElapsed !== null && refElapsed >= 90) {
+                                    shouldNotify = true;
+                                    title = '🚗 Mantenimiento: Refrigerante';
+                                    body = `Pasaron ${refElapsed} días desde la última revisión de refrigerante.`;
+                                }
+                            }
+                            if (trk.sapitoDate) {
+                                const sapElapsed = getDaysElapsed(trk.sapitoDate);
+                                if (sapElapsed !== null && sapElapsed >= 45) {
+                                    shouldNotify = true;
+                                    title = '🚗 Mantenimiento: Sapito';
+                                    body = `Pasaron ${sapElapsed} días desde la última revisión del limpiavidrios.`;
+                                }
+                            }
+                            if (trk.extintorDate) {
+                                const extDays = getDaysUntil(trk.extintorDate);
+                                if (extDays !== null && extDays <= 30 && extDays > 0) {
+                                    shouldNotify = true;
+                                    title = '🧯 Mantenimiento: Extintor';
+                                    body = `El extintor vence en ${extDays} días (${trk.extintorDate}).`;
+                                }
+                            }
+                            break;
 
                         // Nutrición & Suplementos
                         case 'vitamina_d':
@@ -857,6 +926,21 @@ function getDaysElapsed(dateString) {
     
     const diffTime = localToday - localStart;
     return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+}
+
+function getDaysUntil(dateString) {
+    if (!dateString) return null;
+    const target = new Date(dateString);
+    const today = new Date();
+    
+    const localTarget = new Date(target.getTime() - 3 * 60 * 60 * 1000);
+    const localToday = new Date(today.getTime() - 3 * 60 * 60 * 1000);
+    
+    localTarget.setUTCHours(0,0,0,0);
+    localToday.setUTCHours(0,0,0,0);
+    
+    const diffTime = localTarget - localToday;
+    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
 }
 
 // ==========================================================================
