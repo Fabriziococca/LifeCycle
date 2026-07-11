@@ -77,6 +77,9 @@
             <button class="nav-btn" data-section="projects-section">
                 <i class="ph ph-briefcase"></i> Proyectos
             </button>
+            <button class="nav-btn" data-section="finanzas-section">
+                <i class="ph ph-trend-up"></i> Finanzas
+            </button>
             <button class="nav-btn" data-section="alerts-section">
                 <i class="ph ph-bell"></i> Alertas
             </button>
@@ -1169,6 +1172,86 @@
             <div id="projectsList" style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem;"></div>
         </section>
 
+        <!-- SECCIÓN: FINANZAS (FinanzasTracker) -->
+        <section id="finanzas-section" class="main-section hidden">
+            <!-- Dashboard Financiero -->
+            <div class="dashboard-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 2rem;">
+                <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--status-green);">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Ingresos del Mes</div>
+                    <div id="fin-monthUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--status-green); margin-top: 5px;">USD 0.00</div>
+                </div>
+                <div class="card" style="margin:0; padding: 15px; border: 1px solid white;">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Ingresos del Año</div>
+                    <div id="fin-yearUSD" style="font-size: 1.4rem; font-weight: bold; color: white; margin-top: 5px;">USD 0.00</div>
+                </div>
+                <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--status-orange);">
+                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Histórico Total</div>
+                    <div id="fin-totalUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--status-yellow); margin-top: 5px;">USD 0.00</div>
+                </div>
+            </div>
+
+            <!-- Botón de Registro de Ingresos -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
+                <h3>Distribución de Ingresos</h3>
+                <button id="btnOpenFinanzasModal" class="btn btn-primary" style="margin: 0; width: auto;"><i class="ph ph-plus-circle"></i> Registrar Ingreso</button>
+            </div>
+
+            <!-- Desglose por Categorías -->
+            <div class="card" style="margin-bottom: 2rem; padding: 20px;">
+                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
+                    <h4 style="margin:0; font-size:1.1rem; color:white;">Categorías del Mes</h4>
+                    <select id="finanzas-month-select" class="number-input" style="width:auto; padding:6px 12px; margin:0; font-size:0.85rem; height: auto;"></select>
+                </div>
+                
+                <div style="display:flex; flex-direction:column; gap:1.25rem;" id="fin-categories-breakdown">
+                    <!-- Freelance -->
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
+                            <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-briefcase"></i> Freelance (Proyectos)</span>
+                            <strong style="color:white;" id="fin-cat-freelance">USD 0.00 (0%)</strong>
+                        </div>
+                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                            <div id="fin-bar-freelance" style="height:100%; width:0%; background:var(--primary-color); border-radius:4px; transition:width 0.3s;"></div>
+                        </div>
+                    </div>
+                    <!-- Discord -->
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
+                            <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-chat-circle"></i> Discord (Negocio)</span>
+                            <strong style="color:white;" id="fin-cat-discord">USD 0.00 (0%)</strong>
+                        </div>
+                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                            <div id="fin-bar-discord" style="height:100%; width:0%; background:var(--status-purple); border-radius:4px; transition:width 0.3s;"></div>
+                        </div>
+                    </div>
+                    <!-- Trading -->
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
+                            <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-chart-line-up"></i> Trading</span>
+                            <strong style="color:white;" id="fin-cat-trading">USD 0.00 (0%)</strong>
+                        </div>
+                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                            <div id="fin-bar-trading" style="height:100%; width:0%; background:var(--status-green); border-radius:4px; transition:width 0.3s;"></div>
+                        </div>
+                    </div>
+                    <!-- Extraordinarios -->
+                    <div style="display:flex; flex-direction:column; gap:6px;">
+                        <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
+                            <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-gift"></i> Ingresos Extraordinarios</span>
+                            <strong style="color:white;" id="fin-cat-extraordinary">USD 0.00 (0%)</strong>
+                        </div>
+                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                            <div id="fin-bar-extraordinary" style="height:100%; width:0%; background:var(--status-yellow); border-radius:4px; transition:width 0.3s;"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Registro de Transacciones -->
+            <h3>Transacciones del Mes</h3>
+            <div id="finanzasList" style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; margin-bottom: 2rem;"></div>
+        </section>
+
         <!-- SECCIÓN: ALERTAS (Gestor de Notificaciones) -->
         <section id="alerts-section" class="main-section hidden">
             <div class="card" style="margin-bottom: 2rem;">
@@ -1525,6 +1608,53 @@
                 <button id="proj-resolve-cancel" class="btn btn-cancel">Cancelar</button>
                 <button id="proj-resolve-confirm" class="btn btn-save" style="background:var(--status-red); color:white;">Confirmar Resolución</button>
             </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE REGISTRO DE INGRESO (FINANZAS) -->
+    <div id="finanzas-log-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3>Registrar Ingreso</h3>
+            <p class="modal-desc" style="margin-bottom: 1.5rem;">Cargá un nuevo ingreso a tus finanzas.</p>
+
+            <form id="finanzas-log-form" onsubmit="event.preventDefault();">
+                <div class="input-group">
+                    <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Categoría</label>
+                    <select id="fin-input-category" class="number-input" style="width:100%;" required>
+                        <option value="discord">Discord (Negocio)</option>
+                        <option value="trading">Trading</option>
+                        <option value="extraordinary">Ingreso Extraordinario</option>
+                    </select>
+                </div>
+
+                <!-- Campos dinámicos para Discord -->
+                <div id="fin-group-discord" class="input-group" style="margin-top:1.25rem;">
+                    <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Mes del Ingreso</label>
+                    <input type="month" id="fin-input-month" class="date-input" style="width:100%;" required>
+                </div>
+
+                <!-- Campos dinámicos para Trading/Extraordinario -->
+                <div id="fin-group-transaction" class="input-group hidden" style="margin-top:1.25rem;">
+                    <div class="input-group">
+                        <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Fecha</label>
+                        <input type="date" id="fin-input-date" class="date-input" style="width:100%;">
+                    </div>
+                    <div class="input-group" style="margin-top:1rem;">
+                        <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Detalle / Operación</label>
+                        <input type="text" id="fin-input-desc" class="text-input" placeholder="Ej: Operación EUR/USD o Venta de Monitor" style="width:100%;">
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-top:1.25rem;">
+                    <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Monto (USD)</label>
+                    <input type="number" id="fin-input-amount" class="number-input" min="0.01" step="0.01" placeholder="0.00" style="width:100%;" required>
+                </div>
+
+                <div class="modal-actions" style="margin-top:1.75rem;">
+                    <button type="button" id="fin-log-cancel" class="btn btn-cancel">Cancelar</button>
+                    <button type="submit" id="fin-log-save" class="btn btn-save">Guardar Ingreso</button>
+                </div>
+            </form>
         </div>
     </div>
 

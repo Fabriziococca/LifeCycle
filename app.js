@@ -185,6 +185,8 @@ const ZONES = [
     { id: 'brazos', name: 'Brazos', isHero: false },
     { id: 'piernas', name: 'Piernas', isHero: false },
     { id: 'intimas', name: 'Zonas Íntimas', isHero: false },
+    { id: 'unas_manos', name: 'Uñas Manos', isHero: false },
+    { id: 'unas_pies', name: 'Uñas Pies', isHero: false },
     { id: 'hoja_gillette', name: 'Hoja Gillette', isHero: false, isTool: true }
 ];
 
@@ -1256,6 +1258,16 @@ class GroomingModule {
                     else if (daysDiff <= 22) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
                     else if (daysDiff <= 29) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
                     else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
+                } else if (zone.id === 'unas_manos') {
+                    if (daysDiff <= 10) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
+                    else if (daysDiff <= 14) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
+                    else if (daysDiff <= 17) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
+                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
+                } else if (zone.id === 'unas_pies') {
+                    if (daysDiff <= 30) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
+                    else if (daysDiff <= 40) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
+                    else if (daysDiff <= 49) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
+                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
                 } else {
                     colorVar = 'var(--primary-color)';
                 }
@@ -1267,11 +1279,17 @@ class GroomingModule {
                 card.style.borderColor = borderColor;
             }
 
+            let iconClass = 'ph-user';
+            if (zone.id === 'barba') iconClass = 'ph-scissors';
+            else if (zone.id === 'unas_manos') iconClass = 'ph-hand';
+            else if (zone.id === 'unas_pies') iconClass = 'ph-footprint';
+            else if (zone.isTool) iconClass = 'ph-sparkle';
+
             card.innerHTML = `
                 <div class="card-header">
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <div class="icon-container">
-                            <i class="ph ${zone.id === 'barba' ? 'ph-scissors' : zone.isTool ? 'ph-sparkle' : 'ph-user'}"></i>
+                            <i class="ph ${iconClass}"></i>
                         </div>
                         <h3 style="font-size: 1.2rem; font-weight:600;">${zone.name}</h3>
                     </div>
@@ -4970,6 +4988,7 @@ class ProjectsModule {
             this.projects.splice(pIndex, 1);
             this.saveData();
             this.render();
+            this.app.finanzas?.render();
         }
     }
 
@@ -5032,6 +5051,7 @@ class ProjectsModule {
 
         this.saveData();
         this.render();
+        this.app.finanzas?.render();
 
         const modal = document.getElementById('projects-resolve-arbitration-modal');
         modal?.classList.add('hidden');
@@ -5276,7 +5296,8 @@ class BackupModule {
             projectPulseData: localStorage.getItem('projectPulseData'),
             projectPulseHistory: localStorage.getItem('projectPulseHistory'),
             projectPulseSubscription: localStorage.getItem('projectPulseSubscription'),
-            alerts_config: localStorage.getItem('alerts_config')
+            alerts_config: localStorage.getItem('alerts_config'),
+            finanzasData: localStorage.getItem('finanzasData')
         };
 
         const blob = new Blob([JSON.stringify(unifiedData, null, 2)], { type: "application/json" });
@@ -5411,6 +5432,15 @@ class BackupModule {
                 }
                 if (projectsFound) {
                     importedCategories.push("Proyectos (ProjectPulse)");
+                }
+
+                // Finanzas
+                if (rawData.finanzasData) {
+                    const dataVal = typeof rawData.finanzasData === 'string' 
+                        ? rawData.finanzasData 
+                        : JSON.stringify(rawData.finanzasData);
+                    localStorage.setItem('finanzasData', dataVal);
+                    importedCategories.push("Finanzas");
                 }
 
                 if (rawData.alerts_config) {
@@ -5686,7 +5716,8 @@ class AuthSyncModule {
             projectPulseHistory: localStorage.getItem('projectPulseHistory'),
             projectPulseSubscription: localStorage.getItem('projectPulseSubscription'),
             alerts_config: localStorage.getItem('alerts_config'),
-            alerts_sent_log: localStorage.getItem('alerts_sent_log')
+            alerts_sent_log: localStorage.getItem('alerts_sent_log'),
+            finanzasData: localStorage.getItem('finanzasData')
         };
     }
 
@@ -5871,7 +5902,7 @@ class AuthSyncModule {
                 'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
                 'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
                 'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
-                'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 'projectPulseSubscription', 'alerts_config', 'alerts_sent_log'
+                'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData'
             ];
             localKeys.forEach(key => {
                 let val = cloudData[key];
@@ -5917,6 +5948,9 @@ class AuthSyncModule {
                 if (this.app.projects) {
                     try { this.app.projects.loadData(); } catch (e) { console.error("Error reloading projects:", e); }
                 }
+                if (this.app.finanzas) {
+                    try { this.app.finanzas.data = this.app.finanzas.loadData(); } catch (e) { console.error("Error reloading finanzas:", e); }
+                }
             } catch (e) {
                 console.error("Critical error reloading in-memory data during silent sync:", e);
             }
@@ -5945,6 +5979,9 @@ class AuthSyncModule {
             }
             if (this.app.projects) {
                 try { this.app.projects.render(); } catch (e) { console.error("Error rendering projects:", e); }
+            }
+            if (this.app.finanzas) {
+                try { this.app.finanzas.render(); } catch (e) { console.error("Error rendering finanzas:", e); }
             }
             if (this.app.notificationsCenter) {
                 try { this.app.notificationsCenter.updateBadge(); } catch (e) { console.error("Error updating notifications badge:", e); }
@@ -6198,6 +6235,333 @@ class AuthSyncModule {
 }
 
 
+
+// ==========================================================================
+// MÓDULO 5B: GESTOR DE FINANZAS (FinanzasTracker)
+// ==========================================================================
+class FinanzasModule {
+    constructor(appController) {
+        this.app = appController;
+        this.data = this.loadData();
+        this.currentProjectId = null;
+
+        this.monthSelect = document.getElementById('finanzas-month-select');
+        this.listContainer = document.getElementById('finanzasList');
+
+        this.init();
+    }
+
+    loadData() {
+        const raw = localStorage.getItem('finanzasData');
+        if (!raw) return { entries: [] };
+        try {
+            return JSON.parse(raw) || { entries: [] };
+        } catch (e) {
+            console.error("Error parsing finanzas data:", e);
+            return { entries: [] };
+        }
+    }
+
+    saveData() {
+        localStorage.setItem('finanzasData', JSON.stringify(this.data));
+    }
+
+    init() {
+        const btnOpenModal = document.getElementById('btnOpenFinanzasModal');
+        const modal = document.getElementById('finanzas-log-modal');
+        const cancelBtn = document.getElementById('fin-log-cancel');
+        const form = document.getElementById('finanzas-log-form');
+        const categorySelect = document.getElementById('fin-input-category');
+
+        btnOpenModal?.addEventListener('click', () => {
+            form?.reset();
+            const dateInp = document.getElementById('fin-input-date');
+            const monthInp = document.getElementById('fin-input-month');
+            if (dateInp) dateInp.value = new Date().toISOString().split('T')[0];
+            if (monthInp) monthInp.value = new Date().toISOString().slice(0, 7);
+            
+            this.toggleModalFields();
+            modal?.classList.remove('hidden');
+        });
+
+        cancelBtn?.addEventListener('click', () => {
+            modal?.classList.add('hidden');
+        });
+
+        categorySelect?.addEventListener('change', () => {
+            this.toggleModalFields();
+        });
+
+        form?.addEventListener('submit', (e) => {
+            e.preventDefault();
+            this.saveEntry();
+        });
+
+        this.monthSelect?.addEventListener('change', () => {
+            this.renderBreakdownAndList();
+        });
+    }
+
+    toggleModalFields() {
+        const category = document.getElementById('fin-input-category')?.value;
+        const groupDiscord = document.getElementById('fin-group-discord');
+        const groupTransaction = document.getElementById('fin-group-transaction');
+        
+        const monthInput = document.getElementById('fin-input-month');
+        const dateInput = document.getElementById('fin-input-date');
+
+        if (category === 'discord') {
+            groupDiscord?.classList.remove('hidden');
+            groupTransaction?.classList.add('hidden');
+            if (monthInput) monthInput.required = true;
+            if (dateInput) dateInput.required = false;
+        } else {
+            groupDiscord?.classList.add('hidden');
+            groupTransaction?.classList.remove('hidden');
+            if (monthInput) monthInput.required = false;
+            if (dateInput) dateInput.required = true;
+        }
+    }
+
+    saveEntry() {
+        const category = document.getElementById('fin-input-category')?.value;
+        const amount = parseFloat(document.getElementById('fin-input-amount')?.value) || 0;
+        
+        let dateVal = '';
+        let descVal = '';
+
+        if (category === 'discord') {
+            const mVal = document.getElementById('fin-input-month')?.value;
+            if (!mVal) return;
+            dateVal = `${mVal}-01`;
+            
+            const [yr, mn] = mVal.split('-');
+            const dateObj = new Date(parseInt(yr), parseInt(mn) - 1, 1);
+            const monthName = dateObj.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+            descVal = `Ingresos Discord - ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`;
+        } else {
+            dateVal = document.getElementById('fin-input-date')?.value || new Date().toISOString().split('T')[0];
+            descVal = (document.getElementById('fin-input-desc')?.value || '').trim();
+            if (category === 'trading' && !descVal) {
+                descVal = 'Operación de Trading';
+            } else if (category === 'extraordinary' && !descVal) {
+                descVal = 'Ingreso Extraordinario';
+            }
+        }
+
+        const newEntry = {
+            id: Date.now(),
+            category,
+            date: dateVal,
+            amount,
+            description: descVal
+        };
+
+        this.data.entries.push(newEntry);
+        this.saveData();
+
+        document.getElementById('finanzas-log-modal')?.classList.add('hidden');
+        
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.render();
+    }
+
+    deleteEntry(id) {
+        if (confirm('¿Seguro que deseas eliminar este ingreso?')) {
+            this.data.entries = this.data.entries.filter(e => e.id !== id);
+            this.saveData();
+            this.app.auth?.syncToCloud(false).catch(() => {});
+            this.render();
+        }
+    }
+
+    getCombinedEntries() {
+        const list = [...(this.data.entries || [])];
+        
+        const projHistory = this.app.projects?.history || [];
+        projHistory.forEach(p => {
+            const dateVal = p.deliveredDate || (p.deliveredAt ? p.deliveredAt.split('T')[0] : new Date().toISOString().split('T')[0]);
+            list.push({
+                id: `proj-${p.id}`,
+                category: 'freelance',
+                date: dateVal,
+                amount: Number(p.budgetNet || 0),
+                description: `${p.client} - ${p.project}`
+            });
+        });
+
+        return list;
+    }
+
+    populateMonthsSelector(combinedEntries) {
+        if (!this.monthSelect) return;
+        const monthsSet = new Set();
+        
+        const currMonthStr = new Date().toISOString().slice(0, 7);
+        monthsSet.add(currMonthStr);
+
+        combinedEntries.forEach(e => {
+            if (e.date) {
+                monthsSet.add(e.date.slice(0, 7));
+            }
+        });
+
+        const sortedMonths = Array.from(monthsSet).sort().reverse();
+        const selected = this.monthSelect.value || currMonthStr;
+
+        this.monthSelect.innerHTML = sortedMonths.map(m => {
+            const [yr, mn] = m.split('-');
+            const d = new Date(parseInt(yr), parseInt(mn) - 1, 1);
+            const label = d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
+            const capitalized = label.charAt(0).toUpperCase() + label.slice(1);
+            return `<option value="${m}">${capitalized}</option>`;
+        }).join('');
+
+        if (sortedMonths.includes(selected)) {
+            this.monthSelect.value = selected;
+        } else {
+            this.monthSelect.value = sortedMonths[0] || currMonthStr;
+        }
+    }
+
+    render() {
+        const combined = this.getCombinedEntries();
+        const now = new Date();
+        const currYear = now.getFullYear();
+        const currMonthStr = now.toISOString().slice(0, 7);
+
+        let monthSum = 0;
+        let yearSum = 0;
+        let totalSum = 0;
+
+        combined.forEach(e => {
+            const amount = Number(e.amount || 0);
+            totalSum += amount;
+
+            if (e.date) {
+                const itemYear = parseInt(e.date.slice(0, 4));
+                const itemMonthStr = e.date.slice(0, 7);
+
+                if (itemYear === currYear) {
+                    yearSum += amount;
+                    if (itemMonthStr === currMonthStr) {
+                        monthSum += amount;
+                    }
+                }
+            }
+        });
+
+        const mEl = document.getElementById('fin-monthUSD');
+        const yEl = document.getElementById('fin-yearUSD');
+        const tEl = document.getElementById('fin-totalUSD');
+
+        if (mEl) mEl.innerText = `USD ${monthSum.toFixed(2)}`;
+        if (yEl) yEl.innerText = `USD ${yearSum.toFixed(2)}`;
+        if (tEl) tEl.innerText = `USD ${totalSum.toFixed(2)}`;
+
+        this.populateMonthsSelector(combined);
+        this.renderBreakdownAndList();
+    }
+
+    renderBreakdownAndList() {
+        const selectedMonth = this.monthSelect?.value;
+        if (!selectedMonth) return;
+
+        const combined = this.getCombinedEntries();
+        const monthEntries = combined.filter(e => e.date && e.date.slice(0, 7) === selectedMonth);
+
+        let catFreelance = 0;
+        let catDiscord = 0;
+        let catTrading = 0;
+        let catExtraordinary = 0;
+
+        monthEntries.forEach(e => {
+            const amt = Number(e.amount || 0);
+            if (e.category === 'freelance') catFreelance += amt;
+            else if (e.category === 'discord') catDiscord += amt;
+            else if (e.category === 'trading') catTrading += amt;
+            else if (e.category === 'extraordinary') catExtraordinary += amt;
+        });
+
+        const totalMonth = catFreelance + catDiscord + catTrading + catExtraordinary;
+
+        const pctFreelance = totalMonth > 0 ? (catFreelance / totalMonth) * 100 : 0;
+        const pctDiscord = totalMonth > 0 ? (catDiscord / totalMonth) * 100 : 0;
+        const pctTrading = totalMonth > 0 ? (catTrading / totalMonth) * 100 : 0;
+        const pctExtraordinary = totalMonth > 0 ? (catExtraordinary / totalMonth) * 100 : 0;
+
+        const cf = document.getElementById('fin-cat-freelance');
+        const bf = document.getElementById('fin-bar-freelance');
+        const cd = document.getElementById('fin-cat-discord');
+        const bd = document.getElementById('fin-bar-discord');
+        const ct = document.getElementById('fin-cat-trading');
+        const bt = document.getElementById('fin-bar-trading');
+        const ce = document.getElementById('fin-cat-extraordinary');
+        const be = document.getElementById('fin-bar-extraordinary');
+
+        if (cf) cf.innerText = `USD ${catFreelance.toFixed(2)} (${pctFreelance.toFixed(0)}%)`;
+        if (bf) bf.style.width = `${pctFreelance}%`;
+        if (cd) cd.innerText = `USD ${catDiscord.toFixed(2)} (${pctDiscord.toFixed(0)}%)`;
+        if (bd) bd.style.width = `${pctDiscord}%`;
+        if (ct) ct.innerText = `USD ${catTrading.toFixed(2)} (${pctTrading.toFixed(0)}%)`;
+        if (bt) bt.style.width = `${pctTrading}%`;
+        if (ce) ce.innerText = `USD ${catExtraordinary.toFixed(2)} (${pctExtraordinary.toFixed(0)}%)`;
+        if (be) be.style.width = `${pctExtraordinary}%`;
+
+        if (!this.listContainer) return;
+
+        if (monthEntries.length === 0) {
+            this.listContainer.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay ingresos registrados en este mes.</p>';
+            return;
+        }
+
+        monthEntries.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+        this.listContainer.innerHTML = monthEntries.map(e => {
+            let icon = 'ph-briefcase';
+            let color = 'var(--primary-color)';
+            let catName = 'Freelance';
+            if (e.category === 'discord') { icon = 'ph-chat-circle'; color = 'var(--status-purple)'; catName = 'Discord'; }
+            else if (e.category === 'trading') { icon = 'ph-chart-line-up'; color = 'var(--status-green)'; catName = 'Trading'; }
+            else if (e.category === 'extraordinary') { icon = 'ph-gift'; color = 'var(--status-yellow)'; catName = 'Extraordinario'; }
+
+            const dateObj = new Date(e.date);
+            const dateStr = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+
+            const isManual = !String(e.id).startsWith('proj-');
+            const deleteBtn = isManual 
+                ? `<button class="btn-delete-fin-item" data-id="${e.id}" style="background:none; border:none; color:var(--status-red); cursor:pointer; padding:6px; display:flex; align-items:center;" title="Eliminar"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>`
+                : `<span style="font-size: 0.7rem; color: var(--text-secondary); padding: 4px 8px; background: rgba(255,255,255,0.03); border:1px solid var(--surface-border); border-radius:4px;">Proyecto</span>`;
+
+            return `
+                <div class="card" style="margin:0; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; border: 1px solid rgba(255,255,255,0.03); gap: 10px;">
+                    <div style="display:flex; align-items:center; gap:12px; min-width:0;">
+                        <div class="icon-container" style="background: rgba(255,255,255,0.03); color: ${color}; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:50%; flex-shrink:0;">
+                            <i class="ph ${icon}" style="font-size:1.2rem;"></i>
+                        </div>
+                        <div style="min-width:0;">
+                            <h4 style="margin:0; font-size:0.95rem; color:white; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${e.description}</h4>
+                            <p style="margin:3px 0 0 0; font-size:0.75rem; color:var(--text-secondary);">${catName} • ${dateStr}</p>
+                        </div>
+                    </div>
+                    <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
+                        <strong style="color:var(--status-green); font-size:0.95rem;">+ USD ${Number(e.amount || 0).toFixed(2)}</strong>
+                        ${deleteBtn}
+                    </div>
+                </div>
+            `;
+        }).join('');
+
+        this.listContainer.querySelectorAll('.btn-delete-fin-item').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const id = parseInt(btn.dataset.id);
+                this.deleteEntry(id);
+            });
+        });
+    }
+}
+
+
 // ==========================================================================
 // MÓDULO 6: GESTOR DE ALERTAS CENTRALIZADO (AlertsModule)
 // ==========================================================================
@@ -6224,6 +6588,8 @@ const ALERT_DEFINITIONS = [
     { key: 'brazos', name: 'Depilación Brazos', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
     { key: 'piernas', name: 'Depilación Piernas', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
     { key: 'intimas', name: 'Depilación Zonas Íntimas', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
+    { key: 'unas_manos', name: 'Cortar Uñas de Manos', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
+    { key: 'unas_pies', name: 'Cortar Uñas de Pies', category: 'cuidado', type: 'interval', defaultTime: '23:00' },
 
     // Lentes
     { key: 'lenses_droplets', name: 'Gotas de Ojos (Systane)', category: 'lentes', type: 'interval', defaultTime: '23:00' },
@@ -6650,6 +7016,36 @@ class NotificationsCenterModule {
                         });
                     }
                 }
+
+                // Uñas Manos (límite: >= 14)
+                const unasManos = gData.unas_manos || [];
+                if (unasManos.length > 0) {
+                    const diff = this.app.grooming.getDaysDiff(unasManos[0]);
+                    if (diff >= 14) {
+                        items.push({
+                            module: 'grooming',
+                            id: 'unas_manos',
+                            name: 'Cortar Uñas de Manos',
+                            icon: 'ph-hand',
+                            desc: `Pasaron ${diff} de 14 días.`
+                        });
+                    }
+                }
+
+                // Uñas Pies (límite: >= 40)
+                const unasPies = gData.unas_pies || [];
+                if (unasPies.length > 0) {
+                    const diff = this.app.grooming.getDaysDiff(unasPies[0]);
+                    if (diff >= 40) {
+                        items.push({
+                            module: 'grooming',
+                            id: 'unas_pies',
+                            name: 'Cortar Uñas de Pies',
+                            icon: 'ph-footprint',
+                            desc: `Pasaron ${diff} de 40 días.`
+                        });
+                    }
+                }
             }
 
             // 3. LENTES DE CONTACTO
@@ -6973,6 +7369,8 @@ class AppController {
                 this.gym.render();
             } else if (activeSectionId === 'projects-section') {
                 this.projects.render();
+            } else if (activeSectionId === 'finanzas-section') {
+                this.finanzas.render();
             } else if (activeSectionId === 'alerts-section') {
                 this.alerts.render();
             }
@@ -7152,6 +7550,7 @@ class AppController {
         this.vehicle = new VehicleModule(this);
         this.gym = new GymModule(this);
         this.projects = new ProjectsModule(this);
+        this.finanzas = new FinanzasModule(this);
         this.backups = new BackupModule(this);
         this.auth = new AuthSyncModule(this);
         this.alerts = new AlertsModule(this);
@@ -7167,6 +7566,7 @@ class AppController {
                 else if (activeSection.id === 'vehiculo-section') this.vehicle.render();
                 else if (activeSection.id === 'gym-section') this.gym.render();
                 else if (activeSection.id === 'projects-section') this.projects.render();
+                else if (activeSection.id === 'finanzas-section') this.finanzas.render();
             }
         }, 1000 * 60 * 60);
     }
@@ -7180,7 +7580,7 @@ class AppController {
             'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
             'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
             'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory',
-            'projectPulseSubscription', 'alerts_config', 'alerts_sent_log'
+            'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData'
         ];
         
         if (trackedKeys.includes(key) && this.auth && this.auth.user) {

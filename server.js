@@ -617,6 +617,20 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 if (elapsed >= 30) { shouldNotify = true; title = '✂️ Depilación: Zonas Íntimas'; body = `Ya pasaron ${elapsed} días, recordá depilarte las zonas íntimas.`; }
                             }
                             break;
+                        case 'unas_manos':
+                            const unasManosHistory = groomingData.unas_manos || [];
+                            if (unasManosHistory.length > 0) {
+                                const elapsed = getDaysElapsed(unasManosHistory[0]);
+                                if (elapsed >= 14) { shouldNotify = true; title = '💅 Cortar Uñas de Manos'; body = `Pasaron ${elapsed} días, recordá cortarte las uñas de las manos.`; }
+                            }
+                            break;
+                        case 'unas_pies':
+                            const unasPiesHistory = groomingData.unas_pies || [];
+                            if (unasPiesHistory.length > 0) {
+                                const elapsed = getDaysElapsed(unasPiesHistory[0]);
+                                if (elapsed >= 40) { shouldNotify = true; title = '👣 Cortar Uñas de Pies'; body = `Pasaron ${elapsed} días, recordá cortarte las uñas de los pies.`; }
+                            }
+                            break;
 
                         // Lentes
                         case 'lenses_droplets':
