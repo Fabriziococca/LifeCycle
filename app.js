@@ -1,3 +1,21 @@
+// Funciones globales de asistencia de fechas locales para evitar desfases UTC
+function getLocalISODate() {
+    const tzOffset = new Date().getTimezoneOffset() * 60000;
+    return new Date(Date.now() - tzOffset).toISOString().split('T')[0];
+}
+
+function parseDateLocal(val) {
+    if (!val) return null;
+    if (val instanceof Date) return val;
+    if (typeof val === 'string') {
+        if (val.includes('-') && !val.includes('T')) {
+            return new Date(val.replace(/-/g, '/'));
+        }
+        return new Date(val);
+    }
+    return new Date(val);
+}
+
 // Configuración original de ítems de Higiene (LifeCycle)
 const itemsConfig = [
     {
@@ -196,7 +214,8 @@ const CIRCUMFERENCE = 502; // 2 * Math.PI * 80 (basado en r=80 del SVG)
 class DateUtils {
     static getDaysElapsed(dateString) {
         if (!dateString) return null;
-        const lastWashed = new Date(dateString);
+        const lastWashed = parseDateLocal(dateString);
+        if (!lastWashed) return null;
         lastWashed.setHours(0, 0, 0, 0);
         const today = new Date();
         today.setHours(0, 0, 0, 0);
@@ -206,7 +225,8 @@ class DateUtils {
 
     static formatFriendlyDate(dateInput, neverLabel = 'Nunca (Nuevo)') {
         if (!dateInput) return neverLabel;
-        const date = new Date(dateInput);
+        const date = parseDateLocal(dateInput);
+        if (!date) return neverLabel;
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const dateCompare = new Date(date);
@@ -1529,7 +1549,7 @@ class LensModule {
                 if (stock > 0) {
                     stock -= 1;
                     localStorage.setItem('lensStock', stock);
-                    const today = new Date().toISOString().split('T')[0];
+                    const today = getLocalISODate();
                     localStorage.setItem('lensDate', today);
                     this.loadDatesAndStock();
                     alert('Nuevo par en uso. Stock descontado.');
@@ -1622,7 +1642,7 @@ class HealthModule {
         this.btnAddBlood?.addEventListener('click', () => {
             if (this.bloodForm) this.bloodForm.classList.remove('hidden');
             if (this.bloodFormDate) {
-                this.bloodFormDate.value = new Date().toISOString().split('T')[0];
+                this.bloodFormDate.value = getLocalISODate();
             }
         });
 
@@ -1747,7 +1767,7 @@ class HealthModule {
     }
 
     recordQuickVisit(key) {
-        const today = new Date().toISOString().split('T')[0];
+        const today = getLocalISODate();
         this.medicalData[key].lastVisit = today;
         
         if (!this.medicalData[key].history) {
@@ -2176,7 +2196,7 @@ class VehicleModule {
 
         this.btnNewOil?.addEventListener('click', () => {
             if (this.oilForm) this.oilForm.classList.remove('hidden');
-            if (this.oilFormDate) this.oilFormDate.value = new Date().toISOString().split('T')[0];
+            if (this.oilFormDate) this.oilFormDate.value = getLocalISODate();
             if (this.oilFormKm) this.oilFormKm.value = this.odometer;
         });
         
@@ -2210,7 +2230,7 @@ class VehicleModule {
 
         this.btnNewReplace?.addEventListener('click', () => {
             if (this.replaceForm) this.replaceForm.classList.remove('hidden');
-            if (this.replaceFormDate) this.replaceFormDate.value = new Date().toISOString().split('T')[0];
+            if (this.replaceFormDate) this.replaceFormDate.value = getLocalISODate();
             if (this.replaceFormKm) this.replaceFormKm.value = this.odometer;
         });
 
@@ -2354,7 +2374,7 @@ class VehicleModule {
     }
 
     recordQuickGeometry(type) {
-        const dateVal = new Date().toISOString().split('T')[0];
+        const dateVal = getLocalISODate();
         const kmVal = this.odometer;
 
         const entry = {
@@ -2635,7 +2655,7 @@ class VehicleModule {
     }
 
     updateFluidCheck(key) {
-        this.trackerData[key] = new Date().toISOString().split('T')[0];
+        this.trackerData[key] = getLocalISODate();
         this.saveTrackerData();
         this.render();
     }
@@ -2651,7 +2671,7 @@ class VehicleModule {
             id: 'issue_' + Date.now(),
             title,
             urgency,
-            createdAt: new Date().toISOString().split('T')[0],
+            createdAt: getLocalISODate(),
             resolvedAt: null
         };
         this.issues.push(issue);
@@ -2663,7 +2683,7 @@ class VehicleModule {
         if (confirm('¿Marcar esta falla como solucionada?')) {
             const issue = this.issues.find(i => i.id === id);
             if (issue) {
-                issue.resolvedAt = new Date().toISOString().split('T')[0];
+                issue.resolvedAt = getLocalISODate();
                 // Para mantener el localStorage limpio, eliminamos o filtramos los resueltos
                 this.issues = this.issues.filter(i => i.id !== id);
                 this.saveIssues();
@@ -3480,7 +3500,7 @@ class GymModule {
                 const isHidden = formWeightLog.classList.contains('hidden');
                 btnWeightLogToggle.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Registrar Peso' : '<i class="ph ph-x"></i> Cancelar';
                 if (!isHidden) {
-                    document.getElementById('weight-log-date').value = new Date().toISOString().split('T')[0];
+                    document.getElementById('weight-log-date').value = getLocalISODate();
                     document.getElementById('weight-log-val').value = '';
                 }
             });
@@ -3535,7 +3555,7 @@ class GymModule {
                 formVitdSettings?.classList.add('hidden');
                 if (btnVitdSettingsToggle) btnVitdSettingsToggle.innerHTML = '<i class="ph ph-gear"></i> Ajustar Días';
                 if (!isHidden) {
-                    document.getElementById('vitd-log-date').value = new Date().toISOString().split('T')[0];
+                    document.getElementById('vitd-log-date').value = getLocalISODate();
                 }
             });
         }
@@ -3603,7 +3623,7 @@ class GymModule {
                 const isHidden = formPainLog.classList.contains('hidden');
                 btnPainLogToggle.innerHTML = isHidden ? '<i class="ph ph-plus"></i> Registrar Toma' : '<i class="ph ph-x"></i> Cancelar';
                 if (!isHidden) {
-                    document.getElementById('pain-log-date').value = new Date().toISOString().split('T')[0];
+                    document.getElementById('pain-log-date').value = getLocalISODate();
                     document.getElementById('pain-log-note').value = '';
                 }
             });
@@ -4224,7 +4244,8 @@ class GymModule {
             return;
         }
 
-        const last = new Date(this.supplements.vit_d_history[0].date);
+        const last = parseDateLocal(this.supplements.vit_d_history[0].date);
+        if (!last) return;
         last.setHours(0, 0, 0, 0);
         const interval = this.supplements.vit_d_days_interval;
         const next = new Date(last.getTime() + interval * 24 * 60 * 60 * 1000);
@@ -4236,23 +4257,28 @@ class GymModule {
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const remainingDays = Math.ceil((next - today) / 86400000);
-        timerSpan.textContent = remainingDays;
+        timerSpan.textContent = Math.max(0, remainingDays);
+
+        const timerBox = document.getElementById('vitd-timer-box');
 
         if (badge) {
             badge.style.background = '';
             badge.style.color = '';
             if (remainingDays <= 0) {
-                badge.textContent = 'Tomar ahora';
+                badge.textContent = 'PENDIENTE';
                 badge.className = 'badge red';
                 timerSpan.style.color = 'var(--status-red)';
+                if (timerBox) timerBox.style.borderColor = 'var(--status-red)';
             } else if (remainingDays <= 7) {
                 badge.textContent = 'Próximo';
                 badge.className = 'badge orange';
                 timerSpan.style.color = 'var(--status-orange)';
+                if (timerBox) timerBox.style.borderColor = 'var(--status-orange)';
             } else {
                 badge.textContent = 'Al día';
                 badge.className = 'badge green';
                 timerSpan.style.color = 'var(--status-green)';
+                if (timerBox) timerBox.style.borderColor = 'var(--surface-border)';
             }
         }
 
@@ -4289,20 +4315,38 @@ class GymModule {
             timerSpan.textContent = '-';
             if (badge) {
                 badge.textContent = 'Ninguno';
-                badge.style.background = 'gray';
+                badge.className = 'badge gray';
             }
             histBox.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 10px; font-size:0.85rem;">Historial vacío.</p>';
             return;
         }
 
         const last = this.supplements.painkillers_history[0];
-        const lastDate = new Date(last.date);
+        const lastDate = parseDateLocal(last.date);
+        if (!lastDate) return;
         lastSpan.textContent = lastDate.toLocaleDateString('es-AR');
         typeSpan.textContent = last.type;
         noteSpan.textContent = last.note || 'Sin detalles';
 
-        const elapsedDays = Math.floor((new Date() - lastDate) / 86400000);
+        // Calcular días limpio
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const lastDateMidnight = new Date(lastDate);
+        lastDateMidnight.setHours(0, 0, 0, 0);
+        const elapsedDays = Math.floor((today - lastDateMidnight) / 86400000);
         timerSpan.textContent = elapsedDays;
+
+        const timerBox = document.getElementById('pain-timer-box');
+        if (elapsedDays === 0) {
+            timerSpan.style.color = 'var(--status-red)';
+            if (timerBox) timerBox.style.borderColor = 'var(--status-red)';
+        } else if (elapsedDays === 1) {
+            timerSpan.style.color = 'var(--status-orange)';
+            if (timerBox) timerBox.style.borderColor = 'var(--status-orange)';
+        } else {
+            timerSpan.style.color = 'var(--status-green)';
+            if (timerBox) timerBox.style.borderColor = 'var(--status-green)';
+        }
 
         // Contadores
         const now = new Date();
@@ -4313,15 +4357,65 @@ class GymModule {
         let dayCount = 0, weekCount = 0, monthCount = 0;
 
         this.supplements.painkillers_history.forEach(p => {
-            const time = new Date(p.date).getTime();
-            if (time >= startOfToday) dayCount++;
-            if (time >= startOfWeek) weekCount++;
-            if (time >= startOfMonth) monthCount++;
+            const dateObj = parseDateLocal(p.date);
+            if (dateObj) {
+                const time = dateObj.getTime();
+                if (time >= startOfToday) dayCount++;
+                if (time >= startOfWeek) weekCount++;
+                if (time >= startOfMonth) monthCount++;
+            }
         });
 
-        document.getElementById('pain-count-day').textContent = `${dayCount} / 2`;
-        document.getElementById('pain-count-week').textContent = `${weekCount} / 6`;
-        document.getElementById('pain-count-month').textContent = `${monthCount} / 10`;
+        // Hoy
+        const elDay = document.getElementById('pain-count-day');
+        const boxDay = document.getElementById('pain-box-day');
+        if (elDay) {
+            elDay.textContent = `${dayCount} / 2`;
+            if (dayCount >= 2) {
+                elDay.style.color = 'var(--status-red)';
+                if (boxDay) boxDay.style.borderColor = 'var(--status-red)';
+            } else if (dayCount === 1) {
+                elDay.style.color = 'var(--status-orange)';
+                if (boxDay) boxDay.style.borderColor = 'var(--status-orange)';
+            } else {
+                elDay.style.color = 'var(--status-green)';
+                if (boxDay) boxDay.style.borderColor = 'var(--surface-border)';
+            }
+        }
+
+        // Semana
+        const elWeek = document.getElementById('pain-count-week');
+        const boxWeek = document.getElementById('pain-box-week');
+        if (elWeek) {
+            elWeek.textContent = `${weekCount} / 6`;
+            if (weekCount >= 6) {
+                elWeek.style.color = 'var(--status-red)';
+                if (boxWeek) boxWeek.style.borderColor = 'var(--status-red)';
+            } else if (weekCount >= 4) {
+                elWeek.style.color = 'var(--status-orange)';
+                if (boxWeek) boxWeek.style.borderColor = 'var(--status-orange)';
+            } else {
+                elWeek.style.color = 'var(--status-green)';
+                if (boxWeek) boxWeek.style.borderColor = 'var(--surface-border)';
+            }
+        }
+
+        // Mes
+        const elMonth = document.getElementById('pain-count-month');
+        const boxMonth = document.getElementById('pain-box-month');
+        if (elMonth) {
+            elMonth.textContent = `${monthCount} / 10`;
+            if (monthCount >= 10) {
+                elMonth.style.color = 'var(--status-red)';
+                if (boxMonth) boxMonth.style.borderColor = 'var(--status-red)';
+            } else if (monthCount >= 8) {
+                elMonth.style.color = 'var(--status-orange)';
+                if (boxMonth) boxMonth.style.borderColor = 'var(--status-orange)';
+            } else {
+                elMonth.style.color = 'var(--status-green)';
+                if (boxMonth) boxMonth.style.borderColor = 'var(--surface-border)';
+            }
+        }
 
         if (badge) {
             badge.style.background = '';
@@ -4338,12 +4432,16 @@ class GymModule {
             }
         }
 
-        histBox.innerHTML = this.supplements.painkillers_history.map(p => `
-            <div style="display:flex; justify-content:space-between; font-size:0.8rem; padding: 6px 0; border-bottom:1px solid rgba(255,255,255,0.05); color:white; align-items:center;">
-                <span>📅 ${new Date(p.date).toLocaleDateString('es-AR')} - 💊 <strong>${p.type}</strong> ${p.note ? `(${p.note})` : ''}</span>
-                <button class="btn-history-delete" onclick="window.gym.deletePainkillerTake(${p.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
-            </div>
-        `).join('');
+        histBox.innerHTML = this.supplements.painkillers_history.map(p => {
+            const dateObj = parseDateLocal(p.date);
+            const friendlyDate = dateObj ? dateObj.toLocaleDateString('es-AR') : p.date;
+            return `
+                <div style="display:flex; justify-content:space-between; font-size:0.8rem; padding: 6px 0; border-bottom:1px solid rgba(255,255,255,0.05); color:white; align-items:center;">
+                    <span>📅 ${friendlyDate} - 💊 <strong>${p.type}</strong> ${p.note ? `(${p.note})` : ''}</span>
+                    <button class="btn-history-delete" onclick="window.gym.deletePainkillerTake(${p.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
+                </div>
+            `;
+        }).join('');
     }
 
     deletePainkillerTake(id) {
@@ -5394,7 +5492,7 @@ class ProjectsModule {
         const pIndex = this.projects.findIndex(proj => proj.id == id);
         if (pIndex !== -1) {
             const p = this.projects[pIndex];
-            p.deliveredDate = new Date().toISOString().split('T')[0];
+            p.deliveredDate = getLocalISODate();
 
             this.history.unshift(p);
             this.projects.splice(pIndex, 1);
@@ -5455,7 +5553,7 @@ class ProjectsModule {
         p.isArbitration = false;
         p.resolvedViaArbitration = true;
         p.arbitrationPercent = pct;
-        p.deliveredDate = new Date().toISOString().split('T')[0];
+        p.deliveredDate = getLocalISODate();
 
         // Mover al historial
         this.history.unshift(p);
@@ -5715,7 +5813,7 @@ class BackupModule {
         const blob = new Blob([JSON.stringify(unifiedData, null, 2)], { type: "application/json" });
         const a = document.createElement("a");
         a.href = URL.createObjectURL(blob);
-        a.download = `LifeCycle_Backup_${new Date().toISOString().split('T')[0]}.json`;
+        a.download = `LifeCycle_Backup_${getLocalISODate()}.json`;
         a.click();
     }
 
@@ -6695,7 +6793,7 @@ class FinanzasModule {
             form?.reset();
             const dateInp = document.getElementById('fin-input-date');
             const monthInp = document.getElementById('fin-input-month');
-            if (dateInp) dateInp.value = new Date().toISOString().split('T')[0];
+            if (dateInp) dateInp.value = getLocalISODate();
             if (monthInp) monthInp.value = new Date().toISOString().slice(0, 7);
             
             this.toggleModalFields();
@@ -6778,7 +6876,7 @@ class FinanzasModule {
             const monthName = dateObj.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
             descVal = `Ingresos Discord - ${monthName.charAt(0).toUpperCase() + monthName.slice(1)}`;
         } else {
-            dateVal = document.getElementById('fin-input-date')?.value || new Date().toISOString().split('T')[0];
+            dateVal = document.getElementById('fin-input-date')?.value || getLocalISODate();
             descVal = (document.getElementById('fin-input-desc')?.value || '').trim();
             if (category === 'trading' && !descVal) {
                 descVal = 'Operación de Trading';
@@ -6818,7 +6916,7 @@ class FinanzasModule {
         
         const projHistory = this.app.projects?.history || [];
         projHistory.forEach(p => {
-            const dateVal = p.deliveredDate || (p.deliveredAt ? p.deliveredAt.split('T')[0] : new Date().toISOString().split('T')[0]);
+            const dateVal = p.deliveredDate || (p.deliveredAt ? p.deliveredAt.split('T')[0] : getLocalISODate());
             list.push({
                 id: `proj-${p.id}`,
                 category: 'freelance',
@@ -7733,6 +7831,35 @@ class NotificationsCenterModule {
                     });
                 }
             }
+
+            // 6. VITAMINA D
+            if (this.app.gym && this.app.gym.supplements) {
+                const supps = this.app.gym.supplements;
+                const vitDHist = supps.vit_d_history || [];
+                if (vitDHist.length > 0) {
+                    const lastTakeDate = parseDateLocal(vitDHist[0].date);
+                    if (lastTakeDate) {
+                        lastTakeDate.setHours(0, 0, 0, 0);
+                        const interval = supps.vit_d_days_interval || 45;
+                        const nextTake = new Date(lastTakeDate.getTime() + interval * 24 * 60 * 60 * 1000);
+                        nextTake.setHours(0, 0, 0, 0);
+                        
+                        const today = new Date();
+                        today.setHours(0, 0, 0, 0);
+                        
+                        const remaining = Math.ceil((nextTake - today) / 86400000);
+                        if (remaining <= 0) {
+                            items.push({
+                                module: 'gym',
+                                id: 'vit_d',
+                                name: 'Vitamina D',
+                                icon: 'ph-capsule',
+                                desc: remaining === 0 ? 'Te toca tomarla hoy.' : `Pendiente hace ${Math.abs(remaining)} días.`
+                            });
+                        }
+                    }
+                }
+            }
         } catch (e) {
             console.error("Error in getOverdueItems:", e);
         }
@@ -7808,12 +7935,12 @@ class NotificationsCenterModule {
         } else if (module === 'grooming') {
             this.app.grooming.recordSession(id);
         } else if (module === 'lenses') {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getLocalISODate();
             localStorage.setItem(id, today);
             this.app.lenses.loadDatesAndStock();
         } else if (module === 'vehicle') {
             if (id === 'oil') {
-                const dateVal = new Date().toISOString().split('T')[0];
+                const dateVal = getLocalISODate();
                 const kmVal = this.app.vehicle.odometer;
                 const entry = {
                     id: 'maint_' + Date.now(),
@@ -7831,7 +7958,7 @@ class NotificationsCenterModule {
             } else if (id === 'rot') {
                 this.app.vehicle.recordQuickGeometry('Rotación de Neumáticos');
             } else if (id === 'replace') {
-                const dateVal = new Date().toISOString().split('T')[0];
+                const dateVal = getLocalISODate();
                 const kmVal = this.app.vehicle.odometer;
                 const entry = {
                     id: 'maint_' + Date.now(),
@@ -7846,7 +7973,7 @@ class NotificationsCenterModule {
                 this.app.vehicle.render();
             }
         } else if (module === 'workana') {
-            const today = new Date().toISOString().split('T')[0];
+            const today = getLocalISODate();
             this.app.projects.subscription.startDate = today;
             this.app.projects.saveData();
             this.app.projects.render();

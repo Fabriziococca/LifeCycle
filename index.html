@@ -1007,7 +1007,7 @@
                                     <p style="font-size:0.9rem; margin-bottom: 0.3rem;">📅 <strong>Última toma:</strong> <span id="vitd-last-date">-</span></p>
                                     <p style="font-size:0.9rem; margin-bottom: 0.3rem;">⏰ <strong>Siguiente toma:</strong> <span id="vitd-next-date">-</span></p>
                                 </div>
-                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid var(--surface-border); min-width: 100px;">
+                                <div id="vitd-timer-box" style="text-align: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid var(--surface-border); min-width: 100px; transition: border-color 0.2s ease;">
                                     <div style="font-size: 0.7rem; color: var(--text-secondary);">Días restantes</div>
                                     <div id="vitd-timer-count" style="font-size: 1.6rem; font-weight: bold;">-</div>
                                 </div>
@@ -1058,22 +1058,22 @@
                                     <p style="font-size:0.9rem; margin-bottom: 0.3rem;">💊 <strong>Medicamento:</strong> <span id="pain-last-type">-</span></p>
                                     <p style="font-size:0.9rem; margin-bottom: 0.3rem;">💬 <strong>Motivo:</strong> <span id="pain-last-note" style="font-style: italic;">-</span></p>
                                 </div>
-                                <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid var(--surface-border); min-width: 100px;">
+                                <div id="pain-timer-box" style="text-align: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid var(--surface-border); min-width: 100px; transition: border-color 0.2s ease;">
                                     <div style="font-size: 0.7rem; color: var(--text-secondary);">Días limpio</div>
                                     <div id="pain-timer-count" style="font-size: 1.6rem; font-weight: bold;">-</div>
                                 </div>
                             </div>
 
                             <div style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 1.5rem; text-align: center;">
-                                <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--surface-border);">
+                                <div id="pain-box-day" style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--surface-border); transition: border-color 0.2s ease;">
                                     <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">Hoy (24h)</div>
                                     <div id="pain-count-day" style="font-size: 1.1rem; font-weight: bold; color: white; margin-top: 3px;">0 / 2</div>
                                 </div>
-                                <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--surface-border);">
+                                <div id="pain-box-week" style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--surface-border); transition: border-color 0.2s ease;">
                                     <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">Semana (7d)</div>
                                     <div id="pain-count-week" style="font-size: 1.1rem; font-weight: bold; color: white; margin-top: 3px;">0 / 6</div>
                                 </div>
-                                <div style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--surface-border);">
+                                <div id="pain-box-month" style="background: rgba(0,0,0,0.2); padding: 8px; border-radius: 8px; border: 1px solid var(--surface-border); transition: border-color 0.2s ease;">
                                     <div style="font-size: 0.7rem; color: var(--text-secondary); text-transform: uppercase;">Mes (30d)</div>
                                     <div id="pain-count-month" style="font-size: 1.1rem; font-weight: bold; color: white; margin-top: 3px;">0 / 10</div>
                                 </div>
