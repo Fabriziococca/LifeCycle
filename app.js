@@ -2908,6 +2908,29 @@ class GymModule {
             // Purgar ejercicios del fin de semana
             this.routine = this.routine.filter(r => r.day !== 'Sábado' && r.day !== 'Domingo');
 
+            // Sincronizar y generar linkId para la rutina si no existen
+            this.routine.forEach(item => {
+                if (!item.linkId) {
+                    item.linkId = 'link_' + item.id;
+                }
+            });
+
+            // Emparejar por posición de forma retrospectiva (Lunes-Jueves y Martes-Viernes)
+            const pairDays = [['Lunes', 'Jueves'], ['Martes', 'Viernes']];
+            pairDays.forEach(([dayA, dayB]) => {
+                const listA = this.routine.filter(r => r.day === dayA);
+                const listB = this.routine.filter(r => r.day === dayB);
+                const maxLen = Math.max(listA.length, listB.length);
+                for (let i = 0; i < maxLen; i++) {
+                    const itemA = listA[i];
+                    const itemB = listB[i];
+                    if (itemA && itemB) {
+                        itemB.linkId = itemA.linkId;
+                    }
+                }
+            });
+            localStorage.setItem('gym_routine', JSON.stringify(this.routine));
+
             const routineFocus = localStorage.getItem('gym_routine_focus');
             if (routineFocus) this.routineFocus = JSON.parse(routineFocus);
             this.routineFocus = Object.assign({
@@ -3018,33 +3041,62 @@ class GymModule {
         if (routineContainer) {
             routineContainer.addEventListener('change', (e) => {
                 const target = e.target;
+                const links = { 'Lunes': 'Jueves', 'Jueves': 'Lunes', 'Martes': 'Viernes', 'Viernes': 'Martes' };
+
                 if (target.classList.contains('day-focus-input')) {
                     const day = target.getAttribute('data-day');
-                    this.routineFocus[day] = target.value.trim();
+                    const val = target.value.trim();
+                    this.routineFocus[day] = val;
+                    const pairedDay = links[day];
+                    if (pairedDay) {
+                        this.routineFocus[pairedDay] = val;
+                    }
                     this.saveData('gym_routine_focus');
+                    this.renderRoutine();
                 } else if (target.classList.contains('routine-weight-input')) {
                     const id = parseInt(target.getAttribute('data-id'));
                     const val = parseFloat(target.value);
                     const ex = this.routine.find(r => r.id === id);
                     if (ex) {
-                        ex.weight = isNaN(val) ? null : val;
+                        const weightVal = isNaN(val) ? null : val;
+                        ex.weight = weightVal;
+                        if (ex.linkId) {
+                            this.routine.forEach(r => {
+                                if (r.linkId === ex.linkId) r.weight = weightVal;
+                            });
+                        }
                         this.saveData('gym_routine');
+                        this.renderRoutine();
                     }
                 } else if (target.classList.contains('routine-reps-input')) {
                     const id = parseInt(target.getAttribute('data-id'));
                     const val = parseInt(target.value);
                     const ex = this.routine.find(r => r.id === id);
                     if (ex) {
-                        ex.reps = isNaN(val) ? null : val;
+                        const repsVal = isNaN(val) ? null : val;
+                        ex.reps = repsVal;
+                        if (ex.linkId) {
+                            this.routine.forEach(r => {
+                                if (r.linkId === ex.linkId) r.reps = repsVal;
+                            });
+                        }
                         this.saveData('gym_routine');
+                        this.renderRoutine();
                     }
                 } else if (target.classList.contains('routine-series-input')) {
                     const id = parseInt(target.getAttribute('data-id'));
                     const val = parseInt(target.value);
                     const ex = this.routine.find(r => r.id === id);
                     if (ex) {
-                        ex.series = isNaN(val) || val < 1 ? 3 : val;
+                        const seriesVal = isNaN(val) || val < 1 ? 3 : val;
+                        ex.series = seriesVal;
+                        if (ex.linkId) {
+                            this.routine.forEach(r => {
+                                if (r.linkId === ex.linkId) r.series = seriesVal;
+                            });
+                        }
                         this.saveData('gym_routine');
+                        this.renderRoutine();
                     }
                 } else if (target.classList.contains('routine-name-input')) {
                     const id = parseInt(target.getAttribute('data-id'));
@@ -3052,7 +3104,13 @@ class GymModule {
                     const ex = this.routine.find(r => r.id === id);
                     if (ex && val) {
                         ex.name = val;
+                        if (ex.linkId) {
+                            this.routine.forEach(r => {
+                                if (r.linkId === ex.linkId) r.name = val;
+                            });
+                        }
                         this.saveData('gym_routine');
+                        this.renderRoutine();
                     }
                 }
             });
@@ -3065,14 +3123,31 @@ class GymModule {
                     const name = input.value.trim();
                     if (!name) return;
 
+                    const linkId = 'link_' + Date.now();
+
                     this.routine.push({
                         id: Date.now(),
+                        linkId,
                         day,
                         name,
                         weight: null,
                         reps: null,
                         series: 3
                     });
+
+                    const links = { 'Lunes': 'Jueves', 'Jueves': 'Lunes', 'Martes': 'Viernes', 'Viernes': 'Martes' };
+                    const pairedDay = links[day];
+                    if (pairedDay) {
+                        this.routine.push({
+                            id: Date.now() + 1,
+                            linkId,
+                            day: pairedDay,
+                            name,
+                            weight: null,
+                            reps: null,
+                            series: 3
+                        });
+                    }
 
                     this.saveData('gym_routine');
                     this.renderRoutine();
@@ -3668,7 +3743,12 @@ class GymModule {
 
     deleteRoutine(id) {
         if (confirm('¿Seguro que querés quitar este ejercicio de la rutina?')) {
-            this.routine = this.routine.filter(r => r.id !== id);
+            const ex = this.routine.find(r => r.id === id);
+            if (ex && ex.linkId) {
+                this.routine = this.routine.filter(r => r.linkId !== ex.linkId);
+            } else {
+                this.routine = this.routine.filter(r => r.id !== id);
+            }
             this.saveData('gym_routine');
             this.renderRoutine();
         }
