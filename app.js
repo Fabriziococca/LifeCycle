@@ -3046,6 +3046,14 @@ class GymModule {
                         ex.series = isNaN(val) || val < 1 ? 3 : val;
                         this.saveData('gym_routine');
                     }
+                } else if (target.classList.contains('routine-name-input')) {
+                    const id = parseInt(target.getAttribute('data-id'));
+                    const val = target.value.trim();
+                    const ex = this.routine.find(r => r.id === id);
+                    if (ex && val) {
+                        ex.name = val;
+                        this.saveData('gym_routine');
+                    }
                 }
             });
 
@@ -3621,7 +3629,7 @@ class GymModule {
 
                 item.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                        <span style="font-weight: 600; color: white;">${ex.name}</span>
+                        <input type="text" class="routine-name-input" data-id="${ex.id}" value="${ex.name}" style="background:transparent; border:none; border-bottom:1px solid transparent; color:white; font-weight:600; font-size:1rem; padding:2px 0; width:80%; outline:none; transition: border-color 0.2s;" onfocus="this.style.borderBottomColor='var(--primary-color)'" onblur="this.style.borderBottomColor='transparent'">
                         <button type="button" class="btn-history-delete" onclick="window.gym.deleteRoutine(${ex.id})" style="padding:0;"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </div>
                     <div class="routine-inputs-row">
