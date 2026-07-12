@@ -358,10 +358,10 @@
                         </div>
                         <div class="card-body">
                             <div class="time-display" style="margin-bottom: 0.5rem;">
-                                <span class="days-count" id="oil-remaining-km" style="font-size: 2.2rem; color: var(--status-green);">--</span>
-                                <span class="days-label">km restantes</span>
+                                <span class="days-count" id="oil-remaining-time" style="font-size: 2.2rem; color: var(--status-green);">--</span>
+                                <span id="oil-remaining-time-label" class="days-label">días restantes</span>
                             </div>
-                            <div class="days-info" id="oil-remaining-days" style="margin-bottom: 1.5rem;">-- días restantes</div>
+                            <div class="days-info" id="oil-remaining-km-info" style="margin-bottom: 1.5rem;">-- km restantes</div>
 
                             <div class="date-info-container" style="margin-bottom: 1.5rem;">
                                 <div class="date-info">
@@ -490,33 +490,42 @@
                             </div>
                             <h3>Fluidos y Seguridad</h3>
                         </div>
-                        <div class="card-body" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                        <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
                             <!-- Refrigerante -->
-                            <div style="border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
-                                <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Refrigerante de Motor</h4>
+                            <div class="vehicle-info-card" id="fluid-card-refrigerante">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem;">
+                                    <i class="ph ph-thermometer-cold" style="font-size: 1.2rem; color: var(--primary-color);"></i>
+                                    <h4 style="font-size: 0.95rem; font-weight:600; margin: 0; color: white;">Refrigerante de Motor</h4>
+                                </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                                    <div id="fluid-refrigerante-elapsed" class="days-info" style="margin: 0; font-size: 0.85rem;">-- días desde última revisión</div>
+                                    <div id="fluid-refrigerante-elapsed" class="days-info" style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">-- días desde última revisión</div>
                                     <span id="fluid-refrigerante-badge" class="badge">--</span>
                                 </div>
                                 <button id="btn-check-refrigerante" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0; width: 100%;">Revisado / Cargado hoy</button>
                             </div>
 
                             <!-- Sapito -->
-                            <div style="border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
-                                <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Limpiavidrios (Sapito)</h4>
+                            <div class="vehicle-info-card" id="fluid-card-sapito">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem;">
+                                    <i class="ph ph-drop" style="font-size: 1.2rem; color: var(--primary-color);"></i>
+                                    <h4 style="font-size: 0.95rem; font-weight:600; margin: 0; color: white;">Limpiavidrios (Sapito)</h4>
+                                </div>
                                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
-                                    <div id="fluid-sapito-elapsed" class="days-info" style="margin: 0; font-size: 0.85rem;">-- días desde última revisión</div>
+                                    <div id="fluid-sapito-elapsed" class="days-info" style="margin: 0; font-size: 0.85rem; color: var(--text-secondary);">-- días desde última revisión</div>
                                     <span id="fluid-sapito-badge" class="badge">--</span>
                                 </div>
                                 <button id="btn-check-sapito" class="btn btn-record" style="padding: 0.5rem; font-size: 0.85rem; margin-bottom: 0; width: 100%;">Revisado / Cargado hoy</button>
                             </div>
 
                             <!-- Extintor -->
-                            <div>
-                                <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Matafuegos (Extintor)</h4>
-                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem; font-size: 0.85rem;">
-                                    <span>Vence: <strong id="extintor-exp-date">Nunca</strong></span>
-                                    <span id="extintor-remaining" style="font-weight:600; font-size: 0.8rem;">-- días rest.</span>
+                            <div class="vehicle-info-card" id="fluid-card-extintor">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem;">
+                                    <i class="ph ph-fire-extinguisher" style="font-size: 1.2rem; color: var(--primary-color);"></i>
+                                    <h4 style="font-size: 0.95rem; font-weight:600; margin: 0; color: white;">Matafuegos (Extintor)</h4>
+                                </div>
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; font-size: 0.85rem;">
+                                    <span style="color: var(--text-secondary);">Vence: <strong id="extintor-exp-date" style="color: white;">Nunca</strong></span>
+                                    <span id="extintor-remaining" style="font-weight:600; font-size: 0.85rem; color: var(--text-secondary);">-- días rest.</span>
                                 </div>
                                 <div style="display: flex; gap: 0.5rem; align-items: center;">
                                     <input type="date" id="extintor-date-input" class="date-input" style="flex: 2; padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0;">
@@ -535,13 +544,14 @@
                         <div class="icon-container">
                             <i class="ph ph-file-text"></i>
                         </div>
-                        <h3>Documentación Personal y del Auto</h3>
-                    </div>
-                    <div class="card-body" style="display: flex; flex-direction: column; gap: 1.5rem;">
+                         <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
                         <!-- DNI -->
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                        <div class="vehicle-info-card" id="doc-card-dni" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                             <div style="flex: 1; min-width: 200px;">
-                                <h4 style="font-size: 0.95rem; font-weight:600; margin: 0 0 0.25rem 0; color: white;">DNI (Documento Nacional de Identidad)</h4>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.25rem;">
+                                    <i class="ph ph-identification-card" style="font-size: 1.2rem; color: var(--primary-color);"></i>
+                                    <h4 style="font-size: 0.95rem; font-weight:600; margin: 0; color: white;">DNI (Documento Nacional de Identidad)</h4>
+                                </div>
                                 <div style="font-size: 0.85rem; color: var(--text-secondary);">
                                     Vence: <strong id="doc-dni-date" style="color: white;">No registrado</strong>
                                 </div>
@@ -554,9 +564,12 @@
                         </div>
 
                         <!-- Registro -->
-                        <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+                        <div class="vehicle-info-card" id="doc-card-license" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                             <div style="flex: 1; min-width: 200px;">
-                                <h4 style="font-size: 0.95rem; font-weight:600; margin: 0 0 0.25rem 0; color: white;">Registro de Conducir</h4>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.25rem;">
+                                    <i class="ph ph-cardholder" style="font-size: 1.2rem; color: var(--primary-color);"></i>
+                                    <h4 style="font-size: 0.95rem; font-weight:600; margin: 0; color: white;">Registro de Conducir</h4>
+                                </div>
                                 <div style="font-size: 0.85rem; color: var(--text-secondary);">
                                     Vence: <strong id="doc-license-date" style="color: white;">No registrado</strong>
                                 </div>
@@ -569,9 +582,12 @@
                         </div>
 
                         <!-- Seguro -->
-                        <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                        <div class="vehicle-info-card" id="doc-card-insurance" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                             <div style="flex: 1; min-width: 200px;">
-                                <h4 style="font-size: 0.95rem; font-weight:600; margin: 0 0 0.25rem 0; color: white;">Seguro del Auto (Renovación/Pago)</h4>
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.25rem;">
+                                    <i class="ph ph-shield-checkered" style="font-size: 1.2rem; color: var(--primary-color);"></i>
+                                    <h4 style="font-size: 0.95rem; font-weight:600; margin: 0; color: white;">Seguro del Auto (Renovación/Pago)</h4>
+                                </div>
                                 <div style="font-size: 0.85rem; color: var(--text-secondary);">
                                     Vence: <strong id="doc-insurance-date" style="color: white;">No registrado</strong>
                                 </div>
@@ -580,6 +596,24 @@
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
                                 <input type="date" id="doc-insurance-input" class="date-input" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
                                 <button class="btn btn-primary btn-save-doc" data-doc="insurance" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
+                            </div>
+                        </div>
+
+                        <!-- VTV -->
+                        <div class="vehicle-info-card" id="doc-card-vtv" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
+                            <div style="flex: 1; min-width: 200px;">
+                                <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.25rem;">
+                                    <i class="ph ph-wrench" style="font-size: 1.2rem; color: var(--primary-color);"></i>
+                                    <h4 style="font-size: 0.95rem; font-weight:600; margin: 0; color: white;">VTV (Verificación Técnica Vehicular)</h4>
+                                </div>
+                                <div style="font-size: 0.85rem; color: var(--text-secondary);">
+                                    Vence: <strong id="doc-vtv-date" style="color: white;">No registrado</strong>
+                                </div>
+                                <div id="doc-vtv-days" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">--</div>
+                            </div>
+                            <div style="display: flex; gap: 0.5rem; align-items: center;">
+                                <input type="date" id="doc-vtv-input" class="date-input" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
+                                <button class="btn btn-primary btn-save-doc" data-doc="vtv" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
                             </div>
                         </div>
                     </div>

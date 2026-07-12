@@ -2025,8 +2025,9 @@ class VehicleModule {
 
         this.odometerInput = document.getElementById('vehicle-odometer-input');
         
-        this.oilRemainingKm = document.getElementById('oil-remaining-km');
-        this.oilRemainingDays = document.getElementById('oil-remaining-days');
+        this.oilRemainingTime = document.getElementById('oil-remaining-time');
+        this.oilRemainingTimeLabel = document.getElementById('oil-remaining-time-label');
+        this.oilRemainingKmInfo = document.getElementById('oil-remaining-km-info');
         this.oilLastService = document.getElementById('oil-last-service');
         this.oilNextService = document.getElementById('oil-next-service');
         
@@ -2087,6 +2088,10 @@ class VehicleModule {
         this.docInsuranceDays = document.getElementById('doc-insurance-days');
         this.docInsuranceInput = document.getElementById('doc-insurance-input');
 
+        this.docVtvDate = document.getElementById('doc-vtv-date');
+        this.docVtvDays = document.getElementById('doc-vtv-days');
+        this.docVtvInput = document.getElementById('doc-vtv-input');
+
         // Issues UI Elements
         this.addIssueForm = document.getElementById('vehicle-add-issue-form');
         this.issueTitleInput = document.getElementById('issue-title-input');
@@ -2115,6 +2120,7 @@ class VehicleModule {
             dniExpDate: "",
             licenseExpDate: "",
             insuranceExpDate: "",
+            vtvExpDate: "",
             extintorDate: "",
             refrigeranteDate: "",
             sapitoDate: ""
@@ -2262,6 +2268,9 @@ class VehicleModule {
                 } else if (docType === 'insurance') {
                     inputEl = this.docInsuranceInput;
                     key = 'insuranceExpDate';
+                } else if (docType === 'vtv') {
+                    inputEl = this.docVtvInput;
+                    key = 'vtvExpDate';
                 }
 
                 if (inputEl && inputEl.value) {
@@ -2456,6 +2465,7 @@ class VehicleModule {
         // Refrigerante
         const refDate = this.trackerData.refrigeranteDate;
         const refDays = refDate ? this.calculateDaysElapsed(refDate) : null;
+        const cardRef = document.getElementById('fluid-card-refrigerante');
         if (this.refrigeranteElapsed) {
             this.refrigeranteElapsed.innerText = refDays !== null ? `${refDays} días desde última revisión` : 'Sin registros de revisión';
         }
@@ -2464,21 +2474,26 @@ class VehicleModule {
             if (refDays === null) {
                 this.refrigeranteBadge.innerText = 'N/A';
                 this.refrigeranteBadge.classList.add('gray');
+                if (cardRef) cardRef.style.borderLeftColor = 'var(--surface-border)';
             } else if (refDays >= 90) {
                 this.refrigeranteBadge.innerText = 'REVISAR';
                 this.refrigeranteBadge.classList.add('red');
+                if (cardRef) cardRef.style.borderLeftColor = 'var(--status-red)';
             } else if (refDays >= 75) {
                 this.refrigeranteBadge.innerText = 'PRONTO';
                 this.refrigeranteBadge.classList.add('orange');
+                if (cardRef) cardRef.style.borderLeftColor = 'var(--status-orange)';
             } else {
                 this.refrigeranteBadge.innerText = 'OK';
                 this.refrigeranteBadge.classList.add('green');
+                if (cardRef) cardRef.style.borderLeftColor = 'var(--status-green)';
             }
         }
 
         // Sapito
         const sapDate = this.trackerData.sapitoDate;
         const sapDays = sapDate ? this.calculateDaysElapsed(sapDate) : null;
+        const cardSap = document.getElementById('fluid-card-sapito');
         if (this.sapitoElapsed) {
             this.sapitoElapsed.innerText = sapDays !== null ? `${sapDays} días desde última revisión` : 'Sin registros de revisión';
         }
@@ -2487,21 +2502,26 @@ class VehicleModule {
             if (sapDays === null) {
                 this.sapitoBadge.innerText = 'N/A';
                 this.sapitoBadge.classList.add('gray');
+                if (cardSap) cardSap.style.borderLeftColor = 'var(--surface-border)';
             } else if (sapDays >= 45) {
                 this.sapitoBadge.innerText = 'REVISAR';
                 this.sapitoBadge.classList.add('red');
+                if (cardSap) cardSap.style.borderLeftColor = 'var(--status-red)';
             } else if (sapDays >= 35) {
                 this.sapitoBadge.innerText = 'PRONTO';
                 this.sapitoBadge.classList.add('orange');
+                if (cardSap) cardSap.style.borderLeftColor = 'var(--status-orange)';
             } else {
                 this.sapitoBadge.innerText = 'OK';
                 this.sapitoBadge.classList.add('green');
+                if (cardSap) cardSap.style.borderLeftColor = 'var(--status-green)';
             }
         }
 
         // Extintor
         const extDate = this.trackerData.extintorDate;
         const extRemaining = extDate ? this.calculateDaysUntil(extDate) : null;
+        const cardExt = document.getElementById('fluid-card-extintor');
         if (this.extintorExpDate) {
             this.extintorExpDate.innerText = extDate ? this.formatDate(extDate) : 'No registrado';
         }
@@ -2509,15 +2529,19 @@ class VehicleModule {
             if (extRemaining === null) {
                 this.extintorRemaining.innerText = '--';
                 this.extintorRemaining.style.color = 'var(--text-secondary)';
+                if (cardExt) cardExt.style.borderLeftColor = 'var(--surface-border)';
             } else if (extRemaining <= 0) {
                 this.extintorRemaining.innerText = `⚠️ Vencido (hace ${Math.abs(extRemaining)} días)`;
                 this.extintorRemaining.style.color = 'var(--status-red)';
+                if (cardExt) cardExt.style.borderLeftColor = 'var(--status-red)';
             } else if (extRemaining <= 30) {
                 this.extintorRemaining.innerText = `⚠️ Vence en ${extRemaining} días`;
                 this.extintorRemaining.style.color = 'var(--status-orange)';
+                if (cardExt) cardExt.style.borderLeftColor = 'var(--status-orange)';
             } else {
                 this.extintorRemaining.innerText = `${extRemaining} días restantes`;
                 this.extintorRemaining.style.color = 'var(--status-green)';
+                if (cardExt) cardExt.style.borderLeftColor = 'var(--status-green)';
             }
         }
         if (this.extintorDateInput) {
@@ -2527,14 +2551,16 @@ class VehicleModule {
 
     renderDocs() {
         const docs = [
-            { key: 'dniExpDate', dateEl: this.docDniDate, daysEl: this.docDniDays, inputEl: this.docDniInput, label: 'DNI' },
-            { key: 'licenseExpDate', dateEl: this.docLicenseDate, daysEl: this.docLicenseDays, inputEl: this.docLicenseInput, label: 'Registro de Conducir' },
-            { key: 'insuranceExpDate', dateEl: this.docInsuranceDate, daysEl: this.docInsuranceDays, inputEl: this.docInsuranceInput, label: 'Seguro' }
+            { key: 'dniExpDate', dateEl: this.docDniDate, daysEl: this.docDniDays, inputEl: this.docDniInput, label: 'DNI', cardId: 'doc-card-dni' },
+            { key: 'licenseExpDate', dateEl: this.docLicenseDate, daysEl: this.docLicenseDays, inputEl: this.docLicenseInput, label: 'Registro de Conducir', cardId: 'doc-card-license' },
+            { key: 'insuranceExpDate', dateEl: this.docInsuranceDate, daysEl: this.docInsuranceDays, inputEl: this.docInsuranceInput, label: 'Seguro', cardId: 'doc-card-insurance' },
+            { key: 'vtvExpDate', dateEl: this.docVtvDate, daysEl: this.docVtvDays, inputEl: this.docVtvInput, label: 'VTV', cardId: 'doc-card-vtv' }
         ];
 
         docs.forEach(d => {
             const expDate = this.trackerData[d.key];
             const remaining = expDate ? this.calculateDaysUntil(expDate) : null;
+            const cardEl = document.getElementById(d.cardId);
 
             if (d.dateEl) {
                 d.dateEl.innerText = expDate ? this.formatDate(expDate) : 'No registrado';
@@ -2547,18 +2573,23 @@ class VehicleModule {
                 if (remaining === null) {
                     d.daysEl.innerText = 'Sin registrar fecha de vencimiento.';
                     d.daysEl.style.color = 'var(--text-secondary)';
+                    if (cardEl) cardEl.style.borderLeftColor = 'var(--surface-border)';
                 } else if (remaining <= 0) {
                     d.daysEl.innerText = `⚠️ VENCIDO (hace ${Math.abs(remaining)} días). Renovar urgente.`;
                     d.daysEl.style.color = 'var(--status-red)';
+                    if (cardEl) cardEl.style.borderLeftColor = 'var(--status-red)';
                 } else if (remaining <= 30) {
                     d.daysEl.innerText = `⚠️ Vence en ${remaining} días. Recordar renovar.`;
                     d.daysEl.style.color = 'var(--status-red)';
+                    if (cardEl) cardEl.style.borderLeftColor = 'var(--status-red)';
                 } else if (remaining <= 90) {
                     d.daysEl.innerText = `Vence en ${remaining} días.`;
                     d.daysEl.style.color = 'var(--status-orange)';
+                    if (cardEl) cardEl.style.borderLeftColor = 'var(--status-orange)';
                 } else {
                     d.daysEl.innerText = `Vence en ${remaining} días. Todo OK.`;
                     d.daysEl.style.color = 'var(--status-green)';
+                    if (cardEl) cardEl.style.borderLeftColor = 'var(--status-green)';
                 }
             }
         });
@@ -2675,18 +2706,28 @@ class VehicleModule {
 
             if (elCard) elCard.style.borderColor = colorVar;
 
-            if (this.oilRemainingKm) {
-                this.oilRemainingKm.innerText = remainingKm.toLocaleString('es-AR') + ' km';
-                this.oilRemainingKm.style.color = colorVar;
+            if (this.oilRemainingTime) {
+                this.oilRemainingTime.style.color = colorVar;
+                if (remainingDays <= 0) {
+                    this.oilRemainingTime.innerText = 'Vencido';
+                    if (this.oilRemainingTimeLabel) {
+                        this.oilRemainingTimeLabel.innerText = `hace ${Math.abs(remainingDays)} días (1 año máx.)`;
+                    }
+                } else {
+                    this.oilRemainingTime.innerText = `${remainingDays}`;
+                    if (this.oilRemainingTimeLabel) {
+                        this.oilRemainingTimeLabel.innerText = `días restantes (1 año máx.)`;
+                    }
+                }
             }
 
-            if (this.oilRemainingDays) {
-                if (remainingDays <= 0) {
-                    this.oilRemainingDays.innerText = `Plazo vencido por tiempo (${Math.abs(remainingDays)} días transcurridos del año)`;
-                    this.oilRemainingDays.style.color = 'var(--status-red)';
+            if (this.oilRemainingKmInfo) {
+                if (remainingKm <= 0) {
+                    this.oilRemainingKmInfo.innerHTML = `⚠️ Km excedido por <strong>${Math.abs(remainingKm).toLocaleString('es-AR')} km</strong>`;
+                    this.oilRemainingKmInfo.style.color = 'var(--status-red)';
                 } else {
-                    this.oilRemainingDays.innerText = `Equivale a aprox. ${remainingDays} días restantes (1 año máx.)`;
-                    this.oilRemainingDays.style.color = 'var(--text-secondary)';
+                    this.oilRemainingKmInfo.innerHTML = `Equivale a <strong>${remainingKm.toLocaleString('es-AR')} km</strong> restantes (límite 10.000 km)`;
+                    this.oilRemainingKmInfo.style.color = 'var(--text-secondary)';
                 }
             }
 
@@ -2699,11 +2740,15 @@ class VehicleModule {
             }
         } else {
             if (elCard) elCard.style.borderColor = 'var(--surface-border)';
-            if (this.oilRemainingKm) {
-                this.oilRemainingKm.innerText = '-- km';
-                this.oilRemainingKm.style.color = 'var(--status-green)';
+            if (this.oilRemainingTime) {
+                this.oilRemainingTime.innerText = '--';
+                this.oilRemainingTime.style.color = 'var(--status-green)';
             }
-            if (this.oilRemainingDays) this.oilRemainingDays.innerText = 'Sin registros de cambio';
+            if (this.oilRemainingTimeLabel) this.oilRemainingTimeLabel.innerText = 'días restantes';
+            if (this.oilRemainingKmInfo) {
+                this.oilRemainingKmInfo.innerText = '-- km restantes';
+                this.oilRemainingKmInfo.style.color = 'var(--text-secondary)';
+            }
             if (this.oilLastService) this.oilLastService.innerText = 'Nunca';
             if (this.oilNextService) this.oilNextService.innerText = 'N/A';
         }

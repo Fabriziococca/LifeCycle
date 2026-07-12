@@ -2347,4 +2347,22 @@ select option {
     transform: rotate(45deg);
 }
 
+/* ==========================================================================
+   Rediseño Vehículo: Tarjetas de Información
+   ========================================================================== */
+.vehicle-info-card {
+    padding: 1.25rem;
+    background: rgba(30, 41, 59, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-left: 4px solid var(--surface-border);
+    border-radius: 8px;
+    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.vehicle-info-card:hover {
+    background: rgba(30, 41, 59, 0.35);
+    border-color: rgba(255, 255, 255, 0.08);
+    transform: translateY(-2px);
+}
+
 

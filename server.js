@@ -736,6 +736,14 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                     body = `Tu seguro debe renovarse en ${insDays} días (${tracker.insuranceExpDate}).`;
                                 }
                             }
+                            if (tracker.vtvExpDate) {
+                                const vtvDays = getDaysUntil(tracker.vtvExpDate);
+                                if (vtvDays !== null && vtvDays <= 30 && vtvDays > 0) {
+                                    shouldNotify = true;
+                                    title = '🚗 Vencimiento VTV';
+                                    body = `Tu VTV vence en ${vtvDays} días (${tracker.vtvExpDate}).`;
+                                }
+                            }
                             break;
                         case 'vehicle_fluids_check':
                             const trk = data.vehicle_tracker_data || {};
