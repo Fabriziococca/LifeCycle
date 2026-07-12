@@ -2608,30 +2608,25 @@ class VehicleModule {
 
         activeIssues.forEach(issue => {
             const div = document.createElement('div');
-            div.className = 'routine-exercise-item';
-            div.style.display = 'flex';
-            div.style.justifyContent = 'space-between';
-            div.style.alignItems = 'center';
-            div.style.padding = '10px';
-            div.style.background = 'rgba(255,255,255,0.02)';
-            div.style.border = '1px solid var(--surface-border)';
-            div.style.borderRadius = '6px';
+            div.className = 'vehicle-issue-item';
 
             const urgencyBadge = issue.urgency === 'alta' 
-                ? '<span class="badge red" style="margin-left: 8px; font-size: 0.7rem;">URGENCIA ALTA</span>' 
-                : '<span class="badge gray" style="margin-left: 8px; font-size: 0.7rem;">Baja Urgencia</span>';
+                ? '<span class="badge red">Urgencia Alta</span>' 
+                : '<span class="badge gray">Baja Urgencia</span>';
 
             const dateStr = this.formatDate(issue.createdAt);
 
             div.innerHTML = `
-                <div>
-                    <div style="display:flex; align-items:center; flex-wrap:wrap;">
-                        <strong style="color:white; font-size:0.9rem;">${issue.title}</strong>
+                <div class="vehicle-issue-content">
+                    <div class="vehicle-issue-title-row">
+                        <strong style="color:white; font-size:0.95rem;">${issue.title}</strong>
                         ${urgencyBadge}
                     </div>
-                    <div style="font-size:0.75rem; color:var(--text-secondary); margin-top:2px;">Reportado el: ${dateStr}</div>
+                    <div class="vehicle-issue-meta">
+                        <span><i class="ph ph-calendar-blank" style="vertical-align: middle; margin-right: 4px;"></i>Reportado el: ${dateStr}</span>
+                    </div>
                 </div>
-                <button class="btn btn-secondary" onclick="window.vehicle.resolveIssue('${issue.id}')" style="margin:0; padding:6px 12px; height:auto; font-size:0.8rem; background: var(--status-green); color: white;">
+                <button class="btn-solve" onclick="window.vehicle.resolveIssue('${issue.id}')">
                     <i class="ph ph-check-circle"></i> Solucionar
                 </button>
             `;
@@ -7881,11 +7876,14 @@ class AppController {
         this.modalCancel = document.getElementById('modal-cancel');
         this.modalSave = document.getElementById('modal-save');
         
+        this.lastActiveSectionId = 'higiene-section';
+        
         this.initNavigation();
         this.initModalListeners();
         this.deferredPrompt = null;
         this.initPWAInstall();
         this.initProfileTabs();
+        this.initProfileOverlay();
     }
 
     initNavigation() {
@@ -7900,6 +7898,7 @@ class AppController {
             btn.classList.add('active');
 
             const activeSectionId = btn.dataset.section;
+            this.lastActiveSectionId = activeSectionId;
             document.querySelectorAll('.main-section').forEach(sec => {
                 sec.classList.toggle('hidden', sec.id !== activeSectionId);
             });
@@ -7945,6 +7944,54 @@ class AppController {
                 this.alerts.render();
             }
         });
+    }
+
+    initProfileOverlay() {
+        const profileBtn = document.getElementById('profile-btn');
+        const backBtn = document.getElementById('btn-back-to-modules');
+        const mainNav = document.getElementById('main-nav');
+
+        if (profileBtn) {
+            profileBtn.addEventListener('click', () => {
+                if (mainNav) mainNav.classList.add('hidden');
+                document.querySelectorAll('.main-section').forEach(sec => {
+                    sec.classList.add('hidden');
+                });
+                const profileSec = document.getElementById('perfil-section');
+                if (profileSec) {
+                    profileSec.classList.remove('hidden');
+                    const activeMenu = document.querySelector('.profile-sidebar .profile-menu-item.active');
+                    const targetTab = activeMenu ? activeMenu.dataset.tab : 'cuenta';
+                    if (targetTab === 'alertas') {
+                        this.alerts.render();
+                    }
+                }
+            });
+        }
+
+        if (backBtn) {
+            backBtn.addEventListener('click', () => {
+                if (mainNav) mainNav.classList.remove('hidden');
+                const profileSec = document.getElementById('perfil-section');
+                if (profileSec) profileSec.classList.add('hidden');
+                
+                const targetSecId = this.lastActiveSectionId || 'higiene-section';
+                const targetSec = document.getElementById(targetSecId);
+                if (targetSec) targetSec.classList.remove('hidden');
+                
+                if (targetSecId === 'cuidado-section') this.grooming.render();
+                else if (targetSecId === 'lenses-section') {
+                    this.lenses.updateUI();
+                    this.lenses.loadDatesAndStock();
+                    this.lenses.renderHistory();
+                } else if (targetSecId === 'higiene-section') this.hygiene.render();
+                else if (targetSecId === 'salud-section') this.health.render();
+                else if (targetSecId === 'vehiculo-section') this.vehicle.render();
+                else if (targetSecId === 'gym-section') this.gym.render();
+                else if (targetSecId === 'projects-section') this.projects.render();
+                else if (targetSecId === 'finanzas-section') this.finanzas.render();
+            });
+        }
     }
 
     openEditModal(type, id, displayName, currentDateVal) {

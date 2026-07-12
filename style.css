@@ -2365,4 +2365,111 @@ select option {
     transform: translateY(-2px);
 }
 
+/* ==========================================================================
+   Botón de Perfil en la Esquina Superior Izquierda
+   ========================================================================== */
+.profile-wrapper {
+    position: absolute;
+    top: 2rem;
+    left: 1.5rem;
+    z-index: 100;
+}
+
+.profile-corner-btn {
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: rgba(30, 41, 59, 0.75);
+    border: 1px solid var(--surface-border);
+    color: var(--text-primary);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: pointer;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.profile-corner-btn:hover {
+    background: rgba(51, 65, 85, 0.85);
+    border-color: var(--primary-color);
+    transform: scale(1.05);
+    color: var(--primary-color);
+}
+
+@media (max-width: 768px) {
+    .profile-wrapper {
+        top: 1rem;
+        left: 1rem;
+    }
+}
+
+/* ==========================================================================
+   Rediseño de Falla / Pendiente Vehicular
+   ========================================================================== */
+.vehicle-issue-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 1rem 1.25rem;
+    background: rgba(30, 41, 59, 0.2);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.vehicle-issue-item:hover {
+    background: rgba(30, 41, 59, 0.35);
+}
+
+.vehicle-issue-content {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+    flex: 1;
+    padding-right: 1.5rem;
+}
+
+.vehicle-issue-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    flex-wrap: wrap;
+}
+
+.vehicle-issue-meta {
+    display: flex;
+    align-items: center;
+    gap: 15px;
+    font-size: 0.78rem;
+    color: var(--text-secondary);
+}
+
+.btn-solve {
+    padding: 6px 16px;
+    height: 36px;
+    border-radius: 6px;
+    font-size: 0.85rem;
+    font-weight: 600;
+    background: rgba(16, 185, 129, 0.1);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    color: #34d399;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    white-space: nowrap;
+}
+
+.btn-solve:hover {
+    background: #10b981;
+    color: white;
+    border-color: #10b981;
+    box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
+}
+
 

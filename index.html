@@ -28,8 +28,14 @@
         <div class="glow-orb orb-1"></div>
         <div class="glow-orb orb-2"></div>
     </div>
-
     <main class="container">
+        <!-- Botón de Perfil en la Esquina Superior Izquierda -->
+        <div class="profile-wrapper">
+            <button id="profile-btn" class="profile-corner-btn" title="Configuración de Perfil">
+                <i class="ph ph-user"></i>
+            </button>
+        </div>
+
         <!-- Centro de Notificaciones (Tareas Críticas en Rojo) -->
         <div class="notifications-wrapper">
             <button id="notification-bell-btn" class="bell-btn" title="Tareas Críticas Pendientes">
@@ -79,9 +85,6 @@
             </button>
             <button class="nav-btn" data-section="finanzas-section">
                 <i class="ph ph-trend-up"></i> Finanzas
-            </button>
-            <button class="nav-btn" data-section="perfil-section">
-                <i class="ph ph-user-circle"></i> Perfil
             </button>
         </nav>
 
@@ -1478,6 +1481,9 @@
 
         <!-- SECCIÓN 4: AJUSTES Y MIGRACIÓN -->
         <section id="perfil-section" class="main-section hidden">
+            <button id="btn-back-to-modules" class="btn btn-secondary" style="margin-bottom: 2rem; display: flex; align-items: center; gap: 8px; font-weight: 600;">
+                <i class="ph ph-arrow-left"></i> Volver a los Módulos
+            </button>
             <div class="profile-layout">
                 <!-- Barra lateral (Sidebar) / Navegación superior en móvil -->
                 <aside class="profile-sidebar">
