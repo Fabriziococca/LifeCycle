@@ -892,7 +892,6 @@ class GroomingModule {
         this.barbaSection = document.getElementById('barba-section');
         this.gridSection = document.getElementById('cuidado-grid-section');
         this.toolsSection = document.getElementById('cuidado-tools-section');
-        this.btnFullReset = document.getElementById('btn-full-reset');
         
         this.init();
     }
@@ -1141,22 +1140,6 @@ class GroomingModule {
     }
 
     init() {
-        if (this.btnFullReset) {
-            this.btnFullReset.addEventListener('click', () => {
-                if (confirm('¿Hiciste un service corporal completo HOY? Se actualizarán todas las zonas.')) {
-                    if (navigator.vibrate) navigator.vibrate([50, 50, 50]);
-                    const now = new Date().toISOString();
-                    ZONES.forEach(zone => {
-                        if (zone.isTool) return;
-                        if (!this.data[zone.id]) this.data[zone.id] = [];
-                        this.data[zone.id].unshift(now);
-                        if (this.data[zone.id].length > 10) this.data[zone.id].pop();
-                    });
-                    this.saveData();
-                    this.render();
-                }
-            });
-        }
         this.render();
     }
 }
@@ -5796,17 +5779,21 @@ class BackupModule {
             health_blood_tests: localStorage.getItem('health_blood_tests'),
             vehicle_odometer: localStorage.getItem('vehicle_odometer'),
             vehicle_maintenance_log: localStorage.getItem('vehicle_maintenance_log'),
+            vehicle_tracker_data: localStorage.getItem('vehicle_tracker_data'),
+            vehicle_issues: localStorage.getItem('vehicle_issues'),
             gym_records: localStorage.getItem('gym_records'),
             gym_routine: localStorage.getItem('gym_routine'),
             gym_routine_focus: localStorage.getItem('gym_routine_focus'),
             gym_sessions: localStorage.getItem('gym_sessions'),
             gym_meals: localStorage.getItem('gym_meals'),
+            gym_general_meals: localStorage.getItem('gym_general_meals'),
             gym_supplements: localStorage.getItem('gym_supplements'),
             gym_weight: localStorage.getItem('gym_weight'),
             projectPulseData: localStorage.getItem('projectPulseData'),
             projectPulseHistory: localStorage.getItem('projectPulseHistory'),
             projectPulseSubscription: localStorage.getItem('projectPulseSubscription'),
             alerts_config: localStorage.getItem('alerts_config'),
+            alerts_sent_log: localStorage.getItem('alerts_sent_log'),
             finanzasData: localStorage.getItem('finanzasData')
         };
 
@@ -5896,6 +5883,20 @@ class BackupModule {
                     localStorage.setItem('vehicle_maintenance_log', dataVal);
                     vehicleFound = true;
                 }
+                if (rawData.vehicle_tracker_data) {
+                    const dataVal = typeof rawData.vehicle_tracker_data === 'string' 
+                        ? rawData.vehicle_tracker_data 
+                        : JSON.stringify(rawData.vehicle_tracker_data);
+                    localStorage.setItem('vehicle_tracker_data', dataVal);
+                    vehicleFound = true;
+                }
+                if (rawData.vehicle_issues) {
+                    const dataVal = typeof rawData.vehicle_issues === 'string' 
+                        ? rawData.vehicle_issues 
+                        : JSON.stringify(rawData.vehicle_issues);
+                    localStorage.setItem('vehicle_issues', dataVal);
+                    vehicleFound = true;
+                }
                 if (vehicleFound) {
                     importedCategories.push("Vehículo y Mantenimiento");
                 }
@@ -5959,6 +5960,13 @@ class BackupModule {
                         : JSON.stringify(rawData.alerts_config);
                     localStorage.setItem('alerts_config', dataVal);
                     importedCategories.push("Configuración de Alertas");
+                }
+
+                if (rawData.alerts_sent_log) {
+                    const dataVal = typeof rawData.alerts_sent_log === 'string' 
+                        ? rawData.alerts_sent_log 
+                        : JSON.stringify(rawData.alerts_sent_log);
+                    localStorage.setItem('alerts_sent_log', dataVal);
                 }
 
                 if (importedCategories.length > 0) {
