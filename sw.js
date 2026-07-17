@@ -1,10 +1,25 @@
-const CACHE_NAME = 'lifecycle-cache-v3';
+const CACHE_NAME = 'lifecycle-cache-v4';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
     '/app.js',
+    '/utils.js',
+    '/shared_rules.json',
     '/style.css',
-    '/manifest.json'
+    '/manifest.json',
+    '/modules/HygieneModule.js',
+    '/modules/GroomingModule.js',
+    '/modules/LensModule.js',
+    '/modules/HealthModule.js',
+    '/modules/VehicleModule.js',
+    '/modules/GymModule.js',
+    '/modules/ProjectsModule.js',
+    '/modules/BackupModule.js',
+    '/modules/AuthSyncModule.js',
+    '/modules/FinanzasModule.js',
+    '/modules/TareasModule.js',
+    '/modules/AlertsModule.js',
+    '/modules/NotificationsCenterModule.js'
 ];
 
 self.addEventListener('install', (e) => {

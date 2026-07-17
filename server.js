@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const webpush = require('web-push');
 const { createClient } = require('@supabase/supabase-js');
+const sharedRules = require('./shared_rules.json');
 
 // Búfer en memoria para depuración de logs en Render
 const logBuffer = [];
@@ -143,6 +144,10 @@ app.get('/api/config', (req, res) => {
         supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
         vapidPublicKey: publicKey
     });
+});
+
+app.get('/api/rules', (req, res) => {
+    res.json(sharedRules);
 });
 
 // Endpoint para recibir suscripciones push (se guardan directamente en Supabase, pero este endpoint sirve por si acaso)
@@ -486,38 +491,44 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const history = Array.isArray(val) ? val : [val];
                                 if (history.length > 0) {
                                     const elapsed = getDaysElapsed(history[0]);
-                                    if (elapsed >= 30) { shouldNotify = true; title = '🧼 Esponja Africana'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
+                                    const limit = sharedRules.hygiene?.esponja_africana?.limits?.red || 30;
+                                    if (elapsed >= limit) { shouldNotify = true; title = '🧼 Esponja Africana'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
                                 }
                             }
                             break;
                         case 'toalla_mano':
                             if (hygieneData.toalla_mano) {
                                 const elapsed = getDaysElapsed(hygieneData.toalla_mano);
-                                if (elapsed >= 4) { shouldNotify = true; title = '🧼 Toalla de Mano'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
+                                const limit = sharedRules.hygiene?.toalla_mano?.limits?.red || 4;
+                                if (elapsed >= limit) { shouldNotify = true; title = '🧼 Toalla de Mano'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
                             }
                             break;
                         case 'toalla_cuerpo':
                             if (hygieneData.toalla_cuerpo) {
                                 const elapsed = getDaysElapsed(hygieneData.toalla_cuerpo);
-                                if (elapsed >= 8) { shouldNotify = true; title = '🧼 Toalla de Cuerpo'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
+                                const limit = sharedRules.hygiene?.toalla_cuerpo?.limits?.red || 8;
+                                if (elapsed >= limit) { shouldNotify = true; title = '🧼 Toalla de Cuerpo'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
                             }
                             break;
                         case 'sabanas':
                             if (hygieneData.sabanas) {
                                 const elapsed = getDaysElapsed(hygieneData.sabanas);
-                                if (elapsed >= 8) { shouldNotify = true; title = '🧼 Sábanas'; body = `Pasaron ${elapsed} días, recordá lavarlas.`; }
+                                const limit = sharedRules.hygiene?.sabanas?.limits?.red || 8;
+                                if (elapsed >= limit) { shouldNotify = true; title = '🧼 Sábanas'; body = `Pasaron ${elapsed} días, recordá lavarlas.`; }
                             }
                             break;
                         case 'funda_almohada':
                             if (hygieneData.funda_almohada) {
                                 const elapsed = getDaysElapsed(hygieneData.funda_almohada);
-                                if (elapsed >= 4) { shouldNotify = true; title = '🧼 Funda de Almohada'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
+                                const limit = sharedRules.hygiene?.funda_almohada?.limits?.red || 4;
+                                if (elapsed >= limit) { shouldNotify = true; title = '🧼 Funda de Almohada'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
                             }
                             break;
                         case 'alfombra_bano':
                             if (hygieneData.alfombra_bano) {
                                 const elapsed = getDaysElapsed(hygieneData.alfombra_bano);
-                                if (elapsed >= 15) { shouldNotify = true; title = '🧼 Alfombra de Baño'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
+                                const limit = sharedRules.hygiene?.alfombra_bano?.limits?.red || 15;
+                                if (elapsed >= limit) { shouldNotify = true; title = '🧼 Alfombra de Baño'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
                             }
                             break;
                         case 'cepillo_dientes':
@@ -526,7 +537,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const history = Array.isArray(val) ? val : [val];
                                 if (history.length > 0) {
                                     const elapsed = getDaysElapsed(history[0]);
-                                    if (elapsed >= 90) { shouldNotify = true; title = '🪥 Cepillo de Dientes'; body = `Pasaron ${elapsed} días, recordá cambiarlo.`; }
+                                    const limit = sharedRules.hygiene?.cepillo_dientes?.limits?.red || 90;
+                                    if (elapsed >= limit) { shouldNotify = true; title = '🪥 Cepillo de Dientes'; body = `Pasaron ${elapsed} días, recordá cambiarlo.`; }
                                 }
                             }
                             break;
@@ -543,7 +555,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const history = Array.isArray(val) ? val : [val];
                                 if (history.length > 0) {
                                     const elapsed = getDaysElapsed(history[0]);
-                                    if (elapsed >= 180) { shouldNotify = true; title = '💻 Computadora (Limpieza Int.)'; body = `Pasaron ${elapsed} días, recordá limpiar tu PC por dentro.`; }
+                                    const limit = sharedRules.hygiene?.compu_limpieza_int?.limits?.red || 180;
+                                    if (elapsed >= limit) { shouldNotify = true; title = '💻 Computadora (Limpieza Int.)'; body = `Pasaron ${elapsed} días, recordá limpiar tu PC por dentro.`; }
                                 }
                             }
                             break;
@@ -553,7 +566,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const history = Array.isArray(val) ? val : [val];
                                 if (history.length > 0) {
                                     const elapsed = getDaysElapsed(history[0]);
-                                    if (elapsed >= 360) { shouldNotify = true; title = '🧪 Computadora (Pasta Térmica)'; body = `Pasaron ${elapsed} días, recordá cambiar la pasta térmica de tu PC.`; }
+                                    const limit = sharedRules.hygiene?.compu_pasta_termica?.limits?.red || 360;
+                                    if (elapsed >= limit) { shouldNotify = true; title = '🧪 Computadora (Pasta Térmica)'; body = `Pasaron ${elapsed} días, recordá cambiar la pasta térmica de tu PC.`; }
                                 }
                             }
                             break;
@@ -564,70 +578,80 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             const peloHistory = groomingData.pelo || [];
                             if (peloHistory.length > 0) {
                                 const elapsed = getDaysElapsed(peloHistory[0]);
-                                if (elapsed >= 20) { shouldNotify = true; title = '💇 Corte de Pelo'; body = `Ya pasaron ${elapsed} días, te deberías cortar el pelo.`; }
+                                const limit = sharedRules.grooming?.pelo?.limits?.red || 20;
+                                if (elapsed >= limit) { shouldNotify = true; title = '💇 Corte de Pelo'; body = `Ya pasaron ${elapsed} días, te deberías cortar el pelo.`; }
                             }
                             break;
                         case 'barba':
                             const barbaHistory = groomingData.barba || [];
                             if (barbaHistory.length > 0) {
                                 const elapsed = getDaysElapsed(barbaHistory[0]);
-                                if (elapsed >= 4) { shouldNotify = true; title = '🧔 Afeitado de Barba'; body = `Sugerencia de afeitado (pasaron ${elapsed} días).`; }
+                                const limit = sharedRules.grooming?.barba?.limits?.red || 4;
+                                if (elapsed >= limit) { shouldNotify = true; title = '🧔 Afeitado de Barba'; body = `Sugerencia de afeitado (pasaron ${elapsed} días).`; }
                             }
                             break;
                         case 'axilas':
                             const axilasHistory = groomingData.axilas || [];
                             if (axilasHistory.length > 0) {
                                 const elapsed = getDaysElapsed(axilasHistory[0]);
-                                if (elapsed >= 30) { shouldNotify = true; title = '🪒 Depilación Axilas'; body = `Tiempo de rebajar el vello (hace ${elapsed} días).`; }
+                                const limit = sharedRules.grooming?.axilas?.limits?.red || 30;
+                                if (elapsed >= limit) { shouldNotify = true; title = '🪒 Depilación Axilas'; body = `Tiempo de rebajar el vello (hace ${elapsed} días).`; }
                             }
                             break;
                         case 'hoja_gillette':
                             const gilletteHistory = groomingData.hoja_gillette || [];
                             if (gilletteHistory.length > 0) {
                                 const elapsed = getDaysElapsed(gilletteHistory[0]);
-                                if (elapsed >= 30) { shouldNotify = true; title = '🪒 Hoja Gillette'; body = `Sugerimos cambiar la hoja (pasaron ${elapsed} días).`; }
+                                const limit = sharedRules.grooming?.hoja_gillette?.limits?.red || 30;
+                                if (elapsed >= limit) { shouldNotify = true; title = '🪒 Hoja Gillette'; body = `Sugerimos cambiar la hoja (pasaron ${elapsed} días).`; }
                             }
                             break;
                         case 'pecho_panza':
                             const ppHistory = groomingData.pecho_panza || [];
                             if (ppHistory.length > 0) {
                                 const elapsed = getDaysElapsed(ppHistory[0]);
-                                if (elapsed >= 60) { shouldNotify = true; title = '✂️ Depilación: Pecho y Panza'; body = `Ya pasaron ${elapsed} días, recordá depilarte pecho y panza.`; }
+                                const limit = sharedRules.grooming?.pecho_panza?.limits?.red || 60;
+                                if (elapsed >= limit) { shouldNotify = true; title = '✂️ Depilación: Pecho y Panza'; body = `Ya pasaron ${elapsed} días, recordá depilarte pecho y panza.`; }
                             }
                             break;
                         case 'brazos':
                             const brazosHistory = groomingData.brazos || [];
                             if (brazosHistory.length > 0) {
                                 const elapsed = getDaysElapsed(brazosHistory[0]);
-                                if (elapsed >= 180) { shouldNotify = true; title = '✂️ Depilación: Brazos'; body = `Ya pasaron ${elapsed} días, recordá depilarte los brazos.`; }
+                                const limit = sharedRules.grooming?.brazos?.limits?.red || 180;
+                                if (elapsed >= limit) { shouldNotify = true; title = '✂️ Depilación: Brazos'; body = `Ya pasaron ${elapsed} días, recordá depilarte los brazos.`; }
                             }
                             break;
                         case 'piernas':
                             const piernasHistory = groomingData.piernas || [];
                             if (piernasHistory.length > 0) {
                                 const elapsed = getDaysElapsed(piernasHistory[0]);
-                                if (elapsed >= 120) { shouldNotify = true; title = '✂️ Depilación: Piernas'; body = `Ya pasaron ${elapsed} días, recordá depilarte las piernas.`; }
+                                const limit = sharedRules.grooming?.piernas?.limits?.red || 120;
+                                if (elapsed >= limit) { shouldNotify = true; title = '✂️ Depilación: Piernas'; body = `Ya pasaron ${elapsed} días, recordá depilarte las piernas.`; }
                             }
                             break;
                         case 'intimas':
                             const intimasHistory = groomingData.intimas || [];
                             if (intimasHistory.length > 0) {
                                 const elapsed = getDaysElapsed(intimasHistory[0]);
-                                if (elapsed >= 30) { shouldNotify = true; title = '✂️ Depilación: Zonas Íntimas'; body = `Ya pasaron ${elapsed} días, recordá depilarte las zonas íntimas.`; }
+                                const limit = sharedRules.grooming?.intimas?.limits?.red || 30;
+                                if (elapsed >= limit) { shouldNotify = true; title = '✂️ Depilación: Zonas Íntimas'; body = `Ya pasaron ${elapsed} días, recordá depilarte las zonas íntimas.`; }
                             }
                             break;
                         case 'unas_manos':
                             const unasManosHistory = groomingData.unas_manos || [];
                             if (unasManosHistory.length > 0) {
                                 const elapsed = getDaysElapsed(unasManosHistory[0]);
-                                if (elapsed >= 14) { shouldNotify = true; title = '💅 Cortar Uñas de Manos'; body = `Pasaron ${elapsed} días, recordá cortarte las uñas de las manos.`; }
+                                const limit = sharedRules.grooming?.unas_manos?.limits?.red || 18;
+                                if (elapsed >= limit) { shouldNotify = true; title = '💅 Cortar Uñas de Manos'; body = `Pasaron ${elapsed} días, recordá cortarte las uñas de las manos.`; }
                             }
                             break;
                         case 'unas_pies':
                             const unasPiesHistory = groomingData.unas_pies || [];
                             if (unasPiesHistory.length > 0) {
                                 const elapsed = getDaysElapsed(unasPiesHistory[0]);
-                                if (elapsed >= 40) { shouldNotify = true; title = '👣 Cortar Uñas de Pies'; body = `Pasaron ${elapsed} días, recordá cortarte las uñas de los pies.`; }
+                                const limit = sharedRules.grooming?.unas_pies?.limits?.red || 50;
+                                if (elapsed >= limit) { shouldNotify = true; title = '👣 Cortar Uñas de Pies'; body = `Pasaron ${elapsed} días, recordá cortarte las uñas de los pies.`; }
                             }
                             break;
 
@@ -635,37 +659,43 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'lenses_droplets':
                             if (data.systaneDate) {
                                 const elapsed = getDaysElapsed(data.systaneDate);
-                                if (elapsed >= 90) { shouldNotify = true; title = '👁️ Gotas de Ojos'; body = `Systane abierta hace ${elapsed} días, sugerimos cambiarla.`; }
+                                const limit = sharedRules.lenses?.systane || 90;
+                                if (elapsed >= limit) { shouldNotify = true; title = '👁️ Gotas de Ojos'; body = `Systane abierta hace ${elapsed} días, sugerimos cambiarla.`; }
                             }
                             break;
                         case 'lenses_case':
                             if (data.caseDate) {
                                 const elapsed = getDaysElapsed(data.caseDate);
-                                if (elapsed >= 90) { shouldNotify = true; title = '👁️ Estuche de Lentes'; body = `Estuche en uso hace ${elapsed} días, sugerimos cambiarlo.`; }
+                                const limit = sharedRules.lenses?.case || 90;
+                                if (elapsed >= limit) { shouldNotify = true; title = '👁️ Estuche de Lentes'; body = `Estuche en uso hace ${elapsed} días, sugerimos cambiarlo.`; }
                             }
                             break;
                         case 'lenses_solution':
                             if (data.solutionDate) {
                                 const elapsed = getDaysElapsed(data.solutionDate);
-                                if (elapsed >= 90) { shouldNotify = true; title = '👁️ Solución de Lentes'; body = `Solución abierta hace ${elapsed} días, sugerimos cambiarla.`; }
+                                const limit = sharedRules.lenses?.solution || 90;
+                                if (elapsed >= limit) { shouldNotify = true; title = '👁️ Solución de Lentes'; body = `Solución abierta hace ${elapsed} días, sugerimos cambiarla.`; }
                             }
                             break;
                         case 'lenses_replace':
                             if (data.lensDate) {
                                 const elapsed = getDaysElapsed(data.lensDate);
-                                if (elapsed >= 60) { shouldNotify = true; title = '👁️ Reemplazo de Lentes'; body = `Lentes en uso hace ${elapsed} días, sugerimos cambiarlos.`; }
+                                const limit = sharedRules.lenses?.lenses || 60;
+                                if (elapsed >= limit) { shouldNotify = true; title = '👁️ Reemplazo de Lentes'; body = `Lentes en uso hace ${elapsed} días, sugerimos cambiarlos.`; }
                             }
                             break;
                         case 'glasses_cloth_wash':
                             if (data.clothWashDate) {
                                 const elapsed = getDaysElapsed(data.clothWashDate);
-                                if (elapsed >= 15) { shouldNotify = true; title = '👓 Lavado Paño Anteojos'; body = `Gamuza en uso hace ${elapsed} días, sugerimos lavarla.`; }
+                                const limit = sharedRules.lenses?.clothWash || 15;
+                                if (elapsed >= limit) { shouldNotify = true; title = '👓 Lavado Paño Anteojos'; body = `Gamuza en uso hace ${elapsed} días, sugerimos lavarla.`; }
                             }
                             break;
                         case 'glasses_cloth_replace':
                             if (data.clothChangeDate) {
                                 const elapsed = getDaysElapsed(data.clothChangeDate);
-                                if (elapsed >= 270) { shouldNotify = true; title = '👓 Reemplazo Paño Anteojos'; body = `Gamuza en uso hace ${elapsed} días, sugerimos cambiarla.`; }
+                                const limit = sharedRules.lenses?.clothChange || 270;
+                                if (elapsed >= limit) { shouldNotify = true; title = '👓 Reemplazo Paño Anteojos'; body = `Gamuza en uso hace ${elapsed} días, sugerimos cambiarla.`; }
                             }
                             break;
 
@@ -673,30 +703,35 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'vehicle_oil':
                             const lastOil = maintenanceLog.find(m => m.type === 'Aceite y Filtros');
                             if (lastOil) {
-                                const remainingKm = (lastOil.km + 10000) - currentOdo;
+                                const limitKm = sharedRules.vehicle?.oil?.km || 10000;
+                                const limitDays = sharedRules.vehicle?.oil?.days || 365;
+                                const remainingKm = (lastOil.km + limitKm) - currentOdo;
                                 const daysElapsed = getDaysElapsed(lastOil.date);
-                                const remainingDays = 365 - (daysElapsed || 0);
+                                const remainingDays = limitDays - (daysElapsed || 0);
                                 if (remainingKm <= 0 || remainingDays <= 0) { shouldNotify = true; title = '🚗 Aceite y Filtros'; body = 'Mantenimiento urgente de Aceite y Filtros sugerido.'; }
                             }
                             break;
                         case 'vehicle_align':
                             const lastAlign = maintenanceLog.find(m => m.type === 'Alineación & Balanceo');
                             if (lastAlign) {
-                                const remainingKm = (lastAlign.km + 10000) - currentOdo;
+                                const limitKm = sharedRules.vehicle?.align?.km || 10000;
+                                const remainingKm = (lastAlign.km + limitKm) - currentOdo;
                                 if (remainingKm <= 0) { shouldNotify = true; title = '🚗 Alineación & Balanceo'; body = 'Alineación & Balanceo vencido.'; }
                             }
                             break;
                         case 'vehicle_rot':
                             const lastRot = maintenanceLog.find(m => m.type === 'Rotación de Neumáticos');
                             if (lastRot) {
-                                const remainingKm = (lastRot.km + 10000) - currentOdo;
+                                const limitKm = sharedRules.vehicle?.rot?.km || 10000;
+                                const remainingKm = (lastRot.km + limitKm) - currentOdo;
                                 if (remainingKm <= 0) { shouldNotify = true; title = '🚗 Rotación de Neumáticos'; body = 'Rotación de Neumáticos vencida.'; }
                             }
                             break;
                         case 'vehicle_replace':
                             const lastReplace = maintenanceLog.find(m => m.type === 'Reemplazo de Neumáticos');
                             if (lastReplace) {
-                                const remainingKm = (lastReplace.km + 60000) - currentOdo;
+                                const limitKm = sharedRules.vehicle?.replace?.km || 60000;
+                                const remainingKm = (lastReplace.km + limitKm) - currentOdo;
                                 if (remainingKm <= 0) { shouldNotify = true; title = '🚗 Reemplazo de Neumáticos'; body = 'Cambio de Neumáticos vencido.'; }
                             }
                             break;
@@ -748,24 +783,27 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'vehicle_fluids_check':
                             const trk = data.vehicle_tracker_data || {};
                             if (trk.refrigeranteDate) {
+                                const limitDays = sharedRules.vehicle?.fluids?.refrigerante?.days || 90;
                                 const refElapsed = getDaysElapsed(trk.refrigeranteDate);
-                                if (refElapsed !== null && refElapsed >= 90) {
+                                if (refElapsed !== null && refElapsed >= limitDays) {
                                     shouldNotify = true;
                                     title = '🚗 Mantenimiento: Refrigerante';
                                     body = `Pasaron ${refElapsed} días desde la última revisión de refrigerante.`;
                                 }
                             }
                             if (trk.sapitoDate) {
+                                const limitDays = sharedRules.vehicle?.fluids?.sapito?.days || 45;
                                 const sapElapsed = getDaysElapsed(trk.sapitoDate);
-                                if (sapElapsed !== null && sapElapsed >= 45) {
+                                if (sapElapsed !== null && sapElapsed >= limitDays) {
                                     shouldNotify = true;
                                     title = '🚗 Mantenimiento: Sapito';
                                     body = `Pasaron ${sapElapsed} días desde la última revisión del limpiavidrios.`;
                                 }
                             }
                             if (trk.extintorDate) {
+                                const limitDays = sharedRules.vehicle?.fluids?.extintor?.days_until_expiry || 30;
                                 const extDays = getDaysUntil(trk.extintorDate);
-                                if (extDays !== null && extDays <= 30 && extDays > 0) {
+                                if (extDays !== null && extDays <= limitDays && extDays > 0) {
                                     shouldNotify = true;
                                     title = '🧯 Mantenimiento: Extintor';
                                     body = `El extintor vence en ${extDays} días (${trk.extintorDate}).`;

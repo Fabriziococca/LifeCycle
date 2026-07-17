@@ -1,0 +1,155 @@
+{
+  "hygiene": {
+    "esponja_africana": {
+      "name": "Esponja Africana",
+      "type": "wash",
+      "category": "cuidado_personal",
+      "limits": { "yellow": 11, "orange": 15, "red": 30 }
+    },
+    "toalla_mano": {
+      "name": "Toalla de Mano",
+      "type": "wash",
+      "category": "dormitorio_bano",
+      "limits": { "yellow": 2, "orange": 3, "red": 4 }
+    },
+    "toalla_cuerpo": {
+      "name": "Toalla de Cuerpo",
+      "type": "wash",
+      "category": "dormitorio_bano",
+      "limits": { "yellow": 5, "orange": 7, "red": 8 }
+    },
+    "sabanas": {
+      "name": "Sábanas (Completas)",
+      "type": "wash",
+      "category": "dormitorio_bano",
+      "limits": { "yellow": 5, "orange": 7, "red": 8 }
+    },
+    "funda_almohada": {
+      "name": "Funda de Almohada",
+      "type": "wash",
+      "category": "dormitorio_bano",
+      "limits": { "yellow": 2, "orange": 3, "red": 4 }
+    },
+    "alfombra_bano": {
+      "name": "Alfombra de Baño",
+      "type": "wash",
+      "category": "dormitorio_bano",
+      "limits": { "yellow": 10, "orange": 12, "red": 15 }
+    },
+    "cepillo_dientes": {
+      "name": "Cepillo de Dientes",
+      "type": "change",
+      "category": "cuidado_personal",
+      "limits": { "yellow": 75, "orange": 85, "red": 90 }
+    },
+    "celular": {
+      "name": "Celular (Funda y Pantalla)",
+      "type": "clean",
+      "category": "tecnologia",
+      "limits": { "yellow": 3, "orange": 5, "red": 7 }
+    },
+    "computadora": {
+      "name": "Computadora (Teclado y Ext.)",
+      "type": "clean",
+      "category": "tecnologia",
+      "limits": { "yellow": 7, "orange": 11, "red": 15 }
+    },
+    "mouse": {
+      "name": "Mouse (Limpieza)",
+      "type": "clean",
+      "category": "tecnologia",
+      "limits": { "yellow": 7, "orange": 14, "red": 21 }
+    },
+    "auriculares": {
+      "name": "Auriculares (Limpieza)",
+      "type": "clean",
+      "category": "tecnologia",
+      "limits": { "yellow": 15, "orange": 30, "red": 45 }
+    },
+    "pad_lavado": {
+      "name": "Pad XL",
+      "type": "wash",
+      "category": "tecnologia",
+      "limits": { "yellow": 60, "orange": 75, "red": 90 }
+    },
+    "compu_limpieza_int": {
+      "name": "Computadora (Limpieza Int.)",
+      "type": "clean",
+      "category": "tecnologia",
+      "limits": { "yellow": 90, "orange": 135, "red": 180 }
+    },
+    "compu_pasta_termica": {
+      "name": "Computadora (Pasta Térmica)",
+      "type": "change",
+      "category": "tecnologia",
+      "limits": { "yellow": 180, "orange": 270, "red": 360 }
+    },
+    "botella_vidrio": {
+      "name": "Botella de Vidrio (1L)",
+      "type": "wash",
+      "category": "cuidado_personal",
+      "limits": { "yellow": 14, "orange": 21, "red": 30 }
+    }
+  },
+  "grooming": {
+    "barba": {
+      "name": "Afeitado de Barba",
+      "limits": { "green": 2, "yellow": 3, "red": 4 }
+    },
+    "pelo": {
+      "name": "Corte de Pelo",
+      "limits": { "green": 14, "yellow": 17, "orange": 19, "red": 20 }
+    },
+    "axilas": {
+      "name": "Depilación Axilas",
+      "limits": { "green": 20, "yellow": 25, "orange": 29, "red": 30 }
+    },
+    "hoja_gillette": {
+      "name": "Hoja Gillette",
+      "limits": { "green": 20, "yellow": 29, "red": 30 }
+    },
+    "pecho_panza": {
+      "name": "Depilación Pecho y Panza",
+      "limits": { "green": 40, "yellow": 50, "orange": 59, "red": 60 }
+    },
+    "brazos": {
+      "name": "Depilación Brazos",
+      "limits": { "green": 120, "yellow": 150, "orange": 179, "red": 180 }
+    },
+    "piernas": {
+      "name": "Depilación Piernas",
+      "limits": { "green": 80, "yellow": 100, "orange": 119, "red": 120 }
+    },
+    "intimas": {
+      "name": "Depilación Zonas Íntimas",
+      "limits": { "green": 15, "yellow": 22, "orange": 29, "red": 30 }
+    },
+    "unas_manos": {
+      "name": "Cortar Uñas de Manos",
+      "limits": { "green": 10, "yellow": 14, "orange": 17, "red": 18 }
+    },
+    "unas_pies": {
+      "name": "Cortar Uñas de Pies",
+      "limits": { "green": 30, "yellow": 40, "orange": 49, "red": 50 }
+    }
+  },
+  "lenses": {
+    "lenses": 60,
+    "solution": 90,
+    "case": 90,
+    "systane": 90,
+    "clothWash": 15,
+    "clothChange": 270
+  },
+  "vehicle": {
+    "oil": { "km": 10000, "days": 365 },
+    "align": { "km": 10000 },
+    "rot": { "km": 10000 },
+    "replace": { "km": 60000 },
+    "fluids": {
+      "refrigerante": { "days": 90 },
+      "sapito": { "days": 45 },
+      "extintor": { "days_until_expiry": 30 }
+    }
+  }
+}

@@ -1,0 +1,247 @@
+export class TareasModule {
+    constructor(appController) {
+        this.app = appController;
+        this.tasks = [];
+        this.categories = [];
+        this.currentCategory = null;
+
+        window.tareas = this;
+        this.loadData();
+        this.setupListeners();
+    }
+
+    loadData() {
+        try {
+            const tasksRaw = localStorage.getItem('tareas_list');
+            if (tasksRaw) {
+                this.tasks = JSON.parse(tasksRaw) || [];
+            } else {
+                this.tasks = [];
+            }
+
+            const catsRaw = localStorage.getItem('tareas_categories');
+            if (catsRaw) {
+                this.categories = JSON.parse(catsRaw) || [];
+            } else {
+                this.categories = ['Personal', 'LifeCycle', 'Facultad', 'Cotidianas'];
+                localStorage.setItem('tareas_categories', JSON.stringify(this.categories));
+            }
+
+            if (this.categories.length > 0) {
+                this.currentCategory = this.categories[0];
+            }
+        } catch (e) {
+            console.error("Error loading Tareas data:", e);
+            this.tasks = [];
+            this.categories = ['Personal', 'LifeCycle', 'Facultad', 'Cotidianas'];
+            this.currentCategory = this.categories[0];
+        }
+    }
+
+    saveData() {
+        localStorage.setItem('tareas_list', JSON.stringify(this.tasks));
+        localStorage.setItem('tareas_categories', JSON.stringify(this.categories));
+    }
+
+    setupListeners() {
+        // Modal Category
+        const btnAddCategory = document.getElementById('btn-add-category');
+        const catModal = document.getElementById('tareas-category-modal');
+        const catCancel = document.getElementById('tareas-cat-cancel');
+        const catSave = document.getElementById('tareas-cat-save');
+        const catInput = document.getElementById('tareas-new-cat-name');
+
+        btnAddCategory?.addEventListener('click', () => {
+            if (catInput) catInput.value = '';
+            catModal?.classList.remove('hidden');
+        });
+
+        catCancel?.addEventListener('click', () => {
+            catModal?.classList.add('hidden');
+        });
+
+        catSave?.addEventListener('click', () => {
+            const val = catInput?.value.trim();
+            if (!val) return;
+            if (this.categories.includes(val)) {
+                alert("Esta carpeta ya existe.");
+                return;
+            }
+            this.categories.push(val);
+            this.currentCategory = val;
+            this.saveData();
+            catModal?.classList.add('hidden');
+            this.render();
+        });
+
+        // Delete Category
+        const btnDeleteCategory = document.getElementById('btn-delete-category');
+        btnDeleteCategory?.addEventListener('click', () => {
+            if (!this.currentCategory) return;
+            if (confirm(`¿Seguro que deseas eliminar la carpeta "${this.currentCategory}"?\nTodas las tareas dentro de esta carpeta se borrarán permanentemente.`)) {
+                this.tasks = this.tasks.filter(t => t.category !== this.currentCategory);
+                this.categories = this.categories.filter(c => c !== this.currentCategory);
+                this.currentCategory = this.categories.length > 0 ? this.categories[0] : null;
+                this.saveData();
+                this.render();
+            }
+        });
+
+        // Modal Task
+        const btnAddTask = document.getElementById('btn-add-task');
+        const taskModal = document.getElementById('tareas-task-modal');
+        const taskCancel = document.getElementById('tareas-task-cancel');
+        const taskSave = document.getElementById('tareas-task-save');
+        const taskInput = document.getElementById('tareas-task-text');
+        const urgencyInput = document.getElementById('tareas-task-urgency');
+
+        btnAddTask?.addEventListener('click', () => {
+            if (!this.currentCategory) {
+                alert("Primero crea una carpeta.");
+                return;
+            }
+            if (taskInput) taskInput.value = '';
+            if (urgencyInput) urgencyInput.value = 'no_urgente';
+            taskModal?.classList.remove('hidden');
+        });
+
+        taskCancel?.addEventListener('click', () => {
+            taskModal?.classList.add('hidden');
+        });
+
+        taskSave?.addEventListener('click', () => {
+            const text = taskInput?.value.trim();
+            if (!text) return;
+            const urgency = urgencyInput?.value || 'no_urgente';
+
+            const newTask = {
+                id: Date.now(),
+                text,
+                category: this.currentCategory,
+                urgency,
+                completed: false,
+                createdAt: new Date().toISOString()
+            };
+
+            this.tasks.push(newTask);
+            this.saveData();
+            taskModal?.classList.add('hidden');
+            this.render();
+            this.app.notificationsCenter?.render();
+        });
+    }
+
+    toggleTask(id) {
+        const t = this.tasks.find(x => x.id === id);
+        if (t) {
+            t.completed = !t.completed;
+            this.saveData();
+            this.render();
+            this.app.notificationsCenter?.render();
+        }
+    }
+
+    deleteTask(id) {
+        this.tasks = this.tasks.filter(x => x.id !== id);
+        this.saveData();
+        this.render();
+        this.app.notificationsCenter?.render();
+    }
+
+    render() {
+        const tabsContainer = document.getElementById('tareas-categories-tabs');
+        const activeList = document.getElementById('tareas-active-list');
+        const completedList = document.getElementById('tareas-completed-list');
+        const activeTitle = document.getElementById('tareas-active-title');
+
+        if (!tabsContainer || !activeList || !completedList) return;
+
+        // Render Tabs
+        tabsContainer.innerHTML = '';
+        if (this.categories.length === 0) {
+            tabsContainer.innerHTML = '<span style="color:var(--text-secondary); font-size:0.9rem; padding: 5px;">No hay carpetas. Creá una arriba a la derecha.</span>';
+        } else {
+            this.categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = `tab-btn ${this.currentCategory === cat ? 'active' : ''}`;
+                btn.innerText = cat;
+                btn.onclick = () => {
+                    this.currentCategory = cat;
+                    this.render();
+                };
+                tabsContainer.appendChild(btn);
+            });
+        }
+
+        // Render Titles
+        if (activeTitle) {
+            activeTitle.innerText = this.currentCategory ? `Tareas Pendientes (${this.currentCategory})` : 'Tareas Pendientes';
+        }
+
+        // Render Lists
+        activeList.innerHTML = '';
+        completedList.innerHTML = '';
+
+        if (!this.currentCategory) {
+            activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">Crea o selecciona una carpeta.</p>';
+            completedList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">-</p>';
+            return;
+        }
+
+        const catTasks = this.tasks.filter(t => t.category === this.currentCategory);
+        const pending = catTasks.filter(t => !t.completed);
+        const completed = catTasks.filter(t => t.completed);
+
+        if (pending.length === 0) {
+            activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">¡Todo listo por aquí! No hay tareas pendientes.</p>';
+        } else {
+            pending.forEach(t => {
+                const isUrgent = t.urgency === 'urgente';
+                const badge = isUrgent 
+                    ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px;">Urgente</span>`
+                    : '';
+                const row = document.createElement('div');
+                row.className = 'task-item';
+                row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
+                row.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" class="task-check" style="width:18px; height:18px; cursor:pointer;">
+                        <span style="color:white; font-size:0.95rem;">${t.text} ${badge}</span>
+                    </div>
+                    <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                `;
+                row.querySelector('.task-check').addEventListener('change', () => {
+                    this.toggleTask(t.id);
+                });
+                row.querySelector('.btn-delete-task').addEventListener('click', () => {
+                    this.deleteTask(t.id);
+                });
+                activeList.appendChild(row);
+            });
+        }
+
+        if (completed.length === 0) {
+            completedList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay tareas completadas todavía.</p>';
+        } else {
+            completed.forEach(t => {
+                const row = document.createElement('div');
+                row.className = 'task-item';
+                row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); border-radius:8px; padding:10px 14px;';
+                row.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px; opacity: 0.6;">
+                        <input type="checkbox" checked class="task-check" style="width:18px; height:18px; cursor:pointer;">
+                        <span style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through;">${t.text}</span>
+                    </div>
+                    <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                `;
+                row.querySelector('.task-check').addEventListener('change', () => {
+                    this.toggleTask(t.id);
+                });
+                row.querySelector('.btn-delete-task').addEventListener('click', () => {
+                    this.deleteTask(t.id);
+                });
+                completedList.appendChild(row);
+            });
+        }
+    }
+}
