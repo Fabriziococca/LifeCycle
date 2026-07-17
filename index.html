@@ -1517,6 +1517,24 @@
                 <!-- Dinámico -->
             </div>
 
+            <!-- Freelance Projects Selector and Quick Add (Only visible when Freelance tab is active) -->
+            <div id="tareas-freelance-container" class="hidden" style="margin-bottom: 1.5rem; background: rgba(255,255,255,0.02); border: 1px solid var(--surface-border); border-radius: 12px; padding: 1.25rem;">
+                <h4 style="margin: 0 0 0.75rem 0; font-size: 0.95rem; color: var(--primary-color); font-weight: 600;">Seleccionar Proyecto</h4>
+                <div id="tareas-freelance-tabs" class="tabs-container" style="margin-bottom: 1.25rem; display: flex; gap: 8px; overflow-x: auto; padding-bottom: 5px;">
+                    <!-- Proyectos activos dinámicos -->
+                </div>
+                
+                <h4 style="margin: 0 0 0.75rem 0; font-size: 0.95rem; color: var(--text-secondary); font-weight: 600;">Nueva Tarea para el Proyecto</h4>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <input type="text" id="tareas-freelance-new-task-text" class="text-input" placeholder="Ej: Diseñar base de datos..." style="flex: 1; min-width: 180px;">
+                    <select id="tareas-freelance-new-task-urgency" class="text-input" style="width: auto; min-width: 110px; height: 42px;">
+                        <option value="no_urgente">No Urgente</option>
+                        <option value="urgente">Urgente</option>
+                    </select>
+                    <button id="tareas-freelance-btn-add-task" class="btn btn-primary" style="margin: 0; padding: 0 15px; width: auto; font-size: 1rem; height: 42px;">+</button>
+                </div>
+            </div>
+
             <!-- Active tasks list -->
             <div class="card" style="padding:20px; margin-bottom:2rem;">
                 <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:10px;">
@@ -2092,33 +2110,7 @@
         </div>
     </div>
 
-    <!-- MODAL DE CHECKLIST ESPECIFICA DE PROYECTO -->
-    <div id="projects-tasks-modal" class="modal hidden">
-        <div class="modal-content" style="max-height: 90vh; overflow-y: auto; max-width: 500px; width: 90%;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <h3 id="proj-tasks-modal-title" style="margin: 0; font-size: 1.25rem;">Checklist del Proyecto</h3>
-                <button id="proj-tasks-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
-            </div>
-            <p class="modal-desc" style="margin-bottom: 15px;">Listado de tareas específicas del proyecto.</p>
-            
-            <div class="input-group" style="margin-top: 1.25rem;">
-                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Nueva Tarea</label>
-                <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
-                    <input type="text" id="proj-new-task-text" class="text-input" placeholder="Ej: Crear formulario..." style="flex: 1; min-width: 150px;">
-                    <select id="proj-new-task-urgency" class="text-input" style="width: auto; min-width: 110px; height: 42px;">
-                        <option value="no_urgente">No Urgente</option>
-                        <option value="urgente">Urgente</option>
-                    </select>
-                    <button id="proj-btn-add-task-specific" class="btn btn-primary" style="margin: 0; padding: 0 15px; width: auto; font-size: 1rem; height: 42px;">+</button>
-                </div>
-                <div id="proj-tasks-specific-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
-            </div>
 
-            <div class="modal-actions" style="margin-top: 1.5rem;">
-                <button id="proj-tasks-modal-close-btn" class="btn btn-cancel" style="width: 100%;">Cerrar</button>
-            </div>
-        </div>
-    </div>
 
     <!-- MODAL DE NUEVA CATEGORIA DE TAREAS -->
     <div id="tareas-category-modal" class="modal hidden">

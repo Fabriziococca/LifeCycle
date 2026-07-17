@@ -309,11 +309,10 @@ export class ProjectsModule {
             this.confirmResolveArbitration();
         });
 
-        // Plan Modal Save & Close & Task addition
+        // Plan Modal Save & Close
         const planClose = document.getElementById('proj-plan-modal-close');
         const planSave = document.getElementById('proj-plan-modal-save');
         const planModal = document.getElementById('projects-plan-modal');
-        const btnAddTask = document.getElementById('proj-btn-add-task');
 
         planClose?.addEventListener('click', () => {
             planModal?.classList.add('hidden');
@@ -332,64 +331,6 @@ export class ProjectsModule {
             this.render();
             planModal?.classList.add('hidden');
             this.currentProjectId = null;
-        });
-
-        btnAddTask?.addEventListener('click', () => {
-            if (!this.currentProjectId) return;
-            const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId));
-            if (!p) return;
-
-            const taskInput = document.getElementById('proj-new-task-input');
-            const text = taskInput.value.trim();
-            if (!text) return;
-
-            if (!p.tasks) p.tasks = [];
-            p.tasks.push({ id: Date.now(), text, completed: false });
-            this.saveData();
-            this.renderTasks(p.tasks);
-            taskInput.value = '';
-        });
-
-        // Specific Project Tasks Modal Listeners
-        const projTasksModal = document.getElementById('projects-tasks-modal');
-        const projTasksModalClose = document.getElementById('proj-tasks-modal-close');
-        const projTasksModalCloseBtn = document.getElementById('proj-tasks-modal-close-btn');
-        const projBtnAddTaskSpecific = document.getElementById('proj-btn-add-task-specific');
-
-        const closeProjTasks = () => {
-            projTasksModal?.classList.add('hidden');
-            this.currentProjectId = null;
-        };
-
-        projTasksModalClose?.addEventListener('click', closeProjTasks);
-        projTasksModalCloseBtn?.addEventListener('click', closeProjTasks);
-
-        projBtnAddTaskSpecific?.addEventListener('click', () => {
-            if (!this.currentProjectId) return;
-            const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId));
-            if (!p) return;
-
-            const textInput = document.getElementById('proj-new-task-text');
-            const urgencySelect = document.getElementById('proj-new-task-urgency');
-            const text = textInput?.value.trim();
-            const urgency = urgencySelect?.value || 'no_urgente';
-
-            if (!text) return;
-
-            if (!p.tasks) p.tasks = [];
-            p.tasks.push({
-                id: Date.now(),
-                text,
-                completed: false,
-                urgency
-            });
-
-            this.saveData();
-            this.renderTasks(p.tasks);
-            if (textInput) textInput.value = '';
-            if (urgencySelect) urgencySelect.value = 'no_urgente';
-            
-            this.app.notificationsCenter?.render();
         });
 
         // History Modal click controls
@@ -753,29 +694,20 @@ export class ProjectsModule {
                 <div class="countdown" style="color:${colorVar}">${countdownText}</div>
                 
                 <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
+                    <div style="display: flex; gap: 8px;">
+                        <button class="btn btn-secondary btn-plan" style="margin: 0; width: 100%;"><i class="ph ph-clipboard-text"></i> Plan del Proyecto</button>
+                    </div>
                     ${p.isArbitration ? `
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary btn-plan" style="margin: 0; flex: 1;"><i class="ph ph-clipboard-text"></i> Plan</button>
-                            <button class="btn btn-secondary btn-checklist" style="margin: 0; flex: 1;"><i class="ph ph-list-checks"></i> Checklist</button>
-                        </div>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
                             <button class="btn btn-primary half btn-resolve" style="margin:0; background: var(--status-red); color: white;"><i class="ph ph-scales"></i> Resolver</button>
                         </div>
                     ` : (!p.isDelivered ? `
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary btn-plan" style="margin: 0; flex: 1;"><i class="ph ph-clipboard-text"></i> Plan</button>
-                            <button class="btn btn-secondary btn-checklist" style="margin: 0; flex: 1;"><i class="ph ph-list-checks"></i> Checklist</button>
-                        </div>
-                        <div style="display: flex; gap: 8px;">
                             <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
                             <button class="btn btn-primary half btn-deliver" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-check"></i> Entregado</button>
                         </div>
                     ` : `
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary btn-plan" style="margin: 0; flex: 1;"><i class="ph ph-clipboard-text"></i> Plan</button>
-                            <button class="btn btn-secondary btn-checklist" style="margin: 0; flex: 1;"><i class="ph ph-list-checks"></i> Checklist</button>
-                        </div>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
                             <button class="btn btn-primary half btn-confirm" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-coins"></i> Pago Confirmado</button>
@@ -791,9 +723,6 @@ export class ProjectsModule {
             });
             card.querySelector('.btn-plan').addEventListener('click', () => {
                 this.openPlanModal(p.id);
-            });
-            card.querySelector('.btn-checklist').addEventListener('click', () => {
-                this.openTasksModal(p.id);
             });
             card.querySelector('.btn-manage').addEventListener('click', () => {
                 this.openEditModal(p.id);
@@ -870,66 +799,7 @@ export class ProjectsModule {
         modal?.classList.remove('hidden');
     }
 
-    openTasksModal(id) {
-        this.currentProjectId = id;
-        const p = this.projects.find(proj => String(proj.id) === String(id));
-        if (!p) return;
 
-        this.renderTasks(p.tasks || []);
-
-        const modal = document.getElementById('projects-tasks-modal');
-        modal?.classList.remove('hidden');
-    }
-
-    renderTasks(tasks) {
-        const list = document.getElementById('proj-tasks-list');
-        if (!list) return;
-        list.innerHTML = '';
-
-        tasks.forEach(t => {
-            const isUrgent = t.urgency === 'urgente';
-            const badge = isUrgent ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px; margin-left:6px;">Urgente</span>` : '';
-            const row = document.createElement('div');
-            row.className = 'task-item';
-            row.innerHTML = `
-                <input type="checkbox" class="task-checkbox" ${t.completed ? 'checked' : ''}>
-                <span class="task-text ${t.completed ? 'completed' : ''}">${t.text} ${badge}</span>
-                <button class="btn-delete-task">&times;</button>
-            `;
-            row.querySelector('.task-checkbox').addEventListener('change', () => {
-                this.toggleTask(t.id);
-            });
-            row.querySelector('.btn-delete-task').addEventListener('click', () => {
-                this.deleteTask(t.id);
-            });
-            list.appendChild(row);
-        });
-    }
-
-    toggleTask(taskId) {
-        if (!this.currentProjectId) return;
-        const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId));
-        if (!p) return;
-
-        const task = p.tasks.find(t => t.id === taskId);
-        if (task) {
-            task.completed = !task.completed;
-            this.saveData();
-            this.renderTasks(p.tasks);
-            this.app.notificationsCenter?.render();
-        }
-    }
-
-    deleteTask(taskId) {
-        if (!this.currentProjectId) return;
-        const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId));
-        if (!p) return;
-
-        p.tasks = p.tasks.filter(t => t.id !== taskId);
-        this.saveData();
-        this.renderTasks(p.tasks);
-        this.app.notificationsCenter?.render();
-    }
 
     openEditModal(id) {
         this.currentProjectId = id;
