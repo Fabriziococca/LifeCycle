@@ -1,4 +1,4 @@
-import { itemsConfig } from '../config.js';
+import { itemsConfig } from '../utils.js';
 import { DateUtils } from '../utils.js';
 
 export class HygieneModule {

@@ -1,4 +1,4 @@
-import { ZONES } from '../config.js';
+import { ZONES } from '../utils.js';
 import { DateUtils } from '../utils.js';
 
 export class GroomingModule {

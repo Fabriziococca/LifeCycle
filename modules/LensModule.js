@@ -1,4 +1,4 @@
-import { LENS_LIMITS } from '../config.js';
+import { LENS_LIMITS } from '../utils.js';
 import { getLocalISODate } from '../utils.js';
 
 const CIRCUMFERENCE = 502; // 2 * Math.PI * 80 (basado en r=80 del SVG)
