@@ -86,6 +86,9 @@
             <button class="nav-btn" data-section="finanzas-section">
                 <i class="ph ph-trend-up"></i> Finanzas
             </button>
+            <button class="nav-btn" data-section="tareas-section">
+                <i class="ph ph-check-square"></i> Tareas
+            </button>
         </nav>
 
         <!-- SECCIÓN 1: HIGIENE (Original HygieneTracker) -->
@@ -1375,6 +1378,16 @@
                             </div>
                         </div>
 
+                            <div class="form-row">
+                                <div class="input-group">
+                                    <label for="projectSourceSelect">Origen del Cliente</label>
+                                    <select id="projectSourceSelect" class="text-input">
+                                        <option value="workana">Workana</option>
+                                        <option value="external">Externo (LinkedIn, WhatsApp, etc.)</option>
+                                    </select>
+                                </div>
+                            </div>
+
                         <div id="customFeeContainer" class="input-group hidden" style="margin-bottom: 1rem;">
                             <label for="customWorkanaFee">Comisión Workana Manual (%)</label>
                             <input type="number" id="customWorkanaFee" class="number-input" min="0" max="100" step="0.1" value="0">
@@ -1429,12 +1442,26 @@
                 <div style="display:flex; flex-direction:column; gap:1.25rem;" id="fin-categories-breakdown">
                     <!-- Freelance -->
                     <div style="display:flex; flex-direction:column; gap:6px;">
-                        <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
-                            <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-briefcase"></i> Freelance (Proyectos)</span>
+                        <div id="fin-freelance-trigger" style="display:flex; justify-content:space-between; font-size:0.9rem; cursor:pointer; user-select:none;">
+                            <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;">
+                                <i class="ph ph-caret-right" id="fin-freelance-caret" style="transition: transform 0.2s;"></i>
+                                <i class="ph ph-briefcase"></i> Freelance (Proyectos)
+                            </span>
                             <strong style="color:white;" id="fin-cat-freelance">USD 0.00 (0%)</strong>
                         </div>
                         <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
                             <div id="fin-bar-freelance" style="height:100%; width:0%; background:var(--primary-color); border-radius:4px; transition:width 0.3s;"></div>
+                        </div>
+                        <!-- Sub-desglose freelance (oculto por defecto) -->
+                        <div id="fin-freelance-sub-breakdown" class="hidden" style="padding-left: 20px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; border-left: 2px solid rgba(255,255,255,0.05); margin-left: 6px;">
+                            <div style="display:flex; justify-content:space-between; width: 100%;">
+                                <span style="color:var(--text-secondary);">💻 Workana:</span>
+                                <strong style="color:white;" id="fin-freelance-sub-workana">USD 0.00</strong>
+                            </div>
+                            <div style="display:flex; justify-content:space-between; width: 100%;">
+                                <span style="color:var(--text-secondary);">🌍 Externo (LinkedIn/Otros):</span>
+                                <strong style="color:white;" id="fin-freelance-sub-external">USD 0.00</strong>
+                            </div>
                         </div>
                     </div>
                     <!-- Discord -->
@@ -1473,6 +1500,43 @@
             <!-- Registro de Transacciones -->
             <h3>Transacciones del Mes</h3>
             <div id="finanzasList" style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; margin-bottom: 2rem;"></div>
+        </section>
+
+        <!-- SECCIÓN: LISTA DE TAREAS -->
+        <section id="tareas-section" class="main-section hidden">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; flex-wrap:wrap; gap:10px;">
+                <h2 class="section-title" style="margin:0;">Lista de Tareas</h2>
+                <div style="display:flex; gap:10px;">
+                    <button id="btn-add-category" class="btn btn-secondary" style="margin:0; font-size:0.85rem;"><i class="ph ph-folder-plus"></i> Nueva Carpeta</button>
+                    <button id="btn-add-task" class="btn btn-primary" style="margin:0; font-size:0.85rem;"><i class="ph ph-plus-circle"></i> Nueva Tarea</button>
+                </div>
+            </div>
+
+            <!-- Categories Tabs -->
+            <div id="tareas-categories-tabs" class="tabs-container" style="margin-bottom:1.5rem; display:flex; gap:10px; overflow-x:auto; padding-bottom:5px;">
+                <!-- Dinámico -->
+            </div>
+
+            <!-- Active tasks list -->
+            <div class="card" style="padding:20px; margin-bottom:2rem;">
+                <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1rem; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:10px;">
+                    <h3 id="tareas-active-title" style="margin:0; font-size:1.1rem; color:white;">Tareas Pendientes</h3>
+                    <button id="btn-delete-category" class="btn btn-secondary" style="margin:0; padding:6px 12px; font-size:0.75rem; height:auto; width:auto; background:rgba(239, 68, 68, 0.1); border-color:rgba(239, 68, 68, 0.2); color:#ef4444;"><i class="ph ph-folder-minus"></i> Eliminar Carpeta</button>
+                </div>
+                <div id="tareas-active-list" style="display:flex; flex-direction:column; gap:10px;">
+                    <!-- Dinámico -->
+                </div>
+            </div>
+
+            <!-- Completed tasks list -->
+            <div class="card" style="padding:20px;">
+                <div class="card-header" style="margin-bottom:1rem; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:10px;">
+                    <h3 style="margin:0; font-size:1.1rem; color:white;">Tareas Completadas</h3>
+                </div>
+                <div id="tareas-completed-list" style="display:flex; flex-direction:column; gap:10px; opacity:0.6;">
+                    <!-- Dinámico -->
+                </div>
+            </div>
         </section>
 
 
@@ -1765,8 +1829,8 @@
             <p class="modal-desc">Ajustá tiempos o sumá presupuesto extra.</p>
             
             <div class="input-group">
-                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Sumar Días al Plazo</label>
-                <input type="number" id="proj-extraDays" class="number-input" min="0" value="0">
+                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Nueva Fecha y Hora Límite</label>
+                <input type="datetime-local" id="proj-edit-deadline" class="date-input" required>
             </div>
             <div class="input-group" style="margin-top: 1rem;">
                 <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Sumar Presupuesto Bruto (USD)</label>
@@ -1941,7 +2005,7 @@
                 <h3 id="proj-plan-modal-title" style="margin: 0;">Plan de Acción</h3>
                 <button id="proj-plan-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
             </div>
-            <p class="modal-desc" style="margin-bottom: 15px;">Resumen, Fases y Tareas pendientes.</p>
+            <p class="modal-desc" style="margin-bottom: 15px;">Resumen y Plan paso a paso (Fases).</p>
             
             <div class="input-group">
                 <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Resumen del Proyecto</label>
@@ -1951,15 +2015,6 @@
             <div class="input-group" style="margin-top: 1.25rem;">
                 <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Plan paso a paso (Fases)</label>
                 <textarea id="proj-phases-textarea" class="text-input" rows="5" placeholder="Ej: Fase 1: Estructura&#10;Fase 2: Diseño..." style="resize: vertical; min-height: 80px;"></textarea>
-            </div>
-
-            <div class="input-group" style="margin-top: 1.25rem;">
-                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Checklist de Tareas Específicas</label>
-                <div style="display: flex; gap: 8px; margin-bottom: 10px;">
-                    <input type="text" id="proj-new-task-input" class="text-input" placeholder="Ej: Crear formulario..." style="flex: 1;">
-                    <button id="proj-btn-add-task" class="btn btn-primary" style="margin: 0; padding: 0 15px; width: auto; font-size: 1rem;">+</button>
-                </div>
-                <div id="proj-tasks-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
             </div>
 
             <div class="modal-actions" style="margin-top: 1.5rem;">
@@ -2033,6 +2088,73 @@
 
             <div class="modal-actions">
                 <button id="proj-close-history-modal" class="btn btn-cancel" style="width: 100%;">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE CHECKLIST ESPECIFICA DE PROYECTO -->
+    <div id="projects-tasks-modal" class="modal hidden">
+        <div class="modal-content" style="max-height: 90vh; overflow-y: auto; max-width: 500px; width: 90%;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <h3 id="proj-tasks-modal-title" style="margin: 0; font-size: 1.25rem;">Checklist del Proyecto</h3>
+                <button id="proj-tasks-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <p class="modal-desc" style="margin-bottom: 15px;">Listado de tareas específicas del proyecto.</p>
+            
+            <div class="input-group" style="margin-top: 1.25rem;">
+                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Nueva Tarea</label>
+                <div style="display: flex; gap: 8px; margin-bottom: 10px; flex-wrap: wrap;">
+                    <input type="text" id="proj-new-task-text" class="text-input" placeholder="Ej: Crear formulario..." style="flex: 1; min-width: 150px;">
+                    <select id="proj-new-task-urgency" class="text-input" style="width: auto; min-width: 110px; height: 42px;">
+                        <option value="no_urgente">No Urgente</option>
+                        <option value="urgente">Urgente</option>
+                    </select>
+                    <button id="proj-btn-add-task-specific" class="btn btn-primary" style="margin: 0; padding: 0 15px; width: auto; font-size: 1rem; height: 42px;">+</button>
+                </div>
+                <div id="proj-tasks-specific-list" style="display: flex; flex-direction: column; gap: 8px;"></div>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 1.5rem;">
+                <button id="proj-tasks-modal-close-btn" class="btn btn-cancel" style="width: 100%;">Cerrar</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE NUEVA CATEGORIA DE TAREAS -->
+    <div id="tareas-category-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 400px; width: 90%;">
+            <h3>Nueva Carpeta / Categoría</h3>
+            <p class="modal-desc">Creá un sector para agrupar tus tareas.</p>
+            <div class="input-group" style="margin-top: 1rem;">
+                <label for="tareas-new-cat-name">Nombre de la Carpeta</label>
+                <input type="text" id="tareas-new-cat-name" class="text-input" placeholder="Ej: Cuidado Personal" required>
+            </div>
+            <div class="modal-actions" style="margin-top: 1.5rem;">
+                <button id="tareas-cat-cancel" class="btn btn-cancel">Cancelar</button>
+                <button id="tareas-cat-save" class="btn btn-save">Crear</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE NUEVA TAREA GENERAL -->
+    <div id="tareas-task-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 450px; width: 90%;">
+            <h3 id="tareas-task-modal-title">Nueva Tarea</h3>
+            <p class="modal-desc">Añadí una tarea al sector seleccionado.</p>
+            <div class="input-group" style="margin-top: 1rem;">
+                <label for="tareas-task-text">Descripción de la Tarea</label>
+                <input type="text" id="tareas-task-text" class="text-input" placeholder="Ej: Comprar jabón blanco" required>
+            </div>
+            <div class="input-group" style="margin-top: 1rem;">
+                <label for="tareas-task-urgency">Nivel de Urgencia</label>
+                <select id="tareas-task-urgency" class="text-input">
+                    <option value="no_urgente">No Urgente</option>
+                    <option value="urgente">Urgente</option>
+                </select>
+            </div>
+            <div class="modal-actions" style="margin-top: 1.5rem;">
+                <button id="tareas-task-cancel" class="btn btn-cancel">Cancelar</button>
+                <button id="tareas-task-save" class="btn btn-save">Guardar</button>
             </div>
         </div>
     </div>

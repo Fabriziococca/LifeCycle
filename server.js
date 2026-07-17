@@ -385,11 +385,11 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
                     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
                     'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check',
-                    'vehicle_issues_check', 'vehicle_docs_check', 'vehicle_fluids_check'
+                    'vehicle_issues_check', 'vehicle_docs_check', 'vehicle_fluids_check', 'tareas_urgentes_check'
                 ];
 
                 definitions.forEach(k => {
-                    if (k === 'projects_check' || k === 'vehicle_issues_check' || k === 'vehicle_docs_check' || k === 'vehicle_fluids_check') {
+                    if (k === 'projects_check' || k === 'vehicle_issues_check' || k === 'vehicle_docs_check' || k === 'vehicle_fluids_check' || k === 'tareas_urgentes_check') {
                         alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
                     } else {
                         alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
@@ -407,14 +407,14 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
                     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
                     'creatine', 'salmon', 'neck', 'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check',
-                    'vehicle_issues_check', 'vehicle_docs_check', 'vehicle_fluids_check'
+                    'vehicle_issues_check', 'vehicle_docs_check', 'vehicle_fluids_check', 'tareas_urgentes_check'
                 ];
                 definitions.forEach(k => {
                     if (!alertsConfig[k]) {
                         if (k === 'creatine') alertsConfig[k] = { enabled: true, time: '23:00', days: [1,2,3,4,5,6,0] };
                         else if (k === 'salmon') alertsConfig[k] = { enabled: true, time: '17:00', days: [0] };
                         else if (k === 'neck') alertsConfig[k] = { enabled: true, time: '23:30', days: [5,6] };
-                        else if (k === 'projects_check' || k === 'vehicle_issues_check' || k === 'vehicle_docs_check' || k === 'vehicle_fluids_check') {
+                        else if (k === 'projects_check' || k === 'vehicle_issues_check' || k === 'vehicle_docs_check' || k === 'vehicle_fluids_check' || k === 'tareas_urgentes_check') {
                             alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
                         } else {
                             alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
@@ -892,6 +892,40 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                             }
                                         }
                                     }
+                                }
+                            }
+                            break;
+                        case 'tareas_urgentes_check':
+                            const tasksList = typeof data.tareas_list === 'string'
+                                ? JSON.parse(data.tareas_list || '[]')
+                                : (data.tareas_list || []);
+                            
+                            const pendingUrgentGeneral = tasksList.filter(t => !t.completed && t.urgency === 'urgente');
+
+                            const projectsDataForTasks = typeof data.projectPulseData === 'string'
+                                ? JSON.parse(data.projectPulseData || '[]')
+                                : (data.projectPulseData || []);
+                            
+                            const pendingUrgentProjectTasks = [];
+                            for (const p of projectsDataForTasks) {
+                                if (p.tasks && !p.isDelivered) {
+                                    const pTasks = p.tasks.filter(t => !t.completed && t.urgency === 'urgente');
+                                    pTasks.forEach(t => {
+                                        pendingUrgentProjectTasks.push({ client: p.client, text: t.text });
+                                    });
+                                }
+                            }
+
+                            const totalUrgent = pendingUrgentGeneral.length + pendingUrgentProjectTasks.length;
+                            if (totalUrgent > 0) {
+                                shouldNotify = true;
+                                title = '📌 Tareas Urgentes Pendientes';
+                                if (pendingUrgentGeneral.length > 0 && pendingUrgentProjectTasks.length > 0) {
+                                    body = `Tenés ${pendingUrgentGeneral.length} generales y ${pendingUrgentProjectTasks.length} de proyectos sin completar.`;
+                                } else if (pendingUrgentGeneral.length > 0) {
+                                    body = `Tenés ${pendingUrgentGeneral.length} tareas generales urgentes sin completar.`;
+                                } else {
+                                    body = `Tenés ${pendingUrgentProjectTasks.length} tareas urgentes de proyectos sin completar.`;
                                 }
                             }
                             break;

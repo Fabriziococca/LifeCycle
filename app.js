@@ -4784,6 +4784,7 @@ class ProjectsModule {
                 const gross = parseFloat(document.getElementById('budgetGross').value);
                 const feeType = document.getElementById('workanaFeeSelect').value;
                 const customPct = parseFloat(document.getElementById('customWorkanaFee').value) || 0;
+                const source = document.getElementById('projectSourceSelect')?.value || 'workana';
                 const isDel = false;
                 const isRec = false;
 
@@ -4810,7 +4811,8 @@ class ProjectsModule {
                     phases: '',
                     isDelivered: false,
                     deliveredAt: null,
-                    deadline
+                    deadline,
+                    source
                 };
 
                 this.projects.push(newProj);
@@ -4836,16 +4838,18 @@ class ProjectsModule {
             const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId));
             if (!p) return;
 
-            const extraDays = parseFloat(document.getElementById('proj-extraDays').value) || 0;
+            const newDeadlineVal = document.getElementById('proj-edit-deadline').value;
             const extraBudget = parseFloat(document.getElementById('proj-extraBudget').value) || 0;
             const manualHrs = parseFloat(document.getElementById('proj-manualHours').value) || 0;
             const manualMins = parseFloat(document.getElementById('proj-manualMinutes').value) || 0;
 
             // Ajustar plazos
-            if (extraDays > 0) {
-                p.days = (p.days || 0) + extraDays;
-                const oldDeadline = p.deadline ? new Date(p.deadline) : new Date(p.accepted);
-                p.deadline = new Date(oldDeadline.getTime() + extraDays * 24 * 60 * 60 * 1000).toISOString();
+            if (newDeadlineVal) {
+                const newDeadlineDate = new Date(newDeadlineVal);
+                p.deadline = newDeadlineDate.toISOString();
+                const acceptedDate = new Date(p.accepted);
+                const diffMs = newDeadlineDate.getTime() - acceptedDate.getTime();
+                p.days = Math.max(0, parseFloat((diffMs / (24 * 60 * 60 * 1000)).toFixed(2)));
             }
 
             // Presupuesto extra
@@ -4954,6 +4958,48 @@ class ProjectsModule {
             this.saveData();
             this.renderTasks(p.tasks);
             taskInput.value = '';
+        });
+
+        // Specific Project Tasks Modal Listeners
+        const projTasksModal = document.getElementById('projects-tasks-modal');
+        const projTasksModalClose = document.getElementById('proj-tasks-modal-close');
+        const projTasksModalCloseBtn = document.getElementById('proj-tasks-modal-close-btn');
+        const projBtnAddTaskSpecific = document.getElementById('proj-btn-add-task-specific');
+
+        const closeProjTasks = () => {
+            projTasksModal?.classList.add('hidden');
+            this.currentProjectId = null;
+        };
+
+        projTasksModalClose?.addEventListener('click', closeProjTasks);
+        projTasksModalCloseBtn?.addEventListener('click', closeProjTasks);
+
+        projBtnAddTaskSpecific?.addEventListener('click', () => {
+            if (!this.currentProjectId) return;
+            const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId));
+            if (!p) return;
+
+            const textInput = document.getElementById('proj-new-task-text');
+            const urgencySelect = document.getElementById('proj-new-task-urgency');
+            const text = textInput?.value.trim();
+            const urgency = urgencySelect?.value || 'no_urgente';
+
+            if (!text) return;
+
+            if (!p.tasks) p.tasks = [];
+            p.tasks.push({
+                id: Date.now(),
+                text,
+                completed: false,
+                urgency
+            });
+
+            this.saveData();
+            this.renderTasks(p.tasks);
+            if (textInput) textInput.value = '';
+            if (urgencySelect) urgencySelect.value = 'no_urgente';
+            
+            this.app.notificationsCenter?.render();
         });
 
         // History Modal click controls
@@ -5229,6 +5275,13 @@ class ProjectsModule {
                 badgeSpan = '<span class="badge" style="background:var(--status-green); color:#fff; font-size:0.7rem; margin-left:8px; vertical-align:middle; padding:3px 8px;">Fabro (70%)</span>';
             }
 
+            let sourceBadge = '';
+            if (p.source === 'external') {
+                sourceBadge = '<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-secondary); border: 1px solid var(--surface-border); font-size:0.7rem; margin-left:8px; vertical-align:middle; padding:3px 8px;">Externo</span>';
+            } else {
+                sourceBadge = '<span class="badge" style="background:rgba(59, 130, 246, 0.15); color:#60a5fa; font-size:0.7rem; margin-left:8px; vertical-align:middle; padding:3px 8px;">Workana</span>';
+            }
+
             const isRunning = p.timerStart !== null;
             const btnIcon = p.isArbitration ? '🔒' : (isRunning ? '⏸️' : '▶️');
             const btnBg = p.isArbitration ? 'rgba(255,255,255,0.05)' : (isRunning ? 'var(--status-red)' : 'var(--primary-color)');
@@ -5266,7 +5319,7 @@ class ProjectsModule {
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.5rem;">
                     <div>
                         <h3 class="project-client" style="color:white; font-size:1.15rem; margin:0; display:flex; align-items:center; flex-wrap:wrap;">
-                            ${p.client} ${badgeSpan}
+                            ${p.client} ${badgeSpan} ${sourceBadge}
                         </h3>
                         <p class="project-name" style="color:var(--text-secondary); font-size:0.85rem; margin: 3px 0 10px 0;">${p.project}</p>
                     </div>
@@ -5311,19 +5364,28 @@ class ProjectsModule {
                 
                 <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
                     ${p.isArbitration ? `
-                        <button class="btn btn-secondary" style="margin: 0;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan de Acción</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" style="margin: 0; flex: 1;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan</button>
+                            <button class="btn btn-secondary" style="margin: 0; flex: 1;" onclick="window.projects.openTasksModal('${p.id}')"><i class="ph ph-list-checks"></i> Checklist</button>
+                        </div>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-secondary half" style="margin:0;" onclick="window.projects.openEditModal('${p.id}')"><i class="ph ph-gear"></i> Gestionar</button>
                             <button class="btn btn-primary half" style="margin:0; background: var(--status-red); color: white;" onclick="window.projects.openResolveArbitrationModal('${p.id}')"><i class="ph ph-scales"></i> Resolver</button>
                         </div>
                     ` : (!p.isDelivered ? `
-                        <button class="btn btn-secondary" style="margin: 0;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan de Acción</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" style="margin: 0; flex: 1;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan</button>
+                            <button class="btn btn-secondary" style="margin: 0; flex: 1;" onclick="window.projects.openTasksModal('${p.id}')"><i class="ph ph-list-checks"></i> Checklist</button>
+                        </div>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-secondary half" style="margin:0;" onclick="window.projects.openEditModal('${p.id}')"><i class="ph ph-gear"></i> Gestionar</button>
                             <button class="btn btn-primary half" style="margin:0; background: var(--status-green); color: white;" onclick="window.projects.markAsDelivered('${p.id}')"><i class="ph ph-check"></i> Entregado</button>
                         </div>
                     ` : `
-                        <button class="btn btn-secondary" style="margin: 0;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan de Acción</button>
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary" style="margin: 0; flex: 1;" onclick="window.projects.openPlanModal('${p.id}')"><i class="ph ph-clipboard-text"></i> Plan</button>
+                            <button class="btn btn-secondary" style="margin: 0; flex: 1;" onclick="window.projects.openTasksModal('${p.id}')"><i class="ph ph-list-checks"></i> Checklist</button>
+                        </div>
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-secondary half" style="margin:0;" onclick="window.projects.openEditModal('${p.id}')"><i class="ph ph-gear"></i> Gestionar</button>
                             <button class="btn btn-primary half" style="margin:0; background: var(--status-green); color: white;" onclick="window.projects.confirmPayment('${p.id}')"><i class="ph ph-coins"></i> Pago Confirmado</button>
@@ -5383,9 +5445,19 @@ class ProjectsModule {
 
         document.getElementById('proj-summary-textarea').value = p.summary || '';
         document.getElementById('proj-phases-textarea').value = p.phases || '';
-        this.renderTasks(p.tasks || []);
 
         const modal = document.getElementById('projects-plan-modal');
+        modal?.classList.remove('hidden');
+    }
+
+    openTasksModal(id) {
+        this.currentProjectId = id;
+        const p = this.projects.find(proj => String(proj.id) === String(id));
+        if (!p) return;
+
+        this.renderTasks(p.tasks || []);
+
+        const modal = document.getElementById('projects-tasks-modal');
         modal?.classList.remove('hidden');
     }
 
@@ -5395,11 +5467,13 @@ class ProjectsModule {
         list.innerHTML = '';
 
         tasks.forEach(t => {
+            const isUrgent = t.urgency === 'urgente';
+            const badge = isUrgent ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px; margin-left:6px;">Urgente</span>` : '';
             const row = document.createElement('div');
             row.className = 'task-item';
             row.innerHTML = `
                 <input type="checkbox" class="task-checkbox" ${t.completed ? 'checked' : ''} onchange="window.projects.toggleTask(${t.id})">
-                <span class="task-text ${t.completed ? 'completed' : ''}">${t.text}</span>
+                <span class="task-text ${t.completed ? 'completed' : ''}">${t.text} ${badge}</span>
                 <button class="btn-delete-task" onclick="window.projects.deleteTask(${t.id})">&times;</button>
             `;
             list.appendChild(row);
@@ -5416,6 +5490,7 @@ class ProjectsModule {
             task.completed = !task.completed;
             this.saveData();
             this.renderTasks(p.tasks);
+            this.app.notificationsCenter?.render();
         }
     }
 
@@ -5427,6 +5502,7 @@ class ProjectsModule {
         p.tasks = p.tasks.filter(t => t.id !== taskId);
         this.saveData();
         this.renderTasks(p.tasks);
+        this.app.notificationsCenter?.render();
     }
 
     openEditModal(id) {
@@ -5434,7 +5510,25 @@ class ProjectsModule {
         const p = this.projects.find(proj => String(proj.id) === String(id));
         const modal = document.getElementById('projects-edit-modal');
         if (modal && p) {
-            document.getElementById('proj-extraDays').value = 0;
+            let deadlineStr = '';
+            if (p.deadline) {
+                const date = new Date(p.deadline);
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                deadlineStr = `${year}-${month}-${day}T${hours}:${minutes}`;
+            } else {
+                const date = new Date();
+                const year = date.getFullYear();
+                const month = String(date.getMonth() + 1).padStart(2, '0');
+                const day = String(date.getDate()).padStart(2, '0');
+                const hours = String(date.getHours()).padStart(2, '0');
+                const minutes = String(date.getMinutes()).padStart(2, '0');
+                deadlineStr = `${year}-${month}-${day}T${hours}:${minutes}`;
+            }
+            document.getElementById('proj-edit-deadline').value = deadlineStr;
             document.getElementById('proj-extraBudget').value = 0;
             
             // Calcular horas y minutos acumulados actuales
@@ -5799,7 +5893,9 @@ class BackupModule {
             projectPulseSubscription: localStorage.getItem('projectPulseSubscription'),
             alerts_config: localStorage.getItem('alerts_config'),
             alerts_sent_log: localStorage.getItem('alerts_sent_log'),
-            finanzasData: localStorage.getItem('finanzasData')
+            finanzasData: localStorage.getItem('finanzasData'),
+            tareas_list: localStorage.getItem('tareas_list'),
+            tareas_categories: localStorage.getItem('tareas_categories')
         };
 
         const blob = new Blob([JSON.stringify(unifiedData, null, 2)], { type: "application/json" });
@@ -5972,6 +6068,26 @@ class BackupModule {
                         ? rawData.alerts_sent_log 
                         : JSON.stringify(rawData.alerts_sent_log);
                     localStorage.setItem('alerts_sent_log', dataVal);
+                }
+
+                // Tareas
+                let tasksFound = false;
+                if (rawData.tareas_list) {
+                    const dataVal = typeof rawData.tareas_list === 'string'
+                        ? rawData.tareas_list
+                        : JSON.stringify(rawData.tareas_list);
+                    localStorage.setItem('tareas_list', dataVal);
+                    tasksFound = true;
+                }
+                if (rawData.tareas_categories) {
+                    const dataVal = typeof rawData.tareas_categories === 'string'
+                        ? rawData.tareas_categories
+                        : JSON.stringify(rawData.tareas_categories);
+                    localStorage.setItem('tareas_categories', dataVal);
+                    tasksFound = true;
+                }
+                if (tasksFound) {
+                    importedCategories.push("Lista de Tareas");
                 }
 
                 if (importedCategories.length > 0) {
@@ -6242,7 +6358,9 @@ class AuthSyncModule {
             alerts_sent_log: localStorage.getItem('alerts_sent_log'),
             finanzasData: localStorage.getItem('finanzasData'),
             vehicle_tracker_data: localStorage.getItem('vehicle_tracker_data'),
-            vehicle_issues: localStorage.getItem('vehicle_issues')
+            vehicle_issues: localStorage.getItem('vehicle_issues'),
+            tareas_list: localStorage.getItem('tareas_list'),
+            tareas_categories: localStorage.getItem('tareas_categories')
         };
     }
 
@@ -6849,6 +6967,18 @@ class FinanzasModule {
         yearSelect?.addEventListener('change', () => {
             this.renderAnnualBreakdown();
         });
+
+        // Collapsible Freelance Breakdown
+        const trigger = document.getElementById('fin-freelance-trigger');
+        const subBreakdown = document.getElementById('fin-freelance-sub-breakdown');
+        const caret = document.getElementById('fin-freelance-caret');
+        if (trigger && subBreakdown && caret) {
+            trigger.addEventListener('click', () => {
+                subBreakdown.classList.toggle('hidden');
+                const isOpen = !subBreakdown.classList.contains('hidden');
+                caret.style.transform = isOpen ? 'rotate(90deg)' : 'rotate(0deg)';
+            });
+        }
     }
 
     toggleModalFields() {
@@ -6933,6 +7063,7 @@ class FinanzasModule {
             list.push({
                 id: `proj-${p.id}`,
                 category: 'freelance',
+                source: p.source || 'workana',
                 date: dateVal,
                 amount: Number(p.budgetNet || 0),
                 description: `${p.client} - ${p.project}`
@@ -7118,14 +7249,28 @@ class FinanzasModule {
         let catDiscord = 0;
         let catTrading = 0;
         let catExtraordinary = 0;
+        let freelanceWorkana = 0;
+        let freelanceExternal = 0;
 
         monthEntries.forEach(e => {
             const amt = Number(e.amount || 0);
-            if (e.category === 'freelance') catFreelance += amt;
+            if (e.category === 'freelance') {
+                catFreelance += amt;
+                if (e.source === 'external') {
+                    freelanceExternal += amt;
+                } else {
+                    freelanceWorkana += amt;
+                }
+            }
             else if (e.category === 'discord') catDiscord += amt;
             else if (e.category === 'trading') catTrading += amt;
             else if (e.category === 'extraordinary') catExtraordinary += amt;
         });
+
+        const elWorkana = document.getElementById('fin-freelance-sub-workana');
+        const elExternal = document.getElementById('fin-freelance-sub-external');
+        if (elWorkana) elWorkana.innerText = `USD ${freelanceWorkana.toFixed(2)}`;
+        if (elExternal) elExternal.innerText = `USD ${freelanceExternal.toFixed(2)}`;
 
         const totalMonth = catFreelance + catDiscord + catTrading + catExtraordinary;
 
@@ -7218,6 +7363,246 @@ class FinanzasModule {
 
 
 // ==========================================================================
+// MÓDULO 5.5: LISTA DE TAREAS GENERAL (TareasModule)
+// ==========================================================================
+class TareasModule {
+    constructor(appController) {
+        this.app = appController;
+        this.tasks = [];
+        this.categories = [];
+        this.currentCategory = null;
+
+        window.tareas = this;
+        this.loadData();
+        this.setupListeners();
+    }
+
+    loadData() {
+        try {
+            const tasksRaw = localStorage.getItem('tareas_list');
+            if (tasksRaw) {
+                this.tasks = JSON.parse(tasksRaw) || [];
+            } else {
+                this.tasks = [];
+            }
+
+            const catsRaw = localStorage.getItem('tareas_categories');
+            if (catsRaw) {
+                this.categories = JSON.parse(catsRaw) || [];
+            } else {
+                this.categories = ['Personal', 'LifeCycle', 'Facultad', 'Cotidianas'];
+                localStorage.setItem('tareas_categories', JSON.stringify(this.categories));
+            }
+
+            if (this.categories.length > 0) {
+                this.currentCategory = this.categories[0];
+            }
+        } catch (e) {
+            console.error("Error loading Tareas data:", e);
+            this.tasks = [];
+            this.categories = ['Personal', 'LifeCycle', 'Facultad', 'Cotidianas'];
+            this.currentCategory = this.categories[0];
+        }
+    }
+
+    saveData() {
+        localStorage.setItem('tareas_list', JSON.stringify(this.tasks));
+        localStorage.setItem('tareas_categories', JSON.stringify(this.categories));
+    }
+
+    setupListeners() {
+        // Modal Category
+        const btnAddCategory = document.getElementById('btn-add-category');
+        const catModal = document.getElementById('tareas-category-modal');
+        const catCancel = document.getElementById('tareas-cat-cancel');
+        const catSave = document.getElementById('tareas-cat-save');
+        const catInput = document.getElementById('tareas-new-cat-name');
+
+        btnAddCategory?.addEventListener('click', () => {
+            if (catInput) catInput.value = '';
+            catModal?.classList.remove('hidden');
+        });
+
+        catCancel?.addEventListener('click', () => {
+            catModal?.classList.add('hidden');
+        });
+
+        catSave?.addEventListener('click', () => {
+            const val = catInput?.value.trim();
+            if (!val) return;
+            if (this.categories.includes(val)) {
+                alert("Esta carpeta ya existe.");
+                return;
+            }
+            this.categories.push(val);
+            this.currentCategory = val;
+            this.saveData();
+            catModal?.classList.add('hidden');
+            this.render();
+        });
+
+        // Delete Category
+        const btnDeleteCategory = document.getElementById('btn-delete-category');
+        btnDeleteCategory?.addEventListener('click', () => {
+            if (!this.currentCategory) return;
+            if (confirm(`¿Seguro que deseas eliminar la carpeta "${this.currentCategory}"?\nTodas las tareas dentro de esta carpeta se borrarán permanentemente.`)) {
+                this.tasks = this.tasks.filter(t => t.category !== this.currentCategory);
+                this.categories = this.categories.filter(c => c !== this.currentCategory);
+                this.currentCategory = this.categories.length > 0 ? this.categories[0] : null;
+                this.saveData();
+                this.render();
+            }
+        });
+
+        // Modal Task
+        const btnAddTask = document.getElementById('btn-add-task');
+        const taskModal = document.getElementById('tareas-task-modal');
+        const taskCancel = document.getElementById('tareas-task-cancel');
+        const taskSave = document.getElementById('tareas-task-save');
+        const taskInput = document.getElementById('tareas-task-text');
+        const urgencyInput = document.getElementById('tareas-task-urgency');
+
+        btnAddTask?.addEventListener('click', () => {
+            if (!this.currentCategory) {
+                alert("Primero crea una carpeta.");
+                return;
+            }
+            if (taskInput) taskInput.value = '';
+            if (urgencyInput) urgencyInput.value = 'no_urgente';
+            taskModal?.classList.remove('hidden');
+        });
+
+        taskCancel?.addEventListener('click', () => {
+            taskModal?.classList.add('hidden');
+        });
+
+        taskSave?.addEventListener('click', () => {
+            const text = taskInput?.value.trim();
+            if (!text) return;
+            const urgency = urgencyInput?.value || 'no_urgente';
+
+            const newTask = {
+                id: Date.now(),
+                text,
+                category: this.currentCategory,
+                urgency,
+                completed: false,
+                createdAt: new Date().toISOString()
+            };
+
+            this.tasks.push(newTask);
+            this.saveData();
+            taskModal?.classList.add('hidden');
+            this.render();
+            this.app.notificationsCenter?.render();
+        });
+    }
+
+    toggleTask(id) {
+        const t = this.tasks.find(x => x.id === id);
+        if (t) {
+            t.completed = !t.completed;
+            this.saveData();
+            this.render();
+            this.app.notificationsCenter?.render();
+        }
+    }
+
+    deleteTask(id) {
+        this.tasks = this.tasks.filter(x => x.id !== id);
+        this.saveData();
+        this.render();
+        this.app.notificationsCenter?.render();
+    }
+
+    render() {
+        const tabsContainer = document.getElementById('tareas-categories-tabs');
+        const activeList = document.getElementById('tareas-active-list');
+        const completedList = document.getElementById('tareas-completed-list');
+        const activeTitle = document.getElementById('tareas-active-title');
+
+        if (!tabsContainer || !activeList || !completedList) return;
+
+        // Render Tabs
+        tabsContainer.innerHTML = '';
+        if (this.categories.length === 0) {
+            tabsContainer.innerHTML = '<span style="color:var(--text-secondary); font-size:0.9rem; padding: 5px;">No hay carpetas. Creá una arriba a la derecha.</span>';
+        } else {
+            this.categories.forEach(cat => {
+                const btn = document.createElement('button');
+                btn.className = `tab-btn ${this.currentCategory === cat ? 'active' : ''}`;
+                btn.innerText = cat;
+                btn.onclick = () => {
+                    this.currentCategory = cat;
+                    this.render();
+                };
+                tabsContainer.appendChild(btn);
+            });
+        }
+
+        // Render Titles
+        if (activeTitle) {
+            activeTitle.innerText = this.currentCategory ? `Tareas Pendientes (${this.currentCategory})` : 'Tareas Pendientes';
+        }
+
+        // Render Lists
+        activeList.innerHTML = '';
+        completedList.innerHTML = '';
+
+        if (!this.currentCategory) {
+            activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">Crea o selecciona una carpeta.</p>';
+            completedList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">-</p>';
+            return;
+        }
+
+        const catTasks = this.tasks.filter(t => t.category === this.currentCategory);
+        const pending = catTasks.filter(t => !t.completed);
+        const completed = catTasks.filter(t => t.completed);
+
+        if (pending.length === 0) {
+            activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">¡Todo listo por aquí! No hay tareas pendientes.</p>';
+        } else {
+            pending.forEach(t => {
+                const isUrgent = t.urgency === 'urgente';
+                const badge = isUrgent 
+                    ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px;">Urgente</span>`
+                    : '';
+                const row = document.createElement('div');
+                row.className = 'task-item';
+                row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
+                row.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px;">
+                        <input type="checkbox" onchange="window.tareas.toggleTask(${t.id})" style="width:18px; height:18px; cursor:pointer;">
+                        <span style="color:white; font-size:0.95rem;">${t.text} ${badge}</span>
+                    </div>
+                    <button class="btn-delete-task" onclick="window.tareas.deleteTask(${t.id})" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                `;
+                activeList.appendChild(row);
+            });
+        }
+
+        if (completed.length === 0) {
+            completedList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay tareas completadas todavía.</p>';
+        } else {
+            completed.forEach(t => {
+                const row = document.createElement('div');
+                row.className = 'task-item';
+                row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); border-radius:8px; padding:10px 14px;';
+                row.innerHTML = `
+                    <div style="display:flex; align-items:center; gap:10px; opacity: 0.6;">
+                        <input type="checkbox" checked onchange="window.tareas.toggleTask(${t.id})" style="width:18px; height:18px; cursor:pointer;">
+                        <span style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through;">${t.text}</span>
+                    </div>
+                    <button class="btn-delete-task" onclick="window.tareas.deleteTask(${t.id})" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                `;
+                completedList.appendChild(row);
+            });
+        }
+    }
+}
+
+
+// ==========================================================================
 // MÓDULO 6: GESTOR DE ALERTAS CENTRALIZADO (AlertsModule)
 // ==========================================================================
 const ALERT_DEFINITIONS = [
@@ -7271,7 +7656,8 @@ const ALERT_DEFINITIONS = [
     // Otros
     { key: 'robot', name: 'Robot Aspiradora', category: 'otros', type: 'interval', defaultTime: '23:00' },
     { key: 'workana', name: 'Vencimiento Workana', category: 'otros', type: 'interval', defaultTime: '23:00' },
-    { key: 'projects_check', name: 'Estado de Proyectos Activos', category: 'otros', type: 'interval', defaultTime: '09:00' }
+    { key: 'projects_check', name: 'Estado de Proyectos Activos', category: 'otros', type: 'interval', defaultTime: '09:00' },
+    { key: 'tareas_urgentes_check', name: 'Tareas Pendientes Urgentes', category: 'otros', type: 'interval', defaultTime: '09:00' }
 ];
 
 const CATEGORY_NAMES = {
@@ -7871,7 +8257,44 @@ class NotificationsCenterModule {
                             });
                         }
                     }
-                }
+            }
+            }
+
+            // 7. PENDING URGENT GENERAL TASKS
+            if (this.app.tareas && this.app.tareas.tasks) {
+                const pendingUrgentTasks = this.app.tareas.tasks.filter(t => !t.completed && t.urgency === 'urgente');
+                pendingUrgentTasks.forEach(t => {
+                    let catName = 'General';
+                    if (this.app.tareas.categories) {
+                        const cat = this.app.tareas.categories.find(c => String(c.id) === String(t.categoryId));
+                        if (cat) catName = cat.name;
+                    }
+                    items.push({
+                        module: 'tareas',
+                        id: `task-${t.id}`,
+                        name: `Tarea: ${t.text}`,
+                        icon: 'ph-check-square',
+                        desc: `Urgente - Categoría: ${catName}`
+                    });
+                });
+            }
+
+            // 8. PENDING URGENT PROJECT TASKS
+            if (this.app.projects && this.app.projects.projects) {
+                this.app.projects.projects.forEach(p => {
+                    if (p.tasks && !p.isDelivered) {
+                        const pendingUrgentProjTasks = p.tasks.filter(t => !t.completed && t.urgency === 'urgente');
+                        pendingUrgentProjTasks.forEach(t => {
+                            items.push({
+                                module: 'projects_tasks',
+                                id: `proj-task-${t.id}`,
+                                name: `Proyecto: ${p.client}`,
+                                icon: 'ph-list-checks',
+                                desc: `Urgente - Tarea: ${t.text}`
+                            });
+                        });
+                    }
+                });
             }
         } catch (e) {
             console.error("Error in getOverdueItems:", e);
@@ -8061,6 +8484,8 @@ class AppController {
                 this.projects.render();
             } else if (activeSectionId === 'finanzas-section') {
                 this.finanzas.render();
+            } else if (activeSectionId === 'tareas-section') {
+                this.tareas.render();
             }
         });
     }
@@ -8290,6 +8715,7 @@ class AppController {
         this.gym = new GymModule(this);
         this.projects = new ProjectsModule(this);
         this.finanzas = new FinanzasModule(this);
+        this.tareas = new TareasModule(this);
         this.backups = new BackupModule(this);
         this.auth = new AuthSyncModule(this);
         this.alerts = new AlertsModule(this);
@@ -8306,6 +8732,7 @@ class AppController {
                 else if (activeSection.id === 'gym-section') this.gym.render();
                 else if (activeSection.id === 'projects-section') this.projects.render();
                 else if (activeSection.id === 'finanzas-section') this.finanzas.render();
+                else if (activeSection.id === 'tareas-section') this.tareas.render();
             }
         }, 1000 * 60 * 60);
     }
@@ -8320,7 +8747,7 @@ class AppController {
             'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
             'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory',
             'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData',
-            'vehicle_tracker_data', 'vehicle_issues'
+            'vehicle_tracker_data', 'vehicle_issues', 'tareas_list', 'tareas_categories'
         ];
         
         if (trackedKeys.includes(key) && this.auth && this.auth.user) {
