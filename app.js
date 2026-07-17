@@ -24,7 +24,12 @@ const itemsConfig = [
         icon: 'ph-sparkle',
         limits: { yellow: 11, orange: 15, red: 30 },
         type: 'wash',
-        category: 'cuidado_personal'
+        category: 'cuidado_personal',
+        instructions: [
+            { step: 'Lavado a mano', text: 'Remojar la esponja en agua tibia y frotar con abundante jabón blanco (neutro) a mano para disolver la grasitud y remover bacterias.' },
+            { step: 'Sin lavarropas', text: 'NO lavar en lavarropas ni usar suavizantes o lavandina, ya que dañan y estiran las fibras elásticas del tejido de nylon.' },
+            { step: 'Enjuague y Secado', text: 'Enjuagar con agua limpia, escurrir bien apretando sin retorcer con fuerza, y colgar estirada en un lugar seco y ventilado.' }
+        ]
     },
     {
         id: 'toalla_mano',
