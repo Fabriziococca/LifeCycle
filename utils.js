@@ -248,7 +248,7 @@ export const itemsConfig = [
 
 // Configuración de Zonas de Cuidado Corporal (HabitSync)
 export const ZONES = [
-    { id: 'barba', name: 'Barba', isHero: true },
+    { id: 'barba', name: 'Barba', isHero: false },
     { id: 'pelo', name: 'Pelo', isHero: false },
     { id: 'axilas', name: 'Axilas', isHero: false },
     { id: 'pecho_panza', name: 'Pecho y Panza', isHero: false },
@@ -259,6 +259,19 @@ export const ZONES = [
     { id: 'unas_pies', name: 'Uñas Pies', isHero: false },
     { id: 'hoja_gillette', name: 'Hoja Gillette', isHero: false, isTool: true }
 ];
+
+export const GROOMING_RULES = {
+    barba: { limits: { green: 1, yellow: 2, red: 3 } },
+    pelo: { limits: { green: 14, yellow: 17, orange: 19, red: 20 } },
+    axilas: { limits: { green: 20, yellow: 25, orange: 29, red: 30 } },
+    hoja_gillette: { limits: { green: 20, yellow: 29, red: 30 } },
+    pecho_panza: { limits: { green: 40, yellow: 50, orange: 59, red: 60 } },
+    brazos: { limits: { green: 120, yellow: 150, orange: 179, red: 180 } },
+    piernas: { limits: { green: 80, yellow: 100, orange: 119, red: 120 } },
+    intimas: { limits: { green: 15, yellow: 22, orange: 29, red: 30 } },
+    unas_manos: { limits: { green: 10, yellow: 14, orange: 17, red: 18 } },
+    unas_pies: { limits: { green: 30, yellow: 40, orange: 49, red: 50 } }
+};
 
 // Límites de Lentes de Contacto (LensTracker) en Días
 export const LENS_LIMITS = {

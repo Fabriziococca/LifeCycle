@@ -1,4 +1,4 @@
-import { ZONES } from '../utils.js';
+import { ZONES, GROOMING_RULES } from '../utils.js';
 import { DateUtils } from '../utils.js';
 
 export class GroomingModule {
@@ -9,7 +9,9 @@ export class GroomingModule {
         this.barbaSection = document.getElementById('barba-section');
         this.gridSection = document.getElementById('cuidado-grid-section');
         this.toolsSection = document.getElementById('cuidado-tools-section');
+        this.template = document.getElementById('card-template');
         
+        window.grooming = this;
         this.init();
     }
 
@@ -40,7 +42,6 @@ export class GroomingModule {
     updatePrediction(historyArray) {
         if (!historyArray || historyArray.length === 0) return 'Sin registros';
         
-        // Filtrar duplicados o registros muy cercanos (menos de 12 horas)
         const validDates = [];
         for (let i = 0; i < historyArray.length; i++) {
             const current = new Date(historyArray[i]);
@@ -55,7 +56,6 @@ export class GroomingModule {
         }
 
         if (validDates.length < 2) {
-            // Sugerir en 2 días por defecto (frecuencia óptima para la barba)
             const nextDate = new Date(validDates[0] ? validDates[0].getTime() : Date.now());
             nextDate.setDate(nextDate.getDate() + 2);
             let dateStr = nextDate.toLocaleDateString('es-AR', { weekday: 'long', day: 'numeric' });
@@ -69,9 +69,8 @@ export class GroomingModule {
         }
         let avgDiff = totalDiff / count;
         
-        // Si la diferencia promedio es mayor a 4 días (el límite crítico máximo), la limitamos
         if (avgDiff > 4 * 24 * 60 * 60 * 1000) {
-            avgDiff = 2.5 * 24 * 60 * 60 * 1000; // Valor razonable por defecto para afeitado regular
+            avgDiff = 2.5 * 24 * 60 * 60 * 1000;
         }
         
         const nextDate = new Date(validDates[0].getTime() + avgDiff);
@@ -105,9 +104,9 @@ export class GroomingModule {
             const dateObj = new Date(dateStr);
             const formatted = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
             return `
-                <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px;">
+                <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 0.8rem;">
                     <span>${formatted}</span>
-                    <button class="btn-delete-grooming-history" data-zone="${zoneId}" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 2px 6px; font-size: 0.85rem;" title="Borrar registro">❌</button>
+                    <button class="btn-delete-grooming-history" data-zone="${zoneId}" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 2px 6px;" title="Borrar registro">❌</button>
                 </div>
             `;
         }).join('');
@@ -129,185 +128,150 @@ export class GroomingModule {
         });
     }
 
-    render() {
-        if (!this.barbaSection || !this.gridSection || !this.toolsSection) return;
+    getStatusClass(daysElapsed, limits) {
+        if (daysElapsed === null) return 'status-green';
+        if (daysElapsed >= limits.red) return 'status-red';
+        if (limits.orange && daysElapsed >= limits.orange) return 'status-orange';
+        if (daysElapsed >= limits.yellow) return 'status-yellow';
+        return 'status-green';
+    }
 
-        this.barbaSection.innerHTML = '';
+    getStatusText(statusClass, zoneId) {
+        const statusMap = { 'status-green': 'green', 'status-yellow': 'yellow', 'status-orange': 'orange', 'status-red': 'red' };
+        const status = statusMap[statusClass] || 'green';
+        
+        if (zoneId === 'barba') {
+            return { green: 'Afeitado', yellow: 'Toca Afeitar', red: '¡Afeitate ya!' }[status];
+        }
+        if (zoneId === 'pelo') {
+            return { green: 'Corte OK', yellow: 'Atención', orange: 'Cortar Pronto', red: 'Corte Urgente' }[status];
+        }
+        if (zoneId === 'unas_manos' || zoneId === 'unas_pies') {
+            return { green: 'Uñas OK', yellow: 'Atención', orange: 'Cortar Pronto', red: 'Cortar Uñas ya' }[status];
+        }
+        if (zoneId === 'hoja_gillette') {
+            return { green: 'Filo OK', yellow: 'Atención', red: 'Cambiar Hoja' }[status];
+        }
+        return { green: 'Depilación OK', yellow: 'Atención', orange: 'Rebajar Pronto', red: 'Rebajar Urgente' }[status];
+    }
+
+    render() {
+        if (!this.gridSection || !this.toolsSection) return;
+
         this.gridSection.innerHTML = '';
         this.toolsSection.innerHTML = '';
+        if (this.barbaSection) this.barbaSection.innerHTML = '';
 
         ZONES.forEach(zone => {
             const history = this.data[zone.id] || [];
             const lastSession = history[0] || null;
             const daysDiff = this.getDaysDiff(lastSession);
             
-            let daysText = 'Nunca';
-            let colorVar = 'var(--text-secondary)';
-            let borderColor = 'var(--surface-border)';
+            const limits = GROOMING_RULES[zone.id]?.limits || { red: 30, yellow: 20 };
+            const statusClass = this.getStatusClass(daysDiff, limits);
+            const statusText = this.getStatusText(statusClass, zone.id);
 
-            if (daysDiff !== null) {
-                daysText = daysDiff === 0 ? 'Hoy' : daysDiff === 1 ? '1 día' : `${daysDiff} días`;
-                
-                // Get limits from rulesConfig
-                const zRules = this.app.auth?.config?.rulesConfig?.grooming?.[zone.id]?.limits || {};
-                
-                if (zone.id === 'barba') {
-                    if (daysDiff <= (zRules.green || 2)) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff === (zRules.yellow || 3)) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
-                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
-                } else if (zone.id === 'pelo') {
-                    if (daysDiff <= 14) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff <= 17) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
-                    else if (daysDiff <= 19) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
-                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
-                } else if (zone.id === 'axilas') {
-                    if (daysDiff <= 20) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff <= 25) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
-                    else if (daysDiff <= 29) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
-                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
-                } else if (zone.id === 'hoja_gillette') {
-                    if (daysDiff <= 20) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff <= 29) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
-                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
-                } else if (zone.id === 'pecho_panza') {
-                    if (daysDiff <= 40) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff <= 50) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
-                    else if (daysDiff <= 59) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
-                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
-                } else if (zone.id === 'brazos') {
-                    if (daysDiff <= 120) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff <= 150) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
-                    else if (daysDiff <= 179) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
-                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
-                } else if (zone.id === 'piernas') {
-                    if (daysDiff <= 80) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff <= 100) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
-                    else if (daysDiff <= 119) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
-                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
-                } else if (zone.id === 'intimas') {
-                    if (daysDiff <= 15) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff <= 22) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
-                    else if (daysDiff <= 29) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
-                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
-                } else if (zone.id === 'unas_manos') {
-                    if (daysDiff <= 10) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff <= 14) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
-                    else if (daysDiff <= 17) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
-                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
-                } else if (zone.id === 'unas_pies') {
-                    if (daysDiff <= 30) { colorVar = 'var(--status-green)'; borderColor = 'var(--status-green)'; }
-                    else if (daysDiff <= 40) { colorVar = 'var(--status-yellow)'; borderColor = 'var(--status-yellow)'; }
-                    else if (daysDiff <= 49) { colorVar = 'var(--status-orange)'; borderColor = 'var(--status-orange)'; }
-                    else { colorVar = 'var(--status-red)'; borderColor = 'var(--status-red)'; }
-                } else {
-                    colorVar = 'var(--primary-color)';
-                }
-            }
+            const clone = this.template.content.cloneNode(true);
+            const cardEl = clone.querySelector('.card');
+            
+            let colorVar = 'var(--status-green)';
+            if (statusClass === 'status-yellow') colorVar = 'var(--status-yellow)';
+            else if (statusClass === 'status-orange') colorVar = 'var(--status-orange)';
+            else if (statusClass === 'status-red') colorVar = 'var(--status-red)';
+            
+            cardEl.className = `card ${statusClass}`;
+            cardEl.style.borderColor = colorVar;
 
-            const card = document.createElement('div');
-            card.className = zone.isHero ? 'card hero-card' : 'card';
-            if (daysDiff !== null) {
-                card.style.borderColor = borderColor;
-            }
-
+            clone.querySelector('.card-title').textContent = zone.name;
+            
             let iconClass = 'ph-user';
             if (zone.id === 'barba') iconClass = 'ph-scissors';
             else if (zone.id === 'unas_manos') iconClass = 'ph-hand';
             else if (zone.id === 'unas_pies') iconClass = 'ph-scissors';
             else if (zone.id === 'hoja_gillette') iconClass = 'ph-sparkle';
+            
+            clone.querySelector('.card-icon').className = `card-icon ph ${iconClass}`;
+            clone.querySelector('.days-count').textContent = daysDiff !== null ? daysDiff : '--';
+            clone.querySelector('.days-count').style.color = colorVar;
+            clone.querySelector('.status-text').textContent = statusText;
+            clone.querySelector('.status-dot').style.backgroundColor = colorVar;
 
-            if (zone.isHero) {
-                // Render Hero Card for Barba
-                const predictionText = this.updatePrediction(history);
-                card.innerHTML = `
-                    <div class="hero-flex">
-                        <div class="hero-main-info">
-                            <div class="icon-container-large">
-                                <i class="ph-fill ${iconClass}"></i>
-                            </div>
-                            <div>
-                                <h2 style="margin:0; font-size:1.45rem;">${zone.name}</h2>
-                                <p style="margin:5px 0 0 0; font-size:0.85rem; color: ${colorVar}; font-weight:600;">Estado: ${daysText === 'Nunca' ? 'Nunca registrado' : 'Hace ' + daysText}</p>
-                                <p class="prediction-text" style="margin:8px 0 0 0; font-size:0.8rem; color:var(--text-secondary); font-style:italic;">${predictionText}</p>
-                            </div>
-                        </div>
-                        <div class="hero-actions">
-                            <button class="btn btn-primary btn-record-grooming" data-zone="${zone.id}"><i class="ph-bold ph-scissors"></i> Afeitarme AHORA</button>
-                            <div style="display:flex; gap:10px; width:100%;">
-                                <button class="btn btn-secondary btn-card-edit" data-zone="${zone.id}" style="flex:1;"><i class="ph ph-pencil-simple"></i> Editar</button>
-                                <button class="btn btn-secondary btn-history-grooming" style="flex:1;">Ver historial</button>
-                            </div>
-                        </div>
-                    </div>
-                    <div class="history-log hidden" style="margin-top: 1.25rem; background: rgba(0,0,0,0.15); border-radius: 8px; padding: 10px;"></div>
-                `;
-                
-                card.querySelector('.btn-record-grooming').addEventListener('click', () => this.recordSession(zone.id));
-                card.querySelector('.btn-card-edit').addEventListener('click', () => {
-                    this.app.openEditModal('grooming', zone.id, zone.name, lastSession);
-                });
-                
-                const logContainer = card.querySelector('.history-log');
-                const histBtn = card.querySelector('.btn-history-grooming');
-                this.renderHistoryLog(zone.id, history, logContainer);
-                
-                histBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const isHidden = logContainer.classList.contains('hidden');
-                    logContainer.classList.toggle('hidden', !isHidden);
-                    histBtn.innerText = isHidden ? 'Ocultar historial' : 'Ver historial';
-                });
-                
-                this.barbaSection.appendChild(card);
+            clone.querySelector('.last-date-label').textContent = 'Último registro';
+            clone.querySelector('.next-date-label').textContent = 'Próximo aviso';
+            clone.querySelector('.last-date').textContent = DateUtils.formatFriendlyDate(lastSession);
+            
+            if (lastSession) {
+                const nextDateVal = new Date(lastSession);
+                nextDateVal.setDate(nextDateVal.getDate() + limits.red);
+                clone.querySelector('.next-date').textContent = DateUtils.formatFriendlyDate(nextDateVal.toISOString());
             } else {
-                // Render standard card
-                card.innerHTML = `
-                    <div class="card-header">
-                        <div class="icon-container">
-                            <i class="ph ${iconClass}"></i>
-                        </div>
-                        <h3>${zone.name}</h3>
-                    </div>
-                    <div class="card-body">
-                        <div style="display: flex; align-items: baseline; gap: 6px; margin-bottom: 0.5rem;">
-                            <span class="days-count" style="font-size: 1.5rem; font-weight: 700; color: ${colorVar};">${daysDiff !== null ? daysDiff : '--'}</span>
-                            <span style="font-size: 0.85rem; color: var(--text-secondary);">días</span>
-                        </div>
-                        <p style="font-size:0.75rem; color: var(--text-secondary); margin-bottom: 1rem;">Último: <strong style="color:white; font-weight:500;">${DateUtils.formatFriendlyDate(lastSession)}</strong></p>
-                        
-                        <button class="btn btn-history btn-history-grooming" style="margin-bottom: 0.75rem; width:100%; font-size:0.8rem; padding:6px 12px; background:rgba(255,255,255,0.03); border:1px solid rgba(255,255,255,0.08); border-radius:6px; color:var(--text-secondary); cursor:pointer;">Ver historial</button>
-                        <div class="history-log hidden" style="margin-bottom:0.75rem; background: rgba(0,0,0,0.15); border-radius: 6px; padding: 8px;"></div>
-                    </div>
-                    <div class="card-footer" style="display:flex; gap:8px;">
-                        <button class="btn-card-edit" data-zone="${zone.id}" title="Editar Fecha" style="padding: 0.6rem; background: rgba(255,255,255,0.04); border: 1px solid rgba(255,255,255,0.08); border-radius: 8px; color: white; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 1.1rem; width: 42px; height: 42px; transition: all 0.2s;"><i class="ph ph-pencil-simple"></i></button>
-                        <button class="btn-wash btn-record-grooming" style="flex:1;">
-                            <i class="ph-bold ph-check"></i>
-                            <span>${zone.isTool ? 'Renovar' : 'Registrar'}</span>
-                        </button>
-                    </div>
-                `;
-                
-                card.querySelector('.btn-record-grooming').addEventListener('click', () => this.recordSession(zone.id));
-                card.querySelector('.btn-card-edit').addEventListener('click', () => {
-                    this.app.openEditModal('grooming', zone.id, zone.name, lastSession);
-                });
-                
-                const logContainer = card.querySelector('.history-log');
-                const histBtn = card.querySelector('.btn-history-grooming');
-                this.renderHistoryLog(zone.id, history, logContainer);
-                
-                histBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    const isHidden = logContainer.classList.contains('hidden');
-                    logContainer.classList.toggle('hidden', !isHidden);
-                    histBtn.innerText = isHidden ? 'Ocultar historial' : 'Ver historial';
-                });
-                
-                if (zone.isTool) {
-                    this.toolsSection.appendChild(card);
-                } else {
-                    this.gridSection.appendChild(card);
-                }
+                clone.querySelector('.next-date').textContent = 'N/A';
+            }
+            
+            const maxLimit = limits.red || 30;
+            const progressPercent = daysDiff !== null ? Math.min(100, (daysDiff / maxLimit) * 100) : 0;
+            clone.querySelector('.progress-bar').style.width = `${progressPercent}%`;
+            clone.querySelector('.progress-bar').style.backgroundColor = colorVar;
+
+            // Ocultar botón de info ya que cuidado corporal no tiene instrucciones
+            const infoBtn = clone.querySelector('.btn-info');
+            const instructionsCollapse = clone.querySelector('.instructions-collapse');
+            if (infoBtn) infoBtn.style.display = 'none';
+            if (instructionsCollapse) instructionsCollapse.style.display = 'none';
+
+            // Editar fecha
+            const editBtn = clone.querySelector('.btn-card-edit');
+            editBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.app.openEditModal('grooming', zone.id, zone.name, lastSession);
+            });
+
+            // Registrar acción
+            const actionBtn = clone.querySelector('.btn-wash');
+            let btnText = 'Registrar';
+            let btnIcon = 'ph-check';
+            if (zone.id === 'barba') { btnText = 'Registrar Afeitado'; btnIcon = 'ph-scissors'; }
+            else if (zone.id === 'pelo') { btnText = 'Registrar Corte'; btnIcon = 'ph-scissors'; }
+            else if (zone.id === 'unas_manos' || zone.id === 'unas_pies') { btnText = 'Registrar Corte'; btnIcon = 'ph-scissors'; }
+            else if (zone.id === 'hoja_gillette') { btnText = 'Renovar Hoja'; btnIcon = 'ph-sparkle'; }
+            else { btnText = 'Registrar Depilación'; btnIcon = 'ph-scissors'; }
+
+            actionBtn.querySelector('span').textContent = btnText;
+            actionBtn.querySelector('i').className = `ph-bold ${btnIcon}`;
+            actionBtn.addEventListener('click', () => this.recordSession(zone.id));
+
+            // Historial
+            const histBtn = clone.querySelector('.hygiene-history-btn');
+            const logContainer = clone.querySelector('.hygiene-history-log');
+
+            histBtn.style.display = 'block';
+            histBtn.classList.remove('hidden');
+            this.renderHistoryLog(zone.id, history, logContainer);
+            
+            histBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const isHidden = logContainer.classList.contains('hidden');
+                logContainer.classList.toggle('hidden', !isHidden);
+                histBtn.innerText = isHidden ? 'Ocultar historial' : 'Ver historial';
+            });
+
+            // Proyección barba
+            if (zone.id === 'barba') {
+                const predictionText = this.updatePrediction(history);
+                const predEl = document.createElement('div');
+                predEl.style.fontSize = '0.75rem';
+                predEl.style.color = 'var(--text-secondary)';
+                predEl.style.fontStyle = 'italic';
+                predEl.style.marginTop = '0.5rem';
+                predEl.style.textAlign = 'center';
+                predEl.textContent = predictionText;
+                clone.querySelector('.progress-container').before(predEl);
+            }
+
+            if (zone.isTool) {
+                this.toolsSection.appendChild(clone);
+            } else {
+                this.gridSection.appendChild(clone);
             }
         });
     }

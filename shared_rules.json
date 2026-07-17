@@ -94,7 +94,7 @@
   "grooming": {
     "barba": {
       "name": "Afeitado de Barba",
-      "limits": { "green": 2, "yellow": 3, "red": 4 }
+      "limits": { "green": 1, "yellow": 2, "red": 3 }
     },
     "pelo": {
       "name": "Corte de Pelo",
