@@ -278,7 +278,13 @@ export class TareasModule {
                 activeProjects.forEach(p => {
                     const btn = document.createElement('button');
                     btn.className = `tab-btn ${String(this.activeProjectId) === String(p.id) ? 'active' : ''}`;
-                    btn.innerText = p.client ? `${p.client} - ${p.project}` : p.project;
+                    const fullName = p.client ? `${p.client} - ${p.project}` : p.project;
+                    btn.innerText = fullName;
+                    btn.title = fullName;
+                    btn.style.maxWidth = '250px';
+                    btn.style.overflow = 'hidden';
+                    btn.style.textOverflow = 'ellipsis';
+                    btn.style.whiteSpace = 'nowrap';
                     btn.onclick = () => {
                         this.activeProjectId = p.id;
                         this.render();
