@@ -326,7 +326,16 @@ export class AuthSyncModule {
                 });
 
                 if (!hasDifference) {
+                    localStorage.removeItem('has_unsynced_local_changes');
                     this.updateSyncBadge('synced', "Sincronizado");
+                    return;
+                }
+
+                // Si hay diferencias pero tenemos cambios locales pendientes de subir (ej: por falla de conexión anterior), los subimos
+                const hasUnsynced = localStorage.getItem('has_unsynced_local_changes') === 'true';
+                if (hasUnsynced && sessionStorage.getItem('is_explicit_login') !== 'true') {
+                    console.log("[AuthSync] This device has unsynced local changes. Uploading to cloud...");
+                    await this.syncToCloud(false);
                     return;
                 }
 
@@ -375,6 +384,9 @@ export class AuthSyncModule {
     async syncToCloud(isManual = false) {
         if (!this.user || !this.supabase) return;
         
+        // Registrar que tenemos cambios locales pendientes de subir
+        localStorage.setItem('has_unsynced_local_changes', 'true');
+        
         if (this.isSyncing) {
             this.pendingSync = true;
             return;
@@ -417,6 +429,8 @@ export class AuthSyncModule {
                 this.updateSyncBadge('error', "Error al guardar");
                 if (isManual) alert("Error al sincronizar datos con la nube: " + error.message);
             } else {
+                // Sincronización exitosa: limpiar bandera de cambios pendientes
+                localStorage.removeItem('has_unsynced_local_changes');
                 this.updateSyncBadge('synced', "Sincronizado");
                 if (isManual) alert("¡Datos sincronizados correctamente con la nube!");
             }
