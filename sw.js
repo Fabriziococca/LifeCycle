@@ -1,4 +1,4 @@
-const CACHE_NAME = 'lifecycle-cache-v4';
+const CACHE_NAME = 'lifecycle-cache-v5';
 const STATIC_ASSETS = [
     '/',
     '/index.html',
@@ -7,6 +7,7 @@ const STATIC_ASSETS = [
     '/shared_rules.json',
     '/style.css',
     '/manifest.json',
+    '/icon-v2.png',
     '/modules/HygieneModule.js',
     '/modules/GroomingModule.js',
     '/modules/LensModule.js',
@@ -90,7 +91,7 @@ self.addEventListener('push', (event) => {
 
     const options = {
         body: data.body,
-        icon: '/icon.png',
+        icon: '/icon-v2.png',
         badge: '/badge.png',
         vibrate: [100, 50, 100],
         data: {

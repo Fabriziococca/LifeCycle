@@ -65,7 +65,7 @@ export class LensModule {
         }
 
         if (h >= 8 && !this.notificationSent && "Notification" in window && Notification.permission === "granted") {
-            new Notification("LifeCycle - Lentes", { body: "Llevás 8 horas con los lentes. ¡Dales un descanso!", icon: "icon.png" });
+            new Notification("LifeCycle - Lentes", { body: "Llevás 8 horas con los lentes. ¡Dales un descanso!", icon: "icon-v2.png" });
             this.notificationSent = true;
         }
     }
