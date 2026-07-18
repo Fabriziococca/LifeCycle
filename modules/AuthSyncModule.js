@@ -104,6 +104,26 @@ export class AuthSyncModule {
         this.btnTestPush?.addEventListener('click', async () => {
             await this.sendTestPushNotification();
         });
+
+        // Sincronización automática al enfocar la pestaña o cambiar visibilidad para mantener múltiples dispositivos al día
+        window.addEventListener('focus', () => {
+            if (this.user) {
+                this.checkAndSyncData().catch(e => console.error("Error on focus sync:", e));
+            }
+        });
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'visible' && this.user) {
+                this.checkAndSyncData().catch(e => console.error("Error on visibility sync:", e));
+            }
+        });
+
+        // Chequeo periódico de sincronización cada 60 segundos en segundo plano
+        setInterval(() => {
+            if (this.user && !this.isSyncing) {
+                this.checkAndSyncData().catch(e => console.error("Error on periodic sync:", e));
+            }
+        }, 60 * 1000);
     }
 
     async login() {
@@ -477,6 +497,9 @@ export class AuthSyncModule {
                 if (this.app.finanzas) {
                     try { this.app.finanzas.data = this.app.finanzas.loadData(); } catch (e) { console.error("Error reloading finanzas:", e); }
                 }
+                if (this.app.tareas) {
+                    try { this.app.tareas.loadData(); } catch (e) { console.error("Error reloading tareas:", e); }
+                }
             } catch (e) {
                 console.error("Critical error reloading in-memory data during silent sync:", e);
             }
@@ -508,6 +531,9 @@ export class AuthSyncModule {
             }
             if (this.app.finanzas) {
                 try { this.app.finanzas.render(); } catch (e) { console.error("Error rendering finanzas:", e); }
+            }
+            if (this.app.tareas) {
+                try { this.app.tareas.render(); } catch (e) { console.error("Error rendering tareas:", e); }
             }
             if (this.app.notificationsCenter) {
                 try { this.app.notificationsCenter.updateBadge(); } catch (e) { console.error("Error updating notifications badge:", e); }
