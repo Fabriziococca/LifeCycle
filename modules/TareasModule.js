@@ -318,7 +318,10 @@ export class TareasModule {
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
                     row.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <input type="checkbox" class="task-check" style="width:18px; height:18px; cursor:pointer;">
+                            <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center;">
+                                <input type="checkbox" class="task-check">
+                                <span class="custom-checkbox"></span>
+                            </label>
                             <span style="color:white; font-size:0.95rem;">${t.text} ${badge}</span>
                         </div>
                         <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
@@ -353,7 +356,10 @@ export class TareasModule {
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); border-radius:8px; padding:10px 14px;';
                     row.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px; opacity: 0.6;">
-                            <input type="checkbox" checked class="task-check" style="width:18px; height:18px; cursor:pointer;">
+                            <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center;">
+                                <input type="checkbox" checked class="task-check">
+                                <span class="custom-checkbox"></span>
+                            </label>
                             <span style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through;">${t.text}</span>
                         </div>
                         <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
@@ -405,7 +411,10 @@ export class TareasModule {
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
                     row.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px;">
-                            <input type="checkbox" class="task-check" style="width:18px; height:18px; cursor:pointer;">
+                            <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center;">
+                                <input type="checkbox" class="task-check">
+                                <span class="custom-checkbox"></span>
+                            </label>
                             <span style="color:white; font-size:0.95rem;">${t.text} ${badge}</span>
                         </div>
                         <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
@@ -429,7 +438,10 @@ export class TareasModule {
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); border-radius:8px; padding:10px 14px;';
                     row.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px; opacity: 0.6;">
-                            <input type="checkbox" checked class="task-check" style="width:18px; height:18px; cursor:pointer;">
+                            <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center;">
+                                <input type="checkbox" checked class="task-check">
+                                <span class="custom-checkbox"></span>
+                            </label>
                             <span style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through;">${t.text}</span>
                         </div>
                         <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
