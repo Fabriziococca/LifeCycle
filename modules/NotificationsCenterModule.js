@@ -406,14 +406,10 @@ export class NotificationsCenterModule {
             if (this.app.tareas && this.app.tareas.tasks) {
                 const pendingUrgentTasks = this.app.tareas.tasks.filter(t => !t.completed && t.urgency === 'urgente');
                 pendingUrgentTasks.forEach(t => {
-                    let catName = 'General';
-                    if (this.app.tareas.categories) {
-                        const cat = this.app.tareas.categories.find(c => String(c.id) === String(t.categoryId));
-                        if (cat) catName = cat.name;
-                    }
+                    const catName = t.category || 'General';
                     items.push({
                         module: 'tareas',
-                        id: `task-${t.id}`,
+                        id: t.id,
                         name: `Tarea: ${t.text}`,
                         icon: 'ph-check-square',
                         desc: `Urgente - Categoría: ${catName}`
@@ -424,13 +420,13 @@ export class NotificationsCenterModule {
             // 8. PENDING URGENT PROJECT TASKS
             if (this.app.projects && this.app.projects.projects) {
                 this.app.projects.projects.forEach(p => {
-                    if (p.tasks && !p.isDelivered) {
+                    if (p.tasks) {
                         const pendingUrgentProjTasks = p.tasks.filter(t => !t.completed && t.urgency === 'urgente');
                         pendingUrgentProjTasks.forEach(t => {
                             items.push({
                                 module: 'projects_tasks',
-                                id: `proj-task-${t.id}`,
-                                name: `Proyecto: ${p.client}`,
+                                id: t.id,
+                                name: `Proyecto: ${p.client || p.project}`,
                                 icon: 'ph-list-checks',
                                 desc: `Urgente - Tarea: ${t.text}`
                             });
@@ -555,6 +551,28 @@ export class NotificationsCenterModule {
             this.app.projects.subscription.startDate = today;
             this.app.projects.saveData();
             this.app.projects.render();
+        } else if (module === 'tareas') {
+            const t = this.app.tareas.tasks?.find(x => String(x.id) === String(id));
+            if (t) {
+                t.completed = true;
+                this.app.tareas.saveData();
+                this.app.tareas.render();
+                this.app.auth?.syncToCloud(false).catch(() => {});
+            }
+        } else if (module === 'projects_tasks') {
+            for (const p of this.app.projects.projects) {
+                const t = p.tasks?.find(x => String(x.id) === String(id));
+                if (t) {
+                    t.completed = true;
+                    this.app.projects.saveData();
+                    this.app.projects.render();
+                    if (this.app.tareas.currentCategory === 'Freelance' && String(this.app.tareas.activeProjectId) === String(p.id)) {
+                        this.app.tareas.render();
+                    }
+                    this.app.auth?.syncToCloud(false).catch(() => {});
+                    break;
+                }
+            }
         }
         
         // Update badge and list in real-time

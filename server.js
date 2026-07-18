@@ -946,7 +946,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             
                             const pendingUrgentProjectTasks = [];
                             for (const p of projectsDataForTasks) {
-                                if (p.tasks && !p.isDelivered) {
+                                if (p.tasks) {
                                     const pTasks = p.tasks.filter(t => !t.completed && t.urgency === 'urgente');
                                     pTasks.forEach(t => {
                                         pendingUrgentProjectTasks.push({ client: p.client, text: t.text });
