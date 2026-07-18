@@ -5,6 +5,7 @@ export class TareasModule {
         this.categories = [];
         this.currentCategory = null;
         this.activeProjectId = null;
+        this.editingTaskId = null;
 
         window.tareas = this;
         this.loadData();
@@ -313,35 +314,89 @@ export class TareasModule {
                     const badge = isUrgent 
                         ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px;">Urgente</span>`
                         : '';
+                    const isEditing = String(this.editingTaskId) === String(t.id);
                     const row = document.createElement('div');
                     row.className = 'task-item';
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
-                    row.innerHTML = `
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center;">
-                                <input type="checkbox" class="task-check">
-                                <span class="custom-checkbox"></span>
-                            </label>
-                            <span style="color:white; font-size:0.95rem;">${t.text} ${badge}</span>
-                        </div>
-                        <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
-                    `;
-                    row.querySelector('.task-check').addEventListener('change', () => {
-                        t.completed = true;
-                        this.app.projects.saveData();
-                        this.app.auth?.syncToCloud(false).catch(() => {});
-                        this.app.notificationsCenter?.updateBadge();
-                        this.render();
-                    });
-                    row.querySelector('.btn-delete-task').addEventListener('click', () => {
-                        if (confirm('¿Borrar esta tarea?')) {
-                            p.tasks = p.tasks.filter(x => x.id !== t.id);
+                    
+                    if (isEditing) {
+                        row.innerHTML = `
+                            <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                                <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; opacity:0.5; pointer-events:none;">
+                                    <input type="checkbox" disabled class="task-check">
+                                    <span class="custom-checkbox"></span>
+                                </label>
+                                <input type="text" class="text-input edit-task-input" value="${t.text}" style="flex:1; margin:0; padding:6px 10px; font-size:0.95rem; height:36px; min-width:0;">
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:center; margin-left:10px;">
+                                <button class="btn-save-task" style="background:none; border:none; color:var(--status-green); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-check"></i></button>
+                                <button class="btn-cancel-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-x"></i></button>
+                            </div>
+                        `;
+                        const input = row.querySelector('.edit-task-input');
+                        setTimeout(() => input?.focus(), 50);
+
+                        const saveAction = () => {
+                            const newText = input.value.trim();
+                            if (newText) {
+                                t.text = newText;
+                                this.app.projects.saveData();
+                                this.app.auth?.syncToCloud(false).catch(() => {});
+                                this.app.notificationsCenter?.updateBadge();
+                            }
+                            this.editingTaskId = null;
+                            this.render();
+                        };
+
+                        input.addEventListener('keydown', (e) => {
+                            if (e.key === 'Enter') saveAction();
+                            if (e.key === 'Escape') {
+                                this.editingTaskId = null;
+                                this.render();
+                            }
+                        });
+
+                        row.querySelector('.btn-save-task').addEventListener('click', saveAction);
+                        row.querySelector('.btn-cancel-task').addEventListener('click', () => {
+                            this.editingTaskId = null;
+                            this.render();
+                        });
+
+                    } else {
+                        row.innerHTML = `
+                            <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                                <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; flex-shrink:0;">
+                                    <input type="checkbox" class="task-check">
+                                    <span class="custom-checkbox"></span>
+                                </label>
+                                <span style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1;">${t.text} ${badge}</span>
+                            </div>
+                            <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
+                                <button class="btn-edit-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
+                                <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                            </div>
+                        `;
+                        row.querySelector('.task-check').addEventListener('change', () => {
+                            t.completed = true;
                             this.app.projects.saveData();
                             this.app.auth?.syncToCloud(false).catch(() => {});
                             this.app.notificationsCenter?.updateBadge();
                             this.render();
-                        }
-                    });
+                        });
+                        row.querySelector('.btn-edit-task').addEventListener('click', () => {
+                            this.editingTaskId = t.id;
+                            this.render();
+                        });
+                        row.querySelector('.btn-delete-task').addEventListener('click', () => {
+                            if (confirm('¿Borrar esta tarea?')) {
+                                p.tasks = p.tasks.filter(x => x.id !== t.id);
+                                this.app.projects.saveData();
+                                this.app.auth?.syncToCloud(false).catch(() => {});
+                                this.app.notificationsCenter?.updateBadge();
+                                this.render();
+                            }
+                        });
+                    }
                     activeList.appendChild(row);
                 });
             }
@@ -406,25 +461,79 @@ export class TareasModule {
                     const badge = isUrgent 
                         ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px;">Urgente</span>`
                         : '';
+                    const isEditing = String(this.editingTaskId) === String(t.id);
                     const row = document.createElement('div');
                     row.className = 'task-item';
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
-                    row.innerHTML = `
-                        <div style="display:flex; align-items:center; gap:10px;">
-                            <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center;">
-                                <input type="checkbox" class="task-check">
-                                <span class="custom-checkbox"></span>
-                            </label>
-                            <span style="color:white; font-size:0.95rem;">${t.text} ${badge}</span>
-                        </div>
-                        <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
-                    `;
-                    row.querySelector('.task-check').addEventListener('change', () => {
-                        this.toggleTask(t.id);
-                    });
-                    row.querySelector('.btn-delete-task').addEventListener('click', () => {
-                        this.deleteTask(t.id);
-                    });
+                    
+                    if (isEditing) {
+                        row.innerHTML = `
+                            <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                                <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; opacity:0.5; pointer-events:none;">
+                                    <input type="checkbox" disabled class="task-check">
+                                    <span class="custom-checkbox"></span>
+                                </label>
+                                <input type="text" class="text-input edit-task-input" value="${t.text}" style="flex:1; margin:0; padding:6px 10px; font-size:0.95rem; height:36px; min-width:0;">
+                            </div>
+                            <div style="display:flex; gap:8px; align-items:center; margin-left:10px;">
+                                <button class="btn-save-task" style="background:none; border:none; color:var(--status-green); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-check"></i></button>
+                                <button class="btn-cancel-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-x"></i></button>
+                            </div>
+                        `;
+                        const input = row.querySelector('.edit-task-input');
+                        setTimeout(() => input?.focus(), 50);
+
+                        const saveAction = () => {
+                            const newText = input.value.trim();
+                            if (newText) {
+                                t.text = newText;
+                                this.saveData();
+                                this.app.auth?.syncToCloud(false).catch(() => {});
+                                this.app.notificationsCenter?.updateBadge();
+                            }
+                            this.editingTaskId = null;
+                            this.render();
+                        };
+
+                        input.addEventListener('keydown', (e) => {
+                            if (e.key === 'Enter') saveAction();
+                            if (e.key === 'Escape') {
+                                this.editingTaskId = null;
+                                this.render();
+                            }
+                        });
+
+                        row.querySelector('.btn-save-task').addEventListener('click', saveAction);
+                        row.querySelector('.btn-cancel-task').addEventListener('click', () => {
+                            this.editingTaskId = null;
+                            this.render();
+                        });
+
+                    } else {
+                        row.innerHTML = `
+                            <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
+                                <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; flex-shrink:0;">
+                                    <input type="checkbox" class="task-check">
+                                    <span class="custom-checkbox"></span>
+                                </label>
+                                <span style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1;">${t.text} ${badge}</span>
+                            </div>
+                            <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
+                                <button class="btn-edit-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
+                                <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                            </div>
+                        `;
+                        row.querySelector('.task-check').addEventListener('change', () => {
+                            this.toggleTask(t.id);
+                        });
+                        row.querySelector('.btn-edit-task').addEventListener('click', () => {
+                            this.editingTaskId = t.id;
+                            this.render();
+                        });
+                        row.querySelector('.btn-delete-task').addEventListener('click', () => {
+                            this.deleteTask(t.id);
+                        });
+                    }
                     activeList.appendChild(row);
                 });
             }
