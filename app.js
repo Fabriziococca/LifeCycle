@@ -34,6 +34,113 @@ class AppController {
         this.initPWAInstall();
         this.initProfileTabs();
         this.initProfileOverlay();
+        this.initCurrencyPreference();
+    }
+
+    initCurrencyPreference() {
+        const btnUsd = document.getElementById('btn-currency-usd');
+        const btnArs = document.getElementById('btn-currency-ars');
+        const rateInfo = document.getElementById('currency-rate-info');
+
+        const activeCurrency = localStorage.getItem('preferred_currency') || 'USD';
+        this.updateCurrencyUI(activeCurrency);
+
+        btnUsd?.addEventListener('click', () => {
+            localStorage.setItem('preferred_currency', 'USD');
+            this.updateCurrencyUI('USD');
+            this.refreshFinancialViews();
+        });
+
+        btnArs?.addEventListener('click', async () => {
+            localStorage.setItem('preferred_currency', 'ARS');
+            this.updateCurrencyUI('ARS');
+            await this.fetchLemonRate();
+            this.refreshFinancialViews();
+        });
+
+        if (activeCurrency === 'ARS') {
+            this.fetchLemonRate().then(() => this.refreshFinancialViews());
+        }
+    }
+
+    async fetchLemonRate() {
+        const rateInfo = document.getElementById('currency-rate-info');
+        const cachedRate = localStorage.getItem('lemon_usdt_ars_rate');
+        const cachedTime = localStorage.getItem('lemon_usdt_ars_time');
+        const now = Date.now();
+
+        // Si tenemos caché de menos de 30 min, usamos esa
+        if (cachedRate && cachedTime && (now - parseInt(cachedTime)) < 1000 * 60 * 30) {
+            if (rateInfo) {
+                rateInfo.style.display = 'block';
+                rateInfo.innerHTML = `Cotización Lemon Cash USDT (Venta): <strong>$${parseFloat(cachedRate).toLocaleString('es-AR')} ARS</strong>`;
+            }
+            return parseFloat(cachedRate);
+        }
+
+        try {
+            const res = await fetch('https://criptoya.com/api/lemoncash/usdt/ars/1');
+            if (res.ok) {
+                const data = await res.json();
+                const rate = data.bid || 1530; // bid es el precio de venta recibido al vender USDT
+                localStorage.setItem('lemon_usdt_ars_rate', rate.toString());
+                localStorage.setItem('lemon_usdt_ars_time', now.toString());
+                if (rateInfo) {
+                    rateInfo.style.display = 'block';
+                    rateInfo.innerHTML = `Cotización Lemon Cash USDT (Venta): <strong>$${rate.toLocaleString('es-AR')} ARS</strong>`;
+                }
+                return rate;
+            }
+        } catch (e) {
+            console.error("Error fetching Lemon rate from CriptoYa:", e);
+        }
+
+        const fallback = parseFloat(cachedRate) || 1530;
+        if (rateInfo) {
+            rateInfo.style.display = 'block';
+            rateInfo.innerHTML = `Cotización Estimada Lemon Cash: <strong>$${fallback.toLocaleString('es-AR')} ARS</strong>`;
+        }
+        return fallback;
+    }
+
+    updateCurrencyUI(curr) {
+        const btnUsd = document.getElementById('btn-currency-usd');
+        const btnArs = document.getElementById('btn-currency-ars');
+        const rateInfo = document.getElementById('currency-rate-info');
+
+        if (curr === 'ARS') {
+            btnUsd?.classList.replace('btn-primary', 'btn-secondary');
+            btnArs?.classList.replace('btn-secondary', 'btn-primary');
+            if (rateInfo) rateInfo.style.display = 'block';
+        } else {
+            btnArs?.classList.replace('btn-primary', 'btn-secondary');
+            btnUsd?.classList.replace('btn-secondary', 'btn-primary');
+            if (rateInfo) rateInfo.style.display = 'none';
+        }
+    }
+
+    getCurrencyMultiplier() {
+        const curr = localStorage.getItem('preferred_currency') || 'USD';
+        if (curr === 'ARS') {
+            return parseFloat(localStorage.getItem('lemon_usdt_ars_rate')) || 1530;
+        }
+        return 1;
+    }
+
+    formatCurrency(amountUsd) {
+        const curr = localStorage.getItem('preferred_currency') || 'USD';
+        const num = Number(amountUsd || 0);
+        if (curr === 'ARS') {
+            const rate = this.getCurrencyMultiplier();
+            const totalArs = num * rate;
+            return `ARS $${totalArs.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
+        }
+        return `USD ${num.toFixed(2)}`;
+    }
+
+    refreshFinancialViews() {
+        if (this.finanzas) this.finanzas.render();
+        if (this.projects) this.projects.render();
     }
 
     initNavigation() {
@@ -225,6 +332,13 @@ class AppController {
             }
             this.health.saveMedicalData();
             this.health.render();
+        } else if (this.currentEditType === 'lenses') {
+            const key = this.currentEditId;
+            const dateStr = isoString.split('T')[0];
+            localStorage.setItem(key, dateStr);
+            this.lenses.loadDatesAndStock();
+            this.lenses.updateUI();
+            this.auth?.syncToCloud(false).catch(() => {});
         }
 
         this.notificationsCenter?.updateBadge();

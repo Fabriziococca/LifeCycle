@@ -570,7 +570,9 @@ export class GymModule {
         if (btnWeightHistoryToggle) {
             btnWeightHistoryToggle.addEventListener('click', () => {
                 const box = document.getElementById('weight-history-list');
+                const chartBox = document.getElementById('weight-chart-container');
                 box?.classList.toggle('hidden');
+                chartBox?.classList.toggle('hidden');
                 const isHidden = box?.classList.contains('hidden');
                 btnWeightHistoryToggle.innerHTML = isHidden ? '<i class="ph ph-eye"></i> Historial de Pesos' : '<i class="ph ph-eye-slash"></i> Ocultar Historial';
             });
@@ -1315,6 +1317,63 @@ export class GymModule {
             });
             historyBox.appendChild(el);
         });
+
+        this.renderWeightChart();
+    }
+
+    renderWeightChart() {
+        const wrapper = document.getElementById('weight-svg-wrapper');
+        if (!wrapper) return;
+
+        if (this.weight.length < 2) {
+            wrapper.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 10px; font-size:0.8rem;">Se necesitan al menos 2 registros para mostrar el gráfico.</p>';
+            return;
+        }
+
+        // Ordenar cronológicamente (más antiguo primero)
+        const sorted = [...this.weight].sort((a, b) => new Date(a.date) - new Date(b.date)).slice(-15);
+        const weights = sorted.map(w => w.weight);
+        const minW = Math.min(...weights) - 0.5;
+        const maxW = Math.max(...weights) + 0.5;
+        const range = maxW - minW || 1;
+
+        const svgWidth = 450;
+        const svgHeight = 120;
+        const padding = 25;
+
+        const points = sorted.map((item, index) => {
+            const x = padding + (index / (sorted.length - 1)) * (svgWidth - 2 * padding);
+            const y = svgHeight - padding - ((item.weight - minW) / range) * (svgHeight - 2 * padding);
+            return { x, y, weight: item.weight, date: item.date };
+        });
+
+        const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
+
+        const dots = points.map(p => {
+            const dateStr = p.date.split('-').reverse().slice(0, 2).join('/');
+            return `
+                <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--primary-color)" stroke="#ffffff" stroke-width="1.5">
+                    <title>${dateStr}: ${p.weight.toFixed(2)} kg</title>
+                </circle>
+                <text x="${p.x}" y="${p.y - 8}" font-size="9" fill="#ffffff" text-anchor="middle" font-weight="bold">${p.weight.toFixed(1)}</text>
+            `;
+        }).join('');
+
+        const svgHtml = `
+            <svg viewBox="0 0 ${svgWidth} ${svgHeight}" style="width: 100%; height: auto; overflow: visible;">
+                <!-- Grid Horizontal Lines -->
+                <line x1="${padding}" y1="${padding}" x2="${svgWidth - padding}" y2="${padding}" stroke="rgba(255,255,255,0.08)" stroke-dasharray="3,3"/>
+                <line x1="${padding}" y1="${svgHeight - padding}" x2="${svgWidth - padding}" y2="${svgHeight - padding}" stroke="rgba(255,255,255,0.08)"/>
+                
+                <!-- Weight Line -->
+                <polyline fill="none" stroke="var(--primary-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${polylinePoints}" />
+                
+                <!-- Data Dots and Text -->
+                ${dots}
+            </svg>
+        `;
+
+        wrapper.innerHTML = svgHtml;
     }
 
     deleteWeight(id) {

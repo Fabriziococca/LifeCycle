@@ -628,12 +628,12 @@ export class ProjectsModule {
             const s = initialSecs % 60;
             const formattedTime = `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
 
-            let rateText = 'USD --/h';
+            let rateText = '--/h';
             let rateColor = 'var(--text-secondary)';
             const totalHours = initialMs / (3600 * 1000);
             if (totalHours > 0) {
                 const rate = (p.budgetNet || 0) / totalHours;
-                rateText = `USD ${rate.toFixed(2)}/h`;
+                rateText = `${this.app.formatCurrency(rate)}/h`;
                 if (rate >= 25) rateColor = 'var(--status-green)';
                 else if (rate >= 20) rateColor = 'var(--primary-color)';
                 else if (rate >= 10) rateColor = 'var(--status-yellow)';
@@ -658,8 +658,8 @@ export class ProjectsModule {
                 </div>
 
                 <div class="finance-block">
-                    <span class="gross-amount">Presupuesto Bruto: USD ${Number(p.budgetGross || 0).toFixed(2)} (${p.feeType === 'direct' ? 'Sin comisiones' : (p.feeType === 'paypal_direct' ? 'PayPal Direct' : (p.feeType === 'custom' ? `Workana ${p.manualPercent}%` : `Workana ${p.feeType || 20}%`))})</span>
-                    <strong class="net-amount">Neto: USD ${Number(p.budgetNet || 0).toFixed(2)}</strong>
+                    <span class="gross-amount">Bruto: ${this.app.formatCurrency(p.budgetGross || 0)} (${p.feeType === 'direct' ? 'Sin comisiones' : (p.feeType === 'paypal_direct' ? 'PayPal Direct' : (p.feeType === 'custom' ? `Workana ${p.manualPercent}%` : `Workana ${p.feeType || 20}%`))})</span>
+                    <strong class="net-amount">Neto: ${this.app.formatCurrency(p.budgetNet || 0)}</strong>
                 </div>
 
                 <div class="timer-block" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.2); border:1px solid var(--surface-border); border-radius:8px; padding:8px 12px; margin-bottom:1rem; gap:10px;">
@@ -1139,7 +1139,7 @@ export class ProjectsModule {
                             const totalHours = totalMs / (3600 * 1000);
                             if (totalHours > 0) {
                                 const rate = (p.budgetNet || 0) / totalHours;
-                                rateValue.innerText = `USD ${rate.toFixed(2)}/h`;
+                                rateValue.innerText = `${this.app.formatCurrency(rate)}/h`;
 
                                 let rateColor = 'var(--text-secondary)';
                                 if (rate >= 25) rateColor = 'var(--status-green)';

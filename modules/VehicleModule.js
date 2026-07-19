@@ -692,9 +692,9 @@ export class VehicleModule {
             const remainingDays = vRules.days - (daysElapsed || 0);
 
             let colorVar = 'var(--status-green)';
-            if (remainingKm <= 0 || remainingDays <= 0) {
+            if ((this.odometer > 0 && remainingKm <= 0) || remainingDays <= 0) {
                 colorVar = 'var(--status-red)';
-            } else if (remainingKm <= 1000 || remainingDays <= 30) {
+            } else if ((this.odometer > 0 && remainingKm <= 1000) || remainingDays <= 30) {
                 colorVar = 'var(--status-orange)';
             }
 
@@ -716,11 +716,14 @@ export class VehicleModule {
             }
 
             if (this.oilRemainingKmInfo) {
-                if (remainingKm <= 0) {
+                if (this.odometer > 0 && remainingKm <= 0) {
                     this.oilRemainingKmInfo.innerHTML = `⚠️ Km excedido por <strong>${Math.abs(remainingKm).toLocaleString('es-AR')} km</strong>`;
                     this.oilRemainingKmInfo.style.color = 'var(--status-red)';
-                } else {
+                } else if (this.odometer > 0) {
                     this.oilRemainingKmInfo.innerHTML = `Equivale a <strong>${remainingKm.toLocaleString('es-AR')} km</strong> restantes (límite ${vRules.km.toLocaleString('es-AR')} km)`;
+                    this.oilRemainingKmInfo.style.color = 'var(--text-secondary)';
+                } else {
+                    this.oilRemainingKmInfo.innerHTML = `Próximo cambio a los <strong>${nextKm.toLocaleString('es-AR')} km</strong> (límite ${vRules.km.toLocaleString('es-AR')} km)`;
                     this.oilRemainingKmInfo.style.color = 'var(--text-secondary)';
                 }
             }

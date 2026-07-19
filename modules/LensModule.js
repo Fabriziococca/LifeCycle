@@ -181,77 +181,135 @@ export class LensModule {
     }
 
     loadDatesAndStock() {
-        const lDate = localStorage.getItem('lensDate');
-        const sDate = localStorage.getItem('solutionDate');
-        const cDate = localStorage.getItem('caseDate');
-        const sysDate = localStorage.getItem('systaneDate');
-        const cwDate = localStorage.getItem('clothWashDate');
-        const ccDate = localStorage.getItem('clothChangeDate');
         let stock = localStorage.getItem('lensStock') || 0;
-        
         if (this.inputStock) this.inputStock.value = stock;
         this.checkStockWarning(stock);
 
-        // Lentes
-        const lDays = this.calculateDaysElapsed(lDate);
-        const elLDate = document.getElementById('lenses-lensDate');
-        if (elLDate) elLDate.value = lDate || "";
-        const elLDays = document.getElementById('lenses-lensDaysElapsed');
-        if (elLDays) {
-            elLDays.innerText = `${lDays} días de uso`;
-            this.updateLabelStyle(elLDays, lDays, LENS_LIMITS.lenses, elLDate);
-        }
-
-        // Líquido
-        const sDays = this.calculateDaysElapsed(sDate);
-        const elSDate = document.getElementById('lenses-solutionDate');
-        if (elSDate) elSDate.value = sDate || "";
-        const elSDays = document.getElementById('lenses-solutionDaysElapsed');
-        if (elSDays) {
-            elSDays.innerText = `${sDays} días de uso`;
-            this.updateLabelStyle(elSDays, sDays, LENS_LIMITS.solution, elSDate);
-        }
-
-        // Estuche
-        const cDays = this.calculateDaysElapsed(cDate);
-        const elCDate = document.getElementById('lenses-caseDate');
-        if (elCDate) elCDate.value = cDate || "";
-        const elCDays = document.getElementById('lenses-caseDaysElapsed');
-        if (elCDays) {
-            elCDays.innerText = `${cDays} días de uso`;
-            this.updateLabelStyle(elCDays, cDays, LENS_LIMITS.case, elCDate);
-        }
-
-        // Systane
-        const sysDays = this.calculateDaysElapsed(sysDate);
-        const elSysDate = document.getElementById('lenses-systaneDate');
-        if (elSysDate) elSysDate.value = sysDate || "";
-        const elSysDays = document.getElementById('lenses-systaneDaysElapsed');
-        if (elSysDays) {
-            elSysDays.innerText = `${sysDays} días de uso`;
-            this.updateLabelStyle(elSysDays, sysDays, LENS_LIMITS.systane, elSysDate);
-        }
-
-        // Pañuelo lavado
-        const cwDays = this.calculateDaysElapsed(cwDate);
-        const elCwDate = document.getElementById('lenses-clothWashDate');
-        if (elCwDate) elCwDate.value = cwDate || "";
-        const elCwDays = document.getElementById('lenses-clothWashDaysElapsed');
-        if (elCwDays) {
-            elCwDays.innerText = `${cwDays} días desde lavado`;
-            this.updateLabelStyle(elCwDays, cwDays, LENS_LIMITS.clothWash, elCwDate);
-        }
-
-        // Pañuelo cambio
-        const ccDays = this.calculateDaysElapsed(ccDate);
-        const elCcDate = document.getElementById('lenses-clothChangeDate');
-        if (elCcDate) elCcDate.value = ccDate || "";
-        const elCcDays = document.getElementById('lenses-clothChangeDaysElapsed');
-        if (elCcDays) {
-            elCcDays.innerText = `${ccDays} días de uso`;
-            this.updateLabelStyle(elCcDays, ccDays, LENS_LIMITS.clothChange, elCcDate);
-        }
+        this.renderCards();
         this.app.notificationsCenter?.updateBadge();
+    }
+
+    renderCards() {
+        const container = document.getElementById('lenses-cards-container');
+        const template = document.getElementById('card-template');
+        if (!container || !template) return;
+
+        container.innerHTML = '';
+
+        const items = [
+            { key: 'lensDate', name: 'Lentes de Contacto', limit: LENS_LIMITS.lenses, icon: 'ph-eye', actionText: 'Registrar Cambio', isLens: true },
+            { key: 'solutionDate', name: 'Solución Limpiadora', limit: LENS_LIMITS.solution, icon: 'ph-drop', actionText: 'Registrar Apertura' },
+            { key: 'caseDate', name: 'Estuche de Lentes', limit: LENS_LIMITS.case, icon: 'ph-archive', actionText: 'Registrar Reemplazo' },
+            { key: 'systaneDate', name: 'Gotas Systane', limit: LENS_LIMITS.systane, icon: 'ph-eyedropper', actionText: 'Registrar Apertura' },
+            { key: 'clothWashDate', name: 'Pañuelo (Lavado)', limit: LENS_LIMITS.clothWash, icon: 'ph-spray', actionText: 'Registrar Lavado' },
+            { key: 'clothChangeDate', name: 'Pañuelo (Cambio)', limit: LENS_LIMITS.clothChange, icon: 'ph-arrows-clockwise', actionText: 'Registrar Reemplazo' }
+        ];
+
+        items.forEach(item => {
+            const lastDateVal = localStorage.getItem(item.key) || null;
+            const daysElapsed = this.calculateDaysElapsed(lastDateVal);
+            
+            let statusClass = 'status-green';
+            let colorVar = 'var(--status-green)';
+            let statusText = 'OK';
+
+            if (daysElapsed !== '--' && daysElapsed !== null) {
+                const daysInt = parseInt(daysElapsed);
+                if (daysInt >= item.limit) {
+                    statusClass = 'status-red';
+                    colorVar = 'var(--status-red)';
+                    statusText = 'CAMBIAR URGENTE';
+                } else if (daysInt >= item.limit * 0.85) {
+                    statusClass = 'status-yellow';
+                    colorVar = 'var(--status-yellow)';
+                    statusText = 'REEMPLAZAR PRONTO';
+                } else if (daysInt >= item.limit * 0.70) {
+                    statusClass = 'status-orange';
+                    colorVar = 'var(--status-orange)';
+                    statusText = 'ATENCIÓN';
+                }
+            }
+
+            const clone = template.content.cloneNode(true);
+            const cardEl = clone.querySelector('.card');
+            cardEl.className = `card ${statusClass}`;
+            cardEl.style.borderColor = colorVar;
+
+            clone.querySelector('.card-title').textContent = item.name;
+            clone.querySelector('.card-icon').className = `card-icon ph ${item.icon}`;
+            clone.querySelector('.days-count').textContent = daysElapsed !== null && daysElapsed !== '--' ? daysElapsed : '--';
+            clone.querySelector('.days-count').style.color = colorVar;
+            clone.querySelector('.status-text').textContent = statusText;
+            clone.querySelector('.status-dot').style.backgroundColor = colorVar;
+
+            clone.querySelector('.last-date-label').textContent = 'Último cambio';
+            clone.querySelector('.next-date-label').textContent = 'Próximo cambio';
+            clone.querySelector('.last-date').textContent = lastDateVal ? lastDateVal.split('-').reverse().join('/') : 'N/A';
+
+            if (lastDateVal) {
+                const d = new Date(lastDateVal);
+                d.setDate(d.getDate() + item.limit);
+                const yyyy = d.getFullYear();
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const dd = String(d.getDate()).padStart(2, '0');
+                clone.querySelector('.next-date').textContent = `${dd}/${mm}/${yyyy}`;
+            } else {
+                clone.querySelector('.next-date').textContent = 'N/A';
+            }
+
+            const progressPct = daysElapsed !== '--' && daysElapsed !== null ? Math.min((parseInt(daysElapsed) / item.limit) * 100, 100) : 0;
+            clone.querySelector('.progress-bar').style.width = `${progressPct}%`;
+            clone.querySelector('.progress-bar').style.backgroundColor = colorVar;
+
+            // Ocultar instrucciones
+            const infoBtn = clone.querySelector('.btn-info');
+            if (infoBtn) infoBtn.style.display = 'none';
+            const instCollapse = clone.querySelector('.instructions-collapse');
+            if (instCollapse) instCollapse.style.display = 'none';
+
+            // Botón Editar
+            const editBtn = clone.querySelector('.btn-card-edit');
+            if (editBtn) {
+                editBtn.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    this.app.openEditModal('lenses', item.key, item.name, lastDateVal);
+                });
+            }
+
+            // Botón de Acción Principal
+            let actionBtn = clone.querySelector('.btn-wash');
+            if (actionBtn) {
+                actionBtn.querySelector('span').textContent = item.actionText;
+                actionBtn.querySelector('i').className = 'ph-bold ph-check-circle';
+                actionBtn.addEventListener('click', () => {
+                    if (item.isLens) {
+                        let stock = parseInt(localStorage.getItem('lensStock')) || 0;
+                        if (stock > 0) {
+                            stock -= 1;
+                            localStorage.setItem('lensStock', stock);
+                            const today = getLocalISODate();
+                            localStorage.setItem('lensDate', today);
+                            this.loadDatesAndStock();
+                            this.app.auth?.syncToCloud(false).catch(() => {});
+                            alert('Nuevo par en uso. Stock descontado.');
+                        } else {
+                            const today = getLocalISODate();
+                            localStorage.setItem('lensDate', today);
+                            this.loadDatesAndStock();
+                            this.app.auth?.syncToCloud(false).catch(() => {});
+                            alert('Nuevo par en uso registrado.');
+                        }
+                    } else {
+                        const today = getLocalISODate();
+                        localStorage.setItem(item.key, today);
+                        this.loadDatesAndStock();
+                        this.app.auth?.syncToCloud(false).catch(() => {});
+                    }
+                });
+            }
+
+            container.appendChild(clone);
+        });
     }
 
     checkStockWarning(stock) {

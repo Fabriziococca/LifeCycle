@@ -260,11 +260,11 @@ export class FinanzasModule {
             return `
                 <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-secondary);">
                     <td style="padding:10px 8px; font-weight:600; color:white;">${capitalizedMonth}</td>
-                    <td style="padding:10px 8px; text-align:right;">USD ${m.freelance.toFixed(2)}</td>
-                    <td style="padding:10px 8px; text-align:right;">USD ${m.discord.toFixed(2)}</td>
-                    <td style="padding:10px 8px; text-align:right;">USD ${m.trading.toFixed(2)}</td>
-                    <td style="padding:10px 8px; text-align:right;">USD ${m.extraordinary.toFixed(2)}</td>
-                    <td style="padding:10px 8px; text-align:right; font-weight:bold; color:white;">USD ${m.total.toFixed(2)}</td>
+                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.freelance)}</td>
+                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.discord)}</td>
+                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.trading)}</td>
+                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.extraordinary)}</td>
+                    <td style="padding:10px 8px; text-align:right; font-weight:bold; color:white;">${this.app.formatCurrency(m.total)}</td>
                 </tr>
             `;
         }).join('');
@@ -275,11 +275,11 @@ export class FinanzasModule {
         const te = document.getElementById('fin-year-tot-extraordinary');
         const tg = document.getElementById('fin-year-tot-grand');
 
-        if (tf) tf.innerText = `USD ${totFreelance.toFixed(2)}`;
-        if (td) td.innerText = `USD ${totDiscord.toFixed(2)}`;
-        if (tt) tt.innerText = `USD ${totTrading.toFixed(2)}`;
-        if (te) te.innerText = `USD ${totExtraordinary.toFixed(2)}`;
-        if (tg) tg.innerText = `USD ${totGrand.toFixed(2)}`;
+        if (tf) tf.innerText = this.app.formatCurrency(totFreelance);
+        if (td) td.innerText = this.app.formatCurrency(totDiscord);
+        if (tt) tt.innerText = this.app.formatCurrency(totTrading);
+        if (te) te.innerText = this.app.formatCurrency(totExtraordinary);
+        if (tg) tg.innerText = this.app.formatCurrency(totGrand);
     }
 
     populateMonthsSelector(combinedEntries) {
@@ -344,9 +344,9 @@ export class FinanzasModule {
         const yEl = document.getElementById('fin-yearUSD');
         const tEl = document.getElementById('fin-totalUSD');
 
-        if (mEl) mEl.innerText = `USD ${monthSum.toFixed(2)}`;
-        if (yEl) yEl.innerText = `USD ${yearSum.toFixed(2)}`;
-        if (tEl) tEl.innerText = `USD ${totalSum.toFixed(2)}`;
+        if (mEl) mEl.innerText = this.app.formatCurrency(monthSum);
+        if (yEl) yEl.innerText = this.app.formatCurrency(yearSum);
+        if (tEl) tEl.innerText = this.app.formatCurrency(totalSum);
 
         this.populateMonthsSelector(combined);
         this.renderBreakdownAndList();
@@ -383,13 +383,13 @@ export class FinanzasModule {
 
         const elWorkana = document.getElementById('fin-freelance-sub-workana');
         const elExternal = document.getElementById('fin-freelance-sub-external');
-        if (elWorkana) elWorkana.innerText = `USD ${freelanceWorkana.toFixed(2)}`;
-        if (elExternal) elExternal.innerText = `USD ${freelanceExternal.toFixed(2)}`;
+        if (elWorkana) elWorkana.innerText = this.app.formatCurrency(freelanceWorkana);
+        if (elExternal) elExternal.innerText = this.app.formatCurrency(freelanceExternal);
 
         const totalMonth = catFreelance + catDiscord + catTrading + catExtraordinary;
 
         const mEl = document.getElementById('fin-monthUSD');
-        if (mEl) mEl.innerText = `USD ${totalMonth.toFixed(2)}`;
+        if (mEl) mEl.innerText = this.app.formatCurrency(totalMonth);
 
         const labelEl = document.getElementById('fin-month-label');
         if (labelEl) {
@@ -413,13 +413,13 @@ export class FinanzasModule {
         const ce = document.getElementById('fin-cat-extraordinary');
         const be = document.getElementById('fin-bar-extraordinary');
 
-        if (cf) cf.innerText = `USD ${catFreelance.toFixed(2)} (${pctFreelance.toFixed(0)}%)`;
+        if (cf) cf.innerText = `${this.app.formatCurrency(catFreelance)} (${pctFreelance.toFixed(0)}%)`;
         if (bf) bf.style.width = `${pctFreelance}%`;
-        if (cd) cd.innerText = `USD ${catDiscord.toFixed(2)} (${pctDiscord.toFixed(0)}%)`;
+        if (cd) cd.innerText = `${this.app.formatCurrency(catDiscord)} (${pctDiscord.toFixed(0)}%)`;
         if (bd) bd.style.width = `${pctDiscord}%`;
-        if (ct) ct.innerText = `USD ${catTrading.toFixed(2)} (${pctTrading.toFixed(0)}%)`;
+        if (ct) ct.innerText = `${this.app.formatCurrency(catTrading)} (${pctTrading.toFixed(0)}%)`;
         if (bt) bt.style.width = `${pctTrading}%`;
-        if (ce) ce.innerText = `USD ${catExtraordinary.toFixed(2)} (${pctExtraordinary.toFixed(0)}%)`;
+        if (ce) ce.innerText = `${this.app.formatCurrency(catExtraordinary)} (${pctExtraordinary.toFixed(0)}%)`;
         if (be) be.style.width = `${pctExtraordinary}%`;
 
         if (!this.listContainer) return;
@@ -459,7 +459,7 @@ export class FinanzasModule {
                         </div>
                     </div>
                     <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
-                        <strong style="color:var(--status-green); font-size:0.95rem;">+ USD ${Number(e.amount || 0).toFixed(2)}</strong>
+                        <strong style="color:var(--status-green); font-size:0.95rem;">+ ${this.app.formatCurrency(e.amount)}</strong>
                         ${deleteBtn}
                     </div>
                 </div>
