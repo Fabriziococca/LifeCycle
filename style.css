@@ -899,19 +899,21 @@ body {
 
 /* --- Lentes de Contacto (LensTracker) --- */
 .lenses-dashboard {
+    display: flex;
+    flex-direction: column;
+    gap: 1.5rem;
+}
+
+.lenses-top-row {
     display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 2rem;
+    grid-template-columns: 1fr 340px;
+    gap: 1.5rem;
 }
 
 @media (max-width: 900px) {
-    .lenses-dashboard {
+    .lenses-top-row {
         grid-template-columns: 1fr;
     }
-}
-
-.lenses-timer-card {
-    grid-column: 1 / -1;
 }
 
 .timer-flex {

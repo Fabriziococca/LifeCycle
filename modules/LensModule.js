@@ -191,18 +191,17 @@ export class LensModule {
 
     renderCards() {
         const container = document.getElementById('lenses-cards-container');
-        const template = document.getElementById('card-template');
-        if (!container || !template) return;
+        if (!container) return;
 
         container.innerHTML = '';
 
         const items = [
-            { key: 'lensDate', name: 'Lentes de Contacto', limit: LENS_LIMITS.lenses, icon: 'ph-eye', actionText: 'Registrar Cambio', isLens: true },
-            { key: 'solutionDate', name: 'Solución Limpiadora', limit: LENS_LIMITS.solution, icon: 'ph-drop', actionText: 'Registrar Apertura' },
-            { key: 'caseDate', name: 'Estuche de Lentes', limit: LENS_LIMITS.case, icon: 'ph-archive', actionText: 'Registrar Reemplazo' },
-            { key: 'systaneDate', name: 'Gotas Systane', limit: LENS_LIMITS.systane, icon: 'ph-eyedropper', actionText: 'Registrar Apertura' },
-            { key: 'clothWashDate', name: 'Pañuelo (Lavado)', limit: LENS_LIMITS.clothWash, icon: 'ph-spray', actionText: 'Registrar Lavado' },
-            { key: 'clothChangeDate', name: 'Pañuelo (Cambio)', limit: LENS_LIMITS.clothChange, icon: 'ph-arrows-clockwise', actionText: 'Registrar Reemplazo' }
+            { key: 'lensDate', name: 'Lentes de Contacto', limit: LENS_LIMITS.lenses, icon: 'ph-eye', actionText: 'Nuevo Par', isLens: true },
+            { key: 'solutionDate', name: 'Solución Limpiadora', limit: LENS_LIMITS.solution, icon: 'ph-drop', actionText: 'Abrir Solución' },
+            { key: 'caseDate', name: 'Estuche de Lentes', limit: LENS_LIMITS.case, icon: 'ph-archive', actionText: 'Cambiar Estuche' },
+            { key: 'systaneDate', name: 'Gotas Systane', limit: LENS_LIMITS.systane, icon: 'ph-eyedropper', actionText: 'Abrir Gotas' },
+            { key: 'clothWashDate', name: 'Pañuelo (Lavado)', limit: LENS_LIMITS.clothWash, icon: 'ph-spray', actionText: 'Lavar Pañuelo' },
+            { key: 'clothChangeDate', name: 'Pañuelo (Cambio)', limit: LENS_LIMITS.clothChange, icon: 'ph-arrows-clockwise', actionText: 'Cambiar Pañuelo' }
         ];
 
         items.forEach(item => {
@@ -211,104 +210,122 @@ export class LensModule {
             
             let statusClass = 'status-green';
             let colorVar = 'var(--status-green)';
-            let statusText = 'OK';
+            let statusBadge = 'OK';
 
             if (daysElapsed !== '--' && daysElapsed !== null) {
                 const daysInt = parseInt(daysElapsed);
                 if (daysInt >= item.limit) {
                     statusClass = 'status-red';
                     colorVar = 'var(--status-red)';
-                    statusText = 'CAMBIAR URGENTE';
+                    statusBadge = 'CAMBIAR URGENTE';
                 } else if (daysInt >= item.limit * 0.85) {
                     statusClass = 'status-yellow';
                     colorVar = 'var(--status-yellow)';
-                    statusText = 'REEMPLAZAR PRONTO';
+                    statusBadge = 'REEMPLAZAR PRONTO';
                 } else if (daysInt >= item.limit * 0.70) {
                     statusClass = 'status-orange';
                     colorVar = 'var(--status-orange)';
-                    statusText = 'ATENCIÓN';
+                    statusBadge = 'ATENCIÓN';
                 }
             }
 
-            const clone = template.content.cloneNode(true);
-            const cardEl = clone.querySelector('.card');
-            cardEl.className = `card ${statusClass}`;
-            cardEl.style.borderColor = colorVar;
+            const card = document.createElement('div');
+            card.className = `lenses-mini-card ${statusClass}`;
+            card.style.cssText = `
+                background: rgba(255, 255, 255, 0.02);
+                border: 1px solid ${colorVar};
+                border-radius: 12px;
+                padding: 12px 14px;
+                display: flex;
+                flex-direction: column;
+                justify-content: space-between;
+                gap: 10px;
+                position: relative;
+                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+            `;
 
-            clone.querySelector('.card-title').textContent = item.name;
-            clone.querySelector('.card-icon').className = `card-icon ph ${item.icon}`;
-            clone.querySelector('.days-count').textContent = daysElapsed !== null && daysElapsed !== '--' ? daysElapsed : '--';
-            clone.querySelector('.days-count').style.color = colorVar;
-            clone.querySelector('.status-text').textContent = statusText;
-            clone.querySelector('.status-dot').style.backgroundColor = colorVar;
-
-            clone.querySelector('.last-date-label').textContent = 'Último cambio';
-            clone.querySelector('.next-date-label').textContent = 'Próximo cambio';
-            clone.querySelector('.last-date').textContent = lastDateVal ? lastDateVal.split('-').reverse().join('/') : 'N/A';
-
+            let nextDateStr = 'N/A';
             if (lastDateVal) {
                 const d = new Date(lastDateVal);
                 d.setDate(d.getDate() + item.limit);
-                const yyyy = d.getFullYear();
-                const mm = String(d.getMonth() + 1).padStart(2, '0');
                 const dd = String(d.getDate()).padStart(2, '0');
-                clone.querySelector('.next-date').textContent = `${dd}/${mm}/${yyyy}`;
-            } else {
-                clone.querySelector('.next-date').textContent = 'N/A';
+                const mm = String(d.getMonth() + 1).padStart(2, '0');
+                const yyyy = d.getFullYear();
+                nextDateStr = `${dd}/${mm}/${yyyy}`;
             }
-
+            const lastDateStr = lastDateVal ? lastDateVal.split('-').reverse().join('/') : 'N/A';
+            const daysDisplay = daysElapsed !== null && daysElapsed !== '--' ? daysElapsed : '--';
             const progressPct = daysElapsed !== '--' && daysElapsed !== null ? Math.min((parseInt(daysElapsed) / item.limit) * 100, 100) : 0;
-            clone.querySelector('.progress-bar').style.width = `${progressPct}%`;
-            clone.querySelector('.progress-bar').style.backgroundColor = colorVar;
 
-            // Ocultar instrucciones
-            const infoBtn = clone.querySelector('.btn-info');
-            if (infoBtn) infoBtn.style.display = 'none';
-            const instCollapse = clone.querySelector('.instructions-collapse');
-            if (instCollapse) instCollapse.style.display = 'none';
+            card.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
+                        <i class="ph ${item.icon}" style="font-size: 1.15rem; color: ${colorVar}; flex-shrink: 0;"></i>
+                        <strong style="font-size: 0.9rem; color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</strong>
+                    </div>
+                    <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
+                        <button class="btn-card-edit" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px; font-size: 0.95rem;" title="Editar Fecha"><i class="ph ph-pencil"></i></button>
+                        <span class="badge ${statusClass}" style="font-size: 0.65rem; padding: 2px 6px; font-weight: 600;">${statusBadge}</span>
+                    </div>
+                </div>
 
-            // Botón Editar
-            const editBtn = clone.querySelector('.btn-card-edit');
-            if (editBtn) {
-                editBtn.addEventListener('click', (e) => {
-                    e.stopPropagation();
-                    this.app.openEditModal('lenses', item.key, item.name, lastDateVal);
-                });
-            }
+                <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: -2px;">
+                    <div style="display: flex; align-items: baseline; gap: 4px;">
+                        <span style="font-size: 1.6rem; font-weight: 800; color: ${colorVar}; line-height: 1;">${daysDisplay}</span>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary);">días (máx. ${item.limit}d)</span>
+                    </div>
+                </div>
 
-            // Botón de Acción Principal
-            let actionBtn = clone.querySelector('.btn-wash');
-            if (actionBtn) {
-                actionBtn.querySelector('span').textContent = item.actionText;
-                actionBtn.querySelector('i').className = 'ph-bold ph-check-circle';
-                actionBtn.addEventListener('click', () => {
-                    if (item.isLens) {
-                        let stock = parseInt(localStorage.getItem('lensStock')) || 0;
-                        if (stock > 0) {
-                            stock -= 1;
-                            localStorage.setItem('lensStock', stock);
-                            const today = getLocalISODate();
-                            localStorage.setItem('lensDate', today);
-                            this.loadDatesAndStock();
-                            this.app.auth?.syncToCloud(false).catch(() => {});
-                            alert('Nuevo par en uso. Stock descontado.');
-                        } else {
-                            const today = getLocalISODate();
-                            localStorage.setItem('lensDate', today);
-                            this.loadDatesAndStock();
-                            this.app.auth?.syncToCloud(false).catch(() => {});
-                            alert('Nuevo par en uso registrado.');
-                        }
-                    } else {
+                <div style="display: flex; flex-direction: column; gap: 4px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary);">
+                        <span>Último: <strong>${lastDateStr}</strong></span>
+                        <span>Próx: <strong>${nextDateStr}</strong></span>
+                    </div>
+                    <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden;">
+                        <div style="width: ${progressPct}%; height: 100%; background: ${colorVar}; border-radius: 2px;"></div>
+                    </div>
+                </div>
+
+                <button class="btn-mini-action btn btn-secondary" style="width: 100%; padding: 6px 10px; font-size: 0.8rem; margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; height: 32px; border-color: ${colorVar}40;">
+                    <i class="ph-bold ph-check-circle" style="color: ${colorVar};"></i>
+                    <span>${item.actionText}</span>
+                </button>
+            `;
+
+            // Edit listener
+            card.querySelector('.btn-card-edit')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.app.openEditModal('lenses', item.key, item.name, lastDateVal);
+            });
+
+            // Action listener
+            card.querySelector('.btn-mini-action')?.addEventListener('click', () => {
+                if (item.isLens) {
+                    let stock = parseInt(localStorage.getItem('lensStock')) || 0;
+                    if (stock > 0) {
+                        stock -= 1;
+                        localStorage.setItem('lensStock', stock);
                         const today = getLocalISODate();
-                        localStorage.setItem(item.key, today);
+                        localStorage.setItem('lensDate', today);
                         this.loadDatesAndStock();
                         this.app.auth?.syncToCloud(false).catch(() => {});
+                        alert('Nuevo par en uso. Stock descontado.');
+                    } else {
+                        const today = getLocalISODate();
+                        localStorage.setItem('lensDate', today);
+                        this.loadDatesAndStock();
+                        this.app.auth?.syncToCloud(false).catch(() => {});
+                        alert('Nuevo par en uso registrado.');
                     }
-                });
-            }
+                } else {
+                    const today = getLocalISODate();
+                    localStorage.setItem(item.key, today);
+                    this.loadDatesAndStock();
+                    this.app.auth?.syncToCloud(false).catch(() => {});
+                }
+            });
 
-            container.appendChild(clone);
+            container.appendChild(card);
         });
     }
 

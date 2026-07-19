@@ -34,8 +34,10 @@ export class TareasModule {
             }
             localStorage.setItem('tareas_categories', JSON.stringify(this.categories));
 
-            if (this.categories.length > 0) {
-                this.currentCategory = this.categories[0];
+            if (!this.currentCategory || !this.categories.includes(this.currentCategory)) {
+                if (this.categories.length > 0) {
+                    this.currentCategory = this.categories[0];
+                }
             }
         } catch (e) {
             console.error("Error loading Tareas data:", e);
