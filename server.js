@@ -411,7 +411,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
                     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
-                    'creatine', 'salmon', 'neck', 'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check',
+                    'creatine', 'salmon', 'neck', 'weigh_in', 'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check',
                     'vehicle_issues_check', 'vehicle_docs_check', 'vehicle_fluids_check', 'tareas_urgentes_check'
                 ];
                 definitions.forEach(k => {
@@ -419,6 +419,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         if (k === 'creatine') alertsConfig[k] = { enabled: true, time: '23:00', days: [1,2,3,4,5,6,0] };
                         else if (k === 'salmon') alertsConfig[k] = { enabled: true, time: '17:00', days: [0] };
                         else if (k === 'neck') alertsConfig[k] = { enabled: true, time: '23:30', days: [5,6] };
+                        else if (k === 'weigh_in') alertsConfig[k] = { enabled: true, time: '08:00', days: [1,2,3,4,5,6,0] };
                         else if (k === 'projects_check' || k === 'vehicle_issues_check' || k === 'vehicle_docs_check' || k === 'vehicle_fluids_check' || k === 'tareas_urgentes_check') {
                             alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
                         } else {
@@ -478,7 +479,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     if (!forceAll && data.alerts_sent_log[key] === candidate.dateStr) continue;
 
                     // Si es una alerta periódica/recurrente, verificar día de la semana
-                    const isRecurring = ['creatine', 'salmon', 'neck'].includes(key);
+                    const isRecurring = ['creatine', 'salmon', 'neck', 'weigh_in'].includes(key);
                     if (isRecurring && !forceAll && (!conf.days || !conf.days.includes(candidate.dayOfWeek))) continue;
 
                     // Verificar si ya pasó la hora programada en Argentina
@@ -878,6 +879,11 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             shouldNotify = true;
                             title = '💪 Entrenamiento de Cuello';
                             body = 'Recordá entrenar el cuello hoy (1 vez por semana).';
+                            break;
+                        case 'weigh_in':
+                            shouldNotify = true;
+                            title = '⚖️ Control de Peso';
+                            body = '¡Buen día! No te olvides de pesarte hoy antes de desayunar.';
                             break;
 
                         // Otros

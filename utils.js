@@ -331,6 +331,7 @@ export const ALERT_DEFINITIONS = [
     { key: 'creatine', name: 'Creatina', category: 'gym', type: 'recurring', defaultTime: '23:00', defaultDays: [1,2,3,4,5,6,0] },
     { key: 'salmon', name: 'Salmón & Omega 3', category: 'gym', type: 'recurring', defaultTime: '17:00', defaultDays: [0] },
     { key: 'neck', name: 'Entrenamiento de Cuello', category: 'gym', type: 'recurring', defaultTime: '23:30', defaultDays: [5,6] },
+    { key: 'weigh_in', name: 'Recordatorio para Pesarme', category: 'gym', type: 'recurring', defaultTime: '08:00', defaultDays: [1,2,3,4,5,6,0] },
 
     // Otros
     { key: 'robot', name: 'Robot Aspiradora', category: 'otros', type: 'interval', defaultTime: '23:00' },

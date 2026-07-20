@@ -1383,98 +1383,88 @@
 
         <!-- SECCIÓN: FINANZAS (FinanzasTracker) -->
         <section id="finanzas-section" class="main-section hidden">
-            <!-- Dashboard Financiero -->
+            <!-- Dashboard Financiero (6 tarjetas) -->
             <div class="dashboard-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 2rem;">
-                <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--status-green);">
-                    <div id="fin-month-label" style="font-size: 0.8rem; color: var(--text-secondary);">Ingresos del Mes</div>
-                    <div id="fin-monthUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--status-green); margin-top: 5px;">USD 0.00</div>
+                <!-- Mes Actual -->
+                <div class="card" style="margin:0; padding: 12px 15px; border: 1px solid var(--status-green);">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);" id="fin-month-income-label">Ingresos del Mes</div>
+                    <div id="fin-month-income" style="font-size: 1.25rem; font-weight: bold; color: var(--status-green); margin-top: 5px;">USD 0.00</div>
                 </div>
-                <div class="card" style="margin:0; padding: 15px; border: 1px solid white;">
+                <div class="card" style="margin:0; padding: 12px 15px; border: 1px solid var(--status-orange);">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);" id="fin-month-expense-label">Gastos del Mes</div>
+                    <div id="fin-month-expense" style="font-size: 1.25rem; font-weight: bold; color: var(--status-orange); margin-top: 5px;">USD 0.00</div>
+                </div>
+                <div class="card" id="fin-month-balance-card" style="margin:0; padding: 12px 15px; border: 1px solid var(--primary-color);">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);" id="fin-month-balance-label">Balance del Mes</div>
+                    <div id="fin-month-balance" style="font-size: 1.25rem; font-weight: bold; color: var(--primary-color); margin-top: 5px;">USD 0.00</div>
+                </div>
+                <!-- Anual -->
+                <div class="card" style="margin:0; padding: 12px 15px; border: 1px solid white;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
-                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Ingresos del Año</span>
-                        <button id="btnOpenFinYearDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Detalle</button>
+                        <span style="font-size: 0.75rem; color: var(--text-secondary);">Ingresos del Año</span>
+                        <button id="btnOpenFinYearDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.7rem; cursor:pointer; padding:0;">Detalle</button>
                     </div>
-                    <div id="fin-yearUSD" style="font-size: 1.4rem; font-weight: bold; color: white; margin-top: 5px;">USD 0.00</div>
+                    <div id="fin-year-income" style="font-size: 1.25rem; font-weight: bold; color: white; margin-top: 5px;">USD 0.00</div>
                 </div>
-                <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--status-orange);">
-                    <div style="font-size: 0.8rem; color: var(--text-secondary);">Histórico Total</div>
-                    <div id="fin-totalUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--status-yellow); margin-top: 5px;">USD 0.00</div>
+                <div class="card" style="margin:0; padding: 12px 15px; border: 1px solid white;">
+                    <div style="display:flex; justify-content:space-between; align-items:center;">
+                        <span style="font-size: 0.75rem; color: var(--text-secondary);">Gastos del Año</span>
+                        <button id="btnOpenFinExpenseYearDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.7rem; cursor:pointer; padding:0;">Detalle</button>
+                    </div>
+                    <div id="fin-year-expense" style="font-size: 1.25rem; font-weight: bold; color: white; margin-top: 5px;">USD 0.00</div>
+                </div>
+                <div class="card" id="fin-year-balance-card" style="margin:0; padding: 12px 15px; border: 1px solid var(--status-yellow);">
+                    <div style="font-size: 0.75rem; color: var(--text-secondary);">Balance del Año</div>
+                    <div id="fin-year-balance" style="font-size: 1.25rem; font-weight: bold; color: var(--status-yellow); margin-top: 5px;">USD 0.00</div>
                 </div>
             </div>
 
-            <!-- Botón de Registro de Ingresos -->
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem;">
-                <h3>Distribución de Ingresos</h3>
-                <button id="btnOpenFinanzasModal" class="btn btn-primary" style="margin: 0; width: auto;"><i class="ph ph-plus-circle"></i> Registrar Ingreso</button>
+            <!-- Control de Pestañas (Ingresos vs Gastos) -->
+            <div class="segmented-control" style="display: flex; background: rgba(255,255,255,0.03); padding: 4px; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid var(--surface-border);">
+                <button class="segment-btn active" id="btnFinTabIncome" style="flex: 1; padding: 10px; border: none; background: rgba(255,255,255,0.05); color: white; cursor: pointer; font-weight: bold; border-radius: 6px; font-size: 0.9rem; display:flex; align-items:center; justify-content:center; gap:8px; transition: background 0.2s;">
+                    <i class="ph ph-trend-up" style="color:var(--status-green); font-size:1.1rem;"></i> Ingresos
+                </button>
+                <button class="segment-btn" id="btnFinTabExpense" style="flex: 1; padding: 10px; border: none; background: none; color: var(--text-secondary); cursor: pointer; font-weight: bold; border-radius: 6px; font-size: 0.9rem; display:flex; align-items:center; justify-content:center; gap:8px; transition: background 0.2s;">
+                    <i class="ph ph-trend-down" style="color:var(--status-orange); font-size:1.1rem;"></i> Gastos
+                </button>
             </div>
 
-            <!-- Desglose por Categorías -->
-            <div class="card" style="margin-bottom: 2rem; padding: 20px;">
-                <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem;">
-                    <h4 style="margin:0; font-size:1.1rem; color:white;">Categorías del Mes</h4>
+            <!-- Cabecera de la sección de distribución -->
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 10px;">
+                <h3 id="fin-section-title" style="margin:0;">Distribución de Ingresos</h3>
+                <div style="display:flex; align-items:center; gap:10px;">
                     <select id="finanzas-month-select" class="number-input" style="width:auto; padding:6px 12px; margin:0; font-size:0.85rem; height: auto;"></select>
+                    <button id="btnOpenFinanzasModal" class="btn btn-primary" style="margin: 0; width: auto; padding: 8px 12px; font-size: 0.85rem; height:auto; display:flex; align-items:center; gap:6px;">
+                        <i class="ph ph-plus-circle" style="font-size:1rem;"></i> Registrar Ingreso
+                    </button>
+                    <button id="btnOpenFinanzasExpenseModal" class="btn btn-primary hidden" style="margin: 0; width: auto; padding: 8px 12px; font-size: 0.85rem; height:auto; display:flex; align-items:center; gap:6px; background-color: var(--status-orange); border-color: var(--status-orange);">
+                        <i class="ph ph-plus-circle" style="font-size:1rem;"></i> Registrar Gasto
+                    </button>
                 </div>
-                
-                <div style="display:flex; flex-direction:column; gap:1.25rem;" id="fin-categories-breakdown">
-                    <!-- Freelance -->
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <div id="fin-freelance-trigger" style="display:flex; justify-content:space-between; font-size:0.9rem; cursor:pointer; user-select:none;">
-                            <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;">
-                                <i class="ph ph-caret-right" id="fin-freelance-caret" style="transition: transform 0.2s;"></i>
-                                <i class="ph ph-briefcase"></i> Freelance (Proyectos)
-                            </span>
-                            <strong style="color:white;" id="fin-cat-freelance">USD 0.00 (0%)</strong>
-                        </div>
-                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
-                            <div id="fin-bar-freelance" style="height:100%; width:0%; background:var(--primary-color); border-radius:4px; transition:width 0.3s;"></div>
-                        </div>
-                        <!-- Sub-desglose freelance (oculto por defecto) -->
-                        <div id="fin-freelance-sub-breakdown" class="hidden" style="padding-left: 20px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; border-left: 2px solid rgba(255,255,255,0.05); margin-left: 6px;">
-                            <div style="display:flex; justify-content:space-between; width: 100%;">
-                                <span style="color:var(--text-secondary);">💻 Workana:</span>
-                                <strong style="color:white;" id="fin-freelance-sub-workana">USD 0.00</strong>
-                            </div>
-                            <div style="display:flex; justify-content:space-between; width: 100%;">
-                                <span style="color:var(--text-secondary);">🌍 Externo (LinkedIn/Otros):</span>
-                                <strong style="color:white;" id="fin-freelance-sub-external">USD 0.00</strong>
+            </div>
+
+            <!-- Desglose por Categorías con Gráfico de Rosca -->
+            <div class="card" style="margin-bottom: 2rem; padding: 20px;">
+                <div style="display: flex; gap: 30px; align-items: center; flex-wrap: wrap;" id="fin-breakdown-wrapper">
+                    <!-- Contenedor del Gráfico de Rosca -->
+                    <div style="display: flex; justify-content: center; align-items: center; flex-shrink: 0; margin: 0 auto 10px auto;" id="fin-donut-chart-container">
+                        <div id="fin-donut-chart" style="background: conic-gradient(var(--surface-border) 0% 100%); position: relative; border-radius: 50%; width: 140px; height: 140px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
+                            <div style="width: 85px; height: 85px; background: #1e1e24; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 5px;">
+                                <span style="font-size: 0.65rem; color: var(--text-secondary);" id="fin-donut-center-label">Total</span>
+                                <strong style="font-size: 0.9rem; color: white; margin-top: 2px;" id="fin-donut-center-value">USD 0.00</strong>
                             </div>
                         </div>
                     </div>
-                    <!-- Discord -->
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
-                            <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-chat-circle"></i> Discord (Negocio)</span>
-                            <strong style="color:white;" id="fin-cat-discord">USD 0.00 (0%)</strong>
-                        </div>
-                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
-                            <div id="fin-bar-discord" style="height:100%; width:0%; background:var(--status-purple); border-radius:4px; transition:width 0.3s;"></div>
-                        </div>
-                    </div>
-                    <!-- Trading -->
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
-                            <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-chart-line-up"></i> Trading</span>
-                            <strong style="color:white;" id="fin-cat-trading">USD 0.00 (0%)</strong>
-                        </div>
-                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
-                            <div id="fin-bar-trading" style="height:100%; width:0%; background:var(--status-green); border-radius:4px; transition:width 0.3s;"></div>
-                        </div>
-                    </div>
-                    <!-- Extraordinarios -->
-                    <div style="display:flex; flex-direction:column; gap:6px;">
-                        <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
-                            <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-gift"></i> Ingresos Extraordinarios</span>
-                            <strong style="color:white;" id="fin-cat-extraordinary">USD 0.00 (0%)</strong>
-                        </div>
-                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
-                            <div id="fin-bar-extraordinary" style="height:100%; width:0%; background:var(--status-yellow); border-radius:4px; transition:width 0.3s;"></div>
-                        </div>
+
+                    <!-- Leyenda y Barras de Progreso -->
+                    <div style="flex: 1; min-width: 250px; display: flex; flex-direction: column; gap: 1.25rem;" id="fin-categories-breakdown">
+                        <!-- Carga dinámica por JS -->
                     </div>
                 </div>
             </div>
 
             <!-- Registro de Transacciones -->
-            <h3>Transacciones del Mes</h3>
+            <h3 id="fin-list-title">Transacciones del Mes</h3>
             <div id="finanzasList" style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; margin-bottom: 2rem;"></div>
         </section>
 
@@ -2004,6 +1994,104 @@
                             <th id="fin-year-tot-trading" style="padding:12px 8px; text-align:right;">USD 0.00</th>
                             <th id="fin-year-tot-extraordinary" style="padding:12px 8px; text-align:right;">USD 0.00</th>
                             <th id="fin-year-tot-grand" style="padding:12px 8px; text-align:right; color:var(--status-green);">USD 0.00</th>
+                        </tr>
+                    </tfoot>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE REGISTRO DE GASTO (FINANZAS) -->
+    <div id="finanzas-expense-modal" class="modal hidden">
+        <div class="modal-content">
+            <h3 style="color: var(--status-orange);">Registrar Gasto</h3>
+            <p class="modal-desc" style="margin-bottom: 1.5rem;">Cargá un nuevo gasto a tus finanzas.</p>
+
+            <form id="finanzas-expense-form" onsubmit="event.preventDefault();">
+                <div class="input-group">
+                    <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Categoría</label>
+                    <select id="fin-expense-category" class="number-input" style="width:100%;" required>
+                        <option value="comida">Comida & Supermercado</option>
+                        <option value="vehiculo">Vehículo & Nafta</option>
+                        <option value="servicios">Servicios & Suscripciones</option>
+                        <option value="salud">Salud & Farmacia</option>
+                        <option value="ocio">Salidas & Ocio</option>
+                        <option value="otros">Otros</option>
+                        <option value="custom">+ Categoría Personalizada</option>
+                    </select>
+                </div>
+
+                <!-- Campo dinámico para Categoría Personalizada -->
+                <div id="fin-expense-group-custom" class="input-group hidden" style="margin-top:1.25rem;">
+                    <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Nombre de Categoría Personalizada</label>
+                    <input type="text" id="fin-expense-custom-name" class="text-input" placeholder="Ej: Gimnasio, Regalos" style="width:100%;">
+                </div>
+
+                <div class="input-group" style="margin-top:1.25rem;">
+                    <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Fecha</label>
+                    <input type="date" id="fin-expense-date" class="date-input" style="width:100%;" required>
+                </div>
+
+                <div class="input-group" style="margin-top:1.25rem;">
+                    <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Detalle / Descripción</label>
+                    <input type="text" id="fin-expense-desc" class="text-input" placeholder="Ej: Coto compra semanal" style="width:100%;" required>
+                </div>
+
+                <div class="input-group" style="margin-top:1.25rem;">
+                    <label style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Monto (USD)</label>
+                    <input type="number" id="fin-expense-amount" class="number-input" min="0.01" step="0.01" placeholder="0.00" style="width:100%;" required>
+                </div>
+
+                <div class="modal-actions" style="margin-top:1.75rem;">
+                    <button type="button" id="fin-expense-cancel" class="btn btn-cancel">Cancelar</button>
+                    <button type="submit" id="fin-expense-save" class="btn btn-save" style="background-color: var(--status-orange); border-color: var(--status-orange);">Guardar Gasto</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- MODAL DE DESGLOSE ANUAL DE GASTOS -->
+    <div id="finanzas-expense-year-details-modal" class="modal hidden">
+        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
+                <h3 style="margin: 0; color: var(--status-orange);">Detalle Anual de Gastos</h3>
+                <button id="fin-expense-year-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+            </div>
+            <p class="modal-desc" style="margin-bottom: 15px;">Desglose mensual de gastos por categoría del año seleccionado.</p>
+            
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; gap:10px;">
+                <label style="font-size:0.85rem; font-weight:600; color:white;">Seleccionar Año:</label>
+                <select id="fin-expense-year-select" class="number-input" style="width:auto; padding:6px 12px; margin:0; font-size:0.85rem; height: auto;"></select>
+            </div>
+
+            <!-- Tabla de desglose de meses de gastos -->
+            <div style="overflow-x:auto;">
+                <table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.82rem; color:var(--text-secondary);">
+                    <thead>
+                        <tr style="border-bottom:2px solid var(--surface-border); color:white;">
+                            <th style="padding:10px 8px; font-weight:600;">Mes</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Comida</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Vehículo</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Servicios</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Salud</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Ocio</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Otros*</th>
+                            <th style="padding:10px 8px; font-weight:600; text-align:right; color:var(--status-orange);">Total</th>
+                        </tr>
+                    </thead>
+                    <tbody id="fin-expense-year-table-body">
+                        <!-- Carga dinámica por JS -->
+                    </tbody>
+                    <tfoot>
+                        <tr style="border-top:2px solid var(--surface-border); font-weight:bold; color:white;">
+                            <th style="padding:12px 8px;">Total Año</th>
+                            <th id="fin-expense-year-tot-comida" style="padding:12px 8px; text-align:right;">USD 0.00</th>
+                            <th id="fin-expense-year-tot-vehiculo" style="padding:12px 8px; text-align:right;">USD 0.00</th>
+                            <th id="fin-expense-year-tot-servicios" style="padding:12px 8px; text-align:right;">USD 0.00</th>
+                            <th id="fin-expense-year-tot-salud" style="padding:12px 8px; text-align:right;">USD 0.00</th>
+                            <th id="fin-expense-year-tot-ocio" style="padding:12px 8px; text-align:right;">USD 0.00</th>
+                            <th id="fin-expense-year-tot-otros" style="padding:12px 8px; text-align:right;">USD 0.00</th>
+                            <th id="fin-expense-year-tot-grand" style="padding:12px 8px; text-align:right; color:var(--status-orange);">USD 0.00</th>
                         </tr>
                     </tfoot>
                 </table>
