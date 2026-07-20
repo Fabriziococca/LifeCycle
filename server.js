@@ -444,19 +444,53 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 const conf = alertsConfig[key];
                 if (!conf || !conf.enabled) continue;
 
-                // Verificar coincidencia de horario (si es igual o posterior en el día de hoy)
+                // Definir los candidatos a evaluar (ayer y hoy para tolerancia a medianoche y reinicios)
                 const [remHour, remMin] = (conf.time || '23:00').split(':').map(Number);
-                const currentMinutes = hour * 60 + minutes;
-                const scheduledMinutes = remHour * 60 + remMin;
-                const isTimeMatch = currentMinutes >= scheduledMinutes;
+                const candidates = [];
 
-                if (forceAll || isTimeMatch) {
+                // 1. Ayer
+                const yesterdayDate = new Date(year, month - 1, day - 1);
+                const yesterdayYear = yesterdayDate.getFullYear();
+                const yesterdayMonth = String(yesterdayDate.getMonth() + 1).padStart(2, '0');
+                const yesterdayDay = String(yesterdayDate.getDate()).padStart(2, '0');
+                const yesterdayDateStr = `${yesterdayYear}-${yesterdayMonth}-${yesterdayDay}`;
+                const yesterdayDayOfWeek = (dayOfWeek + 6) % 7;
+                const schedYesterday = new Date(yesterdayDate.getFullYear(), yesterdayDate.getMonth(), yesterdayDate.getDate(), remHour, remMin, 0);
+                candidates.push({
+                    dateStr: yesterdayDateStr,
+                    dayOfWeek: yesterdayDayOfWeek,
+                    schedDateObj: schedYesterday
+                });
+
+                // 2. Hoy
+                const schedToday = new Date(year, month - 1, day, remHour, remMin, 0);
+                candidates.push({
+                    dateStr: dateStr,
+                    dayOfWeek: dayOfWeek,
+                    schedDateObj: schedToday
+                });
+
+                // Virtual Date de Argentina actual para comparación
+                const nowArg = new Date(year, month - 1, day, hour, minutes, 0);
+
+                for (const candidate of candidates) {
                     // Verificar si ya fue enviada hoy para evitar spam en el mismo día
-                    if (!forceAll && data.alerts_sent_log[key] === dateStr) continue;
+                    if (!forceAll && data.alerts_sent_log[key] === candidate.dateStr) continue;
 
                     // Si es una alerta periódica/recurrente, verificar día de la semana
                     const isRecurring = ['creatine', 'salmon', 'neck'].includes(key);
-                    if (isRecurring && !forceAll && (!conf.days || !conf.days.includes(dayOfWeek))) continue;
+                    if (isRecurring && !forceAll && (!conf.days || !conf.days.includes(candidate.dayOfWeek))) continue;
+
+                    // Verificar si ya pasó la hora programada en Argentina
+                    const timePassed = nowArg >= candidate.schedDateObj;
+                    if (!timePassed && !forceAll) continue;
+
+                    // Si es el candidato de ayer, verificar ventana de gracia de 6 horas
+                    if (candidate.dateStr !== dateStr) {
+                        const msSinceScheduled = nowArg - candidate.schedDateObj;
+                        if (msSinceScheduled > 6 * 60 * 60 * 1000) continue; // Ventana de gracia superada (6 horas)
+                        if (msSinceScheduled < 0) continue;
+                    }
 
                     let shouldNotify = false;
                     let title = '';
@@ -902,7 +936,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                         
                                         if (state !== 'green') {
                                             const logKey = `project_${p.id}_${state}`;
-                                            if (forceAll || data.alerts_sent_log[logKey] !== dateStr) {
+                                            if (forceAll || data.alerts_sent_log[logKey] !== candidate.dateStr) {
                                                 const projTitle = `💼 Proyecto: ${p.project}`;
                                                 const daysRemaining = Math.max(0, Math.floor(remainingMs / 86400000));
                                                 const projBody = `El proyecto de ${p.client} se encuentra en estado ${stateLabel}. Quedan ${daysRemaining} días.`;
@@ -924,7 +958,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                                 }
                                                 
                                                 if (!forceAll) {
-                                                    data.alerts_sent_log[logKey] = dateStr;
+                                                    data.alerts_sent_log[logKey] = candidate.dateStr;
                                                     dataChanged = true;
                                                 }
                                             }
@@ -987,10 +1021,13 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         }
 
                         if (!forceAll) {
-                            data.alerts_sent_log[key] = dateStr;
+                            data.alerts_sent_log[key] = candidate.dateStr;
                             dataChanged = true;
                         }
                     }
+
+                    // Detener la evaluación de otros candidatos para esta alerta una vez procesada
+                    break;
                 }
             }
 
