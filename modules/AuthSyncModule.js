@@ -447,7 +447,9 @@ export class AuthSyncModule {
                 'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
                 'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
                 'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
-                'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData'
+                'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 
+                'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData',
+                'vehicle_tracker_data', 'vehicle_issues', 'tareas_list', 'tareas_categories'
             ];
             localKeys.forEach(key => {
                 let val = cloudData[key];
