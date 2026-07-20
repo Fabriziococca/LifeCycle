@@ -214,7 +214,14 @@ export class FinanzasModule {
 
     saveEntry() {
         const category = document.getElementById('fin-input-category')?.value;
-        const amount = parseFloat(document.getElementById('fin-input-amount')?.value) || 0;
+        const amountInput = parseFloat(document.getElementById('fin-input-amount')?.value) || 0;
+        const currency = document.getElementById('fin-input-currency')?.value || 'USD';
+
+        let amount = amountInput;
+        if (currency === 'ARS') {
+            const rate = parseFloat(localStorage.getItem('lemon_usdt_ars_rate')) || 1530;
+            amount = amountInput / rate;
+        }
 
         let dateVal = '';
         let descVal = '';
@@ -267,9 +274,16 @@ export class FinanzasModule {
     saveExpenseEntry() {
         const categorySelect = document.getElementById('fin-expense-category')?.value;
         const customName = (document.getElementById('fin-expense-custom-name')?.value || '').trim();
-        const amount = parseFloat(document.getElementById('fin-expense-amount')?.value) || 0;
+        const amountInput = parseFloat(document.getElementById('fin-expense-amount')?.value) || 0;
+        const currency = document.getElementById('fin-expense-currency')?.value || 'USD';
         const dateVal = document.getElementById('fin-expense-date')?.value || getLocalISODate();
         const descVal = (document.getElementById('fin-expense-desc')?.value || '').trim();
+
+        let amount = amountInput;
+        if (currency === 'ARS') {
+            const rate = parseFloat(localStorage.getItem('lemon_usdt_ars_rate')) || 1530;
+            amount = amountInput / rate;
+        }
 
         let category = categorySelect;
         if (categorySelect === 'custom' && customName) {
