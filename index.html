@@ -130,7 +130,32 @@
         <!-- SECCIÓN 3: LENTES DE CONTACTO (LensTracker) -->
         <section id="lentes-section" class="main-section hidden">
             <div class="lenses-dashboard">
-                <!-- Fila Superior: Control de Uso Diario + Últimos 7 usos -->
+                <!-- Fila Superior (Ancho Completo): Control de Insumos y Stock -->
+                <div class="lenses-insumos-card card" style="margin: 0;">
+                    <div class="card-header" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
+                        <div style="display: flex; align-items: center; gap: 0.75rem;">
+                            <div class="icon-container">
+                                <i class="ph ph-package"></i>
+                            </div>
+                            <h3 style="margin: 0;">Insumos & Stock</h3>
+                        </div>
+                        
+                        <div class="stock-box-header" style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.25); padding: 5px 12px; border-radius: 8px; border: 1px solid var(--surface-border);">
+                            <label style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; font-weight: 500;">Pares en Stock:</label>
+                            <input type="number" id="lenses-lensStock" class="number-input" min="0" value="0" style="width: 55px; height: 32px; text-align: center; font-weight: bold; padding: 2px 4px;">
+                            <button class="btn btn-action" id="lenses-btnNewPair" style="padding: 4px 12px; font-size: 0.8rem; height: 32px; margin: 0; width: auto;">📦 Abrir Nuevo Par</button>
+                        </div>
+                    </div>
+                    
+                    <p id="lenses-stockWarning" class="warning-text hidden" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">⚠️ ¡Atención! Stock bajo. Solicitar recambio.</p>
+
+                    <!-- Grilla Compacta de Tarjetas de Insumos -->
+                    <div id="lenses-cards-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
+                        <!-- Generado dinámicamente usando mini tarjetas -->
+                    </div>
+                </div>
+
+                <!-- Fila Inferior: Control de Uso Diario + Últimos 7 usos -->
                 <div class="lenses-top-row">
                     <!-- Cronómetro Circular y Estado de Uso -->
                     <div class="lenses-timer-card card" style="margin: 0;">
@@ -188,31 +213,6 @@
                             <!-- Generado dinámicamente -->
                         </ul>
                         <button id="lenses-btnClearHistory" class="btn-text">Borrar historial de usos</button>
-                    </div>
-                </div>
-
-                <!-- Fila Inferior (Ancho Completo): Control de Insumos y Stock -->
-                <div class="lenses-insumos-card card" style="margin: 0;">
-                    <div class="card-header" style="justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <div class="icon-container">
-                                <i class="ph ph-package"></i>
-                            </div>
-                            <h3 style="margin: 0;">Insumos & Stock</h3>
-                        </div>
-                        
-                        <div class="stock-box-header" style="display: flex; align-items: center; gap: 10px; background: rgba(0,0,0,0.25); padding: 5px 12px; border-radius: 8px; border: 1px solid var(--surface-border);">
-                            <label style="font-size: 0.85rem; color: var(--text-secondary); margin: 0; font-weight: 500;">Pares en Stock:</label>
-                            <input type="number" id="lenses-lensStock" class="number-input" min="0" value="0" style="width: 55px; height: 32px; text-align: center; font-weight: bold; padding: 2px 4px;">
-                            <button class="btn btn-action" id="lenses-btnNewPair" style="padding: 4px 12px; font-size: 0.8rem; height: 32px; margin: 0; width: auto;">📦 Abrir Nuevo Par</button>
-                        </div>
-                    </div>
-                    
-                    <p id="lenses-stockWarning" class="warning-text hidden" style="margin-top: 0.5rem; margin-bottom: 0.5rem;">⚠️ ¡Atención! Stock bajo. Solicitar recambio.</p>
-
-                    <!-- Grilla Compacta de Tarjetas de Insumos -->
-                    <div id="lenses-cards-container" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1rem; margin-top: 1rem;">
-                        <!-- Generado dinámicamente usando mini tarjetas -->
                     </div>
                 </div>
             </div>

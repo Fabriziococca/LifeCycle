@@ -452,7 +452,7 @@ export class ProjectsModule {
         subNameEl.textContent = `Plan ${sub.plan} (${sub.cycle} ${sub.cycle == 1 ? 'mes' : 'meses'})`;
         startDateEl.textContent = start.toLocaleDateString('es-AR');
         endDateEl.textContent = expiry.toLocaleDateString('es-AR');
-        costValEl.textContent = `USD ${parseFloat(sub.cost).toFixed(2)}`;
+        costValEl.textContent = this.app.formatCurrency(sub.cost);
         daysCountEl.textContent = diffDays;
 
         // Reset class and styling
@@ -497,7 +497,7 @@ export class ProjectsModule {
         this.projects.forEach(p => {
             activeNetSum += Number(p.budgetNet || 0);
         });
-        document.getElementById('activeUSD').innerText = `USD ${activeNetSum.toFixed(2)}`;
+        document.getElementById('activeUSD').innerText = this.app.formatCurrency(activeNetSum);
 
         const now = new Date();
         const currYear = now.getFullYear();
@@ -522,9 +522,9 @@ export class ProjectsModule {
             }
         });
 
-        document.getElementById('monthUSD').innerText = `USD ${monthNetSum.toFixed(2)}`;
-        document.getElementById('yearUSD').innerText = `USD ${yearNetSum.toFixed(2)}`;
-        document.getElementById('totalUSD').innerText = `USD ${totalNetSum.toFixed(2)}`;
+        document.getElementById('monthUSD').innerText = this.app.formatCurrency(monthNetSum);
+        document.getElementById('yearUSD').innerText = this.app.formatCurrency(yearNetSum);
+        document.getElementById('totalUSD').innerText = this.app.formatCurrency(totalNetSum);
 
         if (this.projects.length === 0) {
             list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 25px;">No hay proyectos activos.</p>';
@@ -886,7 +886,7 @@ export class ProjectsModule {
         const modal = document.getElementById('projects-resolve-arbitration-modal');
         if (modal && p) {
             document.getElementById('proj-resolve-desc').innerText = `Proyecto de ${p.client} - ${p.project}. Se recalculará el presupuesto final según el porcentaje que decida el arbitraje.`;
-            document.getElementById('proj-resolve-orig-gross').innerText = `USD ${Number(p.budgetGross || 0).toFixed(2)}`;
+            document.getElementById('proj-resolve-orig-gross').innerText = this.app.formatCurrency(p.budgetGross || 0);
             document.getElementById('proj-arbitration-pct').value = 70; // 70% por defecto
             
             modal.classList.remove('hidden');
@@ -907,8 +907,8 @@ export class ProjectsModule {
         const targetGross = p.budgetGross * (pct / 100);
         const targetNet = this.calculateNet(targetGross, p.feeType, p.manualPercent, p.isDelegated, p.isReceived);
 
-        document.getElementById('proj-resolve-new-gross').innerText = `USD ${targetGross.toFixed(2)}`;
-        document.getElementById('proj-resolve-new-net').innerText = `USD ${targetNet.toFixed(2)}`;
+        document.getElementById('proj-resolve-new-gross').innerText = this.app.formatCurrency(targetGross);
+        document.getElementById('proj-resolve-new-net').innerText = this.app.formatCurrency(targetNet);
     }
 
     confirmResolveArbitration() {
@@ -953,9 +953,9 @@ export class ProjectsModule {
 
         // Calcular Promedios
         const averages = this.calculateAverages();
-        document.getElementById('proj-avgHistorical').innerText = `USD ${averages.historical.toFixed(2)}`;
-        document.getElementById('proj-avg6Months').innerText = `USD ${averages.last6.toFixed(2)}`;
-        document.getElementById('proj-avg3Months').innerText = `USD ${averages.last3.toFixed(2)}`;
+        document.getElementById('proj-avgHistorical').innerText = this.app.formatCurrency(averages.historical);
+        document.getElementById('proj-avg6Months').innerText = this.app.formatCurrency(averages.last6);
+        document.getElementById('proj-avg3Months').innerText = this.app.formatCurrency(averages.last3);
 
         // Agrupar
         const monthsMap = {};
@@ -1015,7 +1015,7 @@ export class ProjectsModule {
                             <span class="history-project-date">Cobrado: ${dateStr}</span>
                         </div>
                         <div class="history-project-actions">
-                            <span class="history-project-net">+ USD ${p.budgetNet.toFixed(2)}</span>
+                            <span class="history-project-net">+ ${this.app.formatCurrency(p.budgetNet)}</span>
                             <button class="btn-delete-history-project" data-id="${p.id}">&times;</button>
                         </div>
                     </div>
@@ -1026,7 +1026,7 @@ export class ProjectsModule {
                 <div class="history-month-header">
                     <h4>${m.title}</h4>
                     <div style="display:flex; align-items:center; gap:10px;">
-                        <strong style="color:var(--status-green);">+ USD ${m.totalNet.toFixed(2)}</strong>
+                        <strong style="color:var(--status-green);">+ ${this.app.formatCurrency(m.totalNet)}</strong>
                         <span class="toggle-icon"><i class="ph ph-caret-down"></i></span>
                     </div>
                 </div>
