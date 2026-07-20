@@ -1,4 +1,4 @@
-import { itemsConfig, LENS_LIMITS, parseDateLocal, getLocalISODate } from '../utils.js';
+import { itemsConfig, LENS_LIMITS, GROOMING_RULES, parseDateLocal, getLocalISODate } from '../utils.js';
 
 export class NotificationsCenterModule {
     constructor(appController) {
@@ -78,159 +78,39 @@ export class NotificationsCenterModule {
                 }
             }
 
-            // 2. CUIDADO CORPORAL (barba, pelo, axilas, hoja_gillette)
+            // 2. CUIDADO CORPORAL
             if (this.app.grooming) {
                 const gData = this.app.grooming.data || {};
-                
-                // Barba (límite: >= 4)
-                const barba = gData.barba || [];
-                if (barba.length > 0) {
-                    const diff = this.app.grooming.getDaysDiff(barba[0]);
-                    if (diff >= 4) {
-                        items.push({
-                            module: 'grooming',
-                            id: 'barba',
-                            name: 'Afeitado de Barba',
-                            icon: 'ph-scissors',
-                            desc: `Pasaron ${diff} de 4 días.`
-                        });
-                    }
-                }
-                
-                // Pelo (límite: >= 20)
-                const pelo = gData.pelo || [];
-                if (pelo.length > 0) {
-                    const diff = this.app.grooming.getDaysDiff(pelo[0]);
-                    if (diff >= 20) {
-                        items.push({
-                            module: 'grooming',
-                            id: 'pelo',
-                            name: 'Corte de Pelo',
-                            icon: 'ph-user',
-                            desc: `Pasaron ${diff} de 20 días.`
-                        });
-                    }
-                }
-                
-                // Axilas (límite: >= 30)
-                const axilas = gData.axilas || [];
-                if (axilas.length > 0) {
-                    const diff = this.app.grooming.getDaysDiff(axilas[0]);
-                    if (diff >= 30) {
-                        items.push({
-                            module: 'grooming',
-                            id: 'axilas',
-                            name: 'Depilación Axilas',
-                            icon: 'ph-user',
-                            desc: `Pasaron ${diff} de 30 días.`
-                        });
-                    }
-                }
-                
-                // Hoja Gillette (límite: >= 30)
-                const gillette = gData.hoja_gillette || [];
-                if (gillette.length > 0) {
-                    const diff = this.app.grooming.getDaysDiff(gillette[0]);
-                    if (diff >= 30) {
-                        items.push({
-                            module: 'grooming',
-                            id: 'hoja_gillette',
-                            name: 'Hoja Gillette',
-                            icon: 'ph-sparkle',
-                            desc: `En uso hace ${diff} de 30 días.`
-                        });
-                    }
-                }
+                const groomingItems = [
+                    { id: 'barba', name: 'Afeitado de Barba', icon: 'ph-scissors' },
+                    { id: 'pelo', name: 'Corte de Pelo', icon: 'ph-user' },
+                    { id: 'axilas', name: 'Depilación Axilas', icon: 'ph-user' },
+                    { id: 'hoja_gillette', name: 'Hoja Gillette', icon: 'ph-sparkle' },
+                    { id: 'pecho_panza', name: 'Depilación Pecho y Panza', icon: 'ph-user' },
+                    { id: 'brazos', name: 'Depilación Brazos', icon: 'ph-user' },
+                    { id: 'piernas', name: 'Depilación Piernas', icon: 'ph-user' },
+                    { id: 'intimas', name: 'Depilación Zonas Íntimas', icon: 'ph-user' },
+                    { id: 'unas_manos', name: 'Cortar Uñas de Manos', icon: 'ph-hand' },
+                    { id: 'unas_pies', name: 'Cortar Uñas de Pies', icon: 'ph-scissors' }
+                ];
 
-                // Pecho y Panza (límite: >= 60)
-                const pechoPanza = gData.pecho_panza || [];
-                if (pechoPanza.length > 0) {
-                    const diff = this.app.grooming.getDaysDiff(pechoPanza[0]);
-                    if (diff >= 60) {
-                        items.push({
-                            module: 'grooming',
-                            id: 'pecho_panza',
-                            name: 'Depilación Pecho y Panza',
-                            icon: 'ph-user',
-                            desc: `Pasaron ${diff} de 60 días.`
-                        });
+                groomingItems.forEach(item => {
+                    const history = gData[item.id] || [];
+                    if (history.length > 0) {
+                        const diff = this.app.grooming.getDaysDiff(history[0]);
+                        const limits = GROOMING_RULES[item.id]?.limits || { red: 30 };
+                        const limitRed = limits.red;
+                        if (diff >= limitRed) {
+                            items.push({
+                                module: 'grooming',
+                                id: item.id,
+                                name: item.name,
+                                icon: item.icon,
+                                desc: `Pasaron ${diff} de ${limitRed} días.`
+                            });
+                        }
                     }
-                }
-
-                // Brazos (límite: >= 180)
-                const brazos = gData.brazos || [];
-                if (brazos.length > 0) {
-                    const diff = this.app.grooming.getDaysDiff(brazos[0]);
-                    if (diff >= 180) {
-                        items.push({
-                            module: 'grooming',
-                            id: 'brazos',
-                            name: 'Depilación Brazos',
-                            icon: 'ph-user',
-                            desc: `Pasaron ${diff} de 180 días.`
-                        });
-                    }
-                }
-
-                // Piernas (límite: >= 120)
-                const piernas = gData.piernas || [];
-                if (piernas.length > 0) {
-                    const diff = this.app.grooming.getDaysDiff(piernas[0]);
-                    if (diff >= 120) {
-                        items.push({
-                            module: 'grooming',
-                            id: 'piernas',
-                            name: 'Depilación Piernas',
-                            icon: 'ph-user',
-                            desc: `Pasaron ${diff} de 120 días.`
-                        });
-                    }
-                }
-
-                // Zonas Íntimas (límite: >= 30)
-                const intimas = gData.intimas || [];
-                if (intimas.length > 0) {
-                    const diff = this.app.grooming.getDaysDiff(intimas[0]);
-                    if (diff >= 30) {
-                        items.push({
-                            module: 'grooming',
-                            id: 'intimas',
-                            name: 'Depilación Zonas Íntimas',
-                            icon: 'ph-user',
-                            desc: `Pasaron ${diff} de 30 días.`
-                        });
-                    }
-                }
-
-                // Uñas Manos (límite: >= 14)
-                const unasManos = gData.unas_manos || [];
-                if (unasManos.length > 0) {
-                    const diff = this.app.grooming.getDaysDiff(unasManos[0]);
-                    if (diff >= 14) {
-                        items.push({
-                            module: 'grooming',
-                            id: 'unas_manos',
-                            name: 'Cortar Uñas de Manos',
-                            icon: 'ph-hand',
-                            desc: `Pasaron ${diff} de 14 días.`
-                        });
-                    }
-                }
-
-                // Uñas Pies (límite: >= 40)
-                const unasPies = gData.unas_pies || [];
-                if (unasPies.length > 0) {
-                    const diff = this.app.grooming.getDaysDiff(unasPies[0]);
-                    if (diff >= 40) {
-                        items.push({
-                            module: 'grooming',
-                            id: 'unas_pies',
-                            name: 'Cortar Uñas de Pies',
-                            icon: 'ph-scissors',
-                            desc: `Pasaron ${diff} de 40 días.`
-                        });
-                    }
-                }
+                });
             }
 
             // 3. LENTES DE CONTACTO
