@@ -2496,12 +2496,16 @@ select option {
 
 .alerts-tabs-nav {
     display: flex;
-    gap: 0.5rem;
-    overflow-x: auto;
-    padding: 0.25rem 0.25rem 0.75rem 0.25rem;
-    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-    margin-bottom: 1rem;
-    scrollbar-width: thin;
+    flex-wrap: wrap;
+    gap: 0.6rem;
+    padding: 0.25rem 0 1rem 0;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    margin-bottom: 1.25rem;
+    scrollbar-width: none;
+}
+
+.alerts-tabs-nav::-webkit-scrollbar {
+    display: none;
 }
 
 .alerts-tab-btn {
