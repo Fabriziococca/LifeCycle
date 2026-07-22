@@ -30,7 +30,7 @@ export class AlertsModule {
                         const parsedGym = JSON.parse(oldGym);
                         const oldReminders = parsedGym.custom_reminders;
                         if (oldReminders) {
-                            ['creatine', 'salmon', 'neck', 'weigh_in'].forEach(key => {
+                            ['creatine', 'salmon', 'neck', 'weigh_in', 'laundry'].forEach(key => {
                                 if (oldReminders[key]) {
                                     defaultConfigs[key] = {
                                         enabled: oldReminders[key].enabled ?? true,

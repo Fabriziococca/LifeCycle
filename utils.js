@@ -296,6 +296,7 @@ export const ALERT_DEFINITIONS = [
     { key: 'compu_limpieza_int', name: 'Computadora (Limpieza Int.)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'compu_pasta_termica', name: 'Computadora (Pasta Térmica)', category: 'higiene', type: 'interval', defaultTime: '23:00' },
     { key: 'botella_vidrio', name: 'Lavado Botella de Vidrio', category: 'higiene', type: 'interval', defaultTime: '23:00' },
+    { key: 'laundry', name: 'Recordatorio Lavar Ropa (Lavarropas)', category: 'higiene', type: 'recurring', defaultTime: '10:00', defaultDays: [1,2,3,4,5,6,0] },
 
     // Cuidado Corporal
     { key: 'pelo', name: 'Corte de Pelo', category: 'cuidado', type: 'interval', defaultTime: '23:00' },

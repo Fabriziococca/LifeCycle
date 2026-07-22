@@ -284,18 +284,21 @@ function getArgentinaTime() {
     const t = {};
     parts.forEach(p => t[p.type] = p.value);
     
+    const year = parseInt(t.year, 10);
+    const month = parseInt(t.month, 10);
+    const day = parseInt(t.day, 10);
     const hour = parseInt(t.hour, 10);
     const minutes = parseInt(t.minute, 10);
     const dateStr = `${t.year}-${t.month}-${t.day}`;
     
     const utcDate = new Date(Date.UTC(
-        parseInt(t.year, 10),
-        parseInt(t.month, 10) - 1,
-        parseInt(t.day, 10)
+        year,
+        month - 1,
+        day
     ));
     const dayOfWeek = utcDate.getUTCDay();
     
-    return { hour, minutes, dayOfWeek, dateStr };
+    return { year, month, day, hour, minutes, dayOfWeek, dateStr };
 }
 
 // ==========================================================================
@@ -317,7 +320,7 @@ setInterval(() => {
 async function checkAndSendAllAlerts(forceAll = false) {
     if (!supabase) return;
     try {
-        const { hour, minutes, dayOfWeek, dateStr } = getArgentinaTime();
+        const { year, month, day, hour, minutes, dayOfWeek, dateStr } = getArgentinaTime();
 
         const { data: usersData, error: dbError } = await supabase.from('user_data').select('*');
         const { data: subs, error: subError } = await supabase.from('push_subscriptions').select('*');
@@ -411,7 +414,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
                     'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
                     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
-                    'creatine', 'salmon', 'neck', 'weigh_in', 'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check',
+                    'creatine', 'salmon', 'neck', 'weigh_in', 'laundry', 'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check',
                     'vehicle_issues_check', 'vehicle_docs_check', 'vehicle_fluids_check', 'tareas_urgentes_check'
                 ];
                 definitions.forEach(k => {
@@ -420,6 +423,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         else if (k === 'salmon') alertsConfig[k] = { enabled: true, time: '17:00', days: [0] };
                         else if (k === 'neck') alertsConfig[k] = { enabled: true, time: '23:30', days: [5,6] };
                         else if (k === 'weigh_in') alertsConfig[k] = { enabled: true, time: '08:00', days: [1,2,3,4,5,6,0] };
+                        else if (k === 'laundry') alertsConfig[k] = { enabled: true, time: '10:00', days: [1,2,3,4,5,6,0] };
                         else if (k === 'projects_check' || k === 'vehicle_issues_check' || k === 'vehicle_docs_check' || k === 'vehicle_fluids_check' || k === 'tareas_urgentes_check') {
                             alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
                         } else {
@@ -479,7 +483,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     if (!forceAll && data.alerts_sent_log[key] === candidate.dateStr) continue;
 
                     // Si es una alerta periódica/recurrente, verificar día de la semana
-                    const isRecurring = ['creatine', 'salmon', 'neck', 'weigh_in'].includes(key);
+                    const isRecurring = ['creatine', 'salmon', 'neck', 'weigh_in', 'laundry'].includes(key);
                     if (isRecurring && !forceAll && (!conf.days || !conf.days.includes(candidate.dayOfWeek))) continue;
 
                     // Verificar si ya pasó la hora programada en Argentina
@@ -893,6 +897,11 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             shouldNotify = true;
                             title = '⚖️ Control de Peso';
                             body = '¡Buen día! No te olvides de pesarte hoy antes de desayunar.';
+                            break;
+                        case 'laundry':
+                            shouldNotify = true;
+                            title = '🧺 Lavarropas';
+                            body = '¡No te olvides de poner a lavar la ropa en el lavarropas hoy!';
                             break;
 
                         // Otros
