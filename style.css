@@ -2474,4 +2474,111 @@ select option {
     box-shadow: 0 0 12px rgba(16, 185, 129, 0.3);
 }
 
+/* ==========================================================================
+   Gestor de Alertas UI Redesign
+   ========================================================================== */
+.alerts-bell-icon-badge {
+    width: 44px;
+    height: 44px;
+    min-width: 44px;
+    min-height: 44px;
+    flex-shrink: 0;
+    border-radius: 12px;
+    background: rgba(59, 130, 246, 0.15);
+    border: 1px solid rgba(59, 130, 246, 0.3);
+    color: #3b82f6;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 1.3rem;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.15);
+}
+
+.alerts-tabs-nav {
+    display: flex;
+    gap: 0.5rem;
+    overflow-x: auto;
+    padding: 0.25rem 0.25rem 0.75rem 0.25rem;
+    border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    margin-bottom: 1rem;
+    scrollbar-width: thin;
+}
+
+.alerts-tab-btn {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    color: var(--text-secondary);
+    padding: 0.5rem 1rem;
+    border-radius: 20px;
+    font-size: 0.85rem;
+    font-weight: 500;
+    white-space: nowrap;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+}
+
+.alerts-tab-btn:hover {
+    background: rgba(255, 255, 255, 0.08);
+    color: #ffffff;
+    border-color: rgba(255, 255, 255, 0.2);
+}
+
+.alerts-tab-btn.active {
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.35) 0%, rgba(37, 99, 235, 0.45) 100%);
+    color: #ffffff;
+    border-color: #3b82f6;
+    box-shadow: 0 4px 12px rgba(59, 130, 246, 0.25);
+    font-weight: 600;
+}
+
+.alerts-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+    gap: 1rem;
+}
+
+.alert-card-item {
+    background: rgba(15, 23, 42, 0.6);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 14px;
+    padding: 1rem;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    gap: 0.75rem;
+    transition: all 0.2s ease;
+}
+
+.alert-card-item:hover {
+    border-color: rgba(59, 130, 246, 0.3);
+    box-shadow: 0 6px 16px rgba(0, 0, 0, 0.25);
+    transform: translateY(-1px);
+}
+
+.alert-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 0.75rem;
+}
+
+.alert-card-title {
+    font-size: 0.92rem;
+    font-weight: 600;
+    color: #ffffff;
+    line-height: 1.3;
+}
+
+.alert-card-controls {
+    display: flex;
+    flex-direction: column;
+    gap: 0.6rem;
+    padding-top: 0.6rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+
 

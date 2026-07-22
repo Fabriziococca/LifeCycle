@@ -1733,9 +1733,9 @@
                     <!-- Pestaña 5: Gestor de Alertas -->
                     <div class="profile-tab-content hidden" id="tab-alertas">
                         <div class="card" style="margin-bottom: 2rem;">
-                            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 12px; margin-bottom: 12px;">
+                            <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 12px; margin-bottom: 16px; flex-wrap: wrap; gap: 1rem;">
                                 <div style="display: flex; align-items: center; gap: 0.75rem;">
-                                    <div class="icon-container" style="background: rgba(59, 130, 246, 0.15); color: var(--primary-color);">
+                                    <div class="alerts-bell-icon-badge">
                                         <i class="ph ph-bell-ringing"></i>
                                     </div>
                                     <div>
@@ -1744,12 +1744,18 @@
                                     </div>
                                 </div>
                                 <button id="btn-save-all-alerts" class="btn btn-primary" style="margin: 0; height: 38px; display: flex; align-items: center; gap: 8px;">
-                                    <i class="ph ph-floppy-disk"></i> Guardar
+                                    <i class="ph ph-floppy-disk"></i> Guardar Cambios
                                 </button>
                             </div>
-                            <div class="card-body" style="padding-top: 0;">
+
+                            <!-- Pestañas de Categoría (Filtros superiores) -->
+                            <div id="alerts-category-tabs" class="alerts-tabs-nav">
+                                <!-- Se llenan dinámicamente desde AlertsModule.js -->
+                            </div>
+
+                            <div class="card-body" style="padding-top: 1rem;">
                                 <!-- Categorías de Alertas Renderizadas Dinámicamente -->
-                                <div id="alerts-categories-container" style="display: flex; flex-direction: column; gap: 2rem;">
+                                <div id="alerts-categories-container">
                                     <!-- Se insertan dinámicamente desde el JS -->
                                 </div>
                             </div>
