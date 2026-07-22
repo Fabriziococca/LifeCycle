@@ -207,6 +207,22 @@ export class NotificationsCenterModule {
                         });
                     }
                 }
+
+                // Escobillas limpiaparabrisas (alerta desde 240 días / 8 meses)
+                const escDate = this.app.vehicle.trackerData?.escobillasDate;
+                if (escDate) {
+                    const escDays = this.app.vehicle.calculateDaysElapsed(escDate);
+                    if (escDays !== null && escDays >= 240) {
+                        const isRed = escDays >= 300;
+                        items.push({
+                            module: 'vehicle',
+                            id: 'escobillas',
+                            name: 'Escobillas Limpiaparabrisas',
+                            icon: 'ph-arrows-left-right',
+                            desc: isRed ? `¡Cambiar ya! Pasaron ${escDays} días (~${Math.floor(escDays / 30)} meses).` : `Cambio recomendado. Pasaron ${escDays} días (${Math.floor(escDays / 30)} meses).`
+                        });
+                    }
+                }
             }
 
             // 5. WORKANA SUBSCRIPTION
@@ -425,6 +441,12 @@ export class NotificationsCenterModule {
                 this.app.vehicle.maintenanceLog.sort((a, b) => b.km - a.km || new Date(b.date) - new Date(a.date));
                 this.app.vehicle.saveMaintenanceLog();
                 this.app.vehicle.render();
+            } else if (id === 'escobillas') {
+                this.app.vehicle.updateFluidCheck('escobillasDate');
+            } else if (id === 'refrigerante') {
+                this.app.vehicle.updateFluidCheck('refrigeranteDate');
+            } else if (id === 'sapito') {
+                this.app.vehicle.updateFluidCheck('sapitoDate');
             }
         } else if (module === 'workana') {
             const today = getLocalISODate();

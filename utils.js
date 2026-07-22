@@ -324,7 +324,7 @@ export const ALERT_DEFINITIONS = [
     { key: 'vehicle_replace', name: 'Reemplazo de Neumáticos', category: 'vehiculo', type: 'interval', defaultTime: '23:00' },
     { key: 'vehicle_issues_check', name: 'Fallas y Pendientes', category: 'vehiculo', type: 'interval', defaultTime: '09:00' },
     { key: 'vehicle_docs_check', name: 'Vencimiento de Documentación', category: 'vehiculo', type: 'interval', defaultTime: '09:00' },
-    { key: 'vehicle_fluids_check', name: 'Control de Fluidos y Matafuegos', category: 'vehiculo', type: 'interval', defaultTime: '09:00' },
+    { key: 'vehicle_fluids_check', name: 'Control de Fluidos, Escobillas y Matafuegos', category: 'vehiculo', type: 'interval', defaultTime: '09:00' },
 
     // Nutrición & Hábitos
     { key: 'vitamina_d', name: 'Vitamina D', category: 'gym', type: 'interval', defaultTime: '23:00' },

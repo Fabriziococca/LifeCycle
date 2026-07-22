@@ -149,7 +149,8 @@
     "fluids": {
       "refrigerante": { "days": 90 },
       "sapito": { "days": 45 },
-      "extintor": { "days_until_expiry": 30 }
+      "extintor": { "days_until_expiry": 30 },
+      "escobillas": { "days_yellow": 180, "days_orange": 240, "days_red": 300 }
     }
   }
 }

@@ -52,6 +52,10 @@ export class VehicleModule {
         this.sapitoBadge = document.getElementById('fluid-sapito-badge');
         this.btnCheckSapito = document.getElementById('btn-check-sapito');
 
+        this.escobillasElapsed = document.getElementById('fluid-escobillas-elapsed');
+        this.escobillasBadge = document.getElementById('fluid-escobillas-badge');
+        this.btnCheckEscobillas = document.getElementById('btn-check-escobillas');
+
         this.extintorExpDate = document.getElementById('extintor-exp-date');
         this.extintorRemaining = document.getElementById('extintor-remaining');
         this.extintorDateInput = document.getElementById('extintor-date-input');
@@ -105,7 +109,8 @@ export class VehicleModule {
             vtvExpDate: "",
             extintorDate: "",
             refrigeranteDate: "",
-            sapitoDate: ""
+            sapitoDate: "",
+            escobillasDate: ""
         }, this.trackerData);
 
         // Load issues checklist
@@ -223,6 +228,10 @@ export class VehicleModule {
 
         this.btnCheckSapito?.addEventListener('click', () => {
             this.updateFluidCheck('sapitoDate');
+        });
+
+        this.btnCheckEscobillas?.addEventListener('click', () => {
+            this.updateFluidCheck('escobillasDate');
         });
 
         this.btnSaveExtintor?.addEventListener('click', () => {
@@ -506,6 +515,39 @@ export class VehicleModule {
                 this.sapitoBadge.innerText = 'OK';
                 this.sapitoBadge.classList.add('green');
                 if (cardSap) cardSap.style.borderLeftColor = 'var(--status-green)';
+            }
+        }
+
+        // Escobillas
+        const escDate = this.trackerData.escobillasDate;
+        const escDays = escDate ? this.calculateDaysElapsed(escDate) : null;
+        const cardEsc = document.getElementById('fluid-card-escobillas');
+        if (this.escobillasElapsed) {
+            this.escobillasElapsed.innerText = escDays !== null ? `${escDays} días desde último cambio` : 'Sin registros de cambio';
+        }
+        if (this.escobillasBadge) {
+            this.escobillasBadge.className = 'badge';
+            const limits = fRules.escobillas || { days_yellow: 180, days_orange: 240, days_red: 300 };
+            if (escDays === null) {
+                this.escobillasBadge.innerText = 'N/A';
+                this.escobillasBadge.classList.add('gray');
+                if (cardEsc) cardEsc.style.borderLeftColor = 'var(--surface-border)';
+            } else if (escDays >= limits.days_red) {
+                this.escobillasBadge.innerText = 'CAMBIAR YA';
+                this.escobillasBadge.classList.add('red');
+                if (cardEsc) cardEsc.style.borderLeftColor = 'var(--status-red)';
+            } else if (escDays >= limits.days_orange) {
+                this.escobillasBadge.innerText = 'RECOMENDADO';
+                this.escobillasBadge.classList.add('orange');
+                if (cardEsc) cardEsc.style.borderLeftColor = 'var(--status-orange)';
+            } else if (escDays >= limits.days_yellow) {
+                this.escobillasBadge.innerText = 'ATENCIÓN';
+                this.escobillasBadge.classList.add('yellow');
+                if (cardEsc) cardEsc.style.borderLeftColor = 'var(--status-yellow)';
+            } else {
+                this.escobillasBadge.innerText = 'OK';
+                this.escobillasBadge.classList.add('green');
+                if (cardEsc) cardEsc.style.borderLeftColor = 'var(--status-green)';
             }
         }
 

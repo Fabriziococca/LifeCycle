@@ -835,6 +835,15 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                     body = `Pasaron ${sapElapsed} días desde la última revisión del limpiavidrios.`;
                                 }
                             }
+                            if (trk.escobillasDate) {
+                                const limitDays = sharedRules.vehicle?.fluids?.escobillas?.days_orange || 240;
+                                const escElapsed = getDaysElapsed(trk.escobillasDate);
+                                if (escElapsed !== null && escElapsed >= limitDays) {
+                                    shouldNotify = true;
+                                    title = '🚗 Mantenimiento: Escobillas';
+                                    body = `Pasaron ${escElapsed} días (~${Math.floor(escElapsed / 30)} meses) desde el último cambio de escobillas.`;
+                                }
+                            }
                             if (trk.extintorDate) {
                                 const limitDays = sharedRules.vehicle?.fluids?.extintor?.days_until_expiry || 30;
                                 const extDays = getDaysUntil(trk.extintorDate);
