@@ -690,7 +690,14 @@ export class AuthSyncModule {
 
         } catch (e) {
             console.error('Error enabling push notifications:', e);
-            alert('Error al activar notificaciones: ' + e.message);
+            let msg = 'Error al activar notificaciones: ' + e.message;
+            if (e.message && (e.message.includes('push service error') || e.message.includes('Registration failed'))) {
+                msg = '⚠️ Error del servicio Push del navegador (PC):\n\n' +
+                      '1. Si usás el navegador BRAVE: andá a brave://settings/privacy y activá la opción "Usar servicios de Google para mensajería push" (o "Use Google Services for Push Messaging"), y luego reiniciá el navegador.\n\n' +
+                      '2. Si estás en Windows: verificá en Inicio -> Configuración -> Sistema -> Notificaciones que las notificaciones de tu navegador estén activadas.\n\n' +
+                      '3. Asegurate de no estar usando una ventana de incógnito o VPN que bloquee los servicios de notificaciones.';
+            }
+            alert(msg);
         }
     }
 
