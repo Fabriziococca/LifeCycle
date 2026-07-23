@@ -1007,21 +1007,88 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 if (p.tasks) {
                                     const pTasks = p.tasks.filter(t => !t.completed && t.urgency === 'urgente');
                                     pTasks.forEach(t => {
-                                        pendingUrgentProjectTasks.push({ client: p.client, text: t.text });
+                                        pendingUrgentProjectTasks.push({
+                                            client: p.client,
+                                            project: p.project,
+                                            text: t.text,
+                                            id: t.id
+                                        });
                                     });
                                 }
                             }
 
-                            const totalUrgent = pendingUrgentGeneral.length + pendingUrgentProjectTasks.length;
-                            if (totalUrgent > 0) {
-                                shouldNotify = true;
-                                title = '📌 Tareas Urgentes Pendientes';
-                                if (pendingUrgentGeneral.length > 0 && pendingUrgentProjectTasks.length > 0) {
-                                    body = `Tenés ${pendingUrgentGeneral.length} generales y ${pendingUrgentProjectTasks.length} de proyectos sin completar.`;
-                                } else if (pendingUrgentGeneral.length > 0) {
-                                    body = `Tenés ${pendingUrgentGeneral.length} tareas generales urgentes sin completar.`;
+                            // Función para limpiar y truncar texto largo sin romper el mensaje
+                            const formatTaskBody = (rawText) => {
+                                if (!rawText) return 'Sin descripción';
+                                const clean = String(rawText).replace(/\s+/g, ' ').trim();
+                                if (clean.length > 140) {
+                                    return clean.substring(0, 137) + '...';
+                                }
+                                return clean;
+                            };
+
+                            const allUrgentItems = [];
+
+                            // 1. Tareas Generales
+                            pendingUrgentGeneral.forEach(t => {
+                                const catTag = t.category ? ` (${t.category})` : '';
+                                allUrgentItems.push({
+                                    id: `gen_${t.id || Math.random()}`,
+                                    title: `📌 Tarea Urgente${catTag}`,
+                                    body: formatTaskBody(t.text)
+                                });
+                            });
+
+                            // 2. Tareas de Proyectos (Freelance)
+                            pendingUrgentProjectTasks.forEach(t => {
+                                let projLabel = '';
+                                if (t.client && t.project) {
+                                    projLabel = ` (${t.client} - ${t.project})`;
+                                } else if (t.client) {
+                                    projLabel = ` (${t.client})`;
+                                } else if (t.project) {
+                                    projLabel = ` (${t.project})`;
                                 } else {
-                                    body = `Tenés ${pendingUrgentProjectTasks.length} tareas urgentes de proyectos sin completar.`;
+                                    projLabel = ' (Proyecto)';
+                                }
+
+                                if (projLabel.length > 35) {
+                                    projLabel = projLabel.substring(0, 32) + '...)';
+                                }
+
+                                allUrgentItems.push({
+                                    id: `proj_task_${t.id || Math.random()}`,
+                                    title: `📌 Tarea Urgente${projLabel}`,
+                                    body: formatTaskBody(t.text)
+                                });
+                            });
+
+                            if (allUrgentItems.length > 0) {
+                                for (const item of allUrgentItems) {
+                                    const itemLogKey = `tareas_urgentes_${item.id}`;
+                                    if (forceAll || data.alerts_sent_log[itemLogKey] !== candidate.dateStr) {
+                                        console.log(`[Alert Engine] Enviando push individual de tarea urgente '${item.title}' a usuario ${userId}`);
+                                        const payload = JSON.stringify({
+                                            title: item.title,
+                                            body: item.body,
+                                            url: '/'
+                                        });
+
+                                        for (const sub of userSubs) {
+                                            try {
+                                                await webpush.sendNotification(sub, payload);
+                                                await new Promise(resolve => setTimeout(resolve, 800));
+                                            } catch (err) {
+                                                console.error(`[Alert Engine] Falló enviar push individual de tarea urgente:`, err.message);
+                                            }
+                                        }
+
+                                        if (!forceAll) {
+                                            data.alerts_sent_log[itemLogKey] = candidate.dateStr;
+                                            data.alerts_sent_log[key] = candidate.dateStr;
+                                            dataChanged = true;
+                                        }
+                                    }
                                 }
                             }
                             break;
