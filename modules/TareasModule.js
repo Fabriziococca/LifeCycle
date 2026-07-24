@@ -149,6 +149,94 @@ export class TareasModule {
         if (inPinned) inPinned.tasks = tasks;
     }
 
+    openTaskDetailModal(t, categoryName, isFreelance = false, projectObj = null) {
+        const modal = document.getElementById('tareas-detail-modal');
+        const catBadge = document.getElementById('tareas-detail-category');
+        const textEl = document.getElementById('tareas-detail-text');
+        const urgencyBadge = document.getElementById('tareas-detail-urgency-badge');
+        const toggleBtn = document.getElementById('tareas-detail-toggle-btn');
+        const toggleLabel = document.getElementById('tareas-detail-toggle-label');
+        const editBtn = document.getElementById('tareas-detail-edit-btn');
+        const closeBtn = document.getElementById('tareas-detail-close-btn');
+
+        if (!modal || !textEl) return;
+
+        if (catBadge) {
+            catBadge.innerText = categoryName;
+        }
+
+        textEl.innerText = t.text;
+
+        if (urgencyBadge) {
+            if (t.urgency === 'urgente') {
+                urgencyBadge.innerText = 'Urgente';
+                urgencyBadge.style.background = 'var(--status-red)';
+                urgencyBadge.style.color = '#ffffff';
+                urgencyBadge.style.display = 'inline-block';
+            } else {
+                urgencyBadge.innerText = 'No Urgente';
+                urgencyBadge.style.background = 'rgba(255, 255, 255, 0.1)';
+                urgencyBadge.style.color = 'var(--text-secondary)';
+                urgencyBadge.style.display = 'inline-block';
+            }
+        }
+
+        if (toggleLabel) {
+            toggleLabel.innerText = t.completed ? 'Marcar Pendiente' : 'Marcar Completada';
+        }
+
+        const handleToggle = () => {
+            if (isFreelance && projectObj) {
+                t.completed = !t.completed;
+                this.syncProjectTasksToStores(projectObj.id, projectObj.tasks);
+                this.saveData();
+                this.app.projects?.saveData();
+                this.app.auth?.syncToCloud(false).catch(() => {});
+                this.app.notificationsCenter?.updateBadge();
+                this.render();
+            } else {
+                this.toggleTask(t.id);
+            }
+            modal.classList.add('hidden');
+        };
+
+        const handleEdit = () => {
+            modal.classList.add('hidden');
+            this.editingTaskId = t.id;
+            this.render();
+        };
+
+        const handleClose = () => {
+            modal.classList.add('hidden');
+        };
+
+        if (toggleBtn) {
+            const newToggleBtn = toggleBtn.cloneNode(true);
+            toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
+            newToggleBtn.addEventListener('click', handleToggle);
+        }
+
+        if (editBtn) {
+            const newEditBtn = editBtn.cloneNode(true);
+            editBtn.parentNode.replaceChild(newEditBtn, editBtn);
+            newEditBtn.addEventListener('click', handleEdit);
+        }
+
+        if (closeBtn) {
+            const newCloseBtn = closeBtn.cloneNode(true);
+            closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
+            newCloseBtn.addEventListener('click', handleClose);
+        }
+
+        modal.onclick = (e) => {
+            if (e.target === modal) {
+                modal.classList.add('hidden');
+            }
+        };
+
+        modal.classList.remove('hidden');
+    }
+
     togglePinProject(id) {
         if (!id) return;
         const idStr = String(id);
@@ -530,17 +618,19 @@ export class TareasModule {
 
             if (!p) return;
 
+            const projNameTitle = `Freelance - ${p.client ? p.client + ': ' + p.project : p.project}`;
+
             if (activeTitle) {
                 const isPinned = p.isPinned || this.pinnedProjectIds.map(String).includes(String(p.id));
                 const pinBadge = isPinned ? ' 📌' : '';
-                activeTitle.innerText = `Tareas Pendientes (Freelance - ${p.client ? p.client + ': ' + p.project : p.project})${pinBadge}`;
+                activeTitle.innerText = `Tareas Pendientes (${projNameTitle})${pinBadge}`;
             }
 
             const tasks = p.tasks || [];
             const pending = tasks.filter(t => !t.completed);
             const completed = tasks.filter(t => t.completed);
 
-            // Render Pendientes
+            // Render Pendientes (Freelance)
             if (pending.length === 0) {
                 activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">¡Todo listo por aquí! No hay tareas pendientes en este proyecto.</p>';
             } else {
@@ -606,13 +696,18 @@ export class TareasModule {
                                     <input type="checkbox" class="task-check">
                                     <span class="custom-checkbox"></span>
                                 </label>
-                                <span style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1;">${t.text} ${badge}</span>
+                                <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text} ${badge}</span>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
+                                <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
                                 <button class="btn-edit-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
                                 <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
                             </div>
                         `;
+
+                        row.querySelector('.task-text-span')?.addEventListener('click', () => this.openTaskDetailModal(t, projNameTitle, true, p));
+                        row.querySelector('.btn-view-task')?.addEventListener('click', () => this.openTaskDetailModal(t, projNameTitle, true, p));
+
                         row.querySelector('.task-check').addEventListener('change', () => {
                             t.completed = true;
                             this.syncProjectTasksToStores(p.id, p.tasks);
@@ -642,7 +737,7 @@ export class TareasModule {
                 });
             }
 
-            // Render Completadas
+            // Render Completadas (Freelance)
             if (completed.length === 0) {
                 completedList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay tareas completadas todavía.</p>';
             } else {
@@ -651,15 +746,22 @@ export class TareasModule {
                     row.className = 'task-item';
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); border-radius:8px; padding:10px 14px;';
                     row.innerHTML = `
-                        <div style="display:flex; align-items:center; gap:10px; opacity: 0.6;">
-                            <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center;">
+                        <div style="display:flex; align-items:center; gap:10px; opacity: 0.6; flex:1; min-width:0;">
+                            <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; flex-shrink:0;">
                                 <input type="checkbox" checked class="task-check">
                                 <span class="custom-checkbox"></span>
                             </label>
-                            <span style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through;">${t.text}</span>
+                            <span class="task-text-span" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text}</span>
                         </div>
-                        <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
+                            <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
+                            <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                        </div>
                     `;
+
+                    row.querySelector('.task-text-span')?.addEventListener('click', () => this.openTaskDetailModal(t, projNameTitle, true, p));
+                    row.querySelector('.btn-view-task')?.addEventListener('click', () => this.openTaskDetailModal(t, projNameTitle, true, p));
+
                     row.querySelector('.task-check').addEventListener('change', () => {
                         t.completed = false;
                         this.syncProjectTasksToStores(p.id, p.tasks);
@@ -761,13 +863,18 @@ export class TareasModule {
                                     <input type="checkbox" class="task-check">
                                     <span class="custom-checkbox"></span>
                                 </label>
-                                <span style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1;">${t.text} ${badge}</span>
+                                <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text} ${badge}</span>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
+                                <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
                                 <button class="btn-edit-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
                                 <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
                             </div>
                         `;
+
+                        row.querySelector('.task-text-span')?.addEventListener('click', () => this.openTaskDetailModal(t, this.currentCategory, false));
+                        row.querySelector('.btn-view-task')?.addEventListener('click', () => this.openTaskDetailModal(t, this.currentCategory, false));
+
                         row.querySelector('.task-check').addEventListener('change', () => {
                             this.toggleTask(t.id);
                         });
@@ -791,15 +898,22 @@ export class TareasModule {
                     row.className = 'task-item';
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); border-radius:8px; padding:10px 14px;';
                     row.innerHTML = `
-                        <div style="display:flex; align-items:center; gap:10px; opacity: 0.6;">
-                            <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center;">
+                        <div style="display:flex; align-items:center; gap:10px; opacity: 0.6; flex:1; min-width:0;">
+                            <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; flex-shrink:0;">
                                 <input type="checkbox" checked class="task-check">
                                 <span class="custom-checkbox"></span>
                             </label>
-                            <span style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through;">${t.text}</span>
+                            <span class="task-text-span" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text}</span>
                         </div>
-                        <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                        <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
+                            <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
+                            <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                        </div>
                     `;
+
+                    row.querySelector('.task-text-span')?.addEventListener('click', () => this.openTaskDetailModal(t, this.currentCategory, false));
+                    row.querySelector('.btn-view-task')?.addEventListener('click', () => this.openTaskDetailModal(t, this.currentCategory, false));
+
                     row.querySelector('.task-check').addEventListener('change', () => {
                         this.toggleTask(t.id);
                     });
