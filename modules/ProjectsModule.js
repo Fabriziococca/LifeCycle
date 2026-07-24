@@ -765,9 +765,11 @@ export class ProjectsModule {
 
     deleteActiveProject(id) {
         if (confirm('¿Seguro que deseas eliminar este proyecto de la lista de activos?')) {
-            this.projects = this.projects.filter(p => p.id !== id);
+            const idStr = String(id);
+            this.projects = this.projects.filter(p => String(p.id) !== idStr);
             this.saveData();
             this.render();
+            this.app.auth?.syncToCloud(false).catch(() => {});
         }
     }
 
@@ -1067,11 +1069,12 @@ export class ProjectsModule {
     }
 
     deleteHistoryProject(id, filterType) {
-        const p = this.history.find(proj => proj.id === id);
+        const idStr = String(id);
+        const p = this.history.find(proj => String(proj.id) === idStr);
         if (!p) return;
 
         if (confirm(`¿Desconfirmar el pago del proyecto "${p.project}" de ${p.client}?\n\nEl proyecto se quitará de los ingresos y volverá a la lista de activos.`)) {
-            this.history = this.history.filter(proj => proj.id !== id);
+            this.history = this.history.filter(proj => String(proj.id) !== idStr);
             p.deliveredDate = null;
             p.isDelivered = false;
             p.deliveredAt = null;
@@ -1079,6 +1082,7 @@ export class ProjectsModule {
             this.saveData();
             this.render();
             this.renderMonthlyHistory(filterType);
+            this.app.auth?.syncToCloud(false).catch(() => {});
         }
     }
 
