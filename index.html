@@ -1940,6 +1940,35 @@
                 <button id="proj-resolve-cancel" class="btn btn-cancel">Cancelar</button>
                 <button id="proj-resolve-confirm" class="btn btn-save" style="background:var(--status-red); color:white;">Confirmar Resolución</button>
             </div>
+    </div>
+
+    <!-- MODAL DE ESTADO DE SEGUIMIENTO DE PROYECTO -->
+    <div id="projects-status-note-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 480px; width: 90%;">
+            <h3>Estado de Seguimiento</h3>
+            <p class="modal-desc" style="margin-bottom: 1rem;">Asigná una etiqueta o nota rápida para saber en qué etapa se encuentra este proyecto.</p>
+            
+            <div class="input-group" style="margin-top: 1rem;">
+                <label style="font-size:0.85rem; display:block; margin-bottom:6px; font-weight:600;">Opciones Rápidas</label>
+                <div id="status-note-chips" style="display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 1rem;">
+                    <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px;" data-note="⏳ Esperando Credenciales">⏳ Esperando Credenciales</button>
+                    <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px;" data-note="❓ Esperando Respuesta del Cliente">❓ Esperando Respuesta del Cliente</button>
+                    <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px;" data-note="👨‍💻 En Desarrollo">👨‍💻 En Desarrollo</button>
+                    <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px;" data-note="🔍 En Revisión del Cliente">🔍 En Revisión del Cliente</button>
+                    <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px;" data-note="⚠️ Cambios en Proceso">⚠️ Cambios en Proceso</button>
+                    <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(239,68,68,0.15); color: #f87171;" data-note="">❌ Limpiar Estado</button>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="proj-status-note-input" style="font-size:0.85rem; display:block; margin-bottom:5px; font-weight:600;">Nota / Estado Personalizado</label>
+                <input type="text" id="proj-status-note-input" class="text-input" placeholder="Ej: Esperando respuesta de David sobre la API" style="width: 100%;">
+            </div>
+
+            <div class="modal-actions" style="margin-top: 1.5rem;">
+                <button id="proj-status-note-cancel" class="btn btn-cancel">Cancelar</button>
+                <button id="proj-status-note-save" class="btn btn-save">Guardar Estado</button>
+            </div>
         </div>
     </div>
 

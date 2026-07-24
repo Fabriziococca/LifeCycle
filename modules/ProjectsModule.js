@@ -6,6 +6,7 @@ export class ProjectsModule {
         this.projects = [];
         this.history = [];
         this.currentProjectId = null;
+        this.editingStatusNoteProjectId = null;
         this.FIXED_FEE = 0.0732; // Costo operativo retiro PayPal/Lemon (7.32%)
 
         window.projects = this;
@@ -431,6 +432,90 @@ export class ProjectsModule {
             pastForm?.classList.add('hidden');
             this.resetPastForm();
         });
+
+        // Projects Status Note Modal Cancel/Save and Chips
+        const statusModal = document.getElementById('projects-status-note-modal');
+        const statusCancel = document.getElementById('proj-status-note-cancel');
+        const statusSave = document.getElementById('proj-status-note-save');
+        const statusInput = document.getElementById('proj-status-note-input');
+        const statusChipsContainer = document.getElementById('status-note-chips');
+
+        statusCancel?.addEventListener('click', () => {
+            statusModal?.classList.add('hidden');
+            this.editingStatusNoteProjectId = null;
+        });
+
+        statusSave?.addEventListener('click', () => {
+            if (!this.editingStatusNoteProjectId) return;
+            const noteVal = statusInput?.value.trim() || '';
+            this.setStatusNote(this.editingStatusNoteProjectId, noteVal);
+            statusModal?.classList.add('hidden');
+            this.editingStatusNoteProjectId = null;
+        });
+
+        statusChipsContainer?.querySelectorAll('.chip-btn').forEach(btn => {
+            btn.addEventListener('click', () => {
+                const noteVal = btn.dataset.note || '';
+                if (statusInput) statusInput.value = noteVal;
+                if (!this.editingStatusNoteProjectId) return;
+                this.setStatusNote(this.editingStatusNoteProjectId, noteVal);
+                statusModal?.classList.add('hidden');
+                this.editingStatusNoteProjectId = null;
+            });
+        });
+    }
+
+    openStatusNoteModal(id) {
+        this.editingStatusNoteProjectId = id;
+        const p = this.projects.find(proj => String(proj.id) === String(id));
+        const modal = document.getElementById('projects-status-note-modal');
+        const input = document.getElementById('proj-status-note-input');
+        if (modal && p) {
+            if (input) input.value = p.statusNote || '';
+            modal.classList.remove('hidden');
+        }
+    }
+
+    setStatusNote(id, note) {
+        const p = this.projects.find(proj => String(proj.id) === String(id));
+        if (p) {
+            p.statusNote = note;
+            this.saveData();
+            this.render();
+            if (this.app.auth) {
+                this.app.auth.syncToCloud(false).catch(() => {});
+            }
+        }
+    }
+
+    requestChanges(id) {
+        const p = this.projects.find(proj => String(proj.id) === String(id));
+        if (!p) return;
+        if (confirm(`¿Marcar que el cliente solicitó cambios en "${p.project}"?\n\nEl temporizador de 15 días se pausará hasta que vuelvas a entregar el trabajo.`)) {
+            p.isDelivered = false;
+            p.hasChangesRequested = true;
+            p.changesRequestedAt = new Date().toISOString();
+            this.saveData();
+            this.render();
+            if (this.app.auth) {
+                this.app.auth.syncToCloud(false).catch(() => {});
+            }
+        }
+    }
+
+    reDeliverWork(id) {
+        const p = this.projects.find(proj => String(proj.id) === String(id));
+        if (!p) return;
+        if (confirm(`¿Reentregar el trabajo del proyecto "${p.project}"?\n\nSe actualizará la fecha de entrega y reiniciará el plazo de 15 días.`)) {
+            p.isDelivered = true;
+            p.hasChangesRequested = false;
+            p.deliveredAt = new Date().toISOString();
+            this.saveData();
+            this.render();
+            if (this.app.auth) {
+                this.app.auth.syncToCloud(false).catch(() => {});
+            }
+        }
     }
 
     resetPastForm() {
@@ -571,34 +656,54 @@ export class ProjectsModule {
                 leftDateVal = this.formatDate(p.deliveredAt || p.accepted);
                 rightDateLabel = "Estado:";
                 rightDateVal = "FONDOS CONGELADOS";
+            } else if (p.hasChangesRequested) {
+                progress = 100;
+                colorVar = "var(--status-orange)";
+                countdownText = "⚠️ EN SOLICITUD DE CAMBIOS (PAUSADO)";
+                leftDateLabel = "Aceptado:";
+                leftDateVal = this.formatDate(p.accepted);
+                rightDateLabel = "Solicitud Cambios:";
+                rightDateVal = this.formatDate(p.changesRequestedAt || now);
             } else if (p.isDelivered) {
                 if (!p.deliveredAt) p.deliveredAt = now.toISOString();
                 const del = new Date(p.deliveredAt);
-                const releaseDate = new Date(del.getTime() + 15 * 24 * 60 * 60 * 1000);
-                const relRemainingMs = releaseDate - now;
-                const relTotalMs = 15 * 24 * 60 * 60 * 1000;
+                const isOver300 = (p.budgetGross || 0) >= 300;
 
-                progress = ((relTotalMs - relRemainingMs) / relTotalMs) * 100;
-                progress = Math.max(0, Math.min(100, progress));
-
-                leftDateLabel = "Entregado:";
-                leftDateVal = this.formatDate(p.deliveredAt);
-                rightDateLabel = "Liberación (15d):";
-                rightDateVal = this.formatDate(releaseDate);
-
-                if (relRemainingMs <= 0) {
-                    countdownText = "LISTO PARA LIBERAR";
-                    colorVar = "var(--status-green)";
+                if (isOver300) {
                     progress = 100;
+                    colorVar = "#3b82f6";
+                    countdownText = "🔒 ESPERANDO LIBERACIÓN MANUAL DEL CLIENTE";
+                    leftDateLabel = "Entregado:";
+                    leftDateVal = this.formatDate(p.deliveredAt);
+                    rightDateLabel = "Liberación:";
+                    rightDateVal = "Manual (> $300 USD)";
                 } else {
-                    const d = Math.floor(relRemainingMs / 86400000);
-                    const h = Math.floor((relRemainingMs % 86400000) / 3600000);
-                    countdownText = `Fondos en ${d}d ${h}h`;
+                    const releaseDate = new Date(del.getTime() + 15 * 24 * 60 * 60 * 1000);
+                    const relRemainingMs = releaseDate - now;
+                    const relTotalMs = 15 * 24 * 60 * 60 * 1000;
 
-                    const remPct = (relRemainingMs / relTotalMs) * 100;
-                    if (remPct <= 10) colorVar = "var(--status-green)";
-                    else if (remPct <= 50) colorVar = "var(--status-orange)";
-                    else colorVar = "var(--status-yellow)";
+                    progress = ((relTotalMs - relRemainingMs) / relTotalMs) * 100;
+                    progress = Math.max(0, Math.min(100, progress));
+
+                    leftDateLabel = "Entregado:";
+                    leftDateVal = this.formatDate(p.deliveredAt);
+                    rightDateLabel = "Liberación (15d):";
+                    rightDateVal = this.formatDate(releaseDate);
+
+                    if (relRemainingMs <= 0) {
+                        countdownText = "LISTO PARA LIBERAR";
+                        colorVar = "var(--status-green)";
+                        progress = 100;
+                    } else {
+                        const d = Math.floor(relRemainingMs / 86400000);
+                        const h = Math.floor((relRemainingMs % 86400000) / 3600000);
+                        countdownText = `Fondos en ${d}d ${h}h`;
+
+                        const remPct = (relRemainingMs / relTotalMs) * 100;
+                        if (remPct <= 10) colorVar = "var(--status-green)";
+                        else if (remPct <= 50) colorVar = "var(--status-orange)";
+                        else colorVar = "var(--status-yellow)";
+                    }
                 }
             } else {
                 if (remainingMs <= 0) {
@@ -669,9 +774,16 @@ export class ProjectsModule {
                         <h3 class="project-client" style="color:white; font-size:1.15rem; margin:0; display:flex; align-items:center; flex-wrap:wrap;">
                             ${p.client} ${badgeSpan} ${sourceBadge}
                         </h3>
-                        <p class="project-name" style="color:var(--text-secondary); font-size:0.85rem; margin: 3px 0 10px 0;">${p.project}</p>
+                        <p class="project-name" style="color:var(--text-secondary); font-size:0.85rem; margin: 3px 0 6px 0;">${p.project}</p>
+                        <div style="margin-bottom: 0.75rem;">
+                            <span class="project-status-pill ${!p.statusNote ? 'empty-status' : ''}" title="Haz clic para cambiar el estado de seguimiento">
+                                <i class="ph ph-push-pin"></i> 
+                                <span class="status-note-text">${p.statusNote || '+ Asignar estado (ej: Esperando credenciales)'}</span>
+                                <i class="ph ph-pencil-simple" style="font-size: 0.8rem; margin-left: 2px; opacity: 0.7;"></i>
+                            </span>
+                        </div>
                     </div>
-                    <button class="btn-history-delete" style="title="Eliminar proyecto"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>
+                    <button class="btn-history-delete" title="Eliminar proyecto"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>
                 </div>
 
                 <div class="finance-block">
@@ -719,19 +831,30 @@ export class ProjectsModule {
                             <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
                             <button class="btn btn-primary half btn-resolve" style="margin:0; background: var(--status-red); color: white;"><i class="ph ph-scales"></i> Resolver</button>
                         </div>
+                    ` : (p.hasChangesRequested ? `
+                        <div style="display: flex; gap: 8px;">
+                            <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
+                            <button class="btn btn-primary half btn-redeliver" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-arrow-clockwise"></i> Reentregar Trabajo</button>
+                        </div>
                     ` : (!p.isDelivered ? `
                         <div style="display: flex; gap: 8px;">
                             <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
                             <button class="btn btn-primary half btn-deliver" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-check"></i> Entregado</button>
                         </div>
                     ` : `
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
-                            <button class="btn btn-primary half btn-confirm" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-coins"></i> Pago Confirmado</button>
+                        <div style="display: flex; flex-direction: column; gap: 8px;">
+                            <div style="display: flex; gap: 8px;">
+                                <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
+                                <button class="btn btn-primary half btn-confirm" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-coins"></i> Pago Confirmado</button>
+                            </div>
+                            <button class="btn btn-secondary btn-request-changes" style="margin:0; width:100%; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24; font-size: 0.8rem; height: 32px;"><i class="ph ph-warning-diamond"></i> Solicitó Cambios el Cliente</button>
                         </div>
-                    `) }
+                    `)) }
                 </div>
             `;
+            card.querySelector('.project-status-pill')?.addEventListener('click', () => {
+                this.openStatusNoteModal(p.id);
+            });
             card.querySelector('.btn-history-delete').addEventListener('click', () => {
                 this.deleteActiveProject(p.id);
             });
@@ -749,13 +872,20 @@ export class ProjectsModule {
                 card.querySelector('.btn-resolve').addEventListener('click', () => {
                     this.openResolveArbitrationModal(p.id);
                 });
+            } else if (p.hasChangesRequested) {
+                card.querySelector('.btn-redeliver')?.addEventListener('click', () => {
+                    this.reDeliverWork(p.id);
+                });
             } else if (!p.isDelivered) {
-                card.querySelector('.btn-deliver').addEventListener('click', () => {
+                card.querySelector('.btn-deliver')?.addEventListener('click', () => {
                     this.markAsDelivered(p.id);
                 });
             } else {
-                card.querySelector('.btn-confirm').addEventListener('click', () => {
+                card.querySelector('.btn-confirm')?.addEventListener('click', () => {
                     this.confirmPayment(p.id);
+                });
+                card.querySelector('.btn-request-changes')?.addEventListener('click', () => {
+                    this.requestChanges(p.id);
                 });
             }
 
@@ -879,6 +1009,7 @@ export class ProjectsModule {
                 p.timerStart = null;
             }
             p.isDelivered = true;
+            p.hasChangesRequested = false;
             p.deliveredAt = new Date().toISOString();
             this.saveData();
             this.render();

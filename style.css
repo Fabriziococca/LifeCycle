@@ -2605,5 +2605,40 @@ select option {
     box-shadow: 0 4px 14px rgba(59, 130, 246, 0.35);
 }
 
+/* Project Status Tracking Note Badge */
+.project-status-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(245, 158, 11, 0.12);
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    color: #fbbf24;
+    padding: 4px 10px;
+    border-radius: 20px;
+    font-size: 0.8rem;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    margin-top: 4px;
+}
+
+.project-status-pill:hover {
+    background: rgba(245, 158, 11, 0.22);
+    border-color: #f59e0b;
+    color: #ffffff;
+}
+
+.project-status-pill.empty-status {
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px dashed rgba(255, 255, 255, 0.2);
+    color: var(--text-secondary);
+}
+
+.project-status-pill.empty-status:hover {
+    background: rgba(255, 255, 255, 0.08);
+    border-color: var(--primary-color);
+    color: #ffffff;
+}
+
 
 
