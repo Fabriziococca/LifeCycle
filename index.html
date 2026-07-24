@@ -1498,7 +1498,17 @@
 
             <!-- Freelance Projects Selector and Quick Add (Only visible when Freelance tab is active) -->
             <div id="tareas-freelance-container" class="hidden" style="margin-bottom: 1.5rem; background: rgba(255,255,255,0.02); border: 1px solid var(--surface-border); border-radius: 12px; padding: 1.25rem; max-width: 100%; box-sizing: border-box;">
-                <h4 style="margin: 0 0 0.75rem 0; font-size: 0.95rem; color: var(--primary-color); font-weight: 600;">Seleccionar Proyecto</h4>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem; flex-wrap: wrap; gap: 8px;">
+                    <h4 style="margin: 0; font-size: 0.95rem; color: var(--primary-color); font-weight: 600;">Seleccionar Proyecto</h4>
+                    <div id="tareas-freelance-project-actions" style="display: flex; gap: 8px; align-items: center;">
+                        <button id="btn-pin-freelance-project" class="btn btn-secondary" title="Fijar este proyecto para que no se elimine al completar o cobrar en Proyectos" style="margin: 0; padding: 4px 12px; font-size: 0.8rem; height: 32px; display: inline-flex; align-items: center; gap: 6px; background: rgba(59, 130, 246, 0.1); border-color: rgba(59, 130, 246, 0.25); color: #3b82f6; cursor: pointer; transition: all 0.2s ease;">
+                            <i class="ph ph-push-pin"></i> <span id="lbl-pin-freelance-project">Fijar Proyecto</span>
+                        </button>
+                        <button id="btn-delete-freelance-project" class="btn btn-secondary" title="Eliminar este proyecto de la lista de tareas" style="margin: 0; padding: 4px 12px; font-size: 0.8rem; height: 32px; display: inline-flex; align-items: center; gap: 6px; background: rgba(239, 68, 68, 0.1); border-color: rgba(239, 68, 68, 0.2); color: #ef4444; cursor: pointer; transition: all 0.2s ease;">
+                            <i class="ph ph-trash"></i> <span>Eliminar de Tareas</span>
+                        </button>
+                    </div>
+                </div>
                 <div id="tareas-freelance-tabs" class="tabs-container" style="margin-bottom: 1.25rem; display: flex; flex-wrap: wrap; gap: 8px; max-width: 100%;">
                     <!-- Proyectos activos dinámicos -->
                 </div>

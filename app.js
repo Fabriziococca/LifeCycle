@@ -448,7 +448,8 @@ class AppController {
             'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
             'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory',
             'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData',
-            'vehicle_tracker_data', 'vehicle_issues', 'tareas_list', 'tareas_categories'
+            'vehicle_tracker_data', 'vehicle_issues', 'tareas_list', 'tareas_categories',
+            'tareas_pinned_projects', 'tareas_pinned_project_ids', 'tareas_removed_project_ids'
         ];
         
         if (trackedKeys.includes(key) && this.auth && this.auth.user) {

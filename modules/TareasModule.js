@@ -7,6 +7,10 @@ export class TareasModule {
         this.activeProjectId = null;
         this.editingTaskId = null;
 
+        this.pinnedProjectIds = [];
+        this.removedProjectIds = [];
+        this.pinnedProjectsStore = [];
+
         window.tareas = this;
         this.loadData();
         this.setupListeners();
@@ -39,17 +43,193 @@ export class TareasModule {
                     this.currentCategory = this.categories[0];
                 }
             }
+
+            // Cargar proyectos fijados y eliminados de Tareas
+            const pinnedIds = localStorage.getItem('tareas_pinned_project_ids');
+            this.pinnedProjectIds = pinnedIds ? JSON.parse(pinnedIds) : [];
+
+            const removedIds = localStorage.getItem('tareas_removed_project_ids');
+            this.removedProjectIds = removedIds ? JSON.parse(removedIds) : [];
+
+            const pinnedProjs = localStorage.getItem('tareas_pinned_projects');
+            this.pinnedProjectsStore = pinnedProjs ? JSON.parse(pinnedProjs) : [];
         } catch (e) {
             console.error("Error loading Tareas data:", e);
             this.tasks = [];
             this.categories = ['Personal', 'LifeCycle', 'Facultad', 'Cotidianas', 'Freelance'];
             this.currentCategory = this.categories[0];
+            this.pinnedProjectIds = [];
+            this.removedProjectIds = [];
+            this.pinnedProjectsStore = [];
         }
     }
 
     saveData() {
         localStorage.setItem('tareas_list', JSON.stringify(this.tasks));
         localStorage.setItem('tareas_categories', JSON.stringify(this.categories));
+        localStorage.setItem('tareas_pinned_project_ids', JSON.stringify(this.pinnedProjectIds));
+        localStorage.setItem('tareas_removed_project_ids', JSON.stringify(this.removedProjectIds));
+        localStorage.setItem('tareas_pinned_projects', JSON.stringify(this.pinnedProjectsStore));
+    }
+
+    getFreelanceProjects() {
+        const activeProjects = this.app.projects?.projects || [];
+        const historyProjects = this.app.projects?.history || [];
+        
+        const projectMap = new Map();
+
+        // 1. Agregar proyectos activos de la sección Proyectos
+        activeProjects.forEach(p => {
+            const pidStr = String(p.id);
+            if (!this.removedProjectIds.map(String).includes(pidStr)) {
+                projectMap.set(pidStr, { ...p });
+            }
+        });
+
+        // 2. Agregar proyectos del historial que estén fijados (isPinned)
+        historyProjects.forEach(p => {
+            const pidStr = String(p.id);
+            if (!this.removedProjectIds.map(String).includes(pidStr)) {
+                if (p.isPinned || this.pinnedProjectIds.map(String).includes(pidStr)) {
+                    if (!projectMap.has(pidStr)) {
+                        projectMap.set(pidStr, { ...p });
+                    }
+                }
+            }
+        });
+
+        // 3. Agregar proyectos fijados del store local en Tareas (por si fueron borrados en Proyectos)
+        this.pinnedProjectsStore.forEach(p => {
+            const pidStr = String(p.id);
+            if (!this.removedProjectIds.map(String).includes(pidStr)) {
+                if (!projectMap.has(pidStr)) {
+                    projectMap.set(pidStr, { ...p });
+                } else {
+                    const existing = projectMap.get(pidStr);
+                    if (!existing.tasks) existing.tasks = p.tasks || [];
+                }
+            }
+        });
+
+        const list = Array.from(projectMap.values());
+
+        // Asignar propiedad isPinned
+        list.forEach(p => {
+            const pidStr = String(p.id);
+            if (this.pinnedProjectIds.map(String).includes(pidStr)) {
+                p.isPinned = true;
+            }
+        });
+
+        // Ordenar: Fijados primero, luego el resto
+        list.sort((a, b) => {
+            const aPin = a.isPinned ? 1 : 0;
+            const bPin = b.isPinned ? 1 : 0;
+            if (aPin !== bPin) return bPin - aPin;
+            return 0;
+        });
+
+        return list;
+    }
+
+    syncProjectTasksToStores(projId, tasks) {
+        if (!projId) return;
+        const idStr = String(projId);
+
+        // 1. Sincronizar en active projects
+        const inActive = this.app.projects?.projects?.find(x => String(x.id) === idStr);
+        if (inActive) inActive.tasks = tasks;
+
+        // 2. Sincronizar en history projects
+        const inHist = this.app.projects?.history?.find(x => String(x.id) === idStr);
+        if (inHist) inHist.tasks = tasks;
+
+        // 3. Sincronizar en pinnedProjectsStore
+        const inPinned = this.pinnedProjectsStore.find(x => String(x.id) === idStr);
+        if (inPinned) inPinned.tasks = tasks;
+    }
+
+    togglePinProject(id) {
+        if (!id) return;
+        const idStr = String(id);
+        const projects = this.getFreelanceProjects();
+        const p = projects.find(x => String(x.id) === idStr);
+        if (!p) return;
+
+        const isCurrentlyPinned = p.isPinned || this.pinnedProjectIds.map(String).includes(idStr);
+        
+        if (isCurrentlyPinned) {
+            // Desfijar
+            this.pinnedProjectIds = this.pinnedProjectIds.filter(x => String(x) !== idStr);
+            this.pinnedProjectsStore = this.pinnedProjectsStore.filter(x => String(x.id) !== idStr);
+            p.isPinned = false;
+
+            const inActive = this.app.projects?.projects?.find(x => String(x.id) === idStr);
+            if (inActive) inActive.isPinned = false;
+            const inHist = this.app.projects?.history?.find(x => String(x.id) === idStr);
+            if (inHist) inHist.isPinned = false;
+        } else {
+            // Fijar
+            if (!this.pinnedProjectIds.map(String).includes(idStr)) {
+                this.pinnedProjectIds.push(idStr);
+            }
+            p.isPinned = true;
+            
+            const inActive = this.app.projects?.projects?.find(x => String(x.id) === idStr);
+            if (inActive) inActive.isPinned = true;
+            const inHist = this.app.projects?.history?.find(x => String(x.id) === idStr);
+            if (inHist) inHist.isPinned = true;
+
+            const existingIdx = this.pinnedProjectsStore.findIndex(x => String(x.id) === idStr);
+            if (existingIdx !== -1) {
+                this.pinnedProjectsStore[existingIdx] = p;
+            } else {
+                this.pinnedProjectsStore.push(p);
+            }
+        }
+
+        // Si se vuelve a fijar, remover del listado de eliminados
+        this.removedProjectIds = this.removedProjectIds.filter(x => String(x) !== idStr);
+
+        this.saveData();
+        this.app.projects?.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.render();
+    }
+
+    deleteProjectFromTareas(id) {
+        if (!id) return;
+        const idStr = String(id);
+        const projects = this.getFreelanceProjects();
+        const p = projects.find(x => String(x.id) === idStr);
+        if (!p) return;
+
+        const fullName = p.client ? `${p.client} - ${p.project}` : p.project;
+
+        if (confirm(`¿Seguro que deseas eliminar el proyecto "${fullName}" de la lista de tareas?\n\n(Esto quitará el proyecto de la sección Tareas pero su historial financiero y registro en la sección Proyectos se mantendrán intactos)`)) {
+            if (!this.removedProjectIds.map(String).includes(idStr)) {
+                this.removedProjectIds.push(idStr);
+            }
+            this.pinnedProjectIds = this.pinnedProjectIds.filter(x => String(x) !== idStr);
+            this.pinnedProjectsStore = this.pinnedProjectsStore.filter(x => String(x.id) !== idStr);
+
+            const inActive = this.app.projects?.projects?.find(x => String(x.id) === idStr);
+            if (inActive) inActive.isPinned = false;
+            const inHist = this.app.projects?.history?.find(x => String(x.id) === idStr);
+            if (inHist) inHist.isPinned = false;
+
+            const remaining = this.getFreelanceProjects();
+            if (remaining.length > 0) {
+                this.activeProjectId = remaining[0].id;
+            } else {
+                this.activeProjectId = null;
+            }
+
+            this.saveData();
+            this.app.projects?.saveData();
+            this.app.auth?.syncToCloud(false).catch(() => {});
+            this.render();
+        }
     }
 
     setupListeners() {
@@ -147,6 +327,22 @@ export class TareasModule {
             this.app.notificationsCenter?.render();
         });
 
+        // Freelance Actions (Fijar / Eliminar Proyecto)
+        const btnPinProject = document.getElementById('btn-pin-freelance-project');
+        const btnDeleteProject = document.getElementById('btn-delete-freelance-project');
+
+        btnPinProject?.addEventListener('click', () => {
+            if (this.activeProjectId) {
+                this.togglePinProject(this.activeProjectId);
+            }
+        });
+
+        btnDeleteProject?.addEventListener('click', () => {
+            if (this.activeProjectId) {
+                this.deleteProjectFromTareas(this.activeProjectId);
+            }
+        });
+
         // Freelance Inline Task Form Setup
         const btnFreelanceAdd = document.getElementById('tareas-freelance-btn-add-task');
         const freelanceInput = document.getElementById('tareas-freelance-new-task-text');
@@ -162,21 +358,26 @@ export class TareasModule {
                 return;
             }
 
-            const p = this.app.projects?.projects?.find(x => String(x.id) === String(activeProjId));
+            const projects = this.getFreelanceProjects();
+            const p = projects.find(x => String(x.id) === String(activeProjId));
             if (!p) {
                 alert("Proyecto no encontrado.");
                 return;
             }
 
             if (!p.tasks) p.tasks = [];
-            p.tasks.push({
+            const newTask = {
                 id: Date.now(),
                 text: text,
                 completed: false,
                 urgency: freelanceUrgency?.value || 'no_urgente'
-            });
+            };
+            p.tasks.push(newTask);
 
-            this.app.projects.saveData();
+            this.syncProjectTasksToStores(activeProjId, p.tasks);
+
+            this.saveData();
+            this.app.projects?.saveData();
             this.app.auth?.syncToCloud(false).catch(() => {});
             this.app.notificationsCenter?.updateBadge();
             
@@ -258,49 +459,81 @@ export class TareasModule {
             if (btnAddTask) btnAddTask.style.display = 'none';
             if (btnDeleteCategory) btnDeleteCategory.style.display = 'none';
 
-            const activeProjects = this.app.projects?.projects || [];
+            const freelanceProjects = this.getFreelanceProjects();
             const freelanceTabs = document.getElementById('tareas-freelance-tabs');
 
-            if (activeProjects.length === 0) {
+            if (freelanceProjects.length === 0) {
                 if (freelanceTabs) freelanceTabs.innerHTML = '';
                 if (activeTitle) activeTitle.innerText = 'Tareas Pendientes (Freelance)';
-                activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No tienes proyectos activos creados. Ve a la sección Proyectos para agregar uno.</p>';
+                activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No tienes proyectos activos ni fijados en Tareas. Ve a la sección Proyectos para agregar uno.</p>';
                 completedList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">-</p>';
                 this.activeProjectId = null;
+
+                const projectActions = document.getElementById('tareas-freelance-project-actions');
+                if (projectActions) projectActions.style.display = 'none';
                 return;
+            } else {
+                const projectActions = document.getElementById('tareas-freelance-project-actions');
+                if (projectActions) projectActions.style.display = 'flex';
             }
 
             // Seleccionar proyecto por defecto
-            if (!this.activeProjectId || !activeProjects.some(x => String(x.id) === String(this.activeProjectId))) {
-                this.activeProjectId = activeProjects[0].id;
+            if (!this.activeProjectId || !freelanceProjects.some(x => String(x.id) === String(this.activeProjectId))) {
+                this.activeProjectId = freelanceProjects[0].id;
+            }
+
+            const p = freelanceProjects.find(x => String(x.id) === String(this.activeProjectId));
+
+            // Actualizar botones de acción del proyecto activo (Fijar / Eliminar)
+            const btnPinProject = document.getElementById('btn-pin-freelance-project');
+            const lblPinProject = document.getElementById('lbl-pin-freelance-project');
+            if (btnPinProject && p) {
+                const isPinned = p.isPinned || this.pinnedProjectIds.map(String).includes(String(p.id));
+                if (isPinned) {
+                    if (lblPinProject) lblPinProject.innerText = 'Desfijar Proyecto';
+                    btnPinProject.style.background = 'rgba(59, 130, 246, 0.25)';
+                    btnPinProject.style.borderColor = '#3b82f6';
+                    btnPinProject.style.color = '#ffffff';
+                    btnPinProject.querySelector('i').className = 'ph ph-push-pin-slash';
+                } else {
+                    if (lblPinProject) lblPinProject.innerText = 'Fijar Proyecto';
+                    btnPinProject.style.background = 'rgba(59, 130, 246, 0.1)';
+                    btnPinProject.style.borderColor = 'rgba(59, 130, 246, 0.25)';
+                    btnPinProject.style.color = '#3b82f6';
+                    btnPinProject.querySelector('i').className = 'ph ph-push-pin';
+                }
             }
 
             // Render project tabs
             if (freelanceTabs) {
                 freelanceTabs.innerHTML = '';
-                activeProjects.forEach(p => {
+                freelanceProjects.forEach(proj => {
                     const btn = document.createElement('button');
-                    btn.className = `tab-btn ${String(this.activeProjectId) === String(p.id) ? 'active' : ''}`;
-                    const fullName = p.client ? `${p.client} - ${p.project}` : p.project;
+                    const isPinned = proj.isPinned || this.pinnedProjectIds.map(String).includes(String(proj.id));
+                    btn.className = `tab-btn ${String(this.activeProjectId) === String(proj.id) ? 'active' : ''} ${isPinned ? 'pinned' : ''}`;
+                    
+                    const nameStr = proj.client ? `${proj.client} - ${proj.project}` : proj.project;
+                    const fullName = isPinned ? `📌 ${nameStr}` : nameStr;
                     btn.innerText = fullName;
-                    btn.title = fullName;
+                    btn.title = nameStr + (isPinned ? ' (Fijado)' : '');
                     btn.style.maxWidth = '250px';
                     btn.style.overflow = 'hidden';
                     btn.style.textOverflow = 'ellipsis';
                     btn.style.whiteSpace = 'nowrap';
                     btn.onclick = () => {
-                        this.activeProjectId = p.id;
+                        this.activeProjectId = proj.id;
                         this.render();
                     };
                     freelanceTabs.appendChild(btn);
                 });
             }
 
-            const p = activeProjects.find(x => String(x.id) === String(this.activeProjectId));
             if (!p) return;
 
             if (activeTitle) {
-                activeTitle.innerText = `Tareas Pendientes (Freelance - ${p.client ? p.client + ': ' + p.project : p.project})`;
+                const isPinned = p.isPinned || this.pinnedProjectIds.map(String).includes(String(p.id));
+                const pinBadge = isPinned ? ' 📌' : '';
+                activeTitle.innerText = `Tareas Pendientes (Freelance - ${p.client ? p.client + ': ' + p.project : p.project})${pinBadge}`;
             }
 
             const tasks = p.tasks || [];
@@ -342,7 +575,9 @@ export class TareasModule {
                             const newText = input.value.trim();
                             if (newText) {
                                 t.text = newText;
-                                this.app.projects.saveData();
+                                this.syncProjectTasksToStores(p.id, p.tasks);
+                                this.saveData();
+                                this.app.projects?.saveData();
                                 this.app.auth?.syncToCloud(false).catch(() => {});
                                 this.app.notificationsCenter?.updateBadge();
                             }
@@ -380,7 +615,9 @@ export class TareasModule {
                         `;
                         row.querySelector('.task-check').addEventListener('change', () => {
                             t.completed = true;
-                            this.app.projects.saveData();
+                            this.syncProjectTasksToStores(p.id, p.tasks);
+                            this.saveData();
+                            this.app.projects?.saveData();
                             this.app.auth?.syncToCloud(false).catch(() => {});
                             this.app.notificationsCenter?.updateBadge();
                             this.render();
@@ -392,7 +629,9 @@ export class TareasModule {
                         row.querySelector('.btn-delete-task').addEventListener('click', () => {
                             if (confirm('¿Borrar esta tarea?')) {
                                 p.tasks = p.tasks.filter(x => x.id !== t.id);
-                                this.app.projects.saveData();
+                                this.syncProjectTasksToStores(p.id, p.tasks);
+                                this.saveData();
+                                this.app.projects?.saveData();
                                 this.app.auth?.syncToCloud(false).catch(() => {});
                                 this.app.notificationsCenter?.updateBadge();
                                 this.render();
@@ -423,7 +662,9 @@ export class TareasModule {
                     `;
                     row.querySelector('.task-check').addEventListener('change', () => {
                         t.completed = false;
-                        this.app.projects.saveData();
+                        this.syncProjectTasksToStores(p.id, p.tasks);
+                        this.saveData();
+                        this.app.projects?.saveData();
                         this.app.auth?.syncToCloud(false).catch(() => {});
                         this.app.notificationsCenter?.updateBadge();
                         this.render();
@@ -431,7 +672,9 @@ export class TareasModule {
                     row.querySelector('.btn-delete-task').addEventListener('click', () => {
                         if (confirm('¿Borrar esta tarea?')) {
                             p.tasks = p.tasks.filter(x => x.id !== t.id);
-                            this.app.projects.saveData();
+                            this.syncProjectTasksToStores(p.id, p.tasks);
+                            this.saveData();
+                            this.app.projects?.saveData();
                             this.app.auth?.syncToCloud(false).catch(() => {});
                             this.app.notificationsCenter?.updateBadge();
                             this.render();

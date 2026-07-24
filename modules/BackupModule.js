@@ -44,7 +44,10 @@ export class BackupModule {
             alerts_sent_log: localStorage.getItem('alerts_sent_log'),
             finanzasData: localStorage.getItem('finanzasData'),
             tareas_list: localStorage.getItem('tareas_list'),
-            tareas_categories: localStorage.getItem('tareas_categories')
+            tareas_categories: localStorage.getItem('tareas_categories'),
+            tareas_pinned_projects: localStorage.getItem('tareas_pinned_projects'),
+            tareas_pinned_project_ids: localStorage.getItem('tareas_pinned_project_ids'),
+            tareas_removed_project_ids: localStorage.getItem('tareas_removed_project_ids')
         };
 
         const blob = new Blob([JSON.stringify(unifiedData, null, 2)], { type: "application/json" });
@@ -234,6 +237,24 @@ export class BackupModule {
                         : JSON.stringify(rawData.tareas_categories);
                     localStorage.setItem('tareas_categories', dataVal);
                     tasksFound = true;
+                }
+                if (rawData.tareas_pinned_projects) {
+                    const dataVal = typeof rawData.tareas_pinned_projects === 'string'
+                        ? rawData.tareas_pinned_projects
+                        : JSON.stringify(rawData.tareas_pinned_projects);
+                    localStorage.setItem('tareas_pinned_projects', dataVal);
+                }
+                if (rawData.tareas_pinned_project_ids) {
+                    const dataVal = typeof rawData.tareas_pinned_project_ids === 'string'
+                        ? rawData.tareas_pinned_project_ids
+                        : JSON.stringify(rawData.tareas_pinned_project_ids);
+                    localStorage.setItem('tareas_pinned_project_ids', dataVal);
+                }
+                if (rawData.tareas_removed_project_ids) {
+                    const dataVal = typeof rawData.tareas_removed_project_ids === 'string'
+                        ? rawData.tareas_removed_project_ids
+                        : JSON.stringify(rawData.tareas_removed_project_ids);
+                    localStorage.setItem('tareas_removed_project_ids', dataVal);
                 }
                 if (tasksFound) {
                     importedCategories.push("Lista de Tareas");

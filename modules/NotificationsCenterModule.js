@@ -314,22 +314,21 @@ export class NotificationsCenterModule {
             }
 
             // 8. PENDING URGENT PROJECT TASKS
-            if (this.app.projects && this.app.projects.projects) {
-                this.app.projects.projects.forEach(p => {
-                    if (p.tasks) {
-                        const pendingUrgentProjTasks = p.tasks.filter(t => !t.completed && t.urgency === 'urgente');
-                        pendingUrgentProjTasks.forEach(t => {
-                            items.push({
-                                module: 'projects_tasks',
-                                id: t.id,
-                                name: `Proyecto: ${p.client || p.project}`,
-                                icon: 'ph-list-checks',
-                                desc: `Urgente - Tarea: ${t.text}`
-                            });
+            const freelanceProjs = this.app.tareas?.getFreelanceProjects ? this.app.tareas.getFreelanceProjects() : (this.app.projects?.projects || []);
+            freelanceProjs.forEach(p => {
+                if (p.tasks) {
+                    const pendingUrgentProjTasks = p.tasks.filter(t => !t.completed && t.urgency === 'urgente');
+                    pendingUrgentProjTasks.forEach(t => {
+                        items.push({
+                            module: 'projects_tasks',
+                            id: t.id,
+                            name: `Proyecto: ${p.client || p.project}`,
+                            icon: 'ph-list-checks',
+                            desc: `Urgente - Tarea: ${t.text}`
                         });
-                    }
-                });
-            }
+                    });
+                }
+            });
         } catch (e) {
             console.error("Error in getOverdueItems:", e);
         }
@@ -462,13 +461,15 @@ export class NotificationsCenterModule {
                 this.app.auth?.syncToCloud(false).catch(() => {});
             }
         } else if (module === 'projects_tasks') {
-            for (const p of this.app.projects.projects) {
+            const freelanceProjs = this.app.tareas?.getFreelanceProjects ? this.app.tareas.getFreelanceProjects() : (this.app.projects?.projects || []);
+            for (const p of freelanceProjs) {
                 const t = p.tasks?.find(x => String(x.id) === String(id));
                 if (t) {
                     t.completed = true;
-                    this.app.projects.saveData();
-                    this.app.projects.render();
-                    if (this.app.tareas.currentCategory === 'Freelance' && String(this.app.tareas.activeProjectId) === String(p.id)) {
+                    this.app.tareas?.syncProjectTasksToStores(p.id, p.tasks);
+                    this.app.projects?.saveData();
+                    this.app.projects?.render();
+                    if (this.app.tareas?.currentCategory === 'Freelance') {
                         this.app.tareas.render();
                     }
                     this.app.auth?.syncToCloud(false).catch(() => {});

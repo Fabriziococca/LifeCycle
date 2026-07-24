@@ -259,7 +259,10 @@ export class AuthSyncModule {
             vehicle_tracker_data: localStorage.getItem('vehicle_tracker_data'),
             vehicle_issues: localStorage.getItem('vehicle_issues'),
             tareas_list: localStorage.getItem('tareas_list'),
-            tareas_categories: localStorage.getItem('tareas_categories')
+            tareas_categories: localStorage.getItem('tareas_categories'),
+            tareas_pinned_projects: localStorage.getItem('tareas_pinned_projects'),
+            tareas_pinned_project_ids: localStorage.getItem('tareas_pinned_project_ids'),
+            tareas_removed_project_ids: localStorage.getItem('tareas_removed_project_ids')
         };
     }
 
@@ -449,7 +452,8 @@ export class AuthSyncModule {
                 'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
                 'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 
                 'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData',
-                'vehicle_tracker_data', 'vehicle_issues', 'tareas_list', 'tareas_categories'
+                'vehicle_tracker_data', 'vehicle_issues', 'tareas_list', 'tareas_categories',
+                'tareas_pinned_projects', 'tareas_pinned_project_ids', 'tareas_removed_project_ids'
             ];
             localKeys.forEach(key => {
                 let val = cloudData[key];
