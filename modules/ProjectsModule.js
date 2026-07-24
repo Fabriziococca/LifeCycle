@@ -162,6 +162,23 @@ export class ProjectsModule {
             });
         }
 
+        // Quick Now Date/Time button for project acceptance
+        const btnNowAccept = document.getElementById('btn-now-accept-date');
+        if (btnNowAccept) {
+            btnNowAccept.addEventListener('click', () => {
+                const acceptInput = document.getElementById('acceptDate');
+                if (acceptInput) {
+                    const now = new Date();
+                    const year = now.getFullYear();
+                    const month = String(now.getMonth() + 1).padStart(2, '0');
+                    const day = String(now.getDate()).padStart(2, '0');
+                    const hours = String(now.getHours()).padStart(2, '0');
+                    const minutes = String(now.getMinutes()).padStart(2, '0');
+                    acceptInput.value = `${year}-${month}-${day}T${hours}:${minutes}`;
+                }
+            });
+        }
+
         // New Project Form Submit
         const form = document.getElementById('projectForm');
         if (form) {
