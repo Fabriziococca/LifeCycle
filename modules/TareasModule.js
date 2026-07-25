@@ -225,6 +225,34 @@ export class TareasModule {
         modal.classList.remove('hidden');
     }
 
+    openTaskDetailModalById(id) {
+        const idStr = String(id);
+        let foundTask = this.tasks.find(x => String(x.id) === idStr);
+        let catName = this.currentCategory;
+        let isFreelance = false;
+        let projObj = null;
+
+        if (!foundTask && this.app.projects) {
+            const allProjs = [...(this.app.projects.projects || []), ...(this.app.projects.history || [])];
+            for (const p of allProjs) {
+                if (p.tasks) {
+                    const t = p.tasks.find(x => String(x.id) === idStr);
+                    if (t) {
+                        foundTask = t;
+                        catName = p.client ? `${p.client}: ${p.project}` : p.project;
+                        isFreelance = true;
+                        projObj = p;
+                        break;
+                    }
+                }
+            }
+        }
+
+        if (foundTask) {
+            this.openTaskDetailModal(foundTask, catName, isFreelance, projObj);
+        }
+    }
+
     togglePinProject(id) {
         if (!id) return;
         const idStr = String(id);
@@ -725,10 +753,10 @@ export class TareasModule {
                                     <input type="checkbox" class="task-check">
                                     <span class="custom-checkbox"></span>
                                 </label>
-                                <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text} ${badge}</span>
+                                <span class="task-text-span" onclick="window.tareas.openTaskDetailModalById('${t.id}')" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text} ${badge}</span>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                                <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
+                                <button class="btn-view-task" onclick="window.tareas.openTaskDetailModalById('${t.id}')" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
                                 <button class="btn-edit-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
                                 <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
                             </div>
@@ -781,10 +809,10 @@ export class TareasModule {
                                 <input type="checkbox" checked class="task-check">
                                 <span class="custom-checkbox"></span>
                             </label>
-                            <span class="task-text-span" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text}</span>
+                            <span class="task-text-span" onclick="window.tareas.openTaskDetailModalById('${t.id}')" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text}</span>
                         </div>
                         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                            <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
+                            <button class="btn-view-task" onclick="window.tareas.openTaskDetailModalById('${t.id}')" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
                             <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
                         </div>
                     `;
@@ -894,10 +922,10 @@ export class TareasModule {
                                     <input type="checkbox" class="task-check">
                                     <span class="custom-checkbox"></span>
                                 </label>
-                                <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text} ${badge}</span>
+                                <span class="task-text-span" onclick="window.tareas.openTaskDetailModalById('${t.id}')" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text} ${badge}</span>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                                <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
+                                <button class="btn-view-task" onclick="window.tareas.openTaskDetailModalById('${t.id}')" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
                                 <button class="btn-edit-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
                                 <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
                             </div>
@@ -935,10 +963,10 @@ export class TareasModule {
                                 <input type="checkbox" checked class="task-check">
                                 <span class="custom-checkbox"></span>
                             </label>
-                            <span class="task-text-span" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text}</span>
+                            <span class="task-text-span" onclick="window.tareas.openTaskDetailModalById('${t.id}')" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text}</span>
                         </div>
                         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                            <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
+                            <button class="btn-view-task" onclick="window.tareas.openTaskDetailModalById('${t.id}')" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
                             <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
                         </div>
                     `;
