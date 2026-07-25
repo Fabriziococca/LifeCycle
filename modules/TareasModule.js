@@ -168,15 +168,26 @@ export class TareasModule {
         textEl.innerText = t.text || '';
 
         if (urgencyBadge) {
-            if (t.urgency === 'urgente') {
+            if (t.urgency === 'muy_urgente') {
+                urgencyBadge.innerText = '🔥 MUY URGENTE';
+                urgencyBadge.style.background = '#dc2626';
+                urgencyBadge.style.color = '#ffffff';
+                urgencyBadge.style.fontWeight = 'bold';
+                urgencyBadge.style.boxShadow = '0 0 12px rgba(220, 38, 38, 0.6)';
+                urgencyBadge.style.display = 'inline-block';
+            } else if (t.urgency === 'urgente') {
                 urgencyBadge.innerText = 'Urgente';
                 urgencyBadge.style.background = 'var(--status-red)';
                 urgencyBadge.style.color = '#ffffff';
+                urgencyBadge.style.fontWeight = 'normal';
+                urgencyBadge.style.boxShadow = 'none';
                 urgencyBadge.style.display = 'inline-block';
             } else {
                 urgencyBadge.innerText = 'No Urgente';
                 urgencyBadge.style.background = 'rgba(255, 255, 255, 0.1)';
                 urgencyBadge.style.color = 'var(--text-secondary)';
+                urgencyBadge.style.fontWeight = 'normal';
+                urgencyBadge.style.boxShadow = 'none';
                 urgencyBadge.style.display = 'inline-block';
             }
         }
@@ -691,10 +702,11 @@ export class TareasModule {
                 activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">¡Todo listo por aquí! No hay tareas pendientes en este proyecto.</p>';
             } else {
                 pending.forEach(t => {
-                    const isUrgent = t.urgency === 'urgente';
-                    const badge = isUrgent 
-                        ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px;">Urgente</span>`
-                        : '';
+                    const badge = t.urgency === 'muy_urgente'
+                        ? `<span class="badge" style="background:#dc2626; color:white; font-size:0.65rem; padding:2px 6px; box-shadow:0 0 8px rgba(220,38,38,0.6); font-weight:bold;">🔥 Muy Urgente</span>`
+                        : (t.urgency === 'urgente' 
+                            ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px;">Urgente</span>`
+                            : '');
                     const isEditing = String(this.editingTaskId) === String(t.id);
                     const row = document.createElement('div');
                     row.className = 'task-item';
@@ -862,10 +874,11 @@ export class TareasModule {
                 activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">¡Todo listo por aquí! No hay tareas pendientes.</p>';
             } else {
                 pending.forEach(t => {
-                    const isUrgent = t.urgency === 'urgente';
-                    const badge = isUrgent 
-                        ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px;">Urgente</span>`
-                        : '';
+                    const badge = t.urgency === 'muy_urgente'
+                        ? `<span class="badge" style="background:#dc2626; color:white; font-size:0.65rem; padding:2px 6px; box-shadow:0 0 8px rgba(220,38,38,0.6); font-weight:bold;">🔥 Muy Urgente</span>`
+                        : (t.urgency === 'urgente' 
+                            ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px;">Urgente</span>`
+                            : '');
                     const isEditing = String(this.editingTaskId) === String(t.id);
                     const row = document.createElement('div');
                     row.className = 'task-item';

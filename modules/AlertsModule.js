@@ -180,11 +180,11 @@ export class AlertsModule {
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Hora de push:</span>
                         <input type="time" class="alert-time-input" value="${conf.time}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem;">
                     </div>
-                    ${def.key === 'robot' ? `
+                    ${(def.key === 'robot' || def.key === 'very_urgent_tasks') ? `
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px;">
-                        <span style="font-size: 0.78rem; color: var(--text-secondary);" title="Frecuencia de repetición mientras esté sucio">Repetir cada:</span>
+                        <span style="font-size: 0.78rem; color: var(--text-secondary);" title="Frecuencia de repetición mientras esté pendiente">Repetir cada:</span>
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <input type="number" class="alert-interval-input" min="1" max="48" value="${conf.interval_hours || 6}" style="width: 55px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem; text-align: center;">
+                            <input type="number" class="alert-interval-input" min="1" max="48" value="${conf.interval_hours || 4}" style="width: 55px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem; text-align: center;">
                             <span style="font-size: 0.8rem; color: var(--text-secondary);">hs</span>
                         </div>
                     </div>

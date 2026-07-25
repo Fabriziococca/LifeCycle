@@ -1521,9 +1521,10 @@
                 <h4 style="margin: 0 0 0.75rem 0; font-size: 0.95rem; color: var(--text-secondary); font-weight: 600;">Nueva Tarea para el Proyecto</h4>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <input type="text" id="tareas-freelance-new-task-text" class="text-input" placeholder="Ej: Diseñar base de datos..." style="flex: 1; min-width: 180px;">
-                    <select id="tareas-freelance-new-task-urgency" class="text-input" style="width: auto; min-width: 110px; height: 42px;">
+                    <select id="tareas-freelance-new-task-urgency" class="text-input" style="width: auto; min-width: 125px; height: 42px;">
                         <option value="no_urgente">No Urgente</option>
                         <option value="urgente">Urgente</option>
+                        <option value="muy_urgente">🔥 Muy Urgente</option>
                     </select>
                     <button id="tareas-freelance-btn-add-task" class="btn btn-primary" style="margin: 0; padding: 0 15px; width: auto; font-size: 1rem; height: 42px;">+</button>
                 </div>
@@ -2028,7 +2029,7 @@
 
     <!-- MODAL DE DESGLOSE ANUAL (FINANZAS) -->
     <div id="finanzas-year-details-modal" class="modal hidden">
-        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
+        <div class="modal-content" style="max-width: 1000px; width: 92vw; max-height: 90vh; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <h3 id="fin-year-modal-title" style="margin: 0;">Detalle Anual de Ingresos</h3>
                 <button id="fin-year-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
@@ -2128,7 +2129,7 @@
 
     <!-- MODAL DE DESGLOSE ANUAL DE GASTOS -->
     <div id="finanzas-expense-year-details-modal" class="modal hidden">
-        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
+        <div class="modal-content" style="max-width: 1000px; width: 92vw; max-height: 90vh; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <h3 style="margin: 0; color: var(--status-orange);">Detalle Anual de Gastos</h3>
                 <button id="fin-expense-year-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
@@ -2200,7 +2201,7 @@
     </div>
 
     <div id="projects-history-modal" class="modal hidden">
-        <div class="modal-content" style="max-height: 85vh; display: flex; flex-direction: column;">
+        <div class="modal-content" style="max-width: 650px; width: 92vw; max-height: 85vh; display: flex; flex-direction: column;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 5px;">
                 <div>
                     <h3 id="proj-history-modal-title" style="margin: 0 0 5px 0;">Historial Mensual</h3>
@@ -2300,6 +2301,7 @@
                 <select id="tareas-task-urgency" class="text-input">
                     <option value="no_urgente">No Urgente</option>
                     <option value="urgente">Urgente</option>
+                    <option value="muy_urgente">🔥 Muy Urgente</option>
                 </select>
             </div>
             <div class="modal-actions" style="margin-top: 1.5rem;">

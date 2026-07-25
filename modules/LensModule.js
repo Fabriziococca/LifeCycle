@@ -232,16 +232,19 @@ export class LensModule {
             const card = document.createElement('div');
             card.className = `lenses-mini-card ${statusClass}`;
             card.style.cssText = `
-                background: rgba(255, 255, 255, 0.02);
-                border: 1px solid ${colorVar};
-                border-radius: 12px;
-                padding: 12px 14px;
+                background: linear-gradient(135deg, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.9));
+                border: 1px solid rgba(255, 255, 255, 0.08);
+                border-top: 3px solid ${colorVar};
+                border-radius: 14px;
+                padding: 14px;
                 display: flex;
                 flex-direction: column;
                 justify-content: space-between;
-                gap: 10px;
+                gap: 12px;
                 position: relative;
-                box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+                box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+                backdrop-filter: blur(10px);
+                transition: transform 0.2s ease, box-shadow 0.2s ease;
             `;
 
             let nextDateStr = 'N/A';
@@ -258,36 +261,38 @@ export class LensModule {
             const progressPct = daysElapsed !== '--' && daysElapsed !== null ? Math.min((parseInt(daysElapsed) / item.limit) * 100, 100) : 0;
 
             card.innerHTML = `
-                <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                    <div style="display: flex; align-items: center; gap: 8px; min-width: 0;">
-                        <i class="ph ${item.icon}" style="font-size: 1.15rem; color: ${colorVar}; flex-shrink: 0;"></i>
-                        <strong style="font-size: 0.9rem; color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">${item.name}</strong>
+                <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                            <i class="ph ${item.icon}" style="font-size: 1.25rem; color: ${colorVar};"></i>
+                        </div>
+                        <strong style="font-size: 0.92rem; color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;">${item.name}</strong>
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                        <button class="btn-card-edit" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px; font-size: 0.95rem;" title="Editar Fecha"><i class="ph ph-pencil"></i></button>
-                        <span class="badge ${statusClass}" style="font-size: 0.65rem; padding: 2px 6px; font-weight: 600;">${statusBadge}</span>
+                        <button class="btn-card-edit" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s;" title="Editar Fecha de Último Uso"><i class="ph ph-pencil"></i></button>
+                        <span class="badge ${statusClass}" style="font-size: 0.65rem; padding: 3px 8px; font-weight: 700; border-radius: 20px; letter-spacing: 0.3px;">${statusBadge}</span>
                     </div>
                 </div>
 
-                <div style="display: flex; align-items: baseline; justify-content: space-between; margin-top: -2px;">
-                    <div style="display: flex; align-items: baseline; gap: 4px;">
-                        <span style="font-size: 1.6rem; font-weight: 800; color: ${colorVar}; line-height: 1;">${daysDisplay}</span>
-                        <span style="font-size: 0.75rem; color: var(--text-secondary);">días (máx. ${item.limit}d)</span>
+                <div style="display: flex; align-items: baseline; justify-content: space-between; margin: 2px 0;">
+                    <div style="display: flex; align-items: baseline; gap: 6px;">
+                        <span style="font-size: 1.8rem; font-weight: 800; color: ${colorVar}; line-height: 1; font-variant-numeric: tabular-nums;">${daysDisplay}</span>
+                        <span style="font-size: 0.78rem; color: var(--text-secondary); font-weight: 500;">días transcurridos (máx. ${item.limit}d)</span>
                     </div>
                 </div>
 
-                <div style="display: flex; flex-direction: column; gap: 4px;">
-                    <div style="display: flex; justify-content: space-between; font-size: 0.7rem; color: var(--text-secondary);">
-                        <span>Último: <strong>${lastDateStr}</strong></span>
-                        <span>Próx: <strong>${nextDateStr}</strong></span>
+                <div style="display: flex; flex-direction: column; gap: 6px;">
+                    <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-secondary);">
+                        <span>Último: <strong style="color: rgba(255,255,255,0.85);">${lastDateStr}</strong></span>
+                        <span>Próximo: <strong style="color: rgba(255,255,255,0.85);">${nextDateStr}</strong></span>
                     </div>
-                    <div style="width: 100%; height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; overflow: hidden;">
-                        <div style="width: ${progressPct}%; height: 100%; background: ${colorVar}; border-radius: 2px;"></div>
+                    <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; position: relative;">
+                        <div style="width: ${progressPct}%; height: 100%; background: ${colorVar}; border-radius: 3px; transition: width 0.4s ease;"></div>
                     </div>
                 </div>
 
-                <button class="btn-mini-action btn btn-secondary" style="width: 100%; padding: 6px 10px; font-size: 0.8rem; margin: 0; display: flex; align-items: center; justify-content: center; gap: 6px; height: 32px; border-color: ${colorVar}40;">
-                    <i class="ph-bold ph-check-circle" style="color: ${colorVar};"></i>
+                <button class="btn-mini-action btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 0.85rem; margin: 0; display: flex; align-items: center; justify-content: center; gap: 8px; height: 36px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid ${colorVar}50; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                    <i class="ph-bold ph-check-circle" style="color: ${colorVar}; font-size: 1rem;"></i>
                     <span>${item.actionText}</span>
                 </button>
             `;

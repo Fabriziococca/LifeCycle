@@ -300,15 +300,16 @@ export class NotificationsCenterModule {
 
             // 7. PENDING URGENT GENERAL TASKS
             if (this.app.tareas && this.app.tareas.tasks) {
-                const pendingUrgentTasks = this.app.tareas.tasks.filter(t => !t.completed && t.urgency === 'urgente');
+                const pendingUrgentTasks = this.app.tareas.tasks.filter(t => !t.completed && (t.urgency === 'urgente' || t.urgency === 'muy_urgente'));
                 pendingUrgentTasks.forEach(t => {
                     const catName = t.category || 'General';
+                    const isVeryUrgent = t.urgency === 'muy_urgente';
                     items.push({
                         module: 'tareas',
                         id: t.id,
-                        name: `Tarea: ${t.text}`,
-                        icon: 'ph-check-square',
-                        desc: `Urgente - Categoría: ${catName}`
+                        name: `${isVeryUrgent ? '🔥 ' : ''}Tarea: ${t.text}`,
+                        icon: isVeryUrgent ? 'ph-fire' : 'ph-check-square',
+                        desc: `${isVeryUrgent ? '¡MUY URGENTE!' : 'Urgente'} - Categoría: ${catName}`
                     });
                 });
             }
@@ -317,14 +318,15 @@ export class NotificationsCenterModule {
             const freelanceProjs = this.app.tareas?.getFreelanceProjects ? this.app.tareas.getFreelanceProjects() : (this.app.projects?.projects || []);
             freelanceProjs.forEach(p => {
                 if (p.tasks) {
-                    const pendingUrgentProjTasks = p.tasks.filter(t => !t.completed && t.urgency === 'urgente');
+                    const pendingUrgentProjTasks = p.tasks.filter(t => !t.completed && (t.urgency === 'urgente' || t.urgency === 'muy_urgente'));
                     pendingUrgentProjTasks.forEach(t => {
+                        const isVeryUrgent = t.urgency === 'muy_urgente';
                         items.push({
                             module: 'projects_tasks',
                             id: t.id,
-                            name: `Proyecto: ${p.client || p.project}`,
-                            icon: 'ph-list-checks',
-                            desc: `Urgente - Tarea: ${t.text}`
+                            name: `${isVeryUrgent ? '🔥 ' : ''}Proyecto: ${p.client || p.project}`,
+                            icon: isVeryUrgent ? 'ph-fire' : 'ph-list-checks',
+                            desc: `${isVeryUrgent ? '¡MUY URGENTE!' : 'Urgente'} - Tarea: ${t.text}`
                         });
                     });
                 }

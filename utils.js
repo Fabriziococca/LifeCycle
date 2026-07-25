@@ -338,7 +338,8 @@ export const ALERT_DEFINITIONS = [
     { key: 'robot', name: 'Robot Aspiradora', category: 'otros', type: 'interval', defaultTime: '23:00' },
     { key: 'workana', name: 'Vencimiento Workana', category: 'otros', type: 'interval', defaultTime: '23:00' },
     { key: 'projects_check', name: 'Estado de Proyectos Activos', category: 'otros', type: 'interval', defaultTime: '09:00' },
-    { key: 'tareas_urgentes_check', name: 'Tareas Pendientes Urgentes', category: 'otros', type: 'interval', defaultTime: '09:00' }
+    { key: 'tareas_urgentes_check', name: 'Tareas Pendientes Urgentes', category: 'otros', type: 'interval', defaultTime: '09:00' },
+    { key: 'very_urgent_tasks', name: 'Tareas Muy Urgentes (Repetitiva)', category: 'otros', type: 'interval', defaultTime: '09:00' }
 ];
 
 export const CATEGORY_NAMES = {

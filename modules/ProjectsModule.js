@@ -812,29 +812,38 @@ export class ProjectsModule {
             card.style.borderColor = colorVar;
 
             card.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.5rem;">
-                    <div>
-                        <h3 class="project-client" style="color:white; font-size:1.15rem; margin:0; display:flex; align-items:center; flex-wrap:wrap;">
+                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.75rem; gap: 12px;">
+                    <div style="min-width: 0; flex: 1;">
+                        <h3 class="project-client" style="color:white; font-size:1.2rem; margin:0; display:flex; align-items:center; flex-wrap:wrap; gap: 6px;">
                             ${p.client} ${badgeSpan} ${sourceBadge}
                         </h3>
-                        <p class="project-name" style="color:var(--text-secondary); font-size:0.85rem; margin: 3px 0 6px 0;">${p.project}</p>
-                        <div style="margin-bottom: 0.75rem;">
-                            <span class="project-status-pill ${!p.statusNote ? 'empty-status' : ''}" onclick="window.projects.openStatusNoteModal('${p.id}')" title="Haz clic para cambiar el estado de seguimiento">
+                        <p class="project-name" style="color:var(--text-secondary); font-size:0.88rem; margin: 3px 0 8px 0; font-weight: 500;">${p.project}</p>
+                        <div>
+                            <span class="project-status-pill ${!p.statusNote ? 'empty-status' : ''}" onclick="window.projects.openStatusNoteModal('${p.id}')" title="Haz clic para cambiar el estado de seguimiento" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
                                 <i class="ph ph-push-pin"></i> 
                                 <span class="status-note-text">${p.statusNote || '+ Asignar estado (ej: Esperando credenciales)'}</span>
-                                <i class="ph ph-pencil-simple" style="font-size: 0.8rem; margin-left: 2px; opacity: 0.7;"></i>
+                                <i class="ph ph-pencil-simple" style="font-size: 0.8rem; opacity: 0.7;"></i>
                             </span>
                         </div>
                     </div>
-                    <button class="btn-history-delete" onclick="window.projects.deleteActiveProject('${p.id}')" title="Eliminar proyecto"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0;">
+                        <div class="countdown-badge" style="background: rgba(0,0,0,0.3); border: 1.5px solid ${colorVar}; color: ${colorVar}; padding: 6px 12px; border-radius: 12px; font-weight: 800; font-size: 1.1rem; font-variant-numeric: tabular-nums; box-shadow: 0 0 10px ${colorVar}30; white-space: nowrap;">
+                            ${countdownText}
+                        </div>
+                        <button class="btn-history-delete" onclick="window.projects.deleteActiveProject('${p.id}')" title="Eliminar proyecto" style="background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; padding: 2px; font-size: 1.1rem; transition: color 0.2s;"><i class="ph ph-trash"></i></button>
+                    </div>
                 </div>
 
-                <div class="finance-block">
-                    <span class="gross-amount">Bruto: ${this.app.formatCurrency(p.budgetGross || 0)} (${p.feeType === 'direct' ? 'Sin comisiones' : (p.feeType === 'paypal_direct' ? 'PayPal Direct' : (p.feeType === 'custom' ? `Workana ${p.manualPercent}%` : `Workana ${p.feeType || 20}%`))})</span>
-                    <strong class="net-amount">Neto: ${this.app.formatCurrency(p.budgetNet || 0)}</strong>
+                <div class="pulse-bar" style="margin-bottom: 0.75rem;">
+                    <div class="pulse-progress" style="width:${progress}%; background:${colorVar}"></div>
                 </div>
 
-                <div class="timer-block" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.2); border:1px solid var(--surface-border); border-radius:8px; padding:8px 12px; margin-bottom:1rem; gap:10px;">
+                <div class="finance-block" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid var(--surface-border); padding: 8px 12px; border-radius: 8px; margin-bottom: 0.75rem;">
+                    <span class="gross-amount" style="font-size: 0.8rem; color: var(--text-secondary);">Bruto: ${this.app.formatCurrency(p.budgetGross || 0)} (${p.feeType === 'direct' ? 'Sin comisiones' : (p.feeType === 'paypal_direct' ? 'PayPal Direct' : (p.feeType === 'custom' ? `Workana ${p.manualPercent}%` : `Workana ${p.feeType || 20}%`))})</span>
+                    <strong class="net-amount" style="font-size: 0.95rem; color: var(--status-green);">Neto: ${this.app.formatCurrency(p.budgetNet || 0)}</strong>
+                </div>
+
+                <div class="timer-block" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.25); border:1px solid var(--surface-border); border-radius:8px; padding:8px 12px; margin-bottom:0.75rem; gap:10px;">
                     <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
                         <span style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px;">Tiempo dedicado</span>
                         <strong class="timer-display" style="font-size:1.05rem; color:white; font-variant-numeric: tabular-nums;">${formattedTime}</strong>
@@ -848,7 +857,7 @@ export class ProjectsModule {
                     </div>
                 </div>
 
-                <div class="project-dates">
+                <div class="project-dates" style="margin-bottom: 0.75rem;">
                     <div class="date-block">
                         <span>${leftDateLabel}</span>
                         <strong>${leftDateVal}</strong>
@@ -858,12 +867,6 @@ export class ProjectsModule {
                         <strong>${rightDateVal}</strong>
                     </div>
                 </div>
-
-                <div class="pulse-bar">
-                    <div class="pulse-progress" style="width:${progress}%; background:${colorVar}"></div>
-                </div>
-                
-                <div class="countdown" style="color:${colorVar}">${countdownText}</div>
                 
                 <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
                     <div style="display: flex; gap: 8px;">

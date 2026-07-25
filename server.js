@@ -1278,6 +1278,60 @@ async function checkAndSendRobotReminders() {
                     }
                 }
             }
+
+            // 2. Chequear tareas MUY URGENTES (repetitivas e infinitas hasta completarse)
+            const veryUrgentConf = alertsConfig.very_urgent_tasks;
+            const isVeryUrgentEnabled = veryUrgentConf ? veryUrgentConf.enabled : true;
+            if (isVeryUrgentEnabled) {
+                const intervalHours = (veryUrgentConf && veryUrgentConf.interval_hours) ? parseInt(veryUrgentConf.interval_hours) : 4;
+                const intervalMs = intervalHours * 60 * 60 * 1000;
+                
+                let generalTasks = [];
+                if (data.tareas_tasks) {
+                    try { generalTasks = typeof data.tareas_tasks === 'string' ? JSON.parse(data.tareas_tasks) : data.tareas_tasks; } catch(e) {}
+                }
+                
+                let projectTasks = [];
+                if (data.project_pulse_data) {
+                    try {
+                        const projs = typeof data.project_pulse_data === 'string' ? JSON.parse(data.project_pulse_data) : data.project_pulse_data;
+                        if (Array.isArray(projs)) {
+                            projs.forEach(p => { if (p.tasks) projectTasks.push(...p.tasks); });
+                        }
+                    } catch(e) {}
+                }
+
+                const pendingVeryUrgent = [...generalTasks, ...projectTasks].filter(t => !t.completed && t.urgency === 'muy_urgente');
+                
+                if (pendingVeryUrgent.length > 0) {
+                    const lastNotifiedKey = data.very_urgent_last_notified_at;
+                    const lastNotifiedAt = lastNotifiedKey ? new Date(lastNotifiedKey) : null;
+                    const diffMs = lastNotifiedAt ? (now - lastNotifiedAt) : (intervalMs + 1);
+                    
+                    if (diffMs >= intervalMs) {
+                        const userSubs = subsByUser[userId] || [];
+                        if (userSubs.length > 0) {
+                            const taskNames = pendingVeryUrgent.slice(0, 2).map(t => t.text).join(', ');
+                            const countText = pendingVeryUrgent.length > 2 ? ` (+${pendingVeryUrgent.length - 2} más)` : '';
+                            const payload = JSON.stringify({
+                                title: `🔥 ${pendingVeryUrgent.length} Tarea(s) Muy Urgente(s)`,
+                                body: `${taskNames}${countText}. Recordá realizarla(s).`,
+                                url: '/'
+                            });
+
+                            for (const sub of userSubs) {
+                                try {
+                                    await webpush.sendNotification(sub, payload);
+                                    await new Promise(resolve => setTimeout(resolve, 500));
+                                } catch (err) {}
+                            }
+
+                            data.very_urgent_last_notified_at = now.toISOString();
+                            await supabase.from('user_data').update({ data: data }).eq('user_id', userId);
+                        }
+                    }
+                }
+            }
         }
     } catch(err) {
         console.error("Error en checkAndSendRobotReminders:", err);
