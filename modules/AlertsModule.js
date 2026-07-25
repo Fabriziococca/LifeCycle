@@ -93,13 +93,16 @@ export class AlertsModule {
             const enabledInput = row.querySelector('.alert-enabled-check');
             const timeInput = row.querySelector('.alert-time-input');
             const dayBtns = row.querySelectorAll('.day-btn.active');
+            const intervalInput = row.querySelector('.alert-interval-input');
 
             const days = Array.from(dayBtns).map(btn => parseInt(btn.dataset.day));
+            const prevConfig = this.configs[key] || {};
 
             this.configs[key] = {
                 enabled: enabledInput ? enabledInput.checked : false,
                 time: timeInput ? timeInput.value : '23:00',
-                days: days
+                days: days,
+                interval_hours: intervalInput ? (parseInt(intervalInput.value) || 6) : (prevConfig.interval_hours || 6)
             };
         });
     }
@@ -177,6 +180,15 @@ export class AlertsModule {
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Hora de push:</span>
                         <input type="time" class="alert-time-input" value="${conf.time}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem;">
                     </div>
+                    ${def.key === 'robot' ? `
+                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px;">
+                        <span style="font-size: 0.78rem; color: var(--text-secondary);" title="Frecuencia de repetición mientras esté sucio">Repetir cada:</span>
+                        <div style="display: flex; align-items: center; gap: 4px;">
+                            <input type="number" class="alert-interval-input" min="1" max="48" value="${conf.interval_hours || 6}" style="width: 55px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem; text-align: center;">
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">hs</span>
+                        </div>
+                    </div>
+                    ` : ''}
                     ${isRecurring ? `
                     <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
                         <span style="font-size: 0.78rem; color: var(--text-secondary);">Días activos:</span>

@@ -339,16 +339,26 @@ export class ProjectsModule {
 
         planSave?.addEventListener('click', () => {
             if (!this.currentProjectId) return;
-            const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId));
+            const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId)) || this.history.find(proj => String(proj.id) === String(this.currentProjectId));
             if (!p) return;
 
-            p.summary = document.getElementById('proj-summary-textarea').value.trim();
-            p.phases = document.getElementById('proj-phases-textarea').value.trim();
+            const summaryEl = document.getElementById('proj-summary-textarea');
+            const phasesEl = document.getElementById('proj-phases-textarea');
+
+            if (summaryEl) p.summary = summaryEl.value.trim();
+            if (phasesEl) p.phases = phasesEl.value.trim();
 
             this.saveData();
             this.render();
             planModal?.classList.add('hidden');
             this.currentProjectId = null;
+        });
+
+        planModal?.addEventListener('click', (e) => {
+            if (e.target === planModal) {
+                planModal.classList.add('hidden');
+                this.currentProjectId = null;
+            }
         });
 
         // History Modal click controls
@@ -938,11 +948,19 @@ export class ProjectsModule {
 
     openPlanModal(id) {
         this.currentProjectId = id;
-        const p = this.projects.find(proj => String(proj.id) === String(id));
+        const p = this.projects.find(proj => String(proj.id) === String(id)) || this.history.find(proj => String(proj.id) === String(id));
         if (!p) return;
 
-        document.getElementById('proj-summary-textarea').value = p.summary || '';
-        document.getElementById('proj-phases-textarea').value = p.phases || '';
+        const titleEl = document.getElementById('proj-plan-modal-title');
+        if (titleEl) {
+            titleEl.innerText = `Plan de Acción (${p.client ? p.client + ': ' + p.project : p.project})`;
+        }
+
+        const summaryEl = document.getElementById('proj-summary-textarea');
+        const phasesEl = document.getElementById('proj-phases-textarea');
+
+        if (summaryEl) summaryEl.value = p.summary || '';
+        if (phasesEl) phasesEl.value = p.phases || '';
 
         const modal = document.getElementById('projects-plan-modal');
         modal?.classList.remove('hidden');

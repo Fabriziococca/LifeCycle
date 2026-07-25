@@ -905,6 +905,15 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             break;
 
                         // Otros
+                        case 'robot':
+                            if (hygieneData.robot_cleaner && hygieneData.robot_cleaner.status === 'dirty') {
+                                const markedAt = hygieneData.robot_cleaner.marked_dirty_at;
+                                const elapsedHours = markedAt ? Math.floor((nowArg - new Date(markedAt)) / (3600 * 1000)) : 0;
+                                shouldNotify = true;
+                                title = '🤖 Robot Aspiradora';
+                                body = `El robot lleva sucio ${elapsedHours}hs. Recordá lavarlo.`;
+                            }
+                            break;
                         case 'workana':
                             const sub = data.projectPulseSubscription;
                             if (sub && sub.startDate && sub.cycle) {
@@ -1215,42 +1224,50 @@ async function checkAndSendRobotReminders() {
                     continue;
                 }
             }
+
+            let alertsConfig = {};
+            if (data.alerts_config) {
+                try {
+                    alertsConfig = typeof data.alerts_config === 'string' ? JSON.parse(data.alerts_config) : data.alerts_config;
+                } catch(e) {}
+            }
             
             const robot = hygieneData.robot_cleaner;
             if (robot && robot.status === 'dirty') {
+                const intervalHours = (alertsConfig.robot && alertsConfig.robot.interval_hours) ? parseInt(alertsConfig.robot.interval_hours) : 6;
+                const intervalMs = intervalHours * 60 * 60 * 1000;
+
                 const markedDirtyAt = new Date(robot.marked_dirty_at);
                 const lastNotifiedAt = robot.last_notified_at ? new Date(robot.last_notified_at) : null;
                 
                 const timeToCheck = lastNotifiedAt || markedDirtyAt;
                 const diffMs = now - timeToCheck;
-                const sixHoursMs = 6 * 60 * 60 * 1000;
                 
-                if (diffMs >= sixHoursMs) {
-                    console.log(`[Robot Reminder] Enviando alerta a usuario ${userId} (sucio desde hace ${Math.floor((now - markedDirtyAt) / 60000)} minutos)`);
+                if (diffMs >= intervalMs) {
+                    const elapsedHours = Math.floor((now - markedDirtyAt) / (3600 * 1000));
+                    console.log(`[Robot Reminder] Enviando alerta a usuario ${userId} (sucio desde hace ${elapsedHours} hs, intervalo ${intervalHours}hs)`);
                     
                     const userSubs = subsByUser[userId] || [];
                     if (userSubs.length === 0) continue;
                     
                     const payload = JSON.stringify({
                         title: '🤖 Robot Aspiradora',
-                        body: 'El robot sigue sucio. ¡Acordate de lavarlo!',
+                        body: `El robot lleva sucio ${elapsedHours}hs. Recordá lavarlo.`,
                         url: '/'
                     });
                     
                     for (const sub of userSubs) {
                         try {
                             await webpush.sendNotification(sub, payload);
-                            await new Promise(resolve => setTimeout(resolve, 1000)); // Evitar saturación de Google FCM y espaciar entrega
+                            await new Promise(resolve => setTimeout(resolve, 500));
                         } catch (err) {
                             console.error(`[Robot Reminder] Falló enviar push a suscripción:`, err.message);
                         }
                     }
                     
-                    // Actualizar last_notified_at
                     robot.last_notified_at = now.toISOString();
                     data.hygiene_tracker_data = JSON.stringify(hygieneData);
                     
-                    // Guardar de vuelta en Supabase
                     const { error: updateErr } = await supabase
                         .from('user_data')
                         .update({ data: data })

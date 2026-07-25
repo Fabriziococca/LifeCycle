@@ -165,7 +165,7 @@ export class TareasModule {
             catBadge.innerText = categoryName;
         }
 
-        textEl.innerText = t.text;
+        textEl.innerText = t.text || '';
 
         if (urgencyBadge) {
             if (t.urgency === 'urgente') {
@@ -185,47 +185,35 @@ export class TareasModule {
             toggleLabel.innerText = t.completed ? 'Marcar Pendiente' : 'Marcar Completada';
         }
 
-        const handleToggle = () => {
-            if (isFreelance && projectObj) {
-                t.completed = !t.completed;
-                this.syncProjectTasksToStores(projectObj.id, projectObj.tasks);
-                this.saveData();
-                this.app.projects?.saveData();
-                this.app.auth?.syncToCloud(false).catch(() => {});
-                this.app.notificationsCenter?.updateBadge();
-                this.render();
-            } else {
-                this.toggleTask(t.id);
-            }
-            modal.classList.add('hidden');
-        };
-
-        const handleEdit = () => {
-            modal.classList.add('hidden');
-            this.editingTaskId = t.id;
-            this.render();
-        };
-
-        const handleClose = () => {
-            modal.classList.add('hidden');
-        };
-
         if (toggleBtn) {
-            const newToggleBtn = toggleBtn.cloneNode(true);
-            toggleBtn.parentNode.replaceChild(newToggleBtn, toggleBtn);
-            newToggleBtn.addEventListener('click', handleToggle);
+            toggleBtn.onclick = () => {
+                if (isFreelance && projectObj) {
+                    t.completed = !t.completed;
+                    this.syncProjectTasksToStores(projectObj.id, projectObj.tasks);
+                    this.saveData();
+                    this.app.projects?.saveData();
+                    this.app.auth?.syncToCloud(false).catch(() => {});
+                    this.app.notificationsCenter?.updateBadge();
+                    this.render();
+                } else {
+                    this.toggleTask(t.id);
+                }
+                modal.classList.add('hidden');
+            };
         }
 
         if (editBtn) {
-            const newEditBtn = editBtn.cloneNode(true);
-            editBtn.parentNode.replaceChild(newEditBtn, editBtn);
-            newEditBtn.addEventListener('click', handleEdit);
+            editBtn.onclick = () => {
+                modal.classList.add('hidden');
+                this.editingTaskId = t.id;
+                this.render();
+            };
         }
 
         if (closeBtn) {
-            const newCloseBtn = closeBtn.cloneNode(true);
-            closeBtn.parentNode.replaceChild(newCloseBtn, closeBtn);
-            newCloseBtn.addEventListener('click', handleClose);
+            closeBtn.onclick = () => {
+                modal.classList.add('hidden');
+            };
         }
 
         modal.onclick = (e) => {
