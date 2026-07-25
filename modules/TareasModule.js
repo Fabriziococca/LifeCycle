@@ -468,6 +468,46 @@ export class TareasModule {
                 addFreelanceTask();
             }
         });
+
+        // Global Event Delegation for Task Detail View
+        document.addEventListener('click', (e) => {
+            const viewBtn = e.target.closest('.btn-view-task');
+            const textSpan = e.target.closest('.task-text-span');
+            const targetEl = viewBtn || textSpan;
+
+            if (targetEl) {
+                const row = targetEl.closest('[data-task-id]');
+                const taskId = row?.dataset.taskId || targetEl.dataset.taskId;
+
+                if (taskId) {
+                    let foundTask = null;
+                    let catName = this.currentCategory;
+                    let isFreelance = false;
+                    let projObj = null;
+
+                    foundTask = this.tasks.find(x => String(x.id) === String(taskId));
+                    if (!foundTask && this.app.projects) {
+                        const allProjs = [...(this.app.projects.projects || []), ...(this.app.projects.history || [])];
+                        for (const p of allProjs) {
+                            if (p.tasks) {
+                                const t = p.tasks.find(x => String(x.id) === String(taskId));
+                                if (t) {
+                                    foundTask = t;
+                                    catName = p.client ? `${p.client}: ${p.project}` : p.project;
+                                    isFreelance = true;
+                                    projObj = p;
+                                    break;
+                                }
+                            }
+                        }
+                    }
+
+                    if (foundTask) {
+                        this.openTaskDetailModal(foundTask, catName, isFreelance, projObj);
+                    }
+                }
+            }
+        });
     }
 
     toggleTask(id) {
@@ -630,6 +670,7 @@ export class TareasModule {
                     const isEditing = String(this.editingTaskId) === String(t.id);
                     const row = document.createElement('div');
                     row.className = 'task-item';
+                    row.setAttribute('data-task-id', t.id);
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
                     
                     if (isEditing) {
@@ -732,6 +773,7 @@ export class TareasModule {
                 completed.forEach(t => {
                     const row = document.createElement('div');
                     row.className = 'task-item';
+                    row.setAttribute('data-task-id', t.id);
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); border-radius:8px; padding:10px 14px;';
                     row.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px; opacity: 0.6; flex:1; min-width:0;">
@@ -799,6 +841,7 @@ export class TareasModule {
                     const isEditing = String(this.editingTaskId) === String(t.id);
                     const row = document.createElement('div');
                     row.className = 'task-item';
+                    row.setAttribute('data-task-id', t.id);
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
                     
                     if (isEditing) {
@@ -884,6 +927,7 @@ export class TareasModule {
                 completed.forEach(t => {
                     const row = document.createElement('div');
                     row.className = 'task-item';
+                    row.setAttribute('data-task-id', t.id);
                     row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); border-radius:8px; padding:10px 14px;';
                     row.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px; opacity: 0.6; flex:1; min-width:0;">

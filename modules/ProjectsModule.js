@@ -473,6 +473,39 @@ export class ProjectsModule {
                 this.editingStatusNoteProjectId = null;
             });
         });
+
+        // Global Event Delegation for Project Card Action Buttons
+        document.addEventListener('click', (e) => {
+            const btnPlan = e.target.closest('.btn-plan');
+            if (btnPlan) {
+                const card = btnPlan.closest('[data-project-id]');
+                const projId = card?.dataset.projectId || btnPlan.dataset.projectId;
+                if (projId) {
+                    this.openPlanModal(projId);
+                }
+                return;
+            }
+
+            const statusPill = e.target.closest('.project-status-pill');
+            if (statusPill) {
+                const card = statusPill.closest('[data-project-id]');
+                const projId = card?.dataset.projectId;
+                if (projId) {
+                    this.openStatusNoteModal(projId);
+                }
+                return;
+            }
+
+            const btnManage = e.target.closest('.btn-manage');
+            if (btnManage) {
+                const card = btnManage.closest('[data-project-id]');
+                const projId = card?.dataset.projectId;
+                if (projId) {
+                    this.openEditModal(projId);
+                }
+                return;
+            }
+        });
     }
 
     openStatusNoteModal(id) {
