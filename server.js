@@ -13,6 +13,12 @@ const {
     normalizeIntervalHours,
     parseJsonValue
 } = require('./notification-utils');
+const {
+    extractBearerToken,
+    isBlockedStaticPath,
+    isValidPushSubscription,
+    safeEqualStrings
+} = require('./security-utils');
 
 // Búfer en memoria para depuración de logs en Render
 const logBuffer = [];
@@ -266,9 +272,24 @@ const rateLimiter = (req, res, next) => {
 };
 
 // Middleware
-app.use(express.json());
+app.disable('x-powered-by');
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    next();
+});
+app.use(express.json({ limit: '32kb' }));
 app.use('/api/', rateLimiter);
+app.use((req, res, next) => {
+    if (isBlockedStaticPath(req.path)) {
+        return res.status(404).type('text/plain').send('Not found');
+    }
+    next();
+});
 app.use(express.static(__dirname, {
+    dotfiles: 'deny',
     maxAge: '7d', // Cache static assets for 7 days by default
     setHeaders: (res, filePath) => {
         if (filePath.endsWith('.html') || filePath.includes('sw.js') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
@@ -294,29 +315,113 @@ app.get('/api/rules', (req, res) => {
     res.json(sharedRules);
 });
 
-// Endpoint para recibir suscripciones push (se guardan directamente en Supabase, pero este endpoint sirve por si acaso)
-app.post('/api/subscribe', async (req, res) => {
-    const { userId, subscription } = req.body;
-    if (!userId || !subscription) return res.status(400).json({ error: 'Datos incompletos' });
-    if (!supabase) return res.status(500).json({ error: 'Supabase no configurado en el servidor' });
+app.get('/api/health', (req, res) => {
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+        status: 'ok',
+        commit: (process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7)
+    });
+});
+
+async function requireSupabaseUser(req, res, next) {
+    if (!supabase) {
+        return res.status(503).json({ error: 'Autenticación no disponible en el servidor.' });
+    }
+
+    const accessToken = extractBearerToken(req.headers.authorization);
+    if (!accessToken) {
+        return res.status(401).json({ error: 'Se requiere una sesión válida.' });
+    }
 
     try {
-        const { error } = await supabase.from('push_subscriptions').upsert({
-            user_id: userId,
-            subscription: subscription
-        });
-        if (error) throw error;
+        const { data, error } = await supabase.auth.getUser(accessToken);
+        if (error || !data?.user) {
+            return res.status(401).json({ error: 'La sesión venció o no es válida.' });
+        }
+
+        req.authenticatedUser = data.user;
+        next();
+    } catch (error) {
+        console.error('[Security] Error validando sesión Supabase:', error);
+        res.status(503).json({ error: 'No se pudo validar la sesión en este momento.' });
+    }
+}
+
+async function getSubscriptionRowsForUser(userId) {
+    const { data, error } = await supabase
+        .from('push_subscriptions')
+        .select('id, subscription, created_at')
+        .eq('user_id', userId);
+
+    if (error) throw error;
+    return data || [];
+}
+
+// Endpoint autenticado para registrar o reparar una suscripción Push.
+app.post('/api/subscribe', requireSupabaseUser, async (req, res) => {
+    const { subscription } = req.body;
+    if (!isValidPushSubscription(subscription)) {
+        return res.status(400).json({ error: 'La suscripción Push no es válida.' });
+    }
+
+    const userId = req.authenticatedUser.id;
+
+    try {
+        const rows = await getSubscriptionRowsForUser(userId);
+        const matchingRows = rows
+            .filter(row => row.subscription?.endpoint === subscription.endpoint)
+            .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+        if (matchingRows.length === 0) {
+            const { error } = await supabase
+                .from('push_subscriptions')
+                .insert({ user_id: userId, subscription });
+            if (error) throw error;
+        } else {
+            const [rowToKeep, ...duplicates] = matchingRows;
+            const { error: updateError } = await supabase
+                .from('push_subscriptions')
+                .update({ subscription })
+                .eq('id', rowToKeep.id)
+                .eq('user_id', userId);
+            if (updateError) throw updateError;
+
+            if (duplicates.length > 0) {
+                const { error: deleteError } = await supabase
+                    .from('push_subscriptions')
+                    .delete()
+                    .eq('user_id', userId)
+                    .in('id', duplicates.map(row => row.id));
+                if (deleteError) throw deleteError;
+            }
+        }
+
         res.json({ success: true });
-    } catch (e) {
-        console.error("Error saving subscription:", e);
-        res.status(500).json({ error: e.message });
+    } catch (error) {
+        console.error('[Push] Error guardando suscripción autenticada:', error);
+        res.status(500).json({ error: 'No se pudo guardar la suscripción Push.' });
     }
 });
 
 // Endpoint para probar notificaciones push de inmediato (5 segundos de delay)
-app.post('/api/test-push', async (req, res) => {
+app.post('/api/test-push', requireSupabaseUser, async (req, res) => {
     const { subscription } = req.body;
-    if (!subscription) return res.status(400).json({ error: 'Falta la suscripción' });
+    if (!isValidPushSubscription(subscription)) {
+        return res.status(400).json({ error: 'La suscripción Push no es válida.' });
+    }
+
+    let matchingRows;
+    try {
+        const rows = await getSubscriptionRowsForUser(req.authenticatedUser.id);
+        matchingRows = rows.filter(row => row.subscription?.endpoint === subscription.endpoint);
+    } catch (error) {
+        console.error('[Push] No se pudo verificar la propiedad de la suscripción:', error);
+        return res.status(500).json({ error: 'No se pudo verificar la suscripción Push.' });
+    }
+
+    if (matchingRows.length === 0) {
+        return res.status(403).json({ error: 'Esta suscripción no pertenece a la sesión actual.' });
+    }
 
     await new Promise(resolve => setTimeout(resolve, 5000));
 
@@ -331,6 +436,14 @@ app.post('/api/test-push', async (req, res) => {
     } catch (error) {
         const statusCode = error?.statusCode || error?.status || null;
         console.error('Error sending test push:', error);
+
+        if (isExpiredPushError(error)) {
+            await deleteSubscriptionRows(
+                matchingRows.map(row => row.id),
+                `prueba Push vencida HTTP ${statusCode}`
+            );
+        }
+
         res.status(502).json({
             error: 'El servicio Push rechazó la notificación de prueba.',
             statusCode
@@ -340,9 +453,15 @@ app.post('/api/test-push', async (req, res) => {
 
 // Middleware de autenticación para endpoints administrativos
 const checkAdminToken = (req, res, next) => {
-    const token = req.query.token;
-    const secret = process.env.ADMIN_TOKEN || 'fallback-dev-token';
-    if (!token || token !== secret) {
+    const token = req.headers['x-admin-token'] || req.query.token;
+    const secret = process.env.ADMIN_TOKEN;
+
+    if (!secret) {
+        console.error('[Security] ADMIN_TOKEN no está configurado; endpoint administrativo bloqueado.');
+        return res.status(503).json({ error: 'Los endpoints administrativos no están configurados.' });
+    }
+
+    if (!safeEqualStrings(token, secret)) {
         const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
         console.warn(`[Security] Intento de acceso no autorizado a endpoint administrativo desde IP: ${ip}`);
         return res.status(401).json({ error: 'No autorizado. Se requiere un token válido.' });

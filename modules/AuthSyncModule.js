@@ -14,7 +14,18 @@ export class AuthSyncModule {
         this.authEmail = document.getElementById('auth-email');
         this.authPassword = document.getElementById('auth-password');
         this.btnLogin = document.getElementById('btn-login');
-        this.btnSignup = document.getElementById('btn-signup');
+
+        this.accessGate = document.getElementById('access-gate');
+        this.accessGateLoading = document.getElementById('access-gate-loading');
+        this.accessGateForm = document.getElementById('access-gate-form');
+        this.accessGateUnavailable = document.getElementById('access-gate-unavailable');
+        this.accessGateUnavailableMessage = document.getElementById('access-gate-unavailable-message');
+        this.accessGateMessage = document.getElementById('access-gate-message');
+        this.accessGateError = document.getElementById('access-gate-error');
+        this.accessEmail = document.getElementById('access-email');
+        this.accessPassword = document.getElementById('access-password');
+        this.accessRetry = document.getElementById('access-retry');
+        this.appContainer = document.querySelector('main.container');
         
         this.profileEmail = document.getElementById('profile-email');
         this.syncStatusBadge = document.getElementById('sync-status-badge');
@@ -29,46 +40,95 @@ export class AuthSyncModule {
         this.isSyncing = false;
         this.pendingSync = false;
         this.pushSyncPromise = null;
+        this.setupAccessGateListeners();
         this.init();
     }
 
     async init() {
         try {
             // 1. Fetch credentials from server config endpoint
-            const res = await fetch('/api/config');
+            const res = await fetch('/api/config', { cache: 'no-store' });
+            if (!res.ok) {
+                throw new Error(`El servidor respondió HTTP ${res.status}`);
+            }
             this.config = await res.json();
             
             if (!this.config.supabaseUrl || !this.config.supabaseAnonKey) {
-                console.log("Supabase credentials not configured in backend. Running in offline/localStorage mode.");
-                this.showOfflineMode();
-                return;
+                throw new Error('La autenticación cloud no está configurada.');
             }
             
             // 2. Initialize Supabase client
+            if (!window.supabase?.createClient) {
+                throw new Error('No se pudo cargar el cliente de autenticación.');
+            }
             this.supabase = window.supabase.createClient(this.config.supabaseUrl, this.config.supabaseAnonKey);
             
             // 3. Bind UI listeners
             this.setupListeners();
             
             // 4. Initial session check
-            const { data: { session } } = await this.supabase.auth.getSession();
-            this.handleAuthStateChange(session?.user || null);
+            const { data: { session }, error: sessionError } = await this.supabase.auth.getSession();
+            if (sessionError) throw sessionError;
+            await this.handleAuthStateChange(session?.user || null);
             
             // 5. Setup auth state change listener
             this.supabase.auth.onAuthStateChange((event, session) => {
-                this.handleAuthStateChange(session?.user || null);
+                if (event === 'TOKEN_REFRESHED') {
+                    this.user = session?.user || this.user;
+                    return;
+                }
+
+                this.handleAuthStateChange(session?.user || null).catch(error => {
+                    console.error('Error aplicando el cambio de sesión:', error);
+                    this.showUnavailableMode('No se pudo validar la sesión. Reintentá la conexión.');
+                });
             });
             
         } catch (err) {
             console.error("Error initializing Supabase:", err);
-            this.showOfflineMode();
+            this.showUnavailableMode('No se pudo conectar con el acceso seguro de LifeCycle.');
         }
     }
 
-    showOfflineMode() {
+    setupAccessGateListeners() {
+        this.accessGateForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            await this.login(this.accessEmail?.value, this.accessPassword?.value);
+        });
+
+        this.accessRetry?.addEventListener('click', () => {
+            window.location.reload();
+        });
+    }
+
+    setAccessGateState(state, message = '') {
+        const isAuthenticated = state === 'authenticated';
+        this.accessGate?.classList.toggle('hidden', isAuthenticated);
+        this.appContainer?.classList.toggle('hidden', !isAuthenticated);
+        document.body.classList.toggle('access-locked', !isAuthenticated);
+
+        this.accessGateLoading?.classList.toggle('hidden', state !== 'loading');
+        this.accessGateForm?.classList.toggle('hidden', state !== 'logged-out');
+        this.accessGateUnavailable?.classList.toggle('hidden', state !== 'unavailable');
+
+        if (this.accessGateMessage && message) {
+            this.accessGateMessage.textContent = message;
+        }
+        if (this.accessGateUnavailableMessage && state === 'unavailable' && message) {
+            this.accessGateUnavailableMessage.textContent = message;
+        }
+
+        if (this.accessGateError) {
+            this.accessGateError.textContent = state === 'logged-out' ? message : '';
+            this.accessGateError.classList.toggle('hidden', state !== 'logged-out' || !message);
+        }
+    }
+
+    showUnavailableMode(message) {
         this.authLoading?.classList.add('hidden');
         this.authLoggedOut?.classList.add('hidden');
         this.authLoggedIn?.classList.add('hidden');
+        this.setAccessGateState('unavailable', message);
     }
 
     setupListeners() {
@@ -79,12 +139,6 @@ export class AuthSyncModule {
             if (action === 'btn-login') {
                 await this.login();
             }
-        });
-
-        // Signup Button Click
-        this.btnSignup?.addEventListener('click', async (e) => {
-            e.preventDefault();
-            await this.signup();
         });
 
         // Logout Button Click
@@ -127,50 +181,28 @@ export class AuthSyncModule {
         }, 60 * 1000);
     }
 
-    async login() {
-        const email = this.authEmail?.value;
-        const password = this.authPassword?.value;
+    async login(emailValue, passwordValue) {
+        const email = (emailValue || this.authEmail?.value || '').trim();
+        const password = passwordValue || this.authPassword?.value;
         if (!email || !password) return;
         
         this.setLoading(true, "Iniciando sesión...");
         sessionStorage.setItem('is_explicit_login', 'true');
         
-        const { data, error } = await this.supabase.auth.signInWithPassword({ email, password });
+        const { error } = await this.supabase.auth.signInWithPassword({ email, password });
         
         if (error) {
-            alert("Error al iniciar sesión: " + error.message);
             sessionStorage.removeItem('is_explicit_login');
             this.setLoading(false);
-        }
-    }
-
-    async signup() {
-        const email = this.authEmail?.value;
-        const password = this.authPassword?.value;
-        if (!email || !password) return;
-        
-        if (password.length < 6) {
-            alert("La contraseña debe tener al menos 6 caracteres.");
-            return;
-        }
-        
-        this.setLoading(true, "Creando cuenta...");
-        sessionStorage.setItem('is_explicit_login', 'true');
-        
-        const { data, error } = await this.supabase.auth.signUp({ email, password });
-        
-        if (error) {
-            alert("Error al registrarse: " + error.message);
-            sessionStorage.removeItem('is_explicit_login');
-            this.setLoading(false);
-        } else {
-            alert("¡Registro exitoso! Si se configuró confirmación por correo, revisa tu casilla. De lo contrario, ya has iniciado sesión.");
-            this.setLoading(false);
+            const message = error.message?.toLowerCase().includes('invalid login credentials')
+                ? 'Correo o contraseña incorrectos.'
+                : `No se pudo iniciar sesión: ${error.message}`;
+            this.setAccessGateState('logged-out', message);
         }
     }
 
     async logout() {
-        if (confirm("¿Estás seguro de que deseas cerrar sesión? Volverás al modo local sin conexión.")) {
+        if (confirm("¿Estás seguro de que deseas cerrar sesión? Volverás a la pantalla de acceso.")) {
             this.setLoading(true, "Cerrando sesión...");
             await this.supabase.auth.signOut();
             location.reload();
@@ -179,9 +211,10 @@ export class AuthSyncModule {
 
     async handleAuthStateChange(user) {
         this.user = user;
-        this.setLoading(false);
         
         if (user) {
+            this.setAccessGateState('loading', 'Sincronizando tus datos...');
+
             // Logged in
             if (this.authLoggedOut) this.authLoggedOut.classList.add('hidden');
             if (this.authLoggedIn) this.authLoggedIn.classList.remove('hidden');
@@ -196,6 +229,8 @@ export class AuthSyncModule {
 
             // Setup realtime subscription for cross-device updates
             this.setupRealtimeSubscription();
+            this.setLoading(false);
+            this.setAccessGateState('authenticated');
         } else {
             // Logged out
             if (this.authLoggedIn) this.authLoggedIn.classList.add('hidden');
@@ -208,11 +243,15 @@ export class AuthSyncModule {
                 this.supabase.removeChannel(this.realtimeChannel);
                 this.realtimeChannel = null;
             }
+
+            this.setLoading(false);
+            this.setAccessGateState('logged-out');
         }
     }
 
     setLoading(isLoading, text = "") {
         if (isLoading) {
+            this.setAccessGateState('loading', text);
             if (this.authLoading) {
                 this.authLoading.classList.remove('hidden');
                 this.authLoading.querySelector('p').innerHTML = `
@@ -800,9 +839,19 @@ export class AuthSyncModule {
                 return;
             }
 
+            const { data: { session }, error: sessionError } = await this.supabase.auth.getSession();
+            if (sessionError || !session?.access_token) {
+                alert('Tu sesión venció. Volvé a iniciar sesión antes de probar las notificaciones.');
+                this.setAccessGateState('logged-out');
+                return;
+            }
+
             const res = await fetch('/api/test-push', {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                    'Authorization': `Bearer ${session.access_token}`
+                },
                 body: JSON.stringify({ subscription: subscription.toJSON() })
             });
             const result = await res.json().catch(() => ({}));

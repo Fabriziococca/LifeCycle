@@ -24,11 +24,52 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
+    <div id="access-gate" class="access-gate" aria-live="polite">
+        <div class="access-gate-card">
+            <div class="access-gate-brand">
+                <div class="access-gate-icon"><i class="ph-fill ph-activity"></i></div>
+                <div>
+                    <h1>LifeCycle</h1>
+                    <p>Acceso personal</p>
+                </div>
+            </div>
+
+            <div id="access-gate-loading" class="access-gate-state">
+                <i class="ph ph-circle-notch access-gate-spinner"></i>
+                <p id="access-gate-message">Comprobando tu sesión segura...</p>
+            </div>
+
+            <form id="access-gate-form" class="access-gate-form hidden" autocomplete="on">
+                <div class="input-group">
+                    <label for="access-email">Correo electrónico</label>
+                    <input type="email" id="access-email" class="text-input" autocomplete="username" required>
+                </div>
+                <div class="input-group">
+                    <label for="access-password">Contraseña</label>
+                    <input type="password" id="access-password" class="text-input" autocomplete="current-password" required>
+                </div>
+                <p id="access-gate-error" class="access-gate-error hidden"></p>
+                <button type="submit" class="btn btn-primary access-gate-submit">
+                    <i class="ph ph-sign-in"></i> Entrar a LifeCycle
+                </button>
+                <p class="access-gate-help">El registro público está deshabilitado. Solo tu cuenta puede acceder.</p>
+            </form>
+
+            <div id="access-gate-unavailable" class="access-gate-state hidden">
+                <i class="ph ph-cloud-slash access-gate-warning"></i>
+                <p id="access-gate-unavailable-message">No se pudo conectar con el acceso seguro de LifeCycle.</p>
+                <button id="access-retry" type="button" class="btn btn-secondary">
+                    <i class="ph ph-arrow-clockwise"></i> Reintentar
+                </button>
+            </div>
+        </div>
+    </div>
+
     <div class="background-effects">
         <div class="glow-orb orb-1"></div>
         <div class="glow-orb orb-2"></div>
     </div>
-    <main class="container">
+    <main class="container hidden">
         <!-- Botón de Perfil en la Esquina Superior Izquierda -->
         <div class="profile-wrapper">
             <button id="profile-btn" class="profile-corner-btn" title="Configuración de Perfil">
@@ -1595,13 +1636,13 @@
                             </p>
                         </div>
 
-                        <!-- Panel de Iniciar Sesión / Registro -->
+                        <!-- Panel de Iniciar Sesión -->
                         <div id="auth-logged-out" class="card hidden">
                             <div class="card-header">
                                 <div class="icon-container">
                                     <i class="ph ph-lock"></i>
                                 </div>
-                                <h3 id="auth-title">Iniciar Sesión en la Nube</h3>
+                                <h3 id="auth-title">Iniciar Sesión</h3>
                             </div>
                             <div class="card-body">
                                 <p class="backup-text" style="margin-bottom: 1.25rem;">Inicia sesión para sincronizar automáticamente todos tus datos y poder acceder desde cualquier celular o PC.</p>
@@ -1618,7 +1659,6 @@
                                     
                                     <div style="display:flex; gap:10px; margin-top:0.5rem;">
                                         <button type="submit" id="btn-login" class="btn btn-primary" style="flex: 1;">Entrar</button>
-                                        <button type="button" id="btn-signup" class="btn btn-secondary" style="flex: 1;">Crear Cuenta</button>
                                     </div>
                                 </form>
                             </div>
