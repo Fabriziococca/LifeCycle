@@ -212,14 +212,18 @@ export class FinanzasModule {
         }
     }
 
-    saveEntry() {
+    async saveEntry() {
         const category = document.getElementById('fin-input-category')?.value;
         const amountInput = parseFloat(document.getElementById('fin-input-amount')?.value) || 0;
         const currency = document.getElementById('fin-input-currency')?.value || 'USD';
 
         let amount = amountInput;
         if (currency === 'ARS') {
-            const rate = parseFloat(localStorage.getItem('lemon_usdt_ars_rate')) || 1530;
+            const rate = this.app.getValidCachedLemonRate() ?? await this.app.fetchLemonRate();
+            if (rate === null) {
+                alert('No se pudo obtener una cotización actual de ARS. El ingreso no fue guardado para evitar una conversión incorrecta.');
+                return;
+            }
             amount = amountInput / rate;
         }
 
@@ -271,7 +275,7 @@ export class FinanzasModule {
         }
     }
 
-    saveExpenseEntry() {
+    async saveExpenseEntry() {
         const categorySelect = document.getElementById('fin-expense-category')?.value;
         const customName = (document.getElementById('fin-expense-custom-name')?.value || '').trim();
         const amountInput = parseFloat(document.getElementById('fin-expense-amount')?.value) || 0;
@@ -281,7 +285,11 @@ export class FinanzasModule {
 
         let amount = amountInput;
         if (currency === 'ARS') {
-            const rate = parseFloat(localStorage.getItem('lemon_usdt_ars_rate')) || 1530;
+            const rate = this.app.getValidCachedLemonRate() ?? await this.app.fetchLemonRate();
+            if (rate === null) {
+                alert('No se pudo obtener una cotización actual de ARS. El gasto no fue guardado para evitar una conversión incorrecta.');
+                return;
+            }
             amount = amountInput / rate;
         }
 

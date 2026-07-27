@@ -5,6 +5,14 @@ const fs = require('fs');
 const webpush = require('web-push');
 const { createClient } = require('@supabase/supabase-js');
 const sharedRules = require('./shared_rules.json');
+const {
+    getDuplicateSubscriptionRowIds,
+    getPendingVeryUrgentTasks,
+    groupSubscriptionsByUser,
+    isExpiredPushError,
+    normalizeIntervalHours,
+    parseJsonValue
+} = require('./notification-utils');
 
 // Búfer en memoria para depuración de logs en Render
 const logBuffer = [];
@@ -102,6 +110,142 @@ if (!supabase) {
     console.warn("⚠️ Advertencia: SUPABASE_SERVICE_ROLE_KEY no está configurada en Render. Las políticas RLS bloquearán las notificaciones en segundo plano.");
 }
 
+const ALERT_DEFINITION_KEYS = [
+    'esponja_africana', 'toalla_mano', 'toalla_cuerpo', 'sabanas', 'funda_almohada',
+    'alfombra_bano', 'cepillo_dientes', 'dentista', 'compu_limpieza_int',
+    'compu_pasta_termica', 'botella_vidrio', 'pelo', 'barba', 'axilas',
+    'hoja_gillette', 'pecho_panza', 'brazos', 'piernas', 'intimas', 'unas_manos',
+    'unas_pies', 'lenses_droplets', 'lenses_case', 'lenses_solution',
+    'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
+    'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vehicle_issues_check',
+    'vehicle_docs_check', 'vehicle_fluids_check', 'vitamina_d', 'creatine', 'salmon',
+    'neck', 'weigh_in', 'laundry', 'robot', 'workana', 'projects_check',
+    'tareas_urgentes_check', 'very_urgent_tasks'
+];
+
+const RECURRING_ALERT_DEFAULTS = {
+    creatine: { enabled: true, time: '23:00', days: [1, 2, 3, 4, 5, 6, 0] },
+    salmon: { enabled: true, time: '17:00', days: [0] },
+    neck: { enabled: true, time: '23:30', days: [5, 6] },
+    weigh_in: { enabled: true, time: '08:00', days: [1, 2, 3, 4, 5, 6, 0] },
+    laundry: { enabled: true, time: '10:00', days: [1, 2, 3, 4, 5, 6, 0] }
+};
+
+const MORNING_ALERT_KEYS = new Set([
+    'projects_check',
+    'vehicle_issues_check',
+    'vehicle_docs_check',
+    'vehicle_fluids_check',
+    'tareas_urgentes_check'
+]);
+
+function getDefaultAlertConfig(key, oldReminders = {}) {
+    if (key === 'robot') {
+        return { enabled: true, time: '23:00', days: [], interval_hours: 6 };
+    }
+    if (key === 'very_urgent_tasks') {
+        return { enabled: true, time: '09:00', days: [], interval_hours: 4 };
+    }
+    if (RECURRING_ALERT_DEFAULTS[key]) {
+        const legacy = oldReminders[key] || {};
+        const defaults = RECURRING_ALERT_DEFAULTS[key];
+        return {
+            enabled: legacy.enabled ?? defaults.enabled,
+            time: legacy.time || defaults.time,
+            days: Array.isArray(legacy.days) ? legacy.days : defaults.days
+        };
+    }
+    return {
+        enabled: true,
+        time: MORNING_ALERT_KEYS.has(key) ? '09:00' : '23:00',
+        days: []
+    };
+}
+
+function ensureAlertConfigs(alertsConfig, oldReminders = {}) {
+    let changed = false;
+
+    ALERT_DEFINITION_KEYS.forEach(key => {
+        const defaults = getDefaultAlertConfig(key, oldReminders);
+        if (!alertsConfig[key]) {
+            alertsConfig[key] = defaults;
+            changed = true;
+            return;
+        }
+
+        Object.entries(defaults).forEach(([field, defaultValue]) => {
+            if (alertsConfig[key][field] === undefined) {
+                alertsConfig[key][field] = defaultValue;
+                changed = true;
+            }
+        });
+
+        if (!Array.isArray(alertsConfig[key].days)) {
+            alertsConfig[key].days = defaults.days;
+            changed = true;
+        }
+    });
+
+    return changed;
+}
+
+async function deleteSubscriptionRows(rowIds, reason) {
+    const uniqueIds = [...new Set((rowIds || []).filter(Boolean))];
+    if (!supabase || uniqueIds.length === 0) return 0;
+
+    const { error } = await supabase
+        .from('push_subscriptions')
+        .delete()
+        .in('id', uniqueIds);
+
+    if (error) {
+        console.error(`[Push] No se pudieron eliminar ${uniqueIds.length} suscripciones (${reason}):`, error.message);
+        return 0;
+    }
+
+    console.log(`[Push] Se eliminaron ${uniqueIds.length} suscripciones (${reason}).`);
+    return uniqueIds.length;
+}
+
+async function cleanupDuplicateSubscriptions(subscriptionGroups) {
+    const duplicateIds = getDuplicateSubscriptionRowIds(subscriptionGroups);
+    return deleteSubscriptionRows(duplicateIds, 'duplicadas');
+}
+
+async function sendPushToSubscriptions({
+    userId,
+    subscriptions,
+    payload,
+    context,
+    delayMs = 0
+}) {
+    let successCount = 0;
+    let failureCount = 0;
+    let staleCount = 0;
+
+    for (const item of subscriptions || []) {
+        try {
+            await webpush.sendNotification(item.subscription, payload);
+            successCount++;
+        } catch (error) {
+            failureCount++;
+            const statusCode = error?.statusCode || error?.status || 'sin estado';
+            console.error(`[Push] Falló '${context}' para usuario ${userId} (HTTP ${statusCode}):`, error?.message || error);
+
+            if (isExpiredPushError(error)) {
+                staleCount += await deleteSubscriptionRows(item.rowIds, `endpoint vencido HTTP ${statusCode}`);
+            }
+        }
+
+        if (delayMs > 0) {
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+    }
+
+    console.log(`[Push] Resultado '${context}' para usuario ${userId}: ${successCount} enviados, ${failureCount} fallidos, ${staleCount} filas vencidas eliminadas.`);
+    return { successCount, failureCount, staleCount };
+}
+
 // Rate Limiter integrado y liviano (sin dependencias npm)
 const ipCounts = {};
 setInterval(() => {
@@ -170,24 +314,28 @@ app.post('/api/subscribe', async (req, res) => {
 });
 
 // Endpoint para probar notificaciones push de inmediato (5 segundos de delay)
-app.post('/api/test-push', (req, res) => {
+app.post('/api/test-push', async (req, res) => {
     const { subscription } = req.body;
     if (!subscription) return res.status(400).json({ error: 'Falta la suscripción' });
 
-    setTimeout(async () => {
-        try {
-            await webpush.sendNotification(subscription, JSON.stringify({
-                title: '🔔 LifeCycle Test',
-                body: '¡Excelente! Las notificaciones push en segundo plano están funcionando correctamente.',
-                url: '/'
-            }));
-            console.log("Test push sent successfully.");
-        } catch (err) {
-            console.error("Error sending test push:", err);
-        }
-    }, 5000);
+    await new Promise(resolve => setTimeout(resolve, 5000));
 
-    res.json({ success: true, message: 'Notificación de prueba programada para dentro de 5 segundos.' });
+    try {
+        await webpush.sendNotification(subscription, JSON.stringify({
+            title: '🔔 LifeCycle Test',
+            body: '¡Excelente! Las notificaciones push en segundo plano están funcionando correctamente.',
+            url: '/'
+        }));
+        console.log('Test push sent successfully.');
+        res.json({ success: true, message: 'Notificación de prueba enviada.' });
+    } catch (error) {
+        const statusCode = error?.statusCode || error?.status || null;
+        console.error('Error sending test push:', error);
+        res.status(502).json({
+            error: 'El servicio Push rechazó la notificación de prueba.',
+            statusCode
+        });
+    }
 });
 
 // Middleware de autenticación para endpoints administrativos
@@ -223,19 +371,12 @@ app.get('/api/test-robot-reminder', checkAdminToken, async (req, res) => {
         if (!usersData || usersData.length === 0) return res.json({ success: true, message: 'No hay usuarios' });
         if (!subs || subs.length === 0) return res.json({ success: true, message: 'No hay suscripciones' });
         
-        const subsByUser = {};
-        subs.forEach(s => {
-            if (!subsByUser[s.user_id]) subsByUser[s.user_id] = [];
-            subsByUser[s.user_id].push(s.subscription);
-        });
+        const subsByUser = groupSubscriptionsByUser(subs);
         
         let sentCount = 0;
         for (const userRow of usersData) {
             const data = userRow.data || {};
-            let hygieneData = {};
-            if (data.hygiene_tracker_data) {
-                try { hygieneData = JSON.parse(data.hygiene_tracker_data); } catch(e) { continue; }
-            }
+            const hygieneData = parseJsonValue(data.hygiene_tracker_data, {});
             
             const robot = hygieneData.robot_cleaner;
             if (robot && robot.status === 'dirty') {
@@ -245,12 +386,13 @@ app.get('/api/test-robot-reminder', checkAdminToken, async (req, res) => {
                     body: 'El robot sigue sucio. ¡Acordate de lavarlo! (Forzado desde test)',
                     url: '/'
                 });
-                for (const sub of userSubs) {
-                    try {
-                        await webpush.sendNotification(sub, payload);
-                        sentCount++;
-                    } catch (err) {}
-                }
+                const result = await sendPushToSubscriptions({
+                    userId: userRow.user_id,
+                    subscriptions: userSubs,
+                    payload,
+                    context: 'prueba de robot'
+                });
+                sentCount += result.successCount;
             }
         }
         res.json({ success: true, notificationsSent: sentCount });
@@ -304,15 +446,35 @@ function getArgentinaTime() {
 // ==========================================================================
 // Tarea Programada: Chequeo Diario a las 23:00 Argentina Time (UTC-3)
 // ==========================================================================
-let lastNotifiedDate = '';
+let scheduledAlertCheckRunning = false;
+
+async function runScheduledAlertChecks() {
+    if (scheduledAlertCheckRunning) {
+        console.warn('[Alert Scheduler] Se omitió un ciclo porque el anterior todavía está en ejecución.');
+        return;
+    }
+
+    scheduledAlertCheckRunning = true;
+    try {
+        await checkAndSendRobotReminders();
+        await checkAndSendAllAlerts();
+    } finally {
+        scheduledAlertCheckRunning = false;
+    }
+}
 
 setInterval(() => {
-    // Chequear alertas del robot aspiradora cada 5 minutos
-    checkAndSendRobotReminders();
+    runScheduledAlertChecks().catch(error => {
+        console.error('[Alert Scheduler] Error no controlado:', error);
+    });
+}, 5 * 60 * 1000);
 
-    // Chequear todas las alertas unificadas y dinámicas cada 5 minutos
-    checkAndSendAllAlerts();
-}, 5 * 60 * 1000); 
+// Ejecutar un primer control poco después de cada despliegue/reinicio.
+setTimeout(() => {
+    runScheduledAlertChecks().catch(error => {
+        console.error('[Alert Scheduler] Error en control inicial:', error);
+    });
+}, 10 * 1000);
 
 // ==========================================================================
 // Motor Unificado y Dinámico de Alertas (Gestor de Alertas)
@@ -333,17 +495,9 @@ async function checkAndSendAllAlerts(forceAll = false) {
         if (!usersData || usersData.length === 0) return;
         if (!subs || subs.length === 0) return;
 
-        // Agrupar suscripciones por user_id (evitando endpoints duplicados)
-        const subsByUser = {};
-        subs.forEach(s => {
-            if (!s.subscription || !s.subscription.endpoint) return;
-            if (!subsByUser[s.user_id]) subsByUser[s.user_id] = [];
-            
-            const alreadyAdded = subsByUser[s.user_id].some(existing => existing.endpoint === s.subscription.endpoint);
-            if (!alreadyAdded) {
-                subsByUser[s.user_id].push(s.subscription);
-            }
-        });
+        // Agrupar por usuario y endpoint. Se conserva la fila más reciente de cada dispositivo.
+        const subsByUser = groupSubscriptionsByUser(subs);
+        await cleanupDuplicateSubscriptions(subsByUser);
 
         for (const userRow of usersData) {
             const userId = userRow.user_id;
@@ -370,71 +524,11 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 } catch(e) {}
             }
 
-            let configFilled = false;
-
-            // Migrar automáticamente si no existe alerts_config o está vacío
-            if (Object.keys(alertsConfig).length === 0) {
-                let gymSupplements = {};
-                if (data.gym_supplements) {
-                    try { gymSupplements = typeof data.gym_supplements === 'string' ? JSON.parse(data.gym_supplements) : data.gym_supplements; } catch(e) {}
-                }
-                const oldReminders = gymSupplements.custom_reminders || {};
-                
-                // Valores iniciales y migrados
-                const defaultTimes = {
-                    creatine: { enabled: oldReminders.creatine?.enabled ?? true, time: oldReminders.creatine?.time || '23:00', days: oldReminders.creatine?.days || [1,2,3,4,5,6,0] },
-                    salmon: { enabled: oldReminders.salmon?.enabled ?? true, time: oldReminders.salmon?.time || '17:00', days: oldReminders.salmon?.days || [0] },
-                    neck: { enabled: oldReminders.neck?.enabled ?? true, time: oldReminders.neck?.time || '23:30', days: oldReminders.neck?.days || [5,6] }
-                };
-
-                const definitions = [
-                    'esponja_africana', 'toalla_mano', 'toalla_cuerpo', 'sabanas', 'funda_almohada', 'alfombra_bano',
-                    'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
-                    'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
-                    'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
-                    'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check',
-                    'vehicle_issues_check', 'vehicle_docs_check', 'vehicle_fluids_check', 'tareas_urgentes_check'
-                ];
-
-                definitions.forEach(k => {
-                    if (k === 'projects_check' || k === 'vehicle_issues_check' || k === 'vehicle_docs_check' || k === 'vehicle_fluids_check' || k === 'tareas_urgentes_check') {
-                        alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
-                    } else {
-                        alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
-                    }
-                });
-                Object.keys(defaultTimes).forEach(k => {
-                    alertsConfig[k] = defaultTimes[k];
-                });
-                configFilled = true;
-            } else {
-                // Rellenar dinámicamente llaves faltantes (como hoja_gillette)
-                const definitions = [
-                    'esponja_africana', 'toalla_mano', 'toalla_cuerpo', 'sabanas', 'funda_almohada', 'alfombra_bano',
-                    'cepillo_dientes', 'dentista', 'pelo', 'barba', 'axilas', 'hoja_gillette', 'lenses_droplets', 'lenses_case',
-                    'lenses_solution', 'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
-                    'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vitamina_d', 'robot', 'workana',
-                    'creatine', 'salmon', 'neck', 'weigh_in', 'laundry', 'pecho_panza', 'brazos', 'piernas', 'intimas', 'projects_check',
-                    'vehicle_issues_check', 'vehicle_docs_check', 'vehicle_fluids_check', 'tareas_urgentes_check'
-                ];
-                definitions.forEach(k => {
-                    if (!alertsConfig[k]) {
-                        if (k === 'creatine') alertsConfig[k] = { enabled: true, time: '23:00', days: [1,2,3,4,5,6,0] };
-                        else if (k === 'salmon') alertsConfig[k] = { enabled: true, time: '17:00', days: [0] };
-                        else if (k === 'neck') alertsConfig[k] = { enabled: true, time: '23:30', days: [5,6] };
-                        else if (k === 'weigh_in') alertsConfig[k] = { enabled: true, time: '08:00', days: [1,2,3,4,5,6,0] };
-                        else if (k === 'laundry') alertsConfig[k] = { enabled: true, time: '10:00', days: [1,2,3,4,5,6,0] };
-                        else if (k === 'projects_check' || k === 'vehicle_issues_check' || k === 'vehicle_docs_check' || k === 'vehicle_fluids_check' || k === 'tareas_urgentes_check') {
-                            alertsConfig[k] = { enabled: true, time: '09:00', days: [] };
-                        } else {
-                            alertsConfig[k] = { enabled: true, time: '23:00', days: [] };
-                        }
-                        configFilled = true;
-                    }
-                });
-                if (configFilled) {
-                    data.alerts_config = alertsConfig;
-                }
+            const gymSupplements = parseJsonValue(data.gym_supplements, {});
+            const oldReminders = gymSupplements?.custom_reminders || {};
+            const configFilled = ensureAlertConfigs(alertsConfig, oldReminders);
+            if (configFilled) {
+                data.alerts_config = alertsConfig;
             }
 
             // Inicializar log de envíos diarios si no existe
@@ -448,6 +542,9 @@ async function checkAndSendAllAlerts(forceAll = false) {
             for (const key of Object.keys(alertsConfig)) {
                 const conf = alertsConfig[key];
                 if (!conf || !conf.enabled) continue;
+                // Estas dos alertas dependen de intervalos desde el último envío,
+                // no de una hora diaria. Se procesan en el motor repetitivo.
+                if (key === 'robot' || key === 'very_urgent_tasks') continue;
 
                 // Definir los candidatos a evaluar (ayer y hoy para tolerancia a medianoche y reinicios)
                 const [remHour, remMin] = (conf.time || '23:00').split(':').map(Number);
@@ -480,7 +577,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
                 for (const candidate of candidates) {
                     // Verificar si ya fue enviada hoy para evitar spam en el mismo día
-                    if (!forceAll && data.alerts_sent_log[key] === candidate.dateStr) continue;
+                    const usesItemLevelLog = key === 'projects_check' || key === 'tareas_urgentes_check';
+                    if (!forceAll && !usesItemLevelLog && data.alerts_sent_log[key] === candidate.dateStr) continue;
 
                     // Si es una alerta periódica/recurrente, verificar día de la semana
                     const isRecurring = ['creatine', 'salmon', 'neck', 'weigh_in', 'laundry'].includes(key);
@@ -607,6 +705,21 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                     const elapsed = getDaysElapsed(history[0]);
                                     const limit = sharedRules.hygiene?.compu_pasta_termica?.limits?.red || 360;
                                     if (elapsed >= limit) { shouldNotify = true; title = '🧪 Computadora (Pasta Térmica)'; body = `Pasaron ${elapsed} días, recordá cambiar la pasta térmica de tu PC.`; }
+                                }
+                            }
+                            break;
+                        case 'botella_vidrio':
+                            if (hygieneData.botella_vidrio) {
+                                const val = hygieneData.botella_vidrio;
+                                const history = Array.isArray(val) ? val : [val];
+                                if (history.length > 0) {
+                                    const elapsed = getDaysElapsed(history[0]);
+                                    const limit = sharedRules.hygiene?.botella_vidrio?.limits?.red || 30;
+                                    if (elapsed >= limit) {
+                                        shouldNotify = true;
+                                        title = '💧 Botella de Vidrio';
+                                        body = `Pasaron ${elapsed} días, recordá lavar la botella.`;
+                                    }
                                 }
                             }
                             break;
@@ -980,17 +1093,16 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                                     body: projBody,
                                                     url: '/'
                                                 });
-                                                
-                                                for (const sub of userSubs) {
-                                                    try {
-                                                        await webpush.sendNotification(sub, payload);
-                                                        await new Promise(resolve => setTimeout(resolve, 1000));
-                                                    } catch (err) {
-                                                        console.error(`[Alert Engine] Falló enviar push de proyecto:`, err.message);
-                                                    }
-                                                }
-                                                
-                                                if (!forceAll) {
+
+                                                const result = await sendPushToSubscriptions({
+                                                    userId,
+                                                    subscriptions: userSubs,
+                                                    payload,
+                                                    context: `proyecto ${p.id}`,
+                                                    delayMs: 250
+                                                });
+
+                                                if (!forceAll && result.successCount > 0) {
                                                     data.alerts_sent_log[logKey] = candidate.dateStr;
                                                     dataChanged = true;
                                                 }
@@ -1083,18 +1195,16 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                             url: '/'
                                         });
 
-                                        for (const sub of userSubs) {
-                                            try {
-                                                await webpush.sendNotification(sub, payload);
-                                                await new Promise(resolve => setTimeout(resolve, 800));
-                                            } catch (err) {
-                                                console.error(`[Alert Engine] Falló enviar push individual de tarea urgente:`, err.message);
-                                            }
-                                        }
+                                        const result = await sendPushToSubscriptions({
+                                            userId,
+                                            subscriptions: userSubs,
+                                            payload,
+                                            context: `tarea urgente ${item.id}`,
+                                            delayMs: 250
+                                        });
 
-                                        if (!forceAll) {
+                                        if (!forceAll && result.successCount > 0) {
                                             data.alerts_sent_log[itemLogKey] = candidate.dateStr;
-                                            data.alerts_sent_log[key] = candidate.dateStr;
                                             dataChanged = true;
                                         }
                                     }
@@ -1111,16 +1221,15 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             url: '/'
                         });
 
-                        for (const sub of userSubs) {
-                            try {
-                                await webpush.sendNotification(sub, payload);
-                                await new Promise(resolve => setTimeout(resolve, 1000)); // Evitar saturación de Google FCM y espaciar entrega
-                            } catch (err) {
-                                console.error(`[Alert Engine] Falló enviar push de ${key}:`, err.message);
-                            }
-                        }
+                        const result = await sendPushToSubscriptions({
+                            userId,
+                            subscriptions: userSubs,
+                            payload,
+                            context: key,
+                            delayMs: 250
+                        });
 
-                        if (!forceAll) {
+                        if (!forceAll && result.successCount > 0) {
                             data.alerts_sent_log[key] = candidate.dateStr;
                             dataChanged = true;
                         }
@@ -1139,10 +1248,14 @@ async function checkAndSendAllAlerts(forceAll = false) {
             }
 
             if ((dataChanged || shouldSaveConfig) && !forceAll) {
-                await supabase
+                const { error: updateError } = await supabase
                     .from('user_data')
                     .update({ data: data })
                     .eq('user_id', userId);
+
+                if (updateError) {
+                    console.error(`[Alert Engine] No se pudo guardar el estado de alertas para usuario ${userId}:`, updateError.message);
+                }
             }
         }
     } catch (err) {
@@ -1198,17 +1311,7 @@ async function checkAndSendRobotReminders() {
         if (!usersData || usersData.length === 0) return;
         if (!subs || subs.length === 0) return;
         
-        // Agrupar suscripciones por user_id (evitando endpoints duplicados)
-        const subsByUser = {};
-        subs.forEach(s => {
-            if (!s.subscription || !s.subscription.endpoint) return;
-            if (!subsByUser[s.user_id]) subsByUser[s.user_id] = [];
-            
-            const alreadyAdded = subsByUser[s.user_id].some(existing => existing.endpoint === s.subscription.endpoint);
-            if (!alreadyAdded) {
-                subsByUser[s.user_id].push(s.subscription);
-            }
-        });
+        const subsByUser = groupSubscriptionsByUser(subs);
         
         const now = new Date();
         
@@ -1216,25 +1319,13 @@ async function checkAndSendRobotReminders() {
             const userId = userRow.user_id;
             const data = userRow.data || {};
             
-            let hygieneData = {};
-            if (data.hygiene_tracker_data) {
-                try {
-                    hygieneData = JSON.parse(data.hygiene_tracker_data);
-                } catch(e) {
-                    continue;
-                }
-            }
-
-            let alertsConfig = {};
-            if (data.alerts_config) {
-                try {
-                    alertsConfig = typeof data.alerts_config === 'string' ? JSON.parse(data.alerts_config) : data.alerts_config;
-                } catch(e) {}
-            }
+            const hygieneData = parseJsonValue(data.hygiene_tracker_data, {});
+            const alertsConfig = parseJsonValue(data.alerts_config, {});
             
             const robot = hygieneData.robot_cleaner;
-            if (robot && robot.status === 'dirty') {
-                const intervalHours = (alertsConfig.robot && alertsConfig.robot.interval_hours) ? parseInt(alertsConfig.robot.interval_hours) : 6;
+            const isRobotEnabled = alertsConfig.robot?.enabled !== false;
+            if (isRobotEnabled && robot && robot.status === 'dirty') {
+                const intervalHours = normalizeIntervalHours(alertsConfig.robot?.interval_hours, 6);
                 const intervalMs = intervalHours * 60 * 60 * 1000;
 
                 const markedDirtyAt = new Date(robot.marked_dirty_at);
@@ -1255,53 +1346,38 @@ async function checkAndSendRobotReminders() {
                         body: `El robot lleva sucio ${elapsedHours}hs. Recordá lavarlo.`,
                         url: '/'
                     });
-                    
-                    for (const sub of userSubs) {
-                        try {
-                            await webpush.sendNotification(sub, payload);
-                            await new Promise(resolve => setTimeout(resolve, 500));
-                        } catch (err) {
-                            console.error(`[Robot Reminder] Falló enviar push a suscripción:`, err.message);
+
+                    const result = await sendPushToSubscriptions({
+                        userId,
+                        subscriptions: userSubs,
+                        payload,
+                        context: 'robot aspiradora',
+                        delayMs: 250
+                    });
+
+                    if (result.successCount > 0) {
+                        robot.last_notified_at = now.toISOString();
+                        data.hygiene_tracker_data = hygieneData;
+
+                        const { error: updateErr } = await supabase
+                            .from('user_data')
+                            .update({ data: data })
+                            .eq('user_id', userId);
+
+                        if (updateErr) {
+                            console.error(`[Robot Reminder] Error al actualizar base de datos para usuario ${userId}:`, updateErr);
                         }
-                    }
-                    
-                    robot.last_notified_at = now.toISOString();
-                    data.hygiene_tracker_data = JSON.stringify(hygieneData);
-                    
-                    const { error: updateErr } = await supabase
-                        .from('user_data')
-                        .update({ data: data })
-                        .eq('user_id', userId);
-                        
-                    if (updateErr) {
-                        console.error(`[Robot Reminder] Error al actualizar base de datos para usuario ${userId}:`, updateErr);
                     }
                 }
             }
 
             // 2. Chequear tareas MUY URGENTES (repetitivas e infinitas hasta completarse)
             const veryUrgentConf = alertsConfig.very_urgent_tasks;
-            const isVeryUrgentEnabled = veryUrgentConf ? veryUrgentConf.enabled : true;
+            const isVeryUrgentEnabled = veryUrgentConf?.enabled !== false;
             if (isVeryUrgentEnabled) {
-                const intervalHours = (veryUrgentConf && veryUrgentConf.interval_hours) ? parseInt(veryUrgentConf.interval_hours) : 4;
+                const intervalHours = normalizeIntervalHours(veryUrgentConf?.interval_hours, 4);
                 const intervalMs = intervalHours * 60 * 60 * 1000;
-                
-                let generalTasks = [];
-                if (data.tareas_tasks) {
-                    try { generalTasks = typeof data.tareas_tasks === 'string' ? JSON.parse(data.tareas_tasks) : data.tareas_tasks; } catch(e) {}
-                }
-                
-                let projectTasks = [];
-                if (data.project_pulse_data) {
-                    try {
-                        const projs = typeof data.project_pulse_data === 'string' ? JSON.parse(data.project_pulse_data) : data.project_pulse_data;
-                        if (Array.isArray(projs)) {
-                            projs.forEach(p => { if (p.tasks) projectTasks.push(...p.tasks); });
-                        }
-                    } catch(e) {}
-                }
-
-                const pendingVeryUrgent = [...generalTasks, ...projectTasks].filter(t => !t.completed && t.urgency === 'muy_urgente');
+                const pendingVeryUrgent = getPendingVeryUrgentTasks(data);
                 
                 if (pendingVeryUrgent.length > 0) {
                     const lastNotifiedKey = data.very_urgent_last_notified_at;
@@ -1319,15 +1395,25 @@ async function checkAndSendRobotReminders() {
                                 url: '/'
                             });
 
-                            for (const sub of userSubs) {
-                                try {
-                                    await webpush.sendNotification(sub, payload);
-                                    await new Promise(resolve => setTimeout(resolve, 500));
-                                } catch (err) {}
-                            }
+                            const result = await sendPushToSubscriptions({
+                                userId,
+                                subscriptions: userSubs,
+                                payload,
+                                context: 'tareas muy urgentes',
+                                delayMs: 250
+                            });
 
-                            data.very_urgent_last_notified_at = now.toISOString();
-                            await supabase.from('user_data').update({ data: data }).eq('user_id', userId);
+                            if (result.successCount > 0) {
+                                data.very_urgent_last_notified_at = now.toISOString();
+                                const { error: updateError } = await supabase
+                                    .from('user_data')
+                                    .update({ data: data })
+                                    .eq('user_id', userId);
+
+                                if (updateError) {
+                                    console.error(`[Very Urgent] No se pudo guardar el último envío para usuario ${userId}:`, updateError.message);
+                                }
+                            }
                         }
                     }
                 }

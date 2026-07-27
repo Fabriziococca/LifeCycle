@@ -28,6 +28,7 @@ export class AuthSyncModule {
         this.realtimeChannel = null;
         this.isSyncing = false;
         this.pendingSync = false;
+        this.pushSyncPromise = null;
         this.init();
     }
 
@@ -390,22 +391,29 @@ export class AuthSyncModule {
         
         try {
             // 1. Obtener datos actuales en la nube para no sobreescribir alerts_sent_log
-            const { data: cloudRow } = await this.supabase
+            const { data: cloudRow, error: cloudReadError } = await this.supabase
                 .from('user_data')
                 .select('data')
                 .eq('user_id', this.user.id)
                 .single();
+
+            if (cloudReadError && cloudReadError.code !== 'PGRST116') {
+                throw new Error(`No se pudo leer el estado cloud antes de sincronizar: ${cloudReadError.message}`);
+            }
             
             const cloudData = cloudRow?.data || {};
             const localData = this.gatherLocalData();
 
-            // Fusionar alerts_sent_log para conservar el log de alertas del servidor
+            // Conservar metadatos que pertenecen al motor de alertas del servidor.
             if (cloudData.alerts_sent_log) {
                 const cloudLogStr = typeof cloudData.alerts_sent_log === 'string'
                     ? cloudData.alerts_sent_log
                     : JSON.stringify(cloudData.alerts_sent_log);
                 localData.alerts_sent_log = cloudLogStr;
                 localStorage.setItem('alerts_sent_log', cloudLogStr);
+            }
+            if (cloudData.very_urgent_last_notified_at) {
+                localData.very_urgent_last_notified_at = cloudData.very_urgent_last_notified_at;
             }
             
             const { error } = await this.supabase
@@ -632,6 +640,63 @@ export class AuthSyncModule {
             .subscribe();
     }
 
+    async persistPushSubscription(subscriptionJSON) {
+        if (!this.user || !this.supabase || !subscriptionJSON?.endpoint) {
+            throw new Error('No hay una sesión o suscripción Push válida.');
+        }
+
+        if (this.pushSyncPromise) return this.pushSyncPromise;
+
+        this.pushSyncPromise = (async () => {
+            const { data: rows, error: readError } = await this.supabase
+                .from('push_subscriptions')
+                .select('id, subscription, created_at')
+                .eq('user_id', this.user.id);
+
+            if (readError) throw readError;
+
+            const matchingRows = (rows || [])
+                .filter(row => row.subscription?.endpoint === subscriptionJSON.endpoint)
+                .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
+
+            if (matchingRows.length === 0) {
+                const { error: insertError } = await this.supabase
+                    .from('push_subscriptions')
+                    .insert({
+                        user_id: this.user.id,
+                        subscription: subscriptionJSON
+                    });
+
+                if (insertError) throw insertError;
+                return;
+            }
+
+            const [rowToKeep, ...duplicates] = matchingRows;
+            const { error: updateError } = await this.supabase
+                .from('push_subscriptions')
+                .update({ subscription: subscriptionJSON })
+                .eq('id', rowToKeep.id);
+
+            if (updateError) throw updateError;
+
+            if (duplicates.length > 0) {
+                const { error: deleteError } = await this.supabase
+                    .from('push_subscriptions')
+                    .delete()
+                    .in('id', duplicates.map(row => row.id));
+
+                if (deleteError) throw deleteError;
+                console.log(`[Push] Se eliminaron ${duplicates.length} registros duplicados de este dispositivo.`);
+            }
+        })();
+
+        try {
+            await this.pushSyncPromise;
+        } finally {
+            this.pushSyncPromise = null;
+        }
+    }
+
     async enablePushNotifications() {
         if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
             alert('Las notificaciones push no son compatibles con este navegador o dispositivo.');
@@ -659,34 +724,18 @@ export class AuthSyncModule {
             // Convert VAPID key to Uint8Array
             const convertedVapidKey = this.urlBase64ToUint8Array(vapidKey);
 
-            // 4. Subscribe to Push Manager
-            const subscription = await registration.pushManager.subscribe({
-                userVisibleOnly: true,
-                applicationServerKey: convertedVapidKey
-            });
+            // 4. Reutilizar la suscripción del dispositivo si ya existe.
+            let subscription = await registration.pushManager.getSubscription();
+            if (!subscription) {
+                subscription = await registration.pushManager.subscribe({
+                    userVisibleOnly: true,
+                    applicationServerKey: convertedVapidKey
+                });
+            }
 
             // 5. Send subscription to Supabase directly (runs in user's authenticated context)
             const subscriptionJSON = subscription.toJSON();
-            
-            try {
-                // Clean up old subscriptions for the same endpoint to avoid duplicates
-                await this.supabase
-                    .from('push_subscriptions')
-                    .delete()
-                    .eq('user_id', this.user.id)
-                    .eq('subscription->endpoint', subscriptionJSON.endpoint);
-            } catch (err) {
-                console.warn("Error cleaning up old subscription:", err);
-            }
-
-            const { error: dbError } = await this.supabase
-                .from('push_subscriptions')
-                .insert({
-                    user_id: this.user.id,
-                    subscription: subscriptionJSON
-                });
-
-            if (dbError) throw dbError;
+            await this.persistPushSubscription(subscriptionJSON);
 
             // 6. Update UI
             alert('¡Notificaciones activadas con éxito en este dispositivo!');
@@ -721,25 +770,7 @@ export class AuthSyncModule {
             
             if (subscription) {
                 const subscriptionJSON = subscription.toJSON();
-                // Sincronización silenciosa en segundo plano (Auto-Heal)
-                (async () => {
-                    try {
-                        await this.supabase
-                            .from('push_subscriptions')
-                            .delete()
-                            .eq('user_id', this.user.id)
-                            .eq('subscription->endpoint', subscriptionJSON.endpoint);
-                            
-                        await this.supabase
-                            .from('push_subscriptions')
-                            .insert({
-                                user_id: this.user.id,
-                                subscription: subscriptionJSON
-                            });
-                    } catch (err) {
-                        console.warn("Silent subscription auto-heal sync failed:", err);
-                    }
-                })();
+                await this.persistPushSubscription(subscriptionJSON);
 
                 if (this.btnEnablePush) {
                     this.btnEnablePush.innerText = '🔔 Notificaciones Activas en este Dispositivo';
@@ -774,11 +805,13 @@ export class AuthSyncModule {
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ subscription: subscription.toJSON() })
             });
+            const result = await res.json().catch(() => ({}));
 
             if (res.ok) {
-                alert('Notificación de prueba programada. Bloquea tu celular o quédate en espera; llegará en 5 segundos.');
+                alert('Notificación de prueba enviada. Debería aparecer en este dispositivo.');
             } else {
-                alert('Error al programar la notificación de prueba.');
+                const statusText = result.statusCode ? ` (HTTP ${result.statusCode})` : '';
+                alert(`${result.error || 'Error al enviar la notificación de prueba.'}${statusText}`);
             }
         } catch (e) {
             console.error('Error triggering test push:', e);

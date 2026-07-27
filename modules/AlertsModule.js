@@ -13,16 +13,33 @@ export class AlertsModule {
         try {
             const defaultConfigs = {};
             ALERT_DEFINITIONS.forEach(def => {
-                defaultConfigs[def.key] = {
+                const config = {
                     enabled: true,
                     time: def.defaultTime,
                     days: def.defaultDays || []
                 };
+                if (def.key === 'robot') config.interval_hours = 6;
+                if (def.key === 'very_urgent_tasks') config.interval_hours = 4;
+                defaultConfigs[def.key] = config;
             });
 
             const localVal = localStorage.getItem('alerts_config');
             if (localVal) {
-                this.configs = { ...defaultConfigs, ...JSON.parse(localVal) };
+                const storedConfigs = JSON.parse(localVal);
+                this.configs = { ...storedConfigs };
+                Object.keys(defaultConfigs).forEach(key => {
+                    const storedConfig = storedConfigs[key] && typeof storedConfigs[key] === 'object'
+                        ? storedConfigs[key]
+                        : {};
+                    this.configs[key] = {
+                        ...defaultConfigs[key],
+                        ...storedConfig,
+                        days: Array.isArray(storedConfig.days)
+                            ? storedConfig.days
+                            : defaultConfigs[key].days
+                    };
+                });
+                this.saveData();
             } else {
                 const oldGym = localStorage.getItem('gym_supplements');
                 if (oldGym) {
@@ -98,12 +115,21 @@ export class AlertsModule {
             const days = Array.from(dayBtns).map(btn => parseInt(btn.dataset.day));
             const prevConfig = this.configs[key] || {};
 
-            this.configs[key] = {
+            const nextConfig = {
                 enabled: enabledInput ? enabledInput.checked : false,
-                time: timeInput ? timeInput.value : '23:00',
-                days: days,
-                interval_hours: intervalInput ? (parseInt(intervalInput.value) || 6) : (prevConfig.interval_hours || 6)
+                time: timeInput ? timeInput.value : (prevConfig.time || '23:00'),
+                days: days
             };
+            if (intervalInput) {
+                const fallback = key === 'very_urgent_tasks' ? 4 : 6;
+                nextConfig.interval_hours = Math.min(
+                    48,
+                    Math.max(1, parseInt(intervalInput.value, 10) || fallback)
+                );
+            } else if (prevConfig.interval_hours !== undefined) {
+                nextConfig.interval_hours = prevConfig.interval_hours;
+            }
+            this.configs[key] = nextConfig;
         });
     }
 
@@ -193,14 +219,14 @@ export class AlertsModule {
                     ${isRecurring ? `
                     <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
                         <span style="font-size: 0.78rem; color: var(--text-secondary);">Días activos:</span>
-                        <div class="day-selectors" style="display: flex; gap: 3px; justify-content: space-between;">
-                            <button class="day-btn ${conf.days.includes(1) ? 'active' : ''}" data-day="1" style="flex: 1; padding: 4px 0; font-size: 0.75rem;">L</button>
-                            <button class="day-btn ${conf.days.includes(2) ? 'active' : ''}" data-day="2" style="flex: 1; padding: 4px 0; font-size: 0.75rem;">M</button>
-                            <button class="day-btn ${conf.days.includes(3) ? 'active' : ''}" data-day="3" style="flex: 1; padding: 4px 0; font-size: 0.75rem;">M</button>
-                            <button class="day-btn ${conf.days.includes(4) ? 'active' : ''}" data-day="4" style="flex: 1; padding: 4px 0; font-size: 0.75rem;">J</button>
-                            <button class="day-btn ${conf.days.includes(5) ? 'active' : ''}" data-day="5" style="flex: 1; padding: 4px 0; font-size: 0.75rem;">V</button>
-                            <button class="day-btn ${conf.days.includes(6) ? 'active' : ''}" data-day="6" style="flex: 1; padding: 4px 0; font-size: 0.75rem;">S</button>
-                            <button class="day-btn ${conf.days.includes(0) ? 'active' : ''}" data-day="0" style="flex: 1; padding: 4px 0; font-size: 0.75rem;">D</button>
+                        <div class="day-selectors">
+                            <button class="day-btn ${conf.days.includes(1) ? 'active' : ''}" data-day="1">L</button>
+                            <button class="day-btn ${conf.days.includes(2) ? 'active' : ''}" data-day="2">M</button>
+                            <button class="day-btn ${conf.days.includes(3) ? 'active' : ''}" data-day="3">M</button>
+                            <button class="day-btn ${conf.days.includes(4) ? 'active' : ''}" data-day="4">J</button>
+                            <button class="day-btn ${conf.days.includes(5) ? 'active' : ''}" data-day="5">V</button>
+                            <button class="day-btn ${conf.days.includes(6) ? 'active' : ''}" data-day="6">S</button>
+                            <button class="day-btn ${conf.days.includes(0) ? 'active' : ''}" data-day="0">D</button>
                         </div>
                     </div>
                     ` : ''}

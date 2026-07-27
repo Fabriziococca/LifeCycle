@@ -65,42 +65,62 @@ class AppController {
 
     async fetchLemonRate() {
         const rateInfo = document.getElementById('currency-rate-info');
-        const cachedRate = localStorage.getItem('lemon_usdt_ars_rate');
-        const cachedTime = localStorage.getItem('lemon_usdt_ars_time');
-        const now = Date.now();
+        const cachedRate = this.getValidCachedLemonRate();
 
-        // Si tenemos caché de menos de 30 min, usamos esa
-        if (cachedRate && cachedTime && (now - parseInt(cachedTime)) < 1000 * 60 * 30) {
+        // Una cotización reciente evita llamadas innecesarias sin inventar valores.
+        if (cachedRate !== null) {
             if (rateInfo) {
                 rateInfo.style.display = 'block';
-                rateInfo.innerHTML = `Cotización Lemon Cash USDT (Venta): <strong>$${parseFloat(cachedRate).toLocaleString('es-AR')} ARS</strong>`;
+                rateInfo.innerHTML = `Cotización Lemon Cash USDT (Venta): <strong>$${cachedRate.toLocaleString('es-AR')} ARS</strong>`;
             }
-            return parseFloat(cachedRate);
+            return cachedRate;
         }
 
         try {
             const res = await fetch('https://criptoya.com/api/lemoncash/usdt/ars/1');
-            if (res.ok) {
-                const data = await res.json();
-                const rate = data.bid || 1530; // bid es el precio de venta recibido al vender USDT
-                localStorage.setItem('lemon_usdt_ars_rate', rate.toString());
-                localStorage.setItem('lemon_usdt_ars_time', now.toString());
-                if (rateInfo) {
-                    rateInfo.style.display = 'block';
-                    rateInfo.innerHTML = `Cotización Lemon Cash USDT (Venta): <strong>$${rate.toLocaleString('es-AR')} ARS</strong>`;
-                }
-                return rate;
+            if (!res.ok) {
+                throw new Error(`CriptoYa respondió HTTP ${res.status}`);
             }
+
+            const data = await res.json();
+            const rate = Number(data.bid);
+            if (!Number.isFinite(rate) || rate <= 0) {
+                throw new Error('CriptoYa devolvió una cotización inválida');
+            }
+
+            localStorage.setItem('lemon_usdt_ars_rate', rate.toString());
+            localStorage.setItem('lemon_usdt_ars_time', Date.now().toString());
+            if (rateInfo) {
+                rateInfo.style.display = 'block';
+                rateInfo.innerHTML = `Cotización Lemon Cash USDT (Venta): <strong>$${rate.toLocaleString('es-AR')} ARS</strong>`;
+            }
+            return rate;
         } catch (e) {
             console.error("Error fetching Lemon rate from CriptoYa:", e);
         }
 
-        const fallback = parseFloat(cachedRate) || 1530;
         if (rateInfo) {
             rateInfo.style.display = 'block';
-            rateInfo.innerHTML = `Cotización Estimada Lemon Cash: <strong>$${fallback.toLocaleString('es-AR')} ARS</strong>`;
+            rateInfo.textContent = 'Cotización no disponible. No se realizará una conversión estimada.';
         }
-        return fallback;
+        return null;
+    }
+
+    getValidCachedLemonRate() {
+        const rate = Number(localStorage.getItem('lemon_usdt_ars_rate'));
+        const timestamp = Number(localStorage.getItem('lemon_usdt_ars_time'));
+        const age = Date.now() - timestamp;
+        const maxAge = 1000 * 60 * 30;
+
+        if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(timestamp) || timestamp <= 0) {
+            return null;
+        }
+
+        if (age < 0 || age >= maxAge) {
+            return null;
+        }
+
+        return rate;
     }
 
     updateCurrencyUI(curr) {
@@ -122,7 +142,7 @@ class AppController {
     getCurrencyMultiplier() {
         const curr = localStorage.getItem('preferred_currency') || 'USD';
         if (curr === 'ARS') {
-            return parseFloat(localStorage.getItem('lemon_usdt_ars_rate')) || 1530;
+            return this.getValidCachedLemonRate();
         }
         return 1;
     }
@@ -132,6 +152,9 @@ class AppController {
         const num = Number(amountUsd || 0);
         if (curr === 'ARS') {
             const rate = this.getCurrencyMultiplier();
+            if (rate === null) {
+                return `USD ${num.toFixed(2)} (ARS sin cotización)`;
+            }
             const totalArs = num * rate;
             return `ARS $${totalArs.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
         }
