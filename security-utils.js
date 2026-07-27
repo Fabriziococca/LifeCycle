@@ -16,6 +16,7 @@ const BLOCKED_STATIC_PREFIXES = [
     '/.codex/',
     '/.git/',
     '/node_modules/',
+    '/supabase/',
     '/tests/'
 ];
 

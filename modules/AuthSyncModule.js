@@ -615,31 +615,109 @@ export class AuthSyncModule {
         }
     }
 
-    // Upload helper for files
-    async uploadFile(fileId, file) {
+    getOwnedMedicalFilePath(filePath) {
         if (!this.user || !this.supabase) {
             throw new Error("Usuario no autenticado");
         }
+
+        const normalizedPath = typeof filePath === 'string' ? filePath.trim() : '';
+        const expectedPrefix = `${this.user.id}/`;
+        if (
+            !normalizedPath
+            || !normalizedPath.startsWith(expectedPrefix)
+            || normalizedPath.includes('..')
+            || normalizedPath.includes('\\')
+        ) {
+            throw new Error('La ruta del archivo médico no es válida para esta cuenta.');
+        }
+
+        return normalizedPath;
+    }
+
+    getMedicalFileExtension(file) {
+        const knownExtensions = {
+            'application/pdf': 'pdf',
+            'image/jpeg': 'jpg',
+            'image/png': 'png',
+            'image/webp': 'webp',
+            'image/heic': 'heic',
+            'image/heif': 'heif'
+        };
+
+        const extension = knownExtensions[file.type];
+        if (!extension) {
+            throw new Error('El formato del archivo médico no está permitido.');
+        }
+
+        return extension;
+    }
+
+    async uploadMedicalFile(fileId, file) {
+        if (!this.user || !this.supabase) {
+            throw new Error("Usuario no autenticado");
+        }
+        const allowedMimeTypes = new Set([
+            'application/pdf',
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'image/heic',
+            'image/heif'
+        ]);
+        if (!file || !allowedMimeTypes.has(file.type)) {
+            throw new Error('Solo se permiten archivos PDF, JPG, PNG, WebP, HEIC o HEIF.');
+        }
+        if (!Number.isFinite(file.size) || file.size <= 0 || file.size > 15 * 1024 * 1024) {
+            throw new Error('El archivo debe pesar entre 1 byte y 15 MB.');
+        }
+
+        const safeFileId = String(fileId || '')
+            .replace(/[^a-zA-Z0-9_-]/g, '_')
+            .slice(0, 100);
+        if (!safeFileId) {
+            throw new Error('No se pudo generar un identificador seguro para el archivo.');
+        }
         
-        const filePath = `${this.user.id}/${fileId}_${file.name}`;
+        const extension = this.getMedicalFileExtension(file);
+        const filePath = `${this.user.id}/${safeFileId}.${extension}`;
         
         const { data, error } = await this.supabase.storage
             .from('blood-tests')
             .upload(filePath, file, {
                 cacheControl: '3600',
-                upsert: true
+                contentType: file.type,
+                upsert: false
             });
             
         if (error) {
             throw error;
         }
-        
-        // Get public URL
-        const { data: { publicUrl } } = this.supabase.storage
+
+        return data?.path || filePath;
+    }
+
+    async createSignedMedicalFileUrl(filePath) {
+        const ownedPath = this.getOwnedMedicalFilePath(filePath);
+        const { data, error } = await this.supabase.storage
             .from('blood-tests')
-            .getPublicUrl(filePath);
-            
-        return publicUrl;
+            .createSignedUrl(ownedPath, 5 * 60);
+
+        if (error || !data?.signedUrl) {
+            throw error || new Error('Supabase no devolvió una URL temporal.');
+        }
+
+        return data.signedUrl;
+    }
+
+    async deleteMedicalFile(filePath) {
+        const ownedPath = this.getOwnedMedicalFilePath(filePath);
+        const { error } = await this.supabase.storage
+            .from('blood-tests')
+            .remove([ownedPath]);
+
+        if (error) {
+            throw error;
+        }
     }
 
     setupRealtimeSubscription() {

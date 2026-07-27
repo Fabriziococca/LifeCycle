@@ -19,8 +19,8 @@ export class HealthModule {
         // File attachment inputs
         this.bloodFormFile = document.getElementById('blood-form-file');
         this.bloodFormFileName = document.getElementById('blood-form-file-name');
-        this.attachedFileData = null;
         this.attachedFileName = null;
+        this.attachedFile = null;
 
         // Configuración médica
         try {
@@ -65,38 +65,33 @@ export class HealthModule {
         // File listener
         this.bloodFormFile?.addEventListener('change', (e) => {
             const file = e.target.files[0];
-            if (file) {
-                // If logged in, skip the local 1.5MB constraint (only apply 15MB limit)
-                const isLoggedIn = this.controller.auth && this.controller.auth.user;
-                const maxSize = isLoggedIn ? 15 * 1024 * 1024 : 1.5 * 1024 * 1024;
-                if (file.size > maxSize) {
-                    if (isLoggedIn) {
-                        alert('El archivo es demasiado grande (máximo 15MB para subidas a la nube).');
-                    } else {
-                        alert('El archivo es demasiado grande (máximo 1.5MB en modo offline para evitar saturar el navegador). Inicia sesión para subir archivos de hasta 15MB.');
-                    }
-                    this.bloodFormFile.value = '';
-                    this.attachedFileData = null;
-                    this.attachedFileName = null;
-                    this.attachedFile = null;
-                    if (this.bloodFormFileName) {
-                        this.bloodFormFileName.classList.add('hidden');
-                        this.bloodFormFileName.innerText = '';
-                    }
-                    return;
-                }
+            if (!file) {
+                this.resetAttachedFile();
+                return;
+            }
 
-                this.attachedFile = file;
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    this.attachedFileData = event.target.result;
-                    this.attachedFileName = file.name;
-                    if (this.bloodFormFileName) {
-                        this.bloodFormFileName.classList.remove('hidden');
-                        this.bloodFormFileName.innerHTML = `<i class="ph ph-file-pdf"></i> ${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
-                    }
-                };
-                reader.readAsDataURL(file);
+            if (!this.isAllowedMedicalFile(file)) {
+                alert('Solo podés adjuntar archivos PDF o imágenes.');
+                this.resetAttachedFile();
+                return;
+            }
+
+            if (file.size <= 0 || file.size > 15 * 1024 * 1024) {
+                alert('El archivo debe pesar menos de 15 MB.');
+                this.resetAttachedFile();
+                return;
+            }
+
+            this.attachedFile = file;
+            this.attachedFileName = file.name;
+            if (this.bloodFormFileName) {
+                const icon = document.createElement('i');
+                icon.className = 'ph ph-file';
+                this.bloodFormFileName.replaceChildren(
+                    icon,
+                    document.createTextNode(` ${file.name} (${(file.size / 1024).toFixed(1)} KB)`)
+                );
+                this.bloodFormFileName.classList.remove('hidden');
             }
         });
 
@@ -115,14 +110,62 @@ export class HealthModule {
         if (this.bloodForm) this.bloodForm.classList.add('hidden');
         if (this.bloodFormDate) this.bloodFormDate.value = '';
         if (this.bloodFormPortal) this.bloodFormPortal.value = '';
+        this.resetAttachedFile();
+    }
+
+    resetAttachedFile() {
         if (this.bloodFormFile) this.bloodFormFile.value = '';
         if (this.bloodFormFileName) {
             this.bloodFormFileName.classList.add('hidden');
-            this.bloodFormFileName.innerText = '';
+            this.bloodFormFileName.replaceChildren();
         }
-        this.attachedFileData = null;
         this.attachedFileName = null;
         this.attachedFile = null;
+    }
+
+    isAllowedMedicalFile(file) {
+        const allowedMimeTypes = new Set([
+            'application/pdf',
+            'image/jpeg',
+            'image/png',
+            'image/webp',
+            'image/heic',
+            'image/heif'
+        ]);
+        return Boolean(file && allowedMimeTypes.has(file.type));
+    }
+
+    normalizeExternalUrl(value) {
+        const trimmedValue = typeof value === 'string' ? value.trim() : '';
+        if (!trimmedValue) return '';
+
+        const parsedUrl = new URL(trimmedValue);
+        if (parsedUrl.protocol !== 'https:') {
+            throw new Error('Solo se permiten enlaces web seguros (HTTPS).');
+        }
+
+        return parsedUrl.href;
+    }
+
+    getSafeLegacyAttachmentUrl(value) {
+        if (typeof value !== 'string' || !value) return '';
+        if (/^data:(application\/pdf|image\/(?:png|jpe?g|webp|gif));base64,/i.test(value)) {
+            return value;
+        }
+
+        try {
+            return this.normalizeExternalUrl(value);
+        } catch {
+            return '';
+        }
+    }
+
+    setBloodFormSaving(isSaving) {
+        if (!this.bloodFormSave) return;
+        this.bloodFormSave.disabled = isSaving;
+        this.bloodFormSave.innerHTML = isSaving
+            ? '<i class="ph ph-circle-notch" style="animation: spin 1s linear infinite;"></i> Guardando...'
+            : 'Guardar';
     }
 
     async saveBloodTestEntry() {
@@ -131,41 +174,68 @@ export class HealthModule {
             alert('Por favor selecciona la fecha del estudio.');
             return;
         }
-        
-        const entry = {
-            id: 'blood_' + Date.now(),
-            date: dateVal,
-            portalUrl: this.bloodFormPortal?.value || '',
-            fileName: this.attachedFileName || null,
-            fileData: this.attachedFileData || null
-        };
 
-        // If authenticated and file is attached, upload to Supabase Storage
-        if (this.controller.auth && this.controller.auth.user && this.attachedFile) {
-            try {
+        let portalUrl = '';
+        try {
+            portalUrl = this.normalizeExternalUrl(this.bloodFormPortal?.value || '');
+        } catch (error) {
+            alert(error.message);
+            return;
+        }
+
+        if (!this.controller.auth?.user) {
+            alert('Tu sesión no está disponible. Reintentá luego de volver a iniciar sesión.');
+            return;
+        }
+
+        this.setBloodFormSaving(true);
+
+        try {
+            const entry = {
+                id: 'blood_' + Date.now(),
+                date: dateVal,
+                portalUrl,
+                fileName: this.attachedFileName || null
+            };
+
+            if (this.attachedFile) {
                 this.controller.auth.updateSyncBadge('syncing', "Subiendo archivo...");
-                const publicUrl = await this.controller.auth.uploadFile(entry.id, this.attachedFile);
-                entry.fileData = publicUrl;
+                entry.storagePath = await this.controller.auth.uploadMedicalFile(entry.id, this.attachedFile);
                 entry.isCloudFile = true;
-            } catch (err) {
-                console.error("Error uploading file to storage:", err);
-                alert("Error al subir archivo a la nube. Se guardará de forma local temporalmente.");
+            }
+
+            this.bloodTests.push(entry);
+            this.bloodTests.sort((a, b) => new Date(b.date) - new Date(a.date));
+            this.saveBloodTests();
+            this.clearBloodForm();
+            this.render();
+        } catch (error) {
+            console.error("Error guardando el análisis de sangre:", error);
+            alert(`No se pudo guardar el estudio: ${error.message}`);
+        } finally {
+            this.setBloodFormSaving(false);
+        }
+    }
+
+    async deleteBloodTest(id) {
+        const test = this.bloodTests.find(item => item.id === id);
+        if (!test || !confirm('¿Estás seguro de que querés eliminar este registro y su archivo adjunto?')) {
+            return;
+        }
+
+        if (test.storagePath) {
+            try {
+                await this.controller.auth.deleteMedicalFile(test.storagePath);
+            } catch (error) {
+                console.error('Error eliminando el archivo médico:', error);
+                alert(`No se pudo eliminar el archivo de la nube. El registro se conservará para que puedas reintentar: ${error.message}`);
+                return;
             }
         }
 
-        this.bloodTests.push(entry);
-        this.bloodTests.sort((a, b) => new Date(b.date) - new Date(a.date));
+        this.bloodTests = this.bloodTests.filter(item => item.id !== id);
         this.saveBloodTests();
-        this.clearBloodForm();
         this.render();
-    }
-
-    deleteBloodTest(id) {
-        if (confirm('¿Estás seguro de que quieres eliminar este registro de análisis de sangre?')) {
-            this.bloodTests = this.bloodTests.filter(t => t.id !== id);
-            this.saveBloodTests();
-            this.render();
-        }
     }
 
     calculateDaysElapsed(dateStr) {
@@ -365,6 +435,61 @@ export class HealthModule {
         });
     }
 
+    createBloodTestLink({ url, iconClass, label, title, downloadName = '' }) {
+        if (!url) return null;
+
+        const link = document.createElement('a');
+        link.href = url;
+        link.target = '_blank';
+        link.rel = 'noopener noreferrer';
+        link.className = 'btn-text';
+        link.style.color = 'var(--primary-color)';
+        link.style.display = 'flex';
+        link.style.alignItems = 'center';
+        link.style.gap = '0.25rem';
+        link.title = title || label;
+        if (downloadName) {
+            link.download = downloadName;
+        }
+
+        const icon = document.createElement('i');
+        icon.className = iconClass;
+        link.append(icon, document.createTextNode(` ${label}`));
+        return link;
+    }
+
+    async openPrivateMedicalFile(test, button) {
+        if (!test.storagePath) return;
+
+        const originalContent = button.innerHTML;
+        button.disabled = true;
+        button.innerHTML = '<i class="ph ph-circle-notch" style="animation: spin 1s linear infinite;"></i> Abriendo...';
+
+        const previewWindow = window.open('about:blank', '_blank');
+        if (previewWindow) {
+            previewWindow.opener = null;
+            previewWindow.document.title = 'Abriendo archivo seguro...';
+        }
+
+        try {
+            const signedUrl = await this.controller.auth.createSignedMedicalFileUrl(test.storagePath);
+            if (previewWindow && !previewWindow.closed) {
+                previewWindow.location.replace(signedUrl);
+            } else {
+                window.location.assign(signedUrl);
+            }
+        } catch (error) {
+            if (previewWindow && !previewWindow.closed) {
+                previewWindow.close();
+            }
+            console.error('Error abriendo el archivo médico privado:', error);
+            alert(`No se pudo abrir el archivo: ${error.message}`);
+        } finally {
+            button.disabled = false;
+            button.innerHTML = originalContent;
+        }
+    }
+
     renderBloodTestsCard() {
         const lastTest = this.bloodTests[0];
         const daysElapsed = this.calculateDaysElapsed(lastTest?.date);
@@ -404,7 +529,7 @@ export class HealthModule {
 
         // Render list
         if (this.bloodList) {
-            this.bloodList.innerHTML = '';
+            this.bloodList.replaceChildren();
             if (this.bloodTests.length > 0) {
                 this.bloodTests.forEach(test => {
                     const li = document.createElement('li');
@@ -413,38 +538,112 @@ export class HealthModule {
                     li.style.alignItems = 'center';
                     li.style.gap = '15px';
                     li.style.padding = '0.75rem 1rem';
+                    li.style.flexWrap = 'wrap';
 
-                    let linksHtml = '';
-                    if (test.fileData) {
-                        const target = test.isCloudFile ? 'target="_blank"' : `download="${test.fileName || 'analisis.pdf'}"`;
-                        linksHtml += `<a href="${test.fileData}" ${target} class="btn-text" style="color: var(--primary-color); display:flex; align-items:center; gap:0.25rem;" title="${test.fileName || 'PDF'}"><i class="ph ph-file-pdf"></i> PDF</a>`;
-                    } else if (test.pdfUrl) {
-                        linksHtml += `<a href="${test.pdfUrl}" target="_blank" class="btn-text" style="color: var(--primary-color); display:flex; align-items:center; gap:0.25rem;"><i class="ph ph-file-pdf"></i> PDF</a>`;
+                    const dateContainer = document.createElement('div');
+                    dateContainer.style.display = 'flex';
+                    dateContainer.style.alignItems = 'center';
+                    dateContainer.style.gap = '0.5rem';
+
+                    const date = document.createElement('span');
+                    date.className = 'hist-date';
+                    date.textContent = this.formatDate(test.date);
+                    dateContainer.appendChild(date);
+
+                    const actionsContainer = document.createElement('div');
+                    actionsContainer.style.display = 'flex';
+                    actionsContainer.style.alignItems = 'center';
+                    actionsContainer.style.gap = '1rem';
+                    actionsContainer.style.flexWrap = 'wrap';
+                    actionsContainer.style.justifyContent = 'flex-end';
+                    actionsContainer.style.marginLeft = 'auto';
+
+                    const linksContainer = document.createElement('div');
+                    linksContainer.style.display = 'flex';
+                    linksContainer.style.gap = '0.5rem';
+                    linksContainer.style.flexWrap = 'wrap';
+
+                    if (test.storagePath) {
+                        const privateFileButton = document.createElement('button');
+                        privateFileButton.type = 'button';
+                        privateFileButton.className = 'btn-text';
+                        privateFileButton.style.color = 'var(--primary-color)';
+                        privateFileButton.style.display = 'flex';
+                        privateFileButton.style.alignItems = 'center';
+                        privateFileButton.style.gap = '0.25rem';
+                        privateFileButton.title = test.fileName || 'Abrir archivo médico';
+                        privateFileButton.innerHTML = '<i class="ph ph-lock-key"></i> Archivo';
+                        privateFileButton.addEventListener('click', () => {
+                            this.openPrivateMedicalFile(test, privateFileButton);
+                        });
+                        linksContainer.appendChild(privateFileButton);
+                    } else {
+                        const legacyFileUrl = this.getSafeLegacyAttachmentUrl(test.fileData || test.pdfUrl);
+                        const legacyFileLink = this.createBloodTestLink({
+                            url: legacyFileUrl,
+                            iconClass: 'ph ph-file',
+                            label: 'Archivo',
+                            title: test.fileName || 'Archivo del estudio',
+                            downloadName: legacyFileUrl.startsWith('data:')
+                                ? (test.fileName || 'analisis')
+                                : ''
+                        });
+                        if (legacyFileLink) {
+                            linksContainer.appendChild(legacyFileLink);
+                        }
                     }
-                    if (test.portalUrl) {
-                        linksHtml += `<a href="${test.portalUrl}" target="_blank" class="btn-text" style="color: var(--primary-color); display:flex; align-items:center; gap:0.25rem;"><i class="ph ph-globe"></i> Web</a>`;
+
+                    let safePortalUrl = '';
+                    try {
+                        safePortalUrl = this.normalizeExternalUrl(test.portalUrl);
+                    } catch {
+                        safePortalUrl = '';
                     }
 
-                    li.innerHTML = `
-                        <div style="display:flex; align-items:center; gap:0.5rem;">
-                            <span class="hist-date">${this.formatDate(test.date)}</span>
-                        </div>
-                        <div style="display:flex; align-items:center; gap:1rem;">
-                            <div style="display:flex; gap:0.50rem;">
-                                ${linksHtml || '<span style="color:var(--text-secondary); font-size:0.8rem;">Sin enlaces</span>'}
-                            </div>
-                            <button class="btn-delete-blood" data-id="${test.id}" style="border:none; background:transparent; cursor:pointer;" title="Eliminar registro">❌</button>
-                        </div>
-                    `;
+                    const portalLink = this.createBloodTestLink({
+                        url: safePortalUrl,
+                        iconClass: 'ph ph-globe',
+                        label: 'Web',
+                        title: 'Abrir portal del laboratorio'
+                    });
+                    if (portalLink) {
+                        linksContainer.appendChild(portalLink);
+                    }
 
-                    li.querySelector('.btn-delete-blood').addEventListener('click', (e) => {
-                        this.deleteBloodTest(e.currentTarget.dataset.id);
+                    if (linksContainer.childElementCount === 0) {
+                        const emptyLinks = document.createElement('span');
+                        emptyLinks.style.color = 'var(--text-secondary)';
+                        emptyLinks.style.fontSize = '0.8rem';
+                        emptyLinks.textContent = 'Sin enlaces';
+                        linksContainer.appendChild(emptyLinks);
+                    }
+
+                    const deleteButton = document.createElement('button');
+                    deleteButton.type = 'button';
+                    deleteButton.className = 'btn-delete-blood';
+                    deleteButton.style.border = 'none';
+                    deleteButton.style.background = 'transparent';
+                    deleteButton.style.cursor = 'pointer';
+                    deleteButton.title = 'Eliminar registro';
+                    deleteButton.textContent = '❌';
+                    deleteButton.addEventListener('click', async () => {
+                        deleteButton.disabled = true;
+                        await this.deleteBloodTest(test.id);
+                        deleteButton.disabled = false;
                     });
 
+                    actionsContainer.append(linksContainer, deleteButton);
+                    li.append(dateContainer, actionsContainer);
                     this.bloodList.appendChild(li);
                 });
             } else {
-                this.bloodList.innerHTML = '<li style="justify-content:center; color:var(--text-secondary); font-size:0.85rem; padding:1rem;">No tienes análisis de sangre registrados</li>';
+                const emptyState = document.createElement('li');
+                emptyState.style.justifyContent = 'center';
+                emptyState.style.color = 'var(--text-secondary)';
+                emptyState.style.fontSize = '0.85rem';
+                emptyState.style.padding = '1rem';
+                emptyState.textContent = 'No tenés análisis de sangre registrados';
+                this.bloodList.appendChild(emptyState);
             }
         }
     }
