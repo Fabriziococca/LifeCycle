@@ -18,6 +18,7 @@ export const CLOUD_SYNC_KEYS = Object.freeze([
     'gym_routine',
     'gym_routine_focus',
     'gym_sessions',
+    'gym_active_session',
     'gym_meals',
     'gym_general_meals',
     'gym_supplements',

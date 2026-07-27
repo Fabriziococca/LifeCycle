@@ -33,6 +33,7 @@ export class BackupModule {
             gym_routine: localStorage.getItem('gym_routine'),
             gym_routine_focus: localStorage.getItem('gym_routine_focus'),
             gym_sessions: localStorage.getItem('gym_sessions'),
+            gym_active_session: localStorage.getItem('gym_active_session'),
             gym_meals: localStorage.getItem('gym_meals'),
             gym_general_meals: localStorage.getItem('gym_general_meals'),
             gym_supplements: localStorage.getItem('gym_supplements'),
@@ -156,7 +157,7 @@ export class BackupModule {
                 // Gimnasio
                 const gymKeys = [
                     'gym_records', 'gym_routine', 'gym_routine_focus', 
-                    'gym_sessions', 'gym_meals', 'gym_general_meals', 'gym_supplements', 'gym_weight'
+                    'gym_sessions', 'gym_active_session', 'gym_meals', 'gym_general_meals', 'gym_supplements', 'gym_weight'
                 ];
                 let gymFound = false;
                 gymKeys.forEach(key => {

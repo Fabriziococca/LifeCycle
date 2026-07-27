@@ -779,9 +779,14 @@
                                 <p id="current-session-subtitle" style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-secondary);">Registrando rutina.</p>
                             </div>
                         </div>
-                        <button id="finish-session-btn" class="btn btn-secondary" style="margin: 0; background: var(--status-green); color: white; width: auto; height: 38px; display: flex; align-items: center; gap: 8px;">
-                            <i class="ph ph-check-circle"></i> Finalizar
-                        </button>
+                        <div class="active-session-actions">
+                            <button id="discard-session-btn" type="button" class="btn btn-secondary active-session-action-btn active-session-discard-btn">
+                                <i class="ph ph-trash"></i> Descartar
+                            </button>
+                            <button id="finish-session-btn" type="button" class="btn btn-secondary active-session-action-btn active-session-finish-btn">
+                                <i class="ph ph-check-circle"></i> Finalizar
+                            </button>
+                        </div>
                     </div>
                     <div class="card-body">
                         <!-- Contenedor dinámico de ejercicios y series -->

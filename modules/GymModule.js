@@ -1,4 +1,9 @@
-import { getLocalISODate, parseDateLocal } from '../utils.js';
+import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
+import {
+    createActiveGymSession,
+    normalizeActiveGymSession
+} from '../gym-session-utils.mjs?v=20260727-active-session';
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
 export class GymModule {
     constructor(appController) {
@@ -17,6 +22,7 @@ export class GymModule {
         window.gym = this;
         this.loadData();
         this.setupListeners();
+        this.syncActiveSessionUI();
     }
 
     loadData() {
@@ -64,6 +70,9 @@ export class GymModule {
             const sessions = localStorage.getItem('gym_sessions');
             if (sessions) this.sessions = JSON.parse(sessions);
 
+            const activeSession = localStorage.getItem('gym_active_session');
+            this.activeSession = normalizeActiveGymSession(activeSession);
+
             const meals = localStorage.getItem('gym_meals');
             if (meals) this.meals = JSON.parse(meals);
             if (!this.meals.fixed) this.meals.fixed = [];
@@ -105,6 +114,49 @@ export class GymModule {
 
         // Sincronizar silenciosamente a la nube
         this.app.auth?.syncToCloud(false).catch(() => {});
+    }
+
+    persistActiveSession({ syncNow = false } = {}) {
+        if (this.activeSession) {
+            this.activeSession.updatedAt = new Date().toISOString();
+            localStorage.setItem('gym_active_session', JSON.stringify(this.activeSession));
+        } else {
+            localStorage.removeItem('gym_active_session');
+        }
+
+        if (syncNow) {
+            this.app.auth?.syncToCloud(false).catch(() => {});
+        }
+    }
+
+    syncActiveSessionUI() {
+        const activeBox = document.getElementById('current-session');
+        const startContainer = document.getElementById('start-session-container');
+        const exercisesContainer = document.getElementById('session-exercises-container');
+        if (!activeBox || !startContainer) return;
+
+        const hasActiveSession = Boolean(this.activeSession);
+        activeBox.classList.toggle('hidden', !hasActiveSession);
+        startContainer.classList.toggle('hidden', hasActiveSession);
+
+        if (!hasActiveSession) {
+            if (exercisesContainer) exercisesContainer.innerHTML = '';
+            return;
+        }
+
+        const day = this.activeSession.day || 'Rutina';
+        const titleEl = document.getElementById('current-session-title');
+        const subtitleEl = document.getElementById('current-session-subtitle');
+        if (titleEl) titleEl.innerText = `Entrenamiento: ${day}`;
+        if (subtitleEl) {
+            const focus = this.routineFocus[day] || '';
+            subtitleEl.innerText = focus
+                ? `Foco: ${focus} · Guardado automáticamente`
+                : 'Guardado automáticamente en LifeCycle.';
+        }
+
+        this.renderActiveSessionForm();
+        this.updateRoutineExercisesList();
     }
 
     setupListeners() {
@@ -295,7 +347,7 @@ export class GymModule {
         // Form 3: Sessions
         const btnStart = document.getElementById('start-session-btn');
         const btnEnd = document.getElementById('finish-session-btn');
-        const activeBox = document.getElementById('current-session');
+        const btnDiscard = document.getElementById('discard-session-btn');
         const btnAddSet = document.getElementById('add-set-btn');
 
         if (btnStart) {
@@ -303,48 +355,24 @@ export class GymModule {
                 const daySel = document.getElementById('start-session-day-select');
                 const selectedDay = daySel ? daySel.value : 'Lunes';
 
-                const dayExercises = this.routine.filter(r => r.day === selectedDay);
-
-                this.activeSession = {
-                    id: Date.now(),
-                    date: new Date().toLocaleDateString('es-AR'),
-                    exercises: {}
-                };
-
-                dayExercises.forEach(ex => {
-                    const seriesCount = ex.series || 3;
-                    this.activeSession.exercises[ex.name] = Array.from({ length: seriesCount }, () => ({
-                        weight: ex.weight !== null ? ex.weight : 0,
-                        reps: ex.reps !== null ? ex.reps : 0,
-                        rir: null,
-                        failed: false
-                    }));
+                this.activeSession = createActiveGymSession({
+                    routine: this.routine,
+                    selectedDay
                 });
-
-                document.getElementById('start-session-container').classList.add('hidden');
-                activeBox?.classList.remove('hidden');
-
-                const titleEl = document.getElementById('current-session-title');
-                const subtitleEl = document.getElementById('current-session-subtitle');
-                if (titleEl) titleEl.innerText = `Entrenamiento: ${selectedDay}`;
-                if (subtitleEl) {
-                    const focus = this.routineFocus[selectedDay] || '';
-                    subtitleEl.innerText = focus ? `Foco: ${focus}` : 'Registrando rutina.';
-                }
-
-                this.renderActiveSessionForm();
-                this.updateRoutineExercisesList();
+                this.persistActiveSession();
+                this.syncActiveSessionUI();
             });
         }
 
         const activeContainer = document.getElementById('session-exercises-container');
         if (activeContainer) {
-            activeContainer.addEventListener('change', (e) => {
+            activeContainer.addEventListener('input', (e) => {
                 const target = e.target;
-                const exName = target.getAttribute('data-exercise');
+                const exerciseIndex = parseInt(target.getAttribute('data-exercise-index'));
                 const idx = parseInt(target.getAttribute('data-index'));
-                if (!exName || isNaN(idx) || !this.activeSession) return;
+                if (isNaN(exerciseIndex) || isNaN(idx) || !this.activeSession) return;
 
+                const exName = Object.keys(this.activeSession.exercises)[exerciseIndex];
                 const sets = this.activeSession.exercises[exName];
                 if (!sets || !sets[idx]) return;
 
@@ -358,6 +386,8 @@ export class GymModule {
                 } else if (target.classList.contains('session-set-failed')) {
                     sets[idx].failed = target.checked;
                 }
+
+                this.persistActiveSession();
             });
         }
 
@@ -380,6 +410,7 @@ export class GymModule {
                 }
 
                 this.activeSession.exercises[exName].push({ weight, reps, rir: null, failed: false });
+                this.persistActiveSession();
                 this.renderActiveSessionForm();
 
                 document.getElementById('session-weight').value = '';
@@ -393,20 +424,40 @@ export class GymModule {
                     if (!confirm('No registraste series. ¿Cerrar sesión igualmente?')) return;
                 }
 
+                let completedSessionSaved = false;
                 if (this.activeSession && Object.keys(this.activeSession.exercises).length > 0) {
-                    this.sessions.unshift(this.activeSession);
-                    this.saveData('gym_sessions');
+                    this.sessions.unshift({
+                        ...this.activeSession,
+                        completedAt: new Date().toISOString()
+                    });
+                    completedSessionSaved = true;
                 }
 
                 this.activeSession = null;
-                activeBox?.classList.add('hidden');
-                document.getElementById('start-session-container').classList.remove('hidden');
+                this.persistActiveSession();
+                if (completedSessionSaved) {
+                    this.saveData('gym_sessions');
+                } else {
+                    this.app.auth?.syncToCloud(false).catch(() => {});
+                }
+                this.syncActiveSessionUI();
 
                 document.getElementById('session-exercise').value = '';
                 document.getElementById('session-weight').value = '';
                 document.getElementById('session-reps').value = '';
 
                 this.renderSessionsLog();
+            });
+        }
+
+        if (btnDiscard) {
+            btnDiscard.addEventListener('click', () => {
+                if (!this.activeSession) return;
+                if (!confirm('¿Descartar este entrenamiento activo? No se agregará al historial.')) return;
+
+                this.activeSession = null;
+                this.persistActiveSession({ syncNow: true });
+                this.syncActiveSessionUI();
             });
         }
 
@@ -730,7 +781,7 @@ export class GymModule {
         if (tab === 'records') this.renderRecords();
         else if (tab === 'routine') this.renderRoutine();
         else if (tab === 'sessions') {
-            this.renderActiveSessionForm();
+            this.syncActiveSessionUI();
             this.renderSessionsLog();
         } else if (tab === 'nutrition') {
             this.renderNutrition();
@@ -892,8 +943,9 @@ export class GymModule {
             return;
         }
 
-        Object.keys(this.activeSession.exercises).forEach(exName => {
+        Object.keys(this.activeSession.exercises).forEach((exName, exerciseIndex) => {
             const sets = this.activeSession.exercises[exName];
+            const safeExerciseName = escapeHtml(exName);
             const exDiv = document.createElement('div');
             exDiv.className = 'card';
             exDiv.style.background = 'rgba(255, 255, 255, 0.02)';
@@ -908,19 +960,19 @@ export class GymModule {
                     <div style="display: grid; grid-template-columns: auto 1.2fr 1.2fr 1.2fr auto; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.85rem;">
                         <span style="color: var(--text-secondary); font-weight:600; min-width: 50px;">Serie ${idx + 1}</span>
                         <div class="input-unit-wrapper" style="margin:0;">
-                            <input type="number" step="0.5" class="session-set-weight" data-exercise="${exName}" data-index="${idx}" value="${set.weight}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
+                            <input type="number" step="0.5" class="session-set-weight" data-exercise-index="${exerciseIndex}" data-index="${idx}" value="${set.weight}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
                             <span class="unit-label" style="font-size:0.75rem;">kg</span>
                         </div>
                         <div class="input-unit-wrapper" style="margin:0;">
-                            <input type="number" class="session-set-reps" data-exercise="${exName}" data-index="${idx}" value="${set.reps}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
+                            <input type="number" class="session-set-reps" data-exercise-index="${exerciseIndex}" data-index="${idx}" value="${set.reps}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
                             <span class="unit-label" style="font-size:0.75rem;">reps</span>
                         </div>
                         <div class="input-unit-wrapper" style="margin:0;">
                             <span class="unit-label-prefix" style="font-size:0.75rem;">RIR</span>
-                            <input type="number" class="session-set-rir" data-exercise="${exName}" data-index="${idx}" placeholder="-" value="${rirVal}" min="0" max="10" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
+                            <input type="number" class="session-set-rir" data-exercise-index="${exerciseIndex}" data-index="${idx}" placeholder="-" value="${rirVal}" min="0" max="10" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
                         </div>
                         <label class="fail-checkbox-wrapper" style="margin:0; display: flex; align-items: center; gap: 4px;">
-                            <input type="checkbox" class="session-set-failed" data-exercise="${exName}" data-index="${idx}" ${isFailedChecked}>
+                            <input type="checkbox" class="session-set-failed" data-exercise-index="${exerciseIndex}" data-index="${idx}" ${isFailedChecked}>
                             <span style="font-size: 0.8rem;">Fallo</span>
                         </label>
                     </div>
@@ -929,7 +981,7 @@ export class GymModule {
 
             exDiv.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px dashed var(--surface-border); padding-bottom: 5px;">
-                    <strong style="color: white; font-size: 0.95rem;">${exName}</strong>
+                    <strong style="color: white; font-size: 0.95rem;">${safeExerciseName}</strong>
                     <button type="button" class="btn-history-delete" style="padding:0;" title="Quitar Ejercicio"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
                 </div>
                 <div style="display:flex; flex-direction:column;">
@@ -947,6 +999,7 @@ export class GymModule {
         if (confirm(`¿Seguro que querés quitar el ejercicio "${exName}" de este entrenamiento?`)) {
             if (this.activeSession && this.activeSession.exercises[exName]) {
                 delete this.activeSession.exercises[exName];
+                this.persistActiveSession();
                 this.renderActiveSessionForm();
             }
         }
@@ -970,6 +1023,7 @@ export class GymModule {
             let exHtml = '<div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">';
             Object.keys(s.exercises).forEach(ex => {
                 const sets = s.exercises[ex];
+                const safeExerciseName = escapeHtml(ex);
                 const setsStr = sets.map((val, idx) => {
                     let suffix = '';
                     if (val.rir !== undefined && val.rir !== null && val.rir !== '') {
@@ -982,18 +1036,21 @@ export class GymModule {
                 }).join(' | ');
                 exHtml += `
                     <div style="font-size:0.85rem; background:rgba(0,0,0,0.15); padding:8px; border-radius:6px; border:1px solid var(--surface-border);">
-                        <div style="font-weight:600; color:white; margin-bottom:3px;">${ex}</div>
+                        <div style="font-weight:600; color:white; margin-bottom:3px;">${safeExerciseName}</div>
                         <div style="color:var(--text-secondary);">${setsStr}</div>
                     </div>
                 `;
             });
             exHtml += '</div>';
 
+            const sessionDate = /^\d{4}-\d{2}-\d{2}$/.test(s.date || '')
+                ? DateUtils.formatInputDate(s.date)
+                : escapeHtml(s.date || '-');
             card.innerHTML = `
                 <div class="card-header" style="justify-content: space-between; border-bottom: 1px dashed var(--surface-border); padding-bottom: 0.5rem;">
                     <div style="display:flex; align-items:center; gap:8px;">
                         <i class="ph ph-calendar" style="color:var(--primary-color);"></i>
-                        <h4 style="margin: 0; color: white;">Entrenamiento del ${s.date}</h4>
+                        <h4 style="margin: 0; color: white;">Entrenamiento del ${sessionDate}</h4>
                     </div>
                     <button class="btn-history-delete" style="padding:0;" title="Eliminar Sesión"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>
                 </div>
@@ -1026,7 +1083,7 @@ export class GymModule {
             ...this.records.map(r => r.name)
         ])];
 
-        dl.innerHTML = unique.map(e => `<option value="${e}">`).join('');
+        dl.innerHTML = unique.map(e => `<option value="${escapeHtml(e)}">`).join('');
     }
 
     renderNutrition() {

@@ -581,7 +581,10 @@ export class AuthSyncModule {
                     } catch (e) { console.error("Error parsing vehicle log in sync:", e); }
                 }
                 if (this.app.gym) {
-                    try { this.app.gym.loadData(); } catch (e) { console.error("Error reloading gym:", e); }
+                    try {
+                        this.app.gym.loadData();
+                        this.app.gym.syncActiveSessionUI();
+                    } catch (e) { console.error("Error reloading gym:", e); }
                 }
                 if (this.app.projects) {
                     try { this.app.projects.loadData(); } catch (e) { console.error("Error reloading projects:", e); }

@@ -1590,6 +1590,49 @@ textarea:focus {
     transition: opacity 0.2s ease-in-out;
 }
 
+.active-session-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.active-session-action-btn {
+    width: auto;
+    height: 38px;
+    margin: 0;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+
+.active-session-discard-btn {
+    color: var(--status-red);
+    border-color: rgba(239, 68, 68, 0.35);
+    background: rgba(239, 68, 68, 0.08);
+}
+
+.active-session-finish-btn {
+    color: white;
+    background: var(--status-green);
+}
+
+@media (max-width: 600px) {
+    #current-session > .card-header {
+        align-items: flex-start !important;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .active-session-actions {
+        width: 100%;
+    }
+
+    .active-session-action-btn {
+        flex: 1;
+        justify-content: center;
+    }
+}
+
 /* Rutina Maestra */
 .routine-days-grid {
     display: flex;

@@ -64,6 +64,9 @@ test('buildCloudPatch sends only requested unique keys', () => {
 });
 
 test('cloud configuration keeps server-managed keys read-only', () => {
+    assert.equal(CLOUD_SYNC_KEYS.includes('gym_active_session'), true);
+    assert.equal(CLOUD_RESTORE_KEYS.includes('gym_active_session'), true);
+    assert.equal(CLOUD_LOCAL_CLEAR_KEYS.includes('gym_active_session'), true);
     assert.equal(CLOUD_SYNC_KEYS.includes('alerts_sent_log'), false);
     assert.equal(CLOUD_SYNC_KEYS.includes('robot_last_notified_at'), false);
     assert.equal(CLOUD_SYNC_KEYS.includes('very_urgent_last_notified_at'), false);
