@@ -484,6 +484,13 @@ export class HygieneModule {
         
         const robot = this.data.robot_cleaner;
         const isDirty = robot.status === 'dirty';
+        const intervalHours = Math.min(
+            48,
+            Math.max(1, Number.parseInt(
+                this.app.alerts?.configs?.robot?.interval_hours,
+                10
+            ) || 6)
+        );
         
         if (isDirty) {
             this.robotCard.style.borderColor = 'rgba(239, 68, 68, 0.4)';
@@ -513,10 +520,10 @@ export class HygieneModule {
                             <p style="margin: 3px 0 0 0; font-size: 0.75rem; color: #f87171;">Estado: Pendiente de Lavado (${timeLabel})</p>
                         </div>
                     </div>
-                    <span class="badge red"><i class="ph ph-warning-circle"></i> Alertas Activas (c/6h)</span>
+                    <span class="badge red"><i class="ph ph-warning-circle"></i> Alertas Activas (c/${intervalHours}h)</span>
                 </div>
                 <div class="card-body" style="padding-top: 0; margin-top: 0.5rem;">
-                    <p class="backup-text" style="font-size: 0.85rem; margin-bottom: 1rem; color: var(--text-secondary);">Marcaste el robot como usado. Lávalo para detener los recordatorios cada 6 horas en tu celular.</p>
+                    <p class="backup-text" style="font-size: 0.85rem; margin-bottom: 1rem; color: var(--text-secondary);">Marcaste el robot como usado. Lávalo para detener los recordatorios cada ${intervalHours} horas.</p>
                     <button id="btn-wash-robot" class="btn btn-secondary" style="width: 100%; border-color: rgba(34, 197, 94, 0.3); color: #4ade80;">
                         <i class="ph ph-sparkle"></i> ✓ Listo, ya lo lavé
                     </button>

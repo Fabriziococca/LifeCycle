@@ -41,7 +41,6 @@ export class BackupModule {
             projectPulseHistory: localStorage.getItem('projectPulseHistory'),
             projectPulseSubscription: localStorage.getItem('projectPulseSubscription'),
             alerts_config: localStorage.getItem('alerts_config'),
-            alerts_sent_log: localStorage.getItem('alerts_sent_log'),
             finanzasData: localStorage.getItem('finanzasData'),
             tareas_list: localStorage.getItem('tareas_list'),
             tareas_categories: localStorage.getItem('tareas_categories'),
@@ -213,13 +212,6 @@ export class BackupModule {
                         : JSON.stringify(rawData.alerts_config);
                     localStorage.setItem('alerts_config', dataVal);
                     importedCategories.push("Configuración de Alertas");
-                }
-
-                if (rawData.alerts_sent_log) {
-                    const dataVal = typeof rawData.alerts_sent_log === 'string' 
-                        ? rawData.alerts_sent_log 
-                        : JSON.stringify(rawData.alerts_sent_log);
-                    localStorage.setItem('alerts_sent_log', dataVal);
                 }
 
                 // Tareas

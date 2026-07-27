@@ -4,7 +4,9 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+    assertServerManagedUserDataPatch,
     getDuplicateSubscriptionRowIds,
+    getLatestValidDate,
     getPendingVeryUrgentTasks,
     groupSubscriptionsByUser,
     isExpiredPushError,
@@ -100,8 +102,37 @@ test('normalizeIntervalHours enforces the supported range', () => {
     assert.equal(normalizeIntervalHours('invalid', 'invalid'), 4);
 });
 
+test('getLatestValidDate keeps a new robot cycle from using an older server timestamp', () => {
+    const latest = getLatestValidDate([
+        '2026-07-20T10:00:00.000Z',
+        '2026-07-27T05:00:00.000Z',
+        null,
+        'invalid'
+    ]);
+
+    assert.equal(latest.toISOString(), '2026-07-27T05:00:00.000Z');
+    assert.equal(getLatestValidDate([null, undefined, 'invalid']), null);
+});
+
 test('isExpiredPushError recognizes gone push endpoints', () => {
     assert.equal(isExpiredPushError({ statusCode: 404 }), true);
     assert.equal(isExpiredPushError({ statusCode: 410 }), true);
     assert.equal(isExpiredPushError({ statusCode: 500 }), false);
+});
+
+test('assertServerManagedUserDataPatch protects user-owned module keys', () => {
+    assert.doesNotThrow(() => assertServerManagedUserDataPatch({
+        alerts_sent_log: { hygiene: '2026-07-27' },
+        robot_last_notified_at: '2026-07-27T05:00:00.000Z',
+        very_urgent_last_notified_at: '2026-07-27T05:00:00.000Z'
+    }));
+
+    assert.throws(
+        () => assertServerManagedUserDataPatch({ tareas_list: '[]' }),
+        /clave no permitida/
+    );
+    assert.throws(
+        () => assertServerManagedUserDataPatch(null),
+        /no es válida/
+    );
 });

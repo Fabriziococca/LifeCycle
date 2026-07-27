@@ -1,5 +1,11 @@
 'use strict';
 
+const SERVER_MANAGED_USER_DATA_KEYS = new Set([
+    'alerts_sent_log',
+    'robot_last_notified_at',
+    'very_urgent_last_notified_at'
+]);
+
 function parseJsonValue(value, fallback) {
     if (value === null || value === undefined || value === '') return fallback;
     if (typeof value !== 'string') return value;
@@ -17,6 +23,17 @@ function normalizeIntervalHours(value, fallbackHours) {
     const safeFallback = Number.isFinite(fallback) ? fallback : 4;
     const safeValue = Number.isFinite(parsed) ? parsed : safeFallback;
     return Math.min(48, Math.max(1, safeValue));
+}
+
+function getLatestValidDate(values = []) {
+    const timestamps = values
+        .filter(value => value !== null && value !== undefined && value !== '')
+        .map(value => new Date(value).getTime())
+        .filter(Number.isFinite);
+
+    return timestamps.length > 0
+        ? new Date(Math.max(...timestamps))
+        : null;
 }
 
 function getPendingVeryUrgentTasks(snapshot = {}) {
@@ -88,8 +105,22 @@ function isExpiredPushError(error) {
     return statusCode === 404 || statusCode === 410;
 }
 
+function assertServerManagedUserDataPatch(updates) {
+    if (!updates || typeof updates !== 'object' || Array.isArray(updates)) {
+        throw new TypeError('La actualización interna de user_data no es válida.');
+    }
+
+    const invalidKey = Object.keys(updates)
+        .find(key => !SERVER_MANAGED_USER_DATA_KEYS.has(key));
+    if (invalidKey) {
+        throw new Error(`El backend intentó modificar una clave no permitida: ${invalidKey}`);
+    }
+}
+
 module.exports = {
+    assertServerManagedUserDataPatch,
     getDuplicateSubscriptionRowIds,
+    getLatestValidDate,
     getPendingVeryUrgentTasks,
     groupSubscriptionsByUser,
     isExpiredPushError,

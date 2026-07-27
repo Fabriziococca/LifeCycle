@@ -6,7 +6,9 @@ const webpush = require('web-push');
 const { createClient } = require('@supabase/supabase-js');
 const sharedRules = require('./shared_rules.json');
 const {
+    assertServerManagedUserDataPatch,
     getDuplicateSubscriptionRowIds,
+    getLatestValidDate,
     getPendingVeryUrgentTasks,
     groupSubscriptionsByUser,
     isExpiredPushError,
@@ -195,6 +197,21 @@ function ensureAlertConfigs(alertsConfig, oldReminders = {}) {
     return changed;
 }
 
+async function mergeServerUserDataKeys(userId, updates) {
+    if (!supabase) {
+        throw new Error('Supabase no está disponible.');
+    }
+    if (!userId) throw new TypeError('El identificador de usuario es obligatorio.');
+    assertServerManagedUserDataPatch(updates);
+
+    const { error } = await supabase.rpc('merge_server_user_data_keys', {
+        p_user_id: userId,
+        p_updates: updates
+    });
+
+    if (error) throw error;
+}
+
 async function deleteSubscriptionRows(rowIds, reason) {
     const uniqueIds = [...new Set((rowIds || []).filter(Boolean))];
     if (!supabase || uniqueIds.length === 0) return 0;
@@ -292,8 +309,14 @@ app.use(express.static(__dirname, {
     dotfiles: 'deny',
     maxAge: '7d', // Cache static assets for 7 days by default
     setHeaders: (res, filePath) => {
-        if (filePath.endsWith('.html') || filePath.includes('sw.js') || filePath.endsWith('.js') || filePath.endsWith('.css')) {
-            // HTML, JS, CSS files and Service Worker must not be cached strongly to guarantee updates
+        if (
+            filePath.endsWith('.html')
+            || filePath.includes('sw.js')
+            || filePath.endsWith('.js')
+            || filePath.endsWith('.mjs')
+            || filePath.endsWith('.css')
+        ) {
+            // HTML, JS modules, CSS and the Service Worker must revalidate on every load.
             res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
         } else if (filePath.endsWith('.json') || filePath.endsWith('.png') || filePath.endsWith('.ico')) {
             // JSON and images cached for 1 week
@@ -609,7 +632,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
         if (dbError) throw dbError;
         if (subError) throw subError;
 
-        console.log(`[Alert Engine] Tick: checking alerts (forceAll: ${forceAll}). Time in Argentina: ${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}, Day: ${dayOfWeek}, Date: ${dateStr}. Subscriptions found: ${subs ? subs.length : 0}`);
+        console.log(`[Notification Engine] Tick: checking configured notifications (forceAll: ${forceAll}). Time in Argentina: ${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}, Day: ${dayOfWeek}, Date: ${dateStr}. Subscriptions found: ${subs ? subs.length : 0}`);
 
         if (!usersData || usersData.length === 0) return;
         if (!subs || subs.length === 0) return;
@@ -645,17 +668,15 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
             const gymSupplements = parseJsonValue(data.gym_supplements, {});
             const oldReminders = gymSupplements?.custom_reminders || {};
-            const configFilled = ensureAlertConfigs(alertsConfig, oldReminders);
-            if (configFilled) {
-                data.alerts_config = alertsConfig;
-            }
+            ensureAlertConfigs(alertsConfig, oldReminders);
 
             // Inicializar log de envíos diarios si no existe
             if (!data.alerts_sent_log) {
                 data.alerts_sent_log = {};
             }
 
-            let dataChanged = configFilled;
+            let dataChanged = false;
+            const sentLogUpdates = {};
 
             // Procesar cada alerta definida
             for (const key of Object.keys(alertsConfig)) {
@@ -1223,6 +1244,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
                                                 if (!forceAll && result.successCount > 0) {
                                                     data.alerts_sent_log[logKey] = candidate.dateStr;
+                                                    sentLogUpdates[logKey] = candidate.dateStr;
                                                     dataChanged = true;
                                                 }
                                             }
@@ -1324,6 +1346,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
                                         if (!forceAll && result.successCount > 0) {
                                             data.alerts_sent_log[itemLogKey] = candidate.dateStr;
+                                            sentLogUpdates[itemLogKey] = candidate.dateStr;
                                             dataChanged = true;
                                         }
                                     }
@@ -1350,6 +1373,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
                         if (!forceAll && result.successCount > 0) {
                             data.alerts_sent_log[key] = candidate.dateStr;
+                            sentLogUpdates[key] = candidate.dateStr;
                             dataChanged = true;
                         }
                     }
@@ -1359,20 +1383,13 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 }
             }
 
-            // Guardar si hubo cambios y no es forzado
-            let shouldSaveConfig = false;
-            if (!data.alerts_config) {
-                data.alerts_config = JSON.stringify(alertsConfig);
-                shouldSaveConfig = true;
-            }
-
-            if ((dataChanged || shouldSaveConfig) && !forceAll) {
-                const { error: updateError } = await supabase
-                    .from('user_data')
-                    .update({ data: data })
-                    .eq('user_id', userId);
-
-                if (updateError) {
+            // Persistir solo el log interno del servidor para no pisar cambios del usuario.
+            if (dataChanged && !forceAll) {
+                try {
+                    await mergeServerUserDataKeys(userId, {
+                        alerts_sent_log: sentLogUpdates
+                    });
+                } catch (updateError) {
                     console.error(`[Alert Engine] No se pudo guardar el estado de alertas para usuario ${userId}:`, updateError.message);
                 }
             }
@@ -1448,9 +1465,11 @@ async function checkAndSendRobotReminders() {
                 const intervalMs = intervalHours * 60 * 60 * 1000;
 
                 const markedDirtyAt = new Date(robot.marked_dirty_at);
-                const lastNotifiedAt = robot.last_notified_at ? new Date(robot.last_notified_at) : null;
-                
-                const timeToCheck = lastNotifiedAt || markedDirtyAt;
+                const timeToCheck = getLatestValidDate([
+                    markedDirtyAt,
+                    robot.last_notified_at,
+                    data.robot_last_notified_at
+                ]) || markedDirtyAt;
                 const diffMs = now - timeToCheck;
                 
                 if (diffMs >= intervalMs) {
@@ -1475,15 +1494,11 @@ async function checkAndSendRobotReminders() {
                     });
 
                     if (result.successCount > 0) {
-                        robot.last_notified_at = now.toISOString();
-                        data.hygiene_tracker_data = hygieneData;
-
-                        const { error: updateErr } = await supabase
-                            .from('user_data')
-                            .update({ data: data })
-                            .eq('user_id', userId);
-
-                        if (updateErr) {
+                        try {
+                            await mergeServerUserDataKeys(userId, {
+                                robot_last_notified_at: now.toISOString()
+                            });
+                        } catch (updateErr) {
                             console.error(`[Robot Reminder] Error al actualizar base de datos para usuario ${userId}:`, updateErr);
                         }
                     }
@@ -1523,13 +1538,11 @@ async function checkAndSendRobotReminders() {
                             });
 
                             if (result.successCount > 0) {
-                                data.very_urgent_last_notified_at = now.toISOString();
-                                const { error: updateError } = await supabase
-                                    .from('user_data')
-                                    .update({ data: data })
-                                    .eq('user_id', userId);
-
-                                if (updateError) {
+                                try {
+                                    await mergeServerUserDataKeys(userId, {
+                                        very_urgent_last_notified_at: now.toISOString()
+                                    });
+                                } catch (updateError) {
                                     console.error(`[Very Urgent] No se pudo guardar el último envío para usuario ${userId}:`, updateError.message);
                                 }
                             }

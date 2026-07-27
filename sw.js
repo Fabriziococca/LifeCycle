@@ -1,80 +1,23 @@
-const CACHE_NAME = 'lifecycle-cache-v12';
-const STATIC_ASSETS = [
-    '/',
-    '/index.html',
-    '/app.js',
-    '/utils.js',
-    '/shared_rules.json',
-    '/style.css',
-    '/manifest.json',
-    '/icon-v2.png',
-    '/modules/HygieneModule.js',
-    '/modules/GroomingModule.js',
-    '/modules/LensModule.js',
-    '/modules/HealthModule.js',
-    '/modules/VehicleModule.js',
-    '/modules/GymModule.js',
-    '/modules/ProjectsModule.js',
-    '/modules/BackupModule.js',
-    '/modules/AuthSyncModule.js',
-    '/modules/FinanzasModule.js',
-    '/modules/TareasModule.js',
-    '/modules/AlertsModule.js',
-    '/modules/NotificationsCenterModule.js'
-];
+const LEGACY_CACHE_PREFIX = 'lifecycle-cache-';
 
 self.addEventListener('install', (e) => {
-    console.log('[Service Worker] LifeCycle Installed');
-    e.waitUntil(
-        caches.open(CACHE_NAME).then((cache) => {
-            console.log('[Service Worker] Pre-caching static assets');
-            return cache.addAll(STATIC_ASSETS).catch(err => {
-                console.warn('[Service Worker] Pre-cache failed for some assets, continuing anyway:', err);
-            });
-        }).then(() => self.skipWaiting())
-    );
+    console.log('[Service Worker] LifeCycle Push worker installed');
+    e.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', (e) => {
-    console.log('[Service Worker] LifeCycle Activated');
+    console.log('[Service Worker] LifeCycle Push worker activated');
     e.waitUntil(
         caches.keys().then((keys) => {
             return Promise.all(
                 keys.map((key) => {
-                    if (key !== CACHE_NAME) {
-                        console.log('[Service Worker] Removing old cache', key);
+                    if (key.startsWith(LEGACY_CACHE_PREFIX)) {
+                        console.log('[Service Worker] Removing offline cache', key);
                         return caches.delete(key);
                     }
                 })
             );
         }).then(() => self.clients.claim())
-    );
-});
-
-self.addEventListener('fetch', (e) => {
-    const url = new URL(e.request.url);
-    
-    // Evitar interceptar Supabase, llamadas de API, o métodos que no sean GET
-    if (
-        url.hostname.includes('supabase') || 
-        url.pathname.includes('/api/') || 
-        e.request.method !== 'GET'
-    ) {
-        return;
-    }
-
-    e.respondWith(
-        fetch(e.request).then((networkResponse) => {
-            if (networkResponse && networkResponse.status === 200) {
-                const responseClone = networkResponse.clone();
-                caches.open(CACHE_NAME).then((cache) => {
-                    cache.put(e.request, responseClone);
-                });
-            }
-            return networkResponse;
-        }).catch(() => {
-            return caches.match(e.request);
-        })
     );
 });
 

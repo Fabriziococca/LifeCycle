@@ -1,3 +1,15 @@
+import {
+    CLOUD_LOCAL_CLEAR_KEYS,
+    CLOUD_RESTORE_KEYS,
+    CLOUD_SERVER_MANAGED_KEYS,
+    CLOUD_SYNC_KEYS,
+    SYNC_PENDING_STORAGE_KEY
+} from '../sync-config.mjs?v=20260727-cloud-first';
+import {
+    areStoredValuesEqual,
+    buildCloudPatch
+} from '../sync-utils.mjs';
+
 export class AuthSyncModule {
     constructor(appController) {
         this.app = appController;
@@ -35,10 +47,17 @@ export class AuthSyncModule {
         this.pushNotificationsCard = document.getElementById('push-notifications-card');
         this.btnEnablePush = document.getElementById('btn-enable-push');
         this.btnTestPush = document.getElementById('btn-test-push');
+        this.pushStatusMessage = document.getElementById('push-status-message');
         
         this.realtimeChannel = null;
         this.isSyncing = false;
-        this.pendingSync = false;
+        this.isRestoring = false;
+        this.syncGeneration = 0;
+        this.activeSyncPromise = null;
+        this.pendingSyncKeys = this.loadPendingSyncKeys();
+        this.syncFlushTimer = null;
+        this.syncRetryTimer = null;
+        this.realtimeRefreshTimer = null;
         this.pushSyncPromise = null;
         this.setupAccessGateListeners();
         this.init();
@@ -187,12 +206,10 @@ export class AuthSyncModule {
         if (!email || !password) return;
         
         this.setLoading(true, "Iniciando sesión...");
-        sessionStorage.setItem('is_explicit_login', 'true');
         
         const { error } = await this.supabase.auth.signInWithPassword({ email, password });
         
         if (error) {
-            sessionStorage.removeItem('is_explicit_login');
             this.setLoading(false);
             const message = error.message?.toLowerCase().includes('invalid login credentials')
                 ? 'Correo o contraseña incorrectos.'
@@ -204,7 +221,16 @@ export class AuthSyncModule {
     async logout() {
         if (confirm("¿Estás seguro de que deseas cerrar sesión? Volverás a la pantalla de acceso.")) {
             this.setLoading(true, "Cerrando sesión...");
-            await this.supabase.auth.signOut();
+            const { error } = await this.supabase.auth.signOut();
+            if (error) {
+                console.error('Error cerrando sesión:', error);
+                alert(`No se pudo cerrar la sesión: ${error.message}`);
+                this.setLoading(false);
+                this.setAccessGateState('authenticated');
+                return;
+            }
+
+            this.clearLocalUserData();
             location.reload();
         }
     }
@@ -221,18 +247,24 @@ export class AuthSyncModule {
             if (this.profileEmail) this.profileEmail.innerText = user.email;
             if (this.pushNotificationsCard) this.pushNotificationsCard.classList.remove('hidden');
             
-            // Check push subscription status
-            await this.checkPushSubscriptionStatus();
-            
-            // Trigger sync check
-            await this.checkAndSyncData();
+            // Supabase is the source of truth. Do not reveal the app until cloud data is ready.
+            const cloudReady = await this.checkAndSyncData();
+            if (!cloudReady) {
+                throw new Error('No se pudo cargar el estado principal desde Supabase.');
+            }
 
             // Setup realtime subscription for cross-device updates
             this.setupRealtimeSubscription();
             this.setLoading(false);
             this.setAccessGateState('authenticated');
+
+            // Push is optional and must never block access to cloud data.
+            this.checkPushSubscriptionStatus().catch(error => {
+                console.error('[Push] No se pudo comprobar el estado del dispositivo:', error);
+            });
         } else {
             // Logged out
+            this.clearLocalUserData();
             if (this.authLoggedIn) this.authLoggedIn.classList.add('hidden');
             if (this.authLoggedOut) this.authLoggedOut.classList.remove('hidden');
             if (this.profileEmail) this.profileEmail.innerText = '';
@@ -265,244 +297,248 @@ export class AuthSyncModule {
         }
     }
 
-    gatherLocalData() {
-        return {
-            hygiene_tracker_data: localStorage.getItem('hygiene_tracker_data'),
-            groomingData_v2: localStorage.getItem('groomingData_v2'),
-            lensesStartTime: localStorage.getItem('lensesStartTime'),
-            lensesHistory: localStorage.getItem('lensesHistory'),
-            lensStock: localStorage.getItem('lensStock'),
-            lensDate: localStorage.getItem('lensDate'),
-            solutionDate: localStorage.getItem('solutionDate'),
-            caseDate: localStorage.getItem('caseDate'),
-            systaneDate: localStorage.getItem('systaneDate'),
-            clothWashDate: localStorage.getItem('clothWashDate'),
-            clothChangeDate: localStorage.getItem('clothChangeDate'),
-            health_medical_data: localStorage.getItem('health_medical_data'),
-            health_blood_tests: localStorage.getItem('health_blood_tests'),
-            vehicle_odometer: localStorage.getItem('vehicle_odometer'),
-            vehicle_maintenance_log: localStorage.getItem('vehicle_maintenance_log'),
-            gym_records: localStorage.getItem('gym_records'),
-            gym_routine: localStorage.getItem('gym_routine'),
-            gym_routine_focus: localStorage.getItem('gym_routine_focus'),
-            gym_sessions: localStorage.getItem('gym_sessions'),
-            gym_meals: localStorage.getItem('gym_meals'),
-            gym_general_meals: localStorage.getItem('gym_general_meals'),
-            gym_supplements: localStorage.getItem('gym_supplements'),
-            gym_weight: localStorage.getItem('gym_weight'),
-            projectPulseData: localStorage.getItem('projectPulseData'),
-            projectPulseHistory: localStorage.getItem('projectPulseHistory'),
-            projectPulseSubscription: localStorage.getItem('projectPulseSubscription'),
-            alerts_config: localStorage.getItem('alerts_config'),
-            alerts_sent_log: localStorage.getItem('alerts_sent_log'),
-            finanzasData: localStorage.getItem('finanzasData'),
-            vehicle_tracker_data: localStorage.getItem('vehicle_tracker_data'),
-            vehicle_issues: localStorage.getItem('vehicle_issues'),
-            tareas_list: localStorage.getItem('tareas_list'),
-            tareas_categories: localStorage.getItem('tareas_categories'),
-            tareas_pinned_projects: localStorage.getItem('tareas_pinned_projects'),
-            tareas_pinned_project_ids: localStorage.getItem('tareas_pinned_project_ids'),
-            tareas_removed_project_ids: localStorage.getItem('tareas_removed_project_ids')
-        };
-    }
-
-    areValuesEqual(val1, val2) {
-        if (val1 === val2) return true;
-        if (!val1 && !val2) return true; // both are null/undefined/empty
-        if (!val1 || !val2) return false;
-        
+    loadPendingSyncKeys() {
         try {
-            const obj1 = typeof val1 === 'object' ? val1 : JSON.parse(val1);
-            const obj2 = typeof val2 === 'object' ? val2 : JSON.parse(val2);
-            return JSON.stringify(obj1) === JSON.stringify(obj2);
-        } catch (e) {
-            return String(val1).trim() === String(val2).trim();
+            const parsed = JSON.parse(localStorage.getItem(SYNC_PENDING_STORAGE_KEY) || '[]');
+            if (!Array.isArray(parsed)) return new Set();
+            return new Set(parsed.filter(key => CLOUD_SYNC_KEYS.includes(key)));
+        } catch (error) {
+            console.warn('[Cloud Sync] No se pudo leer la cola local pendiente:', error);
+            return new Set();
         }
     }
 
-    async checkAndSyncData() {
-        if (!this.user) return;
-        
+    persistPendingSyncKeys() {
+        if (this.pendingSyncKeys.size === 0) {
+            localStorage.removeItem(SYNC_PENDING_STORAGE_KEY);
+            return;
+        }
+
+        localStorage.setItem(
+            SYNC_PENDING_STORAGE_KEY,
+            JSON.stringify([...this.pendingSyncKeys])
+        );
+    }
+
+    clearLocalUserData() {
+        this.syncGeneration += 1;
+        this.activeSyncPromise = null;
+        this.isSyncing = false;
+        this.isRestoring = true;
         try {
-            // 1. Read cloud data
+            clearTimeout(this.syncFlushTimer);
+            clearTimeout(this.syncRetryTimer);
+            clearTimeout(this.realtimeRefreshTimer);
+            this.syncFlushTimer = null;
+            this.syncRetryTimer = null;
+            this.realtimeRefreshTimer = null;
+            CLOUD_LOCAL_CLEAR_KEYS.forEach(key => localStorage.removeItem(key));
+            this.pendingSyncKeys.clear();
+            localStorage.removeItem(SYNC_PENDING_STORAGE_KEY);
+            localStorage.removeItem('has_unsynced_local_changes');
+            sessionStorage.removeItem('is_explicit_login');
+        } finally {
+            this.isRestoring = false;
+        }
+    }
+
+    gatherLocalData(keys = CLOUD_SYNC_KEYS) {
+        return Object.fromEntries(
+            keys.map(key => [key, localStorage.getItem(key)])
+        );
+    }
+
+    areValuesEqual(val1, val2) {
+        return areStoredValuesEqual(val1, val2);
+    }
+
+    queueKeySync(key) {
+        if (!CLOUD_SYNC_KEYS.includes(key) || !this.user) return;
+
+        this.pendingSyncKeys.add(key);
+        this.persistPendingSyncKeys();
+        this.updateSyncBadge('syncing', 'Guardando cambios...');
+
+        clearTimeout(this.syncFlushTimer);
+        this.syncFlushTimer = setTimeout(() => {
+            this.flushPendingKeySync().catch(error => {
+                console.error('[Cloud Sync] Error en guardado diferido:', error);
+            });
+        }, 700);
+    }
+
+    async flushPendingKeySync(isManual = false) {
+        if (!this.user || !this.supabase) return false;
+
+        clearTimeout(this.syncFlushTimer);
+        clearTimeout(this.syncRetryTimer);
+        this.syncRetryTimer = null;
+
+        if (this.activeSyncPromise) {
+            const activeResult = await this.activeSyncPromise;
+            if (!this.user || !this.supabase) return false;
+            if (!activeResult) {
+                if (isManual) {
+                    alert('Todavía hay cambios pendientes. LifeCycle volverá a intentar guardarlos automáticamente.');
+                }
+                return false;
+            }
+            if (this.pendingSyncKeys.size > 0) {
+                return this.flushPendingKeySync(isManual);
+            }
+            return true;
+        }
+
+        if (this.pendingSyncKeys.size === 0) {
+            this.updateSyncBadge('synced', 'Sincronizado');
+            return true;
+        }
+
+        const keysToSync = [...this.pendingSyncKeys];
+        keysToSync.forEach(key => this.pendingSyncKeys.delete(key));
+        this.persistPendingSyncKeys();
+
+        const syncGeneration = this.syncGeneration;
+        const syncUserId = this.user.id;
+        const isCurrentSession = () => (
+            this.syncGeneration === syncGeneration
+            && this.user?.id === syncUserId
+        );
+        let operation;
+        operation = (async () => {
+            this.isSyncing = true;
+            this.updateSyncBadge('syncing', 'Sincronizando...');
+
+            try {
+                const { updates, deleteKeys } = buildCloudPatch(
+                    keysToSync,
+                    key => localStorage.getItem(key)
+                );
+
+                const { error } = await this.supabase.rpc('merge_user_data_keys', {
+                    p_updates: updates,
+                    p_delete_keys: deleteKeys
+                });
+                if (error) throw error;
+
+                if (!isCurrentSession()) return false;
+                localStorage.removeItem('has_unsynced_local_changes');
+                this.updateSyncBadge('synced', 'Sincronizado');
+                return true;
+            } catch (error) {
+                if (!isCurrentSession()) return false;
+                keysToSync.forEach(key => this.pendingSyncKeys.add(key));
+                this.persistPendingSyncKeys();
+                this.updateSyncBadge('error', 'Cambios pendientes');
+                console.error('[Cloud Sync] No se pudieron guardar las claves modificadas:', error);
+
+                this.syncRetryTimer = setTimeout(() => {
+                    this.flushPendingKeySync().catch(retryError => {
+                        console.error('[Cloud Sync] Falló el reintento:', retryError);
+                    });
+                }, 15 * 1000);
+
+                if (isManual) {
+                    alert(`No se pudieron guardar los cambios: ${error.message}`);
+                }
+                return false;
+            } finally {
+                if (this.activeSyncPromise === operation) {
+                    this.activeSyncPromise = null;
+                    this.isSyncing = false;
+                }
+                if (
+                    isCurrentSession()
+                    && this.pendingSyncKeys.size > 0
+                    && !this.syncRetryTimer
+                ) {
+                    this.syncFlushTimer = setTimeout(() => {
+                        this.flushPendingKeySync().catch(error => {
+                            console.error('[Cloud Sync] Error procesando cambios nuevos:', error);
+                        });
+                    }, 200);
+                }
+            }
+        })();
+
+        this.activeSyncPromise = operation;
+        return operation;
+    }
+
+    async checkAndSyncData({ skipPendingFlush = false } = {}) {
+        if (!this.user || !this.supabase) return false;
+
+        try {
+            if (!skipPendingFlush && this.pendingSyncKeys.size > 0) {
+                const pendingSaved = await this.flushPendingKeySync();
+                if (!pendingSaved) return false;
+            }
+
             const { data, error } = await this.supabase
                 .from('user_data')
                 .select('data')
                 .eq('user_id', this.user.id)
-                .single();
-                
-            const cloudData = data?.data;
-            const hasLocalData = this.hasAnyLocalData();
-            
-            if (error && error.code !== 'PGRST116') { // PGRST116 means no row found
-                console.error("Error fetching cloud data:", error);
-                this.updateSyncBadge('error', "Error al obtener datos");
-                return;
-            }
-            
+                .maybeSingle();
+            if (error) throw error;
+
+            let cloudData = data?.data;
             if (!cloudData) {
-                // No data in cloud yet.
-                if (hasLocalData) {
-                    console.log("No data on cloud, uploading local data...");
-                    await this.syncToCloud(false);
-                } else {
-                    await this.supabase.from('user_data').insert({
-                        user_id: this.user.id,
-                        data: {}
-                    });
-                    this.updateSyncBadge('synced', "Sincronizado");
-                }
-            } else {
-                 // Cloud data exists! Compare normalized differences
-                const local = this.gatherLocalData();
-                let hasDifference = false;
-                Object.keys(local).forEach(key => {
-                    const cloudVal = cloudData[key] === undefined ? null : cloudData[key];
-                    const localVal = local[key] === undefined ? null : local[key];
-                    if (!this.areValuesEqual(cloudVal, localVal)) {
-                        hasDifference = true;
-                    }
-                });
-
-                if (!hasDifference) {
-                    localStorage.removeItem('has_unsynced_local_changes');
-                    this.updateSyncBadge('synced', "Sincronizado");
-                    return;
-                }
-
-                // Si hay diferencias pero tenemos cambios locales pendientes de subir (ej: por falla de conexión anterior), los subimos
-                const hasUnsynced = localStorage.getItem('has_unsynced_local_changes') === 'true';
-                if (hasUnsynced && sessionStorage.getItem('is_explicit_login') !== 'true') {
-                    console.log("[AuthSync] This device has unsynced local changes. Uploading to cloud...");
-                    await this.syncToCloud(false);
-                    return;
-                }
-
-                // Check if this was an explicit login action
-                const isExplicitLogin = sessionStorage.getItem('is_explicit_login') === 'true';
-                sessionStorage.removeItem('is_explicit_login');
-
-                if (isExplicitLogin && hasLocalData) {
-                    const confirmMerge = confirm(
-                        "¡Sesión iniciada! Se encontraron diferencias entre los datos en la nube y los locales. \n\n" +
-                        "¿Deseas CARGAR los datos de la nube y sobreescribir los locales?\n" +
-                        "(Acepta para usar los datos de la nube. Cancela si deseas mantener los locales y sobreescribir la nube)."
-                    );
-                    
-                    if (confirmMerge) {
-                        this.restoreDataLocally(cloudData);
-                        alert("Datos de la nube restaurados localmente.");
-                        location.reload();
-                    } else {
-                        // Push local data to overwrite cloud
-                        await this.syncToCloud(false);
-                    }
-                } else {
-                    // Pull silently in the background on normal loads (no reload loop!)
-                    this.restoreDataLocally(cloudData);
-                }
+                const { error: insertError } = await this.supabase
+                    .from('user_data')
+                    .insert({ user_id: this.user.id, data: {} });
+                if (insertError) throw insertError;
+                cloudData = {};
             }
-        } catch (err) {
-            console.error("Sync data error:", err);
-            this.updateSyncBadge('error', "Error de conexión");
-        }
-    }
 
-    hasAnyLocalData() {
-        const local = this.gatherLocalData();
-        return Object.values(local).some(v => v !== null && v !== undefined && v !== '');
+            // Internal scheduler state belongs only to the backend and should not remain cached.
+            CLOUD_SERVER_MANAGED_KEYS.forEach(key => localStorage.removeItem(key));
+
+            const localData = this.gatherLocalData(CLOUD_RESTORE_KEYS);
+            const hasDifference = CLOUD_RESTORE_KEYS.some(key => {
+                const cloudValue = cloudData[key] === undefined ? null : cloudData[key];
+                return !this.areValuesEqual(cloudValue, localData[key]);
+            });
+
+            if (hasDifference) {
+                this.restoreDataLocally(cloudData);
+            }
+
+            localStorage.removeItem('has_unsynced_local_changes');
+            sessionStorage.removeItem('is_explicit_login');
+            this.updateSyncBadge('synced', 'Sincronizado');
+            return true;
+        } catch (error) {
+            console.error('[Cloud Sync] Error obteniendo la fuente cloud:', error);
+            this.updateSyncBadge('error', 'Error de conexión');
+            return false;
+        }
     }
 
     async syncToCloud(isManual = false) {
-        if (!this.user || !this.supabase) return;
-        
-        // Registrar que tenemos cambios locales pendientes de subir
-        localStorage.setItem('has_unsynced_local_changes', 'true');
-        
-        if (this.isSyncing) {
-            this.pendingSync = true;
-            return;
-        }
-        
-        this.isSyncing = true;
-        this.isRestoring = true;
-        this.updateSyncBadge('syncing', "Sincronizando...");
-        
-        try {
-            // 1. Obtener datos actuales en la nube para no sobreescribir alerts_sent_log
-            const { data: cloudRow, error: cloudReadError } = await this.supabase
-                .from('user_data')
-                .select('data')
-                .eq('user_id', this.user.id)
-                .single();
+        if (!this.user || !this.supabase) return false;
 
-            if (cloudReadError && cloudReadError.code !== 'PGRST116') {
-                throw new Error(`No se pudo leer el estado cloud antes de sincronizar: ${cloudReadError.message}`);
+        if (this.pendingSyncKeys.size === 0) {
+            if (isManual) {
+                const refreshed = await this.checkAndSyncData({ skipPendingFlush: true });
+                alert(refreshed
+                    ? 'Datos actualizados desde la nube.'
+                    : 'No se pudieron actualizar los datos desde la nube.');
+                return refreshed;
             }
-            
-            const cloudData = cloudRow?.data || {};
-            const localData = this.gatherLocalData();
-
-            // Conservar metadatos que pertenecen al motor de alertas del servidor.
-            if (cloudData.alerts_sent_log) {
-                const cloudLogStr = typeof cloudData.alerts_sent_log === 'string'
-                    ? cloudData.alerts_sent_log
-                    : JSON.stringify(cloudData.alerts_sent_log);
-                localData.alerts_sent_log = cloudLogStr;
-                localStorage.setItem('alerts_sent_log', cloudLogStr);
-            }
-            if (cloudData.very_urgent_last_notified_at) {
-                localData.very_urgent_last_notified_at = cloudData.very_urgent_last_notified_at;
-            }
-            
-            const { error } = await this.supabase
-                .from('user_data')
-                .upsert({
-                    user_id: this.user.id,
-                    data: localData,
-                    updated_at: new Date().toISOString()
-                });
-                
-            if (error) {
-                console.error("Sync to cloud error:", error);
-                this.updateSyncBadge('error', "Error al guardar");
-                if (isManual) alert("Error al sincronizar datos con la nube: " + error.message);
-            } else {
-                // Sincronización exitosa: limpiar bandera de cambios pendientes
-                localStorage.removeItem('has_unsynced_local_changes');
-                this.updateSyncBadge('synced', "Sincronizado");
-                if (isManual) alert("¡Datos sincronizados correctamente con la nube!");
-            }
-        } catch (e) {
-            console.error("Sync catch error:", e);
-            this.updateSyncBadge('error', "Error de sincronización");
-        } finally {
-            this.isSyncing = false;
-            this.isRestoring = false;
-            if (this.pendingSync) {
-                this.pendingSync = false;
-                // Executing pending sync to send latest modifications
-                this.syncToCloud(false);
-            }
+            return true;
         }
+
+        const saved = await this.flushPendingKeySync(isManual);
+        if (saved && isManual) {
+            alert('¡Cambios sincronizados correctamente!');
+        }
+        return saved;
     }
 
     restoreDataLocally(cloudData) {
         this.isRestoring = true;
         try {
-            const localKeys = [
-                'hygiene_tracker_data', 'groomingData_v2', 'lensesStartTime', 
-                'lensesHistory', 'lensStock', 'lensDate', 'solutionDate', 
-                'caseDate', 'systaneDate', 'clothWashDate', 'clothChangeDate', 
-                'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
-                'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
-                'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
-                'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory', 
-                'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData',
-                'vehicle_tracker_data', 'vehicle_issues', 'tareas_list', 'tareas_categories',
-                'tareas_pinned_projects', 'tareas_pinned_project_ids', 'tareas_removed_project_ids'
-            ];
-            localKeys.forEach(key => {
+            CLOUD_RESTORE_KEYS.forEach(key => {
                 let val = cloudData[key];
                 if (val !== null && val !== undefined) {
                     if (typeof val === 'object') {
@@ -556,6 +592,9 @@ export class AuthSyncModule {
                 if (this.app.tareas) {
                     try { this.app.tareas.loadData(); } catch (e) { console.error("Error reloading tareas:", e); }
                 }
+                if (this.app.alerts) {
+                    try { this.app.alerts.loadData(); } catch (e) { console.error("Error reloading alerts:", e); }
+                }
             } catch (e) {
                 console.error("Critical error reloading in-memory data during silent sync:", e);
             }
@@ -590,6 +629,9 @@ export class AuthSyncModule {
             }
             if (this.app.tareas) {
                 try { this.app.tareas.render(); } catch (e) { console.error("Error rendering tareas:", e); }
+            }
+            if (this.app.alerts) {
+                try { this.app.alerts.render(); } catch (e) { console.error("Error rendering alerts:", e); }
             }
             if (this.app.notificationsCenter) {
                 try { this.app.notificationsCenter.updateBadge(); } catch (e) { console.error("Error updating notifications badge:", e); }
@@ -738,7 +780,17 @@ export class AuthSyncModule {
             }, payload => {
                 const newCloudData = payload.new?.data;
                 if (newCloudData) {
-                    const local = this.gatherLocalData();
+                    if (this.isSyncing || this.pendingSyncKeys.size > 0) {
+                        clearTimeout(this.realtimeRefreshTimer);
+                        this.realtimeRefreshTimer = setTimeout(() => {
+                            this.checkAndSyncData().catch(error => {
+                                console.error('[Cloud Sync] Error refrescando después de Realtime:', error);
+                            });
+                        }, 1000);
+                        return;
+                    }
+
+                    const local = this.gatherLocalData(CLOUD_RESTORE_KEYS);
                     let changed = false;
                     Object.keys(local).forEach(key => {
                         const cloudVal = newCloudData[key] === undefined ? null : newCloudData[key];
@@ -814,28 +866,108 @@ export class AuthSyncModule {
         }
     }
 
+    setPushStatus(state, message) {
+        if (!this.pushStatusMessage) return;
+        this.pushStatusMessage.className = `push-status ${state}`;
+        this.pushStatusMessage.textContent = message;
+    }
+
+    getPushSupportIssue() {
+        if (!window.isSecureContext) {
+            return 'Las notificaciones requieren una conexión HTTPS segura.';
+        }
+        if (!('Notification' in window)) {
+            return 'Este navegador no ofrece la API de notificaciones.';
+        }
+        if (!('serviceWorker' in navigator)) {
+            return 'Este navegador no admite Service Workers.';
+        }
+        if (!('PushManager' in window)) {
+            return 'Este navegador no admite notificaciones Push web.';
+        }
+        return null;
+    }
+
+    async getPushServiceWorkerRegistration(timeoutMs = 10000) {
+        const existingRegistration = await navigator.serviceWorker.getRegistration();
+        if (existingRegistration?.active) {
+            return existingRegistration;
+        }
+
+        let timeoutId;
+        try {
+            return await Promise.race([
+                navigator.serviceWorker.ready,
+                new Promise((_, reject) => {
+                    timeoutId = setTimeout(() => {
+                        reject(new Error('El Service Worker no quedó listo dentro del tiempo esperado.'));
+                    }, timeoutMs);
+                })
+            ]);
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    getPushErrorMessage(error) {
+        const rawMessage = String(error?.message || error || '');
+        const normalizedMessage = rawMessage.toLowerCase();
+
+        if (window.Notification?.permission === 'denied' || error?.name === 'NotAllowedError') {
+            return 'El navegador bloqueó las notificaciones. Habilitalas para este sitio desde el candado de la barra de direcciones y comprobá que Windows permita notificaciones para el navegador.';
+        }
+        if (
+            error?.name === 'AbortError'
+            || normalizedMessage.includes('push service')
+            || normalizedMessage.includes('registration failed')
+        ) {
+            return 'El servicio Push del navegador rechazó el registro. Si usás Brave, habilitá “Usar servicios de Google para mensajería push”; en cualquier navegador, comprobá las notificaciones de Windows y evitá el modo incógnito.';
+        }
+        if (normalizedMessage.includes('service worker')) {
+            return 'El componente de notificaciones no terminó de iniciar. Recargá la aplicación y volvé a intentarlo.';
+        }
+        return rawMessage
+            ? `No se pudieron activar las notificaciones: ${rawMessage}`
+            : 'No se pudieron activar las notificaciones en este dispositivo.';
+    }
+
     async enablePushNotifications() {
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
-            alert('Las notificaciones push no son compatibles con este navegador o dispositivo.');
+        const supportIssue = this.getPushSupportIssue();
+        if (supportIssue) {
+            this.setPushStatus('error', supportIssue);
+            alert(supportIssue);
             return;
         }
+
+        if (Notification.permission === 'denied') {
+            const message = this.getPushErrorMessage({ name: 'NotAllowedError' });
+            this.setPushStatus('error', message);
+            alert(message);
+            return;
+        }
+
+        if (this.btnEnablePush) this.btnEnablePush.disabled = true;
+        this.setPushStatus('checking', 'Activando notificaciones en este dispositivo...');
 
         try {
             // 1. Request permission
             const permission = await Notification.requestPermission();
             if (permission !== 'granted') {
-                alert('Permiso de notificaciones denegado.');
+                const message = permission === 'denied'
+                    ? this.getPushErrorMessage({ name: 'NotAllowedError' })
+                    : 'No se otorgó permiso para mostrar notificaciones.';
+                this.setPushStatus('error', message);
+                alert(message);
                 return;
             }
 
             // 2. Get Service Worker registration
-            const registration = await navigator.serviceWorker.ready;
+            const registration = await this.getPushServiceWorkerRegistration();
 
             // 3. Get VAPID public key from backend config
             const vapidKey = this.config.vapidPublicKey;
             if (!vapidKey) {
-                alert('No se pudo obtener la clave VAPID pública desde el backend.');
-                return;
+                throw new Error('El backend no entregó la clave pública necesaria.');
             }
 
             // Convert VAPID key to Uint8Array
@@ -855,34 +987,46 @@ export class AuthSyncModule {
             await this.persistPushSubscription(subscriptionJSON);
 
             // 6. Update UI
-            alert('¡Notificaciones activadas con éxito en este dispositivo!');
             await this.checkPushSubscriptionStatus();
+            alert('¡Notificaciones activadas con éxito en este dispositivo!');
 
         } catch (e) {
             console.error('Error enabling push notifications:', e);
-            let msg = 'Error al activar notificaciones: ' + e.message;
-            if (e.message && (e.message.includes('push service error') || e.message.includes('Registration failed'))) {
-                msg = '⚠️ Error del servicio Push del navegador (PC):\n\n' +
-                      '1. Si usás el navegador BRAVE: andá a brave://settings/privacy y activá la opción "Usar servicios de Google para mensajería push" (o "Use Google Services for Push Messaging"), y luego reiniciá el navegador.\n\n' +
-                      '2. Si estás en Windows: verificá en Inicio -> Configuración -> Sistema -> Notificaciones que las notificaciones de tu navegador estén activadas.\n\n' +
-                      '3. Asegurate de no estar usando una ventana de incógnito o VPN que bloquee los servicios de notificaciones.';
-            }
-            alert(msg);
+            const message = this.getPushErrorMessage(e);
+            this.setPushStatus('error', message);
+            alert(message);
+        } finally {
+            if (this.btnEnablePush) this.btnEnablePush.disabled = false;
         }
     }
 
     async checkPushSubscriptionStatus() {
         if (!this.user) return;
-        if (!('serviceWorker' in navigator) || !('PushManager' in window)) {
+        const supportIssue = this.getPushSupportIssue();
+        if (supportIssue) {
             if (this.btnEnablePush) {
                 this.btnEnablePush.disabled = true;
-                this.btnEnablePush.innerText = 'Notificaciones No Compatibles';
+                this.btnEnablePush.innerText = 'Notificaciones no compatibles';
             }
+            this.btnTestPush?.classList.add('hidden');
+            this.setPushStatus('error', supportIssue);
             return;
         }
 
+        if (Notification.permission === 'denied') {
+            if (this.btnEnablePush) {
+                this.btnEnablePush.disabled = false;
+                this.btnEnablePush.innerText = 'Permiso bloqueado: ver cómo habilitarlo';
+            }
+            this.btnTestPush?.classList.add('hidden');
+            this.setPushStatus('error', this.getPushErrorMessage({ name: 'NotAllowedError' }));
+            return;
+        }
+
+        this.setPushStatus('checking', 'Comprobando este dispositivo...');
+
         try {
-            const registration = await navigator.serviceWorker.ready;
+            const registration = await this.getPushServiceWorkerRegistration();
             const subscription = await registration.pushManager.getSubscription();
             
             if (subscription) {
@@ -895,27 +1039,39 @@ export class AuthSyncModule {
                     this.btnEnablePush.style.color = 'var(--status-green)';
                 }
                 this.btnTestPush?.classList.remove('hidden');
+                this.setPushStatus('active', 'Este dispositivo está registrado y listo para recibir avisos.');
             } else {
                 if (this.btnEnablePush) {
                     this.btnEnablePush.innerText = '🔔 Activar Notificaciones en este Dispositivo';
+                    this.btnEnablePush.disabled = false;
                     this.btnEnablePush.style.borderColor = '';
                     this.btnEnablePush.style.color = '';
                 }
                 this.btnTestPush?.classList.add('hidden');
+                this.setPushStatus(
+                    'inactive',
+                    Notification.permission === 'granted'
+                        ? 'El permiso existe, pero este dispositivo todavía no está registrado.'
+                        : 'Las notificaciones todavía no están activadas en este dispositivo.'
+                );
             }
         } catch (e) {
             console.error('Error checking push subscription status:', e);
+            this.setPushStatus('error', this.getPushErrorMessage(e));
         }
     }
 
     async sendTestPushNotification() {
         try {
-            const registration = await navigator.serviceWorker.ready;
+            const registration = await this.getPushServiceWorkerRegistration();
             const subscription = await registration.pushManager.getSubscription();
             if (!subscription) {
                 alert('No se encontró una suscripción activa en este dispositivo.');
                 return;
             }
+
+            this.setPushStatus('checking', 'Enviando una notificación de prueba...');
+            if (this.btnTestPush) this.btnTestPush.disabled = true;
 
             const { data: { session }, error: sessionError } = await this.supabase.auth.getSession();
             if (sessionError || !session?.access_token) {
@@ -935,14 +1091,20 @@ export class AuthSyncModule {
             const result = await res.json().catch(() => ({}));
 
             if (res.ok) {
+                this.setPushStatus('active', 'Prueba enviada correctamente a este dispositivo.');
                 alert('Notificación de prueba enviada. Debería aparecer en este dispositivo.');
             } else {
                 const statusText = result.statusCode ? ` (HTTP ${result.statusCode})` : '';
+                this.setPushStatus('error', `${result.error || 'El servicio Push rechazó la prueba.'}${statusText}`);
                 alert(`${result.error || 'Error al enviar la notificación de prueba.'}${statusText}`);
             }
         } catch (e) {
             console.error('Error triggering test push:', e);
-            alert('Error al probar: ' + e.message);
+            const message = this.getPushErrorMessage(e);
+            this.setPushStatus('error', message);
+            alert(message);
+        } finally {
+            if (this.btnTestPush) this.btnTestPush.disabled = false;
         }
     }
 

@@ -11,11 +11,11 @@ import { FinanzasModule } from './modules/FinanzasModule.js';
 import { TareasModule } from './modules/TareasModule.js';
 import { AlertsModule } from './modules/AlertsModule.js';
 import { NotificationsCenterModule } from './modules/NotificationsCenterModule.js';
+import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260727-cloud-first';
 
 class AppController {
     constructor() {
         window.lifecycle_controller = this;
-        this.syncDebounceTimer = null;
         this.currentEditType = null;
         this.currentEditId = null;
 
@@ -462,30 +462,15 @@ class AppController {
     }
 
     triggerDataSync(key) {
-        const trackedKeys = [
-            'hygiene_tracker_data', 'groomingData_v2', 'lensesStartTime', 
-            'lensesHistory', 'lensStock', 'lensDate', 'solutionDate', 
-            'caseDate', 'systaneDate', 'clothWashDate', 'clothChangeDate', 
-            'health_medical_data', 'health_blood_tests', 'vehicle_odometer', 
-            'vehicle_maintenance_log', 'gym_records', 'gym_routine', 
-            'gym_routine_focus', 'gym_sessions', 'gym_meals', 'gym_general_meals', 
-            'gym_supplements', 'gym_weight', 'projectPulseData', 'projectPulseHistory',
-            'projectPulseSubscription', 'alerts_config', 'alerts_sent_log', 'finanzasData',
-            'vehicle_tracker_data', 'vehicle_issues', 'tareas_list', 'tareas_categories',
-            'tareas_pinned_projects', 'tareas_pinned_project_ids', 'tareas_removed_project_ids'
-        ];
-        
-        if (trackedKeys.includes(key) && this.auth && this.auth.user) {
-            clearTimeout(this.syncDebounceTimer);
-            this.syncDebounceTimer = setTimeout(() => {
-                this.auth.syncToCloud();
-            }, 1000);
+        if (CLOUD_SYNC_KEYS.includes(key) && this.auth?.user) {
+            this.auth.queueKeySync(key);
         }
     }
 }
 
 // Intercept localStorage.setItem to trigger automatic background sync
 const originalSetItem = localStorage.setItem;
+const originalRemoveItem = localStorage.removeItem;
 localStorage.setItem = function(key, value) {
     const oldValue = localStorage.getItem(key);
     originalSetItem.apply(this, arguments);
@@ -493,6 +478,17 @@ localStorage.setItem = function(key, value) {
         return;
     }
     if (oldValue !== value && window.lifecycle_controller) {
+        window.lifecycle_controller.triggerDataSync(key);
+    }
+};
+
+localStorage.removeItem = function(key) {
+    const existed = localStorage.getItem(key) !== null;
+    originalRemoveItem.apply(this, arguments);
+    if (window.lifecycle_controller?.auth?.isRestoring) {
+        return;
+    }
+    if (existed && window.lifecycle_controller) {
         window.lifecycle_controller.triggerDataSync(key);
     }
 };

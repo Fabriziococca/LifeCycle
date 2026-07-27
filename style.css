@@ -2725,6 +2725,35 @@ select option {
     border-top: 1px solid rgba(255, 255, 255, 0.05);
 }
 
+.push-status {
+    margin: 0;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid rgba(148, 163, 184, 0.2);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.45);
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.push-status.active {
+    border-color: rgba(16, 185, 129, 0.3);
+    background: rgba(16, 185, 129, 0.08);
+    color: #6ee7b7;
+}
+
+.push-status.checking {
+    border-color: rgba(59, 130, 246, 0.28);
+    background: rgba(59, 130, 246, 0.08);
+    color: #93c5fd;
+}
+
+.push-status.error {
+    border-color: rgba(239, 68, 68, 0.3);
+    background: rgba(239, 68, 68, 0.08);
+    color: #fca5a5;
+}
+
 /* Pinned Freelance Project Tabs */
 .tab-btn.pinned {
     background: linear-gradient(135deg, rgba(59, 130, 246, 0.15) 0%, rgba(37, 99, 235, 0.2) 100%);

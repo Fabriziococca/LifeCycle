@@ -1,6 +1,6 @@
 # LifeCycle 🧼🧔👁️🚗
 
-> **A premium, offline-first Progressive Web App (PWA) designed for unified tracking of daily habits, personal care cycles, health controls, vehicle maintenance, and financial projects.**
+> **A private, cloud-first Progressive Web App (PWA) designed for unified tracking of daily habits, personal care cycles, health controls, vehicle maintenance, tasks, and financial projects.**
 
 LifeCycle is a showcase of full-stack architecture built to optimize personal workflows, replacing notification fatigue and easily ignored calendar reminders with an adaptive, color-coded visual dashboard and a centralized, floating **Notifications Center** with background push alerts.
 
@@ -10,18 +10,18 @@ LifeCycle is a showcase of full-stack architecture built to optimize personal wo
 
 ```mermaid
 graph TD
-    Client[Client PWA: HTML5 / CSS3 / ES6+] -->|Offline Storage| LS[(LocalStorage)]
-    Client -->|Bidirectional Sync / Real-time Subscription| Supabase{Supabase Database}
-    Supabase -->|Row-Level Security / RLS| Client
+    Client[Client PWA: HTML5 / CSS3 / ES6+] -->|Authenticated reads and per-key writes| Supabase{Supabase Database}
+    Supabase -->|Row-Level Security / Realtime| Client
+    Client -->|Runtime cache only| LS[(LocalStorage)]
     Server[Backend: Node.js Express / Render] -->|Cron Check every 5m| Supabase
     Server -->|Web Push Protocol| Client
 ```
 
 *   **Frontend Client:** HTML5, Vanilla CSS3 (custom glassmorphism style, dark-mode first design), and ES6+ JavaScript.
-*   **Data Persistence:** Offline-first architecture utilizing `LocalStorage` with custom bidirectional cloud sync.
-*   **Database Cloud Sync:** Real-time database subscription and synchronization with **Supabase**, featuring automatic conflict resolution and client-side merge.
+*   **Data Persistence:** Cloud-first architecture with **Supabase** as the source of truth. `LocalStorage` is only a runtime cache and is cleared when the session closes.
+*   **Database Cloud Sync:** Authenticated per-key updates avoid replacing unrelated module data, while Realtime and foreground refreshes keep devices aligned.
 *   **Backend Notification Server:** Node.js Express server hosted on **Render**, performing periodic database checks and dispatching secure Web Push Notifications.
-*   **PWA Features:** Service Workers with a **Network-First** caching strategy for instant online updates and offline capability, along with a standard web app manifest.
+*   **PWA Features:** Installable manifest and a Service Worker dedicated to Push notifications. The application intentionally requires connectivity and does not cache application data for offline use.
 
 ---
 
@@ -29,8 +29,9 @@ graph TD
 
 *   **Zero Credentials Exposed:** All sensitive data (database connection strings, service role keys, VAPID private keys) are stored as encrypted environment variables in Render and never checked into the code.
 *   **Row-Level Security (RLS):** Supabase database tables enforce strict RLS policies ensuring that users can only read and write their own data, even when utilizing public anon keys.
+*   **Private Medical Attachments:** Blood-test files are stored in a private Supabase bucket, restricted to the authenticated user's folder and opened through short-lived signed URLs.
 *   **Database-Level Constraints:** Implemented custom check constraints (`check_no_object_string`) at the Postgres level to reject malformed serialization attempts, safeguarding data integrity.
-*   **Safe Client Parsing:** The application features robust local storage parsers with isolated try/catch boundaries, ensuring that parsing anomalies in one module never disrupt the main application loop.
+*   **Safe Client Parsing:** The application features robust cache parsers with isolated try/catch boundaries, ensuring that parsing anomalies in one module never disrupt the main application loop.
 
 ---
 
