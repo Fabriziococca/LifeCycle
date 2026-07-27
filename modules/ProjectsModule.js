@@ -1,4 +1,4 @@
-import { DateUtils, getLocalISODate } from '../utils.js';
+import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
 
 export class ProjectsModule {
     constructor(appController) {
@@ -429,7 +429,7 @@ export class ProjectsModule {
                 summary: 'Ingreso cargado manualmente del historial pasado.',
                 phases: '',
                 isDelivered: true,
-                deliveredAt: new Date(date).toISOString(),
+                deliveredAt: parseDateLocal(date).toISOString(),
                 deliveredDate: date,
                 deadline: date
             };
@@ -474,38 +474,6 @@ export class ProjectsModule {
             });
         });
 
-        // Global Event Delegation for Project Card Action Buttons
-        document.addEventListener('click', (e) => {
-            const btnPlan = e.target.closest('.btn-plan');
-            if (btnPlan) {
-                const card = btnPlan.closest('[data-project-id]');
-                const projId = card?.dataset.projectId || btnPlan.dataset.projectId;
-                if (projId) {
-                    this.openPlanModal(projId);
-                }
-                return;
-            }
-
-            const statusPill = e.target.closest('.project-status-pill');
-            if (statusPill) {
-                const card = statusPill.closest('[data-project-id]');
-                const projId = card?.dataset.projectId;
-                if (projId) {
-                    this.openStatusNoteModal(projId);
-                }
-                return;
-            }
-
-            const btnManage = e.target.closest('.btn-manage');
-            if (btnManage) {
-                const card = btnManage.closest('[data-project-id]');
-                const projId = card?.dataset.projectId;
-                if (projId) {
-                    this.openEditModal(projId);
-                }
-                return;
-            }
-        });
     }
 
     openStatusNoteModal(id) {
@@ -657,8 +625,8 @@ export class ProjectsModule {
             totalNetSum += netVal;
             const dateStr = p.deliveredDate || p.deliveredAt;
             if (dateStr) {
-                const del = new Date(dateStr);
-                if (del.getFullYear() === currYear) {
+                const del = parseDateLocal(dateStr);
+                if (del && del.getFullYear() === currYear) {
                     yearNetSum += netVal;
                     if (del.getMonth() === currMonth) {
                         monthNetSum += netVal;
@@ -819,7 +787,7 @@ export class ProjectsModule {
                         </h3>
                         <p class="project-name" style="color:var(--text-secondary); font-size:0.88rem; margin: 3px 0 8px 0; font-weight: 500;">${p.project}</p>
                         <div>
-                            <span class="project-status-pill ${!p.statusNote ? 'empty-status' : ''}" onclick="window.projects.openStatusNoteModal('${p.id}')" title="Haz clic para cambiar el estado de seguimiento" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
+                            <span class="project-status-pill ${!p.statusNote ? 'empty-status' : ''}" title="Haz clic para cambiar el estado de seguimiento" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
                                 <i class="ph ph-push-pin"></i> 
                                 <span class="status-note-text">${p.statusNote || '+ Asignar estado (ej: Esperando credenciales)'}</span>
                                 <i class="ph ph-pencil-simple" style="font-size: 0.8rem; opacity: 0.7;"></i>
@@ -830,7 +798,7 @@ export class ProjectsModule {
                         <div class="countdown-badge" style="background: rgba(0,0,0,0.3); border: 1.5px solid ${colorVar}; color: ${colorVar}; padding: 6px 12px; border-radius: 12px; font-weight: 800; font-size: 1.1rem; font-variant-numeric: tabular-nums; box-shadow: 0 0 10px ${colorVar}30; white-space: nowrap;">
                             ${countdownText}
                         </div>
-                        <button class="btn-history-delete" onclick="window.projects.deleteActiveProject('${p.id}')" title="Eliminar proyecto" style="background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; padding: 2px; font-size: 1.1rem; transition: color 0.2s;"><i class="ph ph-trash"></i></button>
+                        <button class="btn-history-delete" title="Eliminar proyecto" style="background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; padding: 2px; font-size: 1.1rem; transition: color 0.2s;"><i class="ph ph-trash"></i></button>
                     </div>
                 </div>
 
@@ -870,30 +838,30 @@ export class ProjectsModule {
                 
                 <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
                     <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-secondary btn-plan" onclick="window.projects.openPlanModal('${p.id}')" style="margin: 0; width: 100%;"><i class="ph ph-clipboard-text"></i> Plan del Proyecto</button>
+                        <button class="btn btn-secondary btn-plan" style="margin: 0; width: 100%;"><i class="ph ph-clipboard-text"></i> Plan del Proyecto</button>
                     </div>
                     ${p.isArbitration ? `
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary half btn-manage" onclick="window.projects.openEditModal('${p.id}')" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
-                            <button class="btn btn-primary half btn-resolve" onclick="window.projects.openResolveArbitrationModal('${p.id}')" style="margin:0; background: var(--status-red); color: white;"><i class="ph ph-scales"></i> Resolver</button>
+                            <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
+                            <button class="btn btn-primary half btn-resolve" style="margin:0; background: var(--status-red); color: white;"><i class="ph ph-scales"></i> Resolver</button>
                         </div>
                     ` : (p.hasChangesRequested ? `
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary half btn-manage" onclick="window.projects.openEditModal('${p.id}')" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
-                            <button class="btn btn-primary half btn-redeliver" onclick="window.projects.reDeliverWork('${p.id}')" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-arrow-clockwise"></i> Reentregar Trabajo</button>
+                            <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
+                            <button class="btn btn-primary half btn-redeliver" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-arrow-clockwise"></i> Reentregar Trabajo</button>
                         </div>
                     ` : (!p.isDelivered ? `
                         <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary half btn-manage" onclick="window.projects.openEditModal('${p.id}')" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
-                            <button class="btn btn-primary half btn-deliver" onclick="window.projects.markAsDelivered('${p.id}')" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-check"></i> Entregado</button>
+                            <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
+                            <button class="btn btn-primary half btn-deliver" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-check"></i> Entregado</button>
                         </div>
                     ` : `
                         <div style="display: flex; flex-direction: column; gap: 8px;">
                             <div style="display: flex; gap: 8px;">
-                                <button class="btn btn-secondary half btn-manage" onclick="window.projects.openEditModal('${p.id}')" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
-                                <button class="btn btn-primary half btn-confirm" onclick="window.projects.confirmPayment('${p.id}')" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-coins"></i> Pago Confirmado</button>
+                                <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
+                                <button class="btn btn-primary half btn-confirm" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-coins"></i> Pago Confirmado</button>
                             </div>
-                            <button class="btn btn-secondary btn-request-changes" onclick="window.projects.requestChanges('${p.id}')" style="margin:0; width:100%; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24; font-size: 0.8rem; height: 32px;"><i class="ph ph-warning-diamond"></i> Solicitó Cambios el Cliente</button>
+                            <button class="btn btn-secondary btn-request-changes" style="margin:0; width:100%; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24; font-size: 0.8rem; height: 32px;"><i class="ph ph-warning-diamond"></i> Solicitó Cambios el Cliente</button>
                         </div>
                     `)) }
                 </div>
@@ -1165,7 +1133,7 @@ export class ProjectsModule {
         const monthsMap = {};
         this.history.forEach(p => {
             const dateStr = p.deliveredDate || p.deliveredAt;
-            const delDate = dateStr ? new Date(dateStr) : new Date();
+            const delDate = parseDateLocal(dateStr) || new Date();
             const year = delDate.getFullYear();
             const month = delDate.getMonth();
             const key = `${year}-${String(month + 1).padStart(2, '0')}`;
@@ -1203,8 +1171,8 @@ export class ProjectsModule {
                         const [y, m, d] = dateVal.split('-');
                         dateStr = `${d}/${m}/${y}`;
                     } else {
-                        const d = new Date(dateVal);
-                        if (!isNaN(d.getTime())) {
+                        const d = parseDateLocal(dateVal);
+                        if (d) {
                             const day = String(d.getDate()).padStart(2, '0');
                             const month = String(d.getMonth() + 1).padStart(2, '0');
                             const year = d.getFullYear();
@@ -1282,8 +1250,8 @@ export class ProjectsModule {
         this.history.forEach(p => {
             const dateStr = p.deliveredDate || p.deliveredAt;
             if (dateStr) {
-                const d = new Date(dateStr);
-                if (d < earliestDate) earliestDate = d;
+                const d = parseDateLocal(dateStr);
+                if (d && d < earliestDate) earliestDate = d;
             }
         });
 
@@ -1307,7 +1275,8 @@ export class ProjectsModule {
         this.history.forEach(p => {
             const dateStr = p.deliveredDate || p.deliveredAt;
             if (!dateStr) return;
-            const d = new Date(dateStr);
+            const d = parseDateLocal(dateStr);
+            if (!d) return;
             if (d >= dateLimit3) sum3Months += (p.budgetNet || 0);
             if (d >= dateLimit6) sum6Months += (p.budgetNet || 0);
         });

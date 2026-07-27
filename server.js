@@ -7,6 +7,9 @@ const { createClient } = require('@supabase/supabase-js');
 const sharedRules = require('./shared_rules.json');
 const {
     assertServerManagedUserDataPatch,
+    buildVehicleDocumentNotification,
+    buildVehicleMaintenanceNotification,
+    formatExpiryStatus,
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
     getPendingVeryUrgentTasks,
@@ -1039,76 +1042,25 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             break;
                         case 'vehicle_docs_check':
                             const tracker = data.vehicle_tracker_data || {};
-                            if (tracker.dniExpDate) {
-                                const dniDays = getDaysUntil(tracker.dniExpDate);
-                                if (dniDays !== null && dniDays <= 30 && dniDays > 0) {
-                                    shouldNotify = true;
-                                    title = '📄 Vencimiento DNI';
-                                    body = `Tu DNI vence en ${dniDays} días (${tracker.dniExpDate}).`;
-                                }
-                            }
-                            if (tracker.licenseExpDate) {
-                                const licDays = getDaysUntil(tracker.licenseExpDate);
-                                if (licDays !== null && licDays <= 30 && licDays > 0) {
-                                    shouldNotify = true;
-                                    title = '🚗 Vencimiento Registro';
-                                    body = `Tu registro de conducir vence en ${licDays} días (${tracker.licenseExpDate}).`;
-                                }
-                            }
-                            if (tracker.insuranceExpDate) {
-                                const insDays = getDaysUntil(tracker.insuranceExpDate);
-                                if (insDays !== null && insDays <= 7 && insDays > 0) {
-                                    shouldNotify = true;
-                                    title = '🚗 Vencimiento Seguro';
-                                    body = `Tu seguro debe renovarse en ${insDays} días (${tracker.insuranceExpDate}).`;
-                                }
-                            }
-                            if (tracker.vtvExpDate) {
-                                const vtvDays = getDaysUntil(tracker.vtvExpDate);
-                                if (vtvDays !== null && vtvDays <= 30 && vtvDays > 0) {
-                                    shouldNotify = true;
-                                    title = '🚗 Vencimiento VTV';
-                                    body = `Tu VTV vence en ${vtvDays} días (${tracker.vtvExpDate}).`;
-                                }
+                            const documentReminder = buildVehicleDocumentNotification(tracker, getDaysUntil);
+                            if (documentReminder) {
+                                shouldNotify = true;
+                                title = documentReminder.title;
+                                body = documentReminder.body;
                             }
                             break;
                         case 'vehicle_fluids_check':
                             const trk = data.vehicle_tracker_data || {};
-                            if (trk.refrigeranteDate) {
-                                const limitDays = sharedRules.vehicle?.fluids?.refrigerante?.days || 90;
-                                const refElapsed = getDaysElapsed(trk.refrigeranteDate);
-                                if (refElapsed !== null && refElapsed >= limitDays) {
-                                    shouldNotify = true;
-                                    title = '🚗 Mantenimiento: Refrigerante';
-                                    body = `Pasaron ${refElapsed} días desde la última revisión de refrigerante.`;
-                                }
-                            }
-                            if (trk.sapitoDate) {
-                                const limitDays = sharedRules.vehicle?.fluids?.sapito?.days || 45;
-                                const sapElapsed = getDaysElapsed(trk.sapitoDate);
-                                if (sapElapsed !== null && sapElapsed >= limitDays) {
-                                    shouldNotify = true;
-                                    title = '🚗 Mantenimiento: Sapito';
-                                    body = `Pasaron ${sapElapsed} días desde la última revisión del limpiavidrios.`;
-                                }
-                            }
-                            if (trk.escobillasDate) {
-                                const limitDays = sharedRules.vehicle?.fluids?.escobillas?.days_orange || 240;
-                                const escElapsed = getDaysElapsed(trk.escobillasDate);
-                                if (escElapsed !== null && escElapsed >= limitDays) {
-                                    shouldNotify = true;
-                                    title = '🚗 Mantenimiento: Escobillas';
-                                    body = `Pasaron ${escElapsed} días (~${Math.floor(escElapsed / 30)} meses) desde el último cambio de escobillas.`;
-                                }
-                            }
-                            if (trk.extintorDate) {
-                                const limitDays = sharedRules.vehicle?.fluids?.extintor?.days_until_expiry || 30;
-                                const extDays = getDaysUntil(trk.extintorDate);
-                                if (extDays !== null && extDays <= limitDays && extDays > 0) {
-                                    shouldNotify = true;
-                                    title = '🧯 Mantenimiento: Extintor';
-                                    body = `El extintor vence en ${extDays} días (${trk.extintorDate}).`;
-                                }
+                            const maintenanceReminder = buildVehicleMaintenanceNotification(
+                                trk,
+                                sharedRules,
+                                getDaysElapsed,
+                                getDaysUntil
+                            );
+                            if (maintenanceReminder) {
+                                shouldNotify = true;
+                                title = maintenanceReminder.title;
+                                body = maintenanceReminder.body;
                             }
                             break;
 
@@ -1173,13 +1125,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const start = new Date(sub.startDate + 'T12:00:00');
                                 const expiry = new Date(start);
                                 expiry.setMonth(expiry.getMonth() + parseInt(sub.cycle));
-                                
-                                const today = new Date();
-                                today.setHours(0,0,0,0);
-                                const expiryDay = new Date(expiry);
-                                expiryDay.setHours(0,0,0,0);
-                                const diffTime = expiryDay - today;
-                                const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+                                const diffDays = getDaysUntil(expiry.toISOString());
                                 
                                 if (diffDays <= 7 && diffDays > 2) {
                                     shouldNotify = true;
@@ -1188,7 +1134,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 } else if (diffDays <= 2) {
                                     shouldNotify = true;
                                     title = '💳 Suscripción Workana';
-                                    body = `Vencimiento crítico en ${diffDays} días (${expiry.toLocaleDateString('es-AR')}).`;
+                                    body = `${formatExpiryStatus('Tu suscripción de Workana', diffDays)} (${expiry.toLocaleDateString('es-AR')}).`;
                                 }
                             }
                             break;

@@ -422,13 +422,7 @@ export class VehicleModule {
     }
 
     calculateDaysUntil(dateStr) {
-        if (!dateStr) return null;
-        const target = new Date(dateStr);
-        const today = new Date();
-        target.setHours(0, 0, 0, 0);
-        today.setHours(0, 0, 0, 0);
-        const diffTime = target - today;
-        return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+        return DateUtils.getDaysUntil(dateStr);
     }
 
     render() {

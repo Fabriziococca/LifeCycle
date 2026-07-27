@@ -1,4 +1,8 @@
-import { getLocalISODate } from '../utils.js';
+import {
+    getLocalISODate,
+    getLocalISOMonth,
+    parseDateLocal
+} from '../utils.js';
 
 export class FinanzasModule {
     constructor(appController) {
@@ -89,7 +93,7 @@ export class FinanzasModule {
             const dateInp = document.getElementById('fin-input-date');
             const monthInp = document.getElementById('fin-input-month');
             if (dateInp) dateInp.value = getLocalISODate();
-            if (monthInp) monthInp.value = new Date().toISOString().slice(0, 7);
+            if (monthInp) monthInp.value = getLocalISOMonth();
 
             this.toggleModalFields();
             modal?.classList.remove('hidden');
@@ -605,7 +609,7 @@ export class FinanzasModule {
         if (!this.monthSelect) return;
         const monthsSet = new Set();
 
-        const currMonthStr = new Date().toISOString().slice(0, 7);
+        const currMonthStr = getLocalISOMonth();
         monthsSet.add(currMonthStr);
 
         combinedIncomes.forEach(e => {
@@ -638,7 +642,7 @@ export class FinanzasModule {
         const expenses = this.data.expenses || [];
         const now = new Date();
         const currYear = now.getFullYear();
-        const currMonthStr = now.toISOString().slice(0, 7);
+        const currMonthStr = getLocalISOMonth(now);
 
         let monthIncomeSum = 0;
         let yearIncomeSum = 0;
@@ -861,8 +865,10 @@ export class FinanzasModule {
             else if (e.category === 'trading') { icon = 'ph-chart-line-up'; color = 'var(--status-green)'; catName = 'Trading'; }
             else if (e.category === 'extraordinary') { icon = 'ph-gift'; color = 'var(--status-yellow)'; catName = 'Extraordinario'; }
 
-            const dateObj = new Date(e.date);
-            const dateStr = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+            const dateObj = parseDateLocal(e.date);
+            const dateStr = dateObj
+                ? dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+                : e.date;
 
             const isManual = !String(e.id).startsWith('proj-');
             const deleteBtn = isManual
@@ -979,8 +985,10 @@ export class FinanzasModule {
                 icon: 'ph-tag'
             };
 
-            const dateObj = new Date(e.date);
-            const dateStr = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' });
+            const dateObj = parseDateLocal(e.date);
+            const dateStr = dateObj
+                ? dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
+                : e.date;
 
             return `
                 <div class="card" style="margin:0; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; border: 1px solid rgba(255,255,255,0.03); gap: 10px;">

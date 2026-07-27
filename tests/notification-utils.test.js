@@ -5,6 +5,9 @@ const assert = require('node:assert/strict');
 
 const {
     assertServerManagedUserDataPatch,
+    buildVehicleDocumentNotification,
+    buildVehicleMaintenanceNotification,
+    formatExpiryStatus,
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
     getPendingVeryUrgentTasks,
@@ -135,4 +138,64 @@ test('assertServerManagedUserDataPatch protects user-owned module keys', () => {
         () => assertServerManagedUserDataPatch(null),
         /no es válida/
     );
+});
+
+test('formatExpiryStatus distinguishes future, today and expired dates', () => {
+    assert.equal(formatExpiryStatus('El seguro', 2), 'El seguro vence en 2 días');
+    assert.equal(formatExpiryStatus('El seguro', 1), 'El seguro vence mañana');
+    assert.equal(formatExpiryStatus('El seguro', 0), 'El seguro vence hoy');
+    assert.equal(formatExpiryStatus('El seguro', -3), 'El seguro venció hace 3 días');
+});
+
+test('vehicle document reminders aggregate every due or expired document', () => {
+    const remainingDays = {
+        '2026-08-10': 14,
+        '2026-07-27': 0,
+        '2026-07-20': -7,
+        '2026-12-01': 127
+    };
+    const reminder = buildVehicleDocumentNotification({
+        dniExpDate: '2026-08-10',
+        licenseExpDate: '2026-07-27',
+        insuranceExpDate: '2026-07-20',
+        vtvExpDate: '2026-12-01'
+    }, value => remainingDays[value]);
+
+    assert.equal(reminder.title, '📄 Documentación del vehículo');
+    assert.match(reminder.body, /DNI vence en 14 días/);
+    assert.match(reminder.body, /registro vence hoy/);
+    assert.match(reminder.body, /seguro venció hace 7 días/);
+    assert.doesNotMatch(reminder.body, /VTV/);
+});
+
+test('vehicle maintenance reminders do not overwrite one another', () => {
+    const elapsedDays = {
+        '2026-01-01': 207,
+        '2026-05-01': 87,
+        '2026-07-01': 26
+    };
+    const remainingDays = {
+        '2026-07-10': -17
+    };
+    const reminder = buildVehicleMaintenanceNotification({
+        refrigeranteDate: '2026-01-01',
+        sapitoDate: '2026-05-01',
+        escobillasDate: '2026-07-01',
+        extintorDate: '2026-07-10'
+    }, {
+        vehicle: {
+            fluids: {
+                refrigerante: { days: 90 },
+                sapito: { days: 45 },
+                escobillas: { days_orange: 240 },
+                extintor: { days_until_expiry: 30 }
+            }
+        }
+    }, value => elapsedDays[value], value => remainingDays[value]);
+
+    assert.equal(reminder.title, '🚗 Mantenimiento del vehículo');
+    assert.match(reminder.body, /Refrigerante: 207 días/);
+    assert.match(reminder.body, /Líquido limpiavidrios: 87 días/);
+    assert.match(reminder.body, /matafuegos venció hace 17 días/);
+    assert.doesNotMatch(reminder.body, /Escobillas/);
 });

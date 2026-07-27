@@ -12,6 +12,11 @@ import { TareasModule } from './modules/TareasModule.js';
 import { AlertsModule } from './modules/AlertsModule.js';
 import { NotificationsCenterModule } from './modules/NotificationsCenterModule.js';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260727-cloud-first';
+import {
+    combineLocalDateWithTime,
+    getLocalISODate,
+    parseDateLocal
+} from './utils.js';
 
 class AppController {
     constructor() {
@@ -289,17 +294,10 @@ class AppController {
                 : '¿Cuándo registraste este hábito corporal por última vez?';
         }
 
-        let dateToSet = new Date();
-        if (currentDateVal) {
-            dateToSet = new Date(currentDateVal);
-        }
-        
-        const yyyy = dateToSet.getFullYear();
-        const mm = String(dateToSet.getMonth() + 1).padStart(2, '0');
-        const dd = String(dateToSet.getDate()).padStart(2, '0');
-        
         if (this.modalDate) {
-            this.modalDate.value = `${yyyy}-${mm}-${dd}`;
+            const dateToSet = parseDateLocal(currentDateVal) || new Date();
+            this.modalDate.value = getLocalISODate(dateToSet);
+            this.modalDate.max = getLocalISODate();
         }
 
         this.modal?.classList.remove('hidden');
@@ -314,11 +312,18 @@ class AppController {
     saveModalDate() {
         if (!this.currentEditId || !this.modalDate || !this.modalDate.value) return;
 
-        const selectedDate = new Date(this.modalDate.value);
         const now = new Date();
-        selectedDate.setHours(now.getHours());
-        selectedDate.setMinutes(now.getMinutes());
-        selectedDate.setSeconds(now.getSeconds());
+        const selectedDateText = this.modalDate.value;
+        if (selectedDateText > getLocalISODate(now)) {
+            alert('La fecha de la última acción no puede estar en el futuro.');
+            return;
+        }
+
+        const selectedDate = combineLocalDateWithTime(selectedDateText, now);
+        if (!selectedDate) {
+            alert('La fecha seleccionada no es válida.');
+            return;
+        }
 
         const isoString = selectedDate.toISOString();
 
@@ -342,7 +347,7 @@ class AppController {
             this.grooming.render();
         } else if (this.currentEditType === 'medical') {
             const k = this.currentEditId;
-            const dateStr = isoString.split('T')[0];
+            const dateStr = selectedDateText;
             this.health.medicalData[k].lastVisit = dateStr;
             
             if (!this.health.medicalData[k].history) {
@@ -357,7 +362,7 @@ class AppController {
             this.health.render();
         } else if (this.currentEditType === 'lenses') {
             const key = this.currentEditId;
-            const dateStr = isoString.split('T')[0];
+            const dateStr = selectedDateText;
             localStorage.setItem(key, dateStr);
             this.lenses.loadDatesAndStock();
             this.lenses.updateUI();

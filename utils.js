@@ -1,31 +1,27 @@
 // Funciones globales de asistencia de fechas locales para evitar desfases UTC
-export function getLocalISODate() {
-    const tzOffset = new Date().getTimezoneOffset() * 60000;
-    return new Date(Date.now() - tzOffset).toISOString().split('T')[0];
-}
+import {
+    getCalendarDaysElapsed,
+    getCalendarDaysUntil,
+    getLocalISODate,
+    parseDateLocal
+} from './date-utils.mjs?v=20260727-date-fix';
 
-export function parseDateLocal(val) {
-    if (!val) return null;
-    if (val instanceof Date) return val;
-    if (typeof val === 'string') {
-        if (val.includes('-') && !val.includes('T')) {
-            return new Date(val.replace(/-/g, '/'));
-        }
-        return new Date(val);
-    }
-    return new Date(val);
-}
+export {
+    combineLocalDateWithTime,
+    getCalendarDaysElapsed,
+    getCalendarDaysUntil,
+    getLocalISODate,
+    getLocalISOMonth,
+    parseDateLocal
+} from './date-utils.mjs?v=20260727-date-fix';
 
 export class DateUtils {
     static getDaysElapsed(dateString) {
-        if (!dateString) return null;
-        const lastWashed = parseDateLocal(dateString);
-        if (!lastWashed) return null;
-        lastWashed.setHours(0, 0, 0, 0);
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const diffTime = Math.abs(today - lastWashed);
-        return Math.floor(diffTime / (1000 * 60 * 60 * 24)); 
+        return getCalendarDaysElapsed(dateString);
+    }
+
+    static getDaysUntil(dateString) {
+        return getCalendarDaysUntil(dateString);
     }
 
     static formatFriendlyDate(dateInput, neverLabel = 'Nunca (Nuevo)') {

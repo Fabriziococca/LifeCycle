@@ -1,5 +1,4 @@
-import { ZONES, GROOMING_RULES } from '../utils.js';
-import { DateUtils } from '../utils.js';
+import { DateUtils, GROOMING_RULES, parseDateLocal, ZONES } from '../utils.js';
 
 export class GroomingModule {
     constructor(appController) {
@@ -31,12 +30,7 @@ export class GroomingModule {
     }
 
     getDaysDiff(dateString) {
-        if (!dateString) return null;
-        const now = new Date();
-        const past = new Date(dateString);
-        now.setHours(0,0,0,0);
-        past.setHours(0,0,0,0);
-        return Math.floor((now - past) / (1000 * 60 * 60 * 24));
+        return DateUtils.getDaysElapsed(dateString);
     }
 
     updatePrediction(historyArray) {
@@ -44,7 +38,8 @@ export class GroomingModule {
         
         const validDates = [];
         for (let i = 0; i < historyArray.length; i++) {
-            const current = new Date(historyArray[i]);
+            const current = parseDateLocal(historyArray[i]);
+            if (!current) continue;
             if (validDates.length === 0) {
                 validDates.push(current);
             } else {
@@ -83,7 +78,8 @@ export class GroomingModule {
 
         if (!this.data[zoneId]) this.data[zoneId] = [];
         
-        const dateToSave = customDate ? new Date(customDate).toISOString() : new Date().toISOString();
+        const customDateValue = customDate ? parseDateLocal(customDate) : null;
+        const dateToSave = (customDateValue || new Date()).toISOString();
         
         this.data[zoneId].unshift(dateToSave);
         
@@ -101,8 +97,10 @@ export class GroomingModule {
             return;
         }
         logContainer.innerHTML = historyArray.slice(0, 5).map((dateStr, index) => {
-            const dateObj = new Date(dateStr);
-            const formatted = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+            const dateObj = parseDateLocal(dateStr);
+            const formatted = dateObj
+                ? dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
+                : dateStr;
             return `
                 <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 0.8rem;">
                     <span>${formatted}</span>

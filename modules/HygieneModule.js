@@ -1,5 +1,4 @@
-import { itemsConfig } from '../utils.js';
-import { DateUtils } from '../utils.js';
+import { DateUtils, itemsConfig, parseDateLocal } from '../utils.js';
 
 export class HygieneModule {
     constructor(appController) {
@@ -68,7 +67,8 @@ export class HygieneModule {
 
     getNextDate(dateString, limitDays) {
         if (!dateString) return null;
-        const date = new Date(dateString);
+        const date = parseDateLocal(dateString);
+        if (!date) return null;
         date.setDate(date.getDate() + limitDays);
         return date;
     }
@@ -106,8 +106,10 @@ export class HygieneModule {
             return;
         }
         logContainer.innerHTML = historyArray.slice(0, 5).map((dateStr, index) => {
-            const dateObj = new Date(dateStr);
-            const formatted = dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' });
+            const dateObj = parseDateLocal(dateStr);
+            const formatted = dateObj
+                ? dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
+                : dateStr;
             return `
                 <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 0.8rem;">
                     <span>${formatted}</span>

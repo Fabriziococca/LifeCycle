@@ -1,4 +1,11 @@
-import { itemsConfig, LENS_LIMITS, GROOMING_RULES, parseDateLocal, getLocalISODate } from '../utils.js';
+import {
+    DateUtils,
+    getLocalISODate,
+    GROOMING_RULES,
+    itemsConfig,
+    LENS_LIMITS,
+    parseDateLocal
+} from '../utils.js';
 
 export class NotificationsCenterModule {
     constructor(appController) {
@@ -229,18 +236,19 @@ export class NotificationsCenterModule {
             if (this.app.projects) {
                 const sub = this.app.projects.subscription;
                 if (sub && sub.startDate) {
-                    const nextDate = new Date(sub.startDate);
-                    nextDate.setMonth(nextDate.getMonth() + sub.cycle);
-                    const diffTime = nextDate - now;
-                    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-                    if (diffDays <= 2) {
-                        items.push({
-                            module: 'workana',
-                            id: 'workana_sub',
-                            name: 'Suscripción Workana',
-                            icon: 'ph-credit-card',
-                            desc: diffDays < 0 ? 'Plazo de suscripción vencido.' : `Vence en ${diffDays} días.`
-                        });
+                    const nextDate = parseDateLocal(sub.startDate);
+                    if (nextDate) {
+                        nextDate.setMonth(nextDate.getMonth() + Number(sub.cycle || 0));
+                        const diffDays = DateUtils.getDaysUntil(nextDate);
+                        if (Number.isFinite(diffDays) && diffDays <= 2) {
+                            items.push({
+                                module: 'workana',
+                                id: 'workana_sub',
+                                name: 'Suscripción Workana',
+                                icon: 'ph-credit-card',
+                                desc: diffDays < 0 ? 'Plazo de suscripción vencido.' : `Vence en ${diffDays} días.`
+                            });
+                        }
                     }
                 }
                 // 5.2. PROYECTOS ACTIVOS (Entrega demorada o muy próxima)
@@ -337,9 +345,9 @@ export class NotificationsCenterModule {
         return items;
     }
 
-    updateBadge() {
-        const items = this.getOverdueItems();
-        const count = items.length;
+    updateBadge(items = null) {
+        const pendingItems = items || this.getOverdueItems();
+        const count = pendingItems.length;
         
         if (this.badge) {
             if (count > 0) {
@@ -356,10 +364,11 @@ export class NotificationsCenterModule {
     }
 
     render() {
+        const items = this.getOverdueItems();
+        this.updateBadge(items);
+
         if (!this.listContainer) return;
         this.listContainer.innerHTML = '';
-        
-        const items = this.getOverdueItems();
         
         if (items.length === 0) {
             this.listContainer.innerHTML = `

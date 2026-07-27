@@ -1279,7 +1279,10 @@ export class GymModule {
         fastingSpan.textContent = last.fasting !== null ? `${last.fasting} hs` : 'Sin registrar';
 
         // Timer
-        const elapsedDays = Math.floor((new Date() - new Date(last.date)) / 86400000);
+        const lastDate = parseDateLocal(last.date);
+        const elapsedDays = lastDate
+            ? Math.max(0, Math.floor((new Date() - lastDate) / 86400000))
+            : 0;
         timerSpan.textContent = elapsedDays;
 
         // Difs
@@ -1455,7 +1458,7 @@ export class GymModule {
             el.style.color = 'white';
             el.style.alignItems = 'center';
             el.innerHTML = `
-                <span>📅 Toma: ${new Date(t.date).toLocaleDateString('es-AR')}</span>
+                <span>📅 Toma: ${parseDateLocal(t.date)?.toLocaleDateString('es-AR') || t.date}</span>
                 <button class="btn-history-delete" style="padding:0;"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
             `;
             el.querySelector('.btn-history-delete').addEventListener('click', () => {

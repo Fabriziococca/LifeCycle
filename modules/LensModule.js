@@ -1,5 +1,4 @@
-import { LENS_LIMITS } from '../utils.js';
-import { getLocalISODate } from '../utils.js';
+import { DateUtils, getLocalISODate, LENS_LIMITS } from '../utils.js';
 
 const CIRCUMFERENCE = 502; // 2 * Math.PI * 80 (basado en r=80 del SVG)
 
@@ -138,13 +137,8 @@ export class LensModule {
     }
 
     calculateDaysElapsed(dateString) {
-        if (!dateString) return "--";
-        const start = new Date(dateString);
-        start.setHours(0,0,0,0);
-        const today = new Date();
-        today.setHours(0,0,0,0);
-        const diffTime = Math.abs(today - start);
-        return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        const elapsed = DateUtils.getDaysElapsed(dateString);
+        return elapsed === null ? '--' : elapsed;
     }
 
     updateLabelStyle(element, days, limit, inputElement = null) {

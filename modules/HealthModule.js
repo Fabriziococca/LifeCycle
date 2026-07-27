@@ -1,4 +1,4 @@
-import { DateUtils, getLocalISODate } from '../utils.js';
+import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
 
 export class HealthModule {
     constructor(controller) {
@@ -247,7 +247,8 @@ export class HealthModule {
     }
 
     addMonths(date, months) {
-        const d = new Date(date);
+        const d = parseDateLocal(date);
+        if (!d) return null;
         d.setMonth(d.getMonth() + Number(months));
         return d;
     }
@@ -314,10 +315,12 @@ export class HealthModule {
             let nextVisitDisplay = 'N/A';
             if (doc.lastVisit) {
                 const nextDateObj = this.addMonths(doc.lastVisit, doc.frequencyMonths);
-                const yyyy = nextDateObj.getFullYear();
-                const mm = String(nextDateObj.getMonth() + 1).padStart(2, '0');
-                const dd = String(nextDateObj.getDate()).padStart(2, '0');
-                nextVisitDisplay = `${dd}/${mm}/${yyyy}`;
+                if (nextDateObj) {
+                    const yyyy = nextDateObj.getFullYear();
+                    const mm = String(nextDateObj.getMonth() + 1).padStart(2, '0');
+                    const dd = String(nextDateObj.getDate()).padStart(2, '0');
+                    nextVisitDisplay = `${dd}/${mm}/${yyyy}`;
+                }
             }
 
             const card = document.createElement('div');
@@ -516,12 +519,16 @@ export class HealthModule {
         }
         if (this.bloodNextDate) {
             if (lastTest?.date) {
-                const nextDate = new Date(lastTest.date);
-                nextDate.setFullYear(nextDate.getFullYear() + 1);
-                const yyyy = nextDate.getFullYear();
-                const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
-                const dd = String(nextDate.getDate()).padStart(2, '0');
-                this.bloodNextDate.innerText = `${dd}/${mm}/${yyyy}`;
+                const nextDate = parseDateLocal(lastTest.date);
+                if (nextDate) {
+                    nextDate.setFullYear(nextDate.getFullYear() + 1);
+                    const yyyy = nextDate.getFullYear();
+                    const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
+                    const dd = String(nextDate.getDate()).padStart(2, '0');
+                    this.bloodNextDate.innerText = `${dd}/${mm}/${yyyy}`;
+                } else {
+                    this.bloodNextDate.innerText = 'N/A';
+                }
             } else {
                 this.bloodNextDate.innerText = 'N/A';
             }
