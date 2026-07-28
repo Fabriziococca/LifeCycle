@@ -8,28 +8,68 @@ export const CUSTOM_TRACKER_SECTIONS = Object.freeze({
         mainSectionId: 'higiene-section',
         alertCategory: 'higiene',
         defaultAction: 'Registrar limpieza',
-        defaultIcon: 'ph-sparkle'
+        defaultIcon: 'ph-sparkle',
+        defaultSubsection: 'tecnologia',
+        subsections: Object.freeze({
+            tecnologia: Object.freeze({
+                label: 'Tecnología',
+                hostId: 'tracker-container'
+            }),
+            dormitorio_bano: Object.freeze({
+                label: 'Dormitorio y baño',
+                hostId: 'tracker-container'
+            }),
+            cuidado_personal: Object.freeze({
+                label: 'Cuidado personal',
+                hostId: 'tracker-container'
+            })
+        })
     }),
     grooming: Object.freeze({
         label: 'Cuidado',
         mainSectionId: 'cuidado-section',
         alertCategory: 'cuidado',
         defaultAction: 'Registrar cuidado',
-        defaultIcon: 'ph-scissors'
+        defaultIcon: 'ph-scissors',
+        defaultSubsection: 'mantenimiento',
+        subsections: Object.freeze({
+            mantenimiento: Object.freeze({
+                label: 'Mantenimiento corporal',
+                hostId: 'cuidado-grid-section'
+            }),
+            herramientas: Object.freeze({
+                label: 'Herramientas',
+                hostId: 'cuidado-tools-section'
+            })
+        })
     }),
     lenses: Object.freeze({
         label: 'Lentes',
         mainSectionId: 'lentes-section',
         alertCategory: 'lentes',
         defaultAction: 'Registrar cambio',
-        defaultIcon: 'ph-eye'
+        defaultIcon: 'ph-eye',
+        defaultSubsection: 'insumos',
+        subsections: Object.freeze({
+            insumos: Object.freeze({
+                label: 'Insumos y reemplazos',
+                hostId: 'lenses-cards-container'
+            })
+        })
     }),
     health: Object.freeze({
         label: 'Salud',
         mainSectionId: 'salud-section',
         alertCategory: 'salud',
         defaultAction: 'Registrar control',
-        defaultIcon: 'ph-heartbeat'
+        defaultIcon: 'ph-heartbeat',
+        defaultSubsection: 'controles',
+        subsections: Object.freeze({
+            controles: Object.freeze({
+                label: 'Controles médicos',
+                hostId: 'salud-grid-section'
+            })
+        })
     })
 });
 
@@ -43,7 +83,21 @@ export const CUSTOM_TRACKER_ICONS = Object.freeze([
     'ph-tooth',
     'ph-first-aid',
     'ph-calendar-check',
-    'ph-package'
+    'ph-package',
+    'ph-phone',
+    'ph-mouse',
+    'ph-headphones',
+    'ph-paint-brush',
+    'ph-hand-palm',
+    'ph-bed',
+    'ph-moon',
+    'ph-laptop',
+    'ph-wrench',
+    'ph-archive',
+    'ph-eyedropper',
+    'ph-spray-bottle',
+    'ph-drop-half',
+    'ph-user-focus'
 ]);
 
 const SECTION_KEYS = new Set(Object.keys(CUSTOM_TRACKER_SECTIONS));
@@ -137,6 +191,23 @@ function normalizeTracker(rawTracker, { strict = false } = {}) {
         strict
     });
     assert(SECTION_KEYS.has(section), `La sección "${section}" no es compatible.`);
+    const sectionConfig = CUSTOM_TRACKER_SECTIONS[section];
+    const subsectionKeys = new Set(Object.keys(sectionConfig.subsections));
+    const subsectionCandidate = typeof rawTracker.subsection === 'string'
+        ? rawTracker.subsection.trim()
+        : '';
+    const subsection = subsectionKeys.has(subsectionCandidate)
+        ? subsectionCandidate
+        : sectionConfig.defaultSubsection;
+    if (
+        strict
+        && rawTracker.subsection !== undefined
+        && !subsectionKeys.has(subsectionCandidate)
+    ) {
+        throw new CustomTrackerValidationError(
+            `La ubicación "${subsectionCandidate}" no pertenece a la sección "${section}".`
+        );
+    }
 
     const name = normalizeText(rawTracker.name, {
         field: 'name',
@@ -215,6 +286,7 @@ function normalizeTracker(rawTracker, { strict = false } = {}) {
     return {
         id,
         section,
+        subsection,
         name,
         actionLabel,
         intervalDays,

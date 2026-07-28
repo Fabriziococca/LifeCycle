@@ -466,6 +466,9 @@ export class HygieneModule {
                 this.container.appendChild(clone);
             }
         });
+
+        // Esta grilla se reconstruye completa en cada cambio de categoría o registro.
+        this.app.customTrackers?.renderSection('hygiene');
     }
 
     initTabs() {

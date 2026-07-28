@@ -198,6 +198,8 @@ export class LensModule {
         this.checkStockWarning(stock);
 
         this.renderCards();
+        // renderCards reemplaza todo el contenedor de insumos.
+        this.app.customTrackers?.renderSection('lenses');
         this.app.notificationsCenter?.updateBadge();
     }
 

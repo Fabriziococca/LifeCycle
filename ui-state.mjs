@@ -23,6 +23,7 @@ const VALID_PROFILE_TABS = new Set([
     'notificaciones',
     'instalacion',
     'backup',
+    'seguimientos',
     'alertas'
 ]);
 

@@ -276,6 +276,9 @@ export class GroomingModule {
                 this.gridSection.appendChild(clone);
             }
         });
+
+        // Ambas grillas se reconstruyen completas al registrar o editar.
+        this.app.customTrackers?.renderSection('grooming');
     }
 
     init() {

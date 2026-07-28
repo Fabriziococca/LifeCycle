@@ -43,6 +43,7 @@ test('custom tracker registry normalizes trackers and their histories', () => {
 
     assert.equal(CUSTOM_TRACKER_FIELD, '__custom_trackers_v1');
     assert.equal(registry.trackers[0].name, 'Lavar sillones');
+    assert.equal(registry.trackers[0].subsection, 'tecnologia');
     assert.equal(
         registry.histories[tracker.id][0],
         '2026-07-25T12:00:00.000Z'
@@ -66,6 +67,35 @@ test('strict custom tracker validation rejects unsafe or malformed data', () => 
         }),
         /sección/
     );
+    assert.throws(
+        () => validateCustomTrackerRegistry({
+            version: 1,
+            trackers: [{
+                ...createTracker(),
+                subsection: 'ubicacion_inexistente'
+            }],
+            histories: {}
+        }),
+        /ubicación/
+    );
+});
+
+test('legacy cards gain a safe default location and new cards keep their destination', () => {
+    const legacyTracker = { ...createTracker() };
+    delete legacyTracker.subsection;
+    const migrated = validateCustomTrackerRegistry({
+        version: 1,
+        trackers: [legacyTracker],
+        histories: { [legacyTracker.id]: [] }
+    });
+    assert.equal(migrated.trackers[0].subsection, 'tecnologia');
+
+    const groomingTracker = createTracker({
+        id: 'ct_herramienta_01',
+        section: 'grooming',
+        subsection: 'herramientas'
+    });
+    assert.equal(groomingTracker.subsection, 'herramientas');
 });
 
 test('custom tracker status progresses from new to overdue', () => {

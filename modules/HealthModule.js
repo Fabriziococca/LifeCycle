@@ -280,6 +280,8 @@ export class HealthModule {
     render() {
         this.renderMedicalCards();
         this.renderBloodTestsCard();
+        // renderMedicalCards reemplaza la grilla de controles.
+        this.controller.customTrackers?.renderSection('health');
     }
 
     renderMedicalCards() {

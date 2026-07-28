@@ -45,6 +45,11 @@ test('UI state accepts only known navigation values', () => {
         }),
         DEFAULT_UI_STATE
     );
+
+    assert.equal(
+        normalizeUiState({ profileTab: 'seguimientos' }).profileTab,
+        'seguimientos'
+    );
 });
 
 test('UI state survives malformed storage without blocking startup', () => {

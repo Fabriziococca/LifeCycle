@@ -1624,6 +1624,10 @@
                         <i class="ph ph-shield-check"></i>
                         <span>Copia de Seguridad</span>
                     </button>
+                    <button class="profile-menu-item" data-tab="seguimientos">
+                        <i class="ph ph-stack"></i>
+                        <span>Seguimientos</span>
+                    </button>
                     <button class="profile-menu-item" data-tab="alertas">
                         <i class="ph ph-bell-ringing"></i>
                         <span>Gestor de Alertas</span>
@@ -1797,7 +1801,37 @@
                         </div>
                     </div>
 
-                    <!-- Pestaña 5: Gestor de Alertas -->
+                    <!-- Pestaña 5: Seguimientos configurables -->
+                    <div class="profile-tab-content hidden" id="tab-seguimientos">
+                        <div class="custom-trackers-manager">
+                            <div class="custom-trackers-manager-header">
+                                <div>
+                                    <span class="custom-trackers-eyebrow">Personalización</span>
+                                    <h2>Seguimientos configurables</h2>
+                                    <p>
+                                        Creá y administrá tarjetas que después usarás desde
+                                        Higiene, Cuidado, Lentes o Salud.
+                                    </p>
+                                </div>
+                                <button id="btn-new-custom-tracker" type="button" class="btn btn-primary">
+                                    <i class="ph ph-plus"></i>
+                                    Nueva tarjeta
+                                </button>
+                            </div>
+                            <div class="custom-trackers-manager-note">
+                                <i class="ph ph-info"></i>
+                                <span>
+                                    Este creador está pensado para seguimientos por vencimiento.
+                                    Los cronómetros, el stock y los adjuntos continúan en sus
+                                    módulos especializados.
+                                </span>
+                            </div>
+                            <div id="custom-trackers-manager-summary"></div>
+                            <div id="custom-trackers-manager-feedback" class="custom-trackers-feedback hidden" role="status" aria-live="polite"></div>
+                        </div>
+                    </div>
+
+                    <!-- Pestaña 6: Gestor de Alertas -->
                     <div class="profile-tab-content hidden" id="tab-alertas">
                         <div class="card" style="margin-bottom: 2rem;">
                             <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 12px; margin-bottom: 16px; flex-wrap: wrap; gap: 1rem;">

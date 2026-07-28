@@ -7,7 +7,7 @@ import {
     getCustomAlertKey,
     getCustomTrackerState,
     normalizeCustomTrackerRegistry
-} from '../custom-tracker-utils.mjs?v=20260728-custom-trackers';
+} from '../custom-tracker-utils.mjs?v=20260728-custom-trackers-v2';
 import { DateUtils } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
@@ -25,6 +25,13 @@ const ACTION_PRESETS = Object.freeze([
     'Registrar cambio',
     'Registrar cuidado',
     'Registrar control',
+    'Registrar visita',
+    'Registrar corte',
+    'Registrar afeitado',
+    'Registrar depilación',
+    'Renovar',
+    'Abrir',
+    'Reemplazar',
     'Registrar'
 ]);
 
@@ -38,24 +45,43 @@ const ICON_LABELS = Object.freeze({
     'ph-tooth': 'Dental',
     'ph-first-aid': 'Médico',
     'ph-calendar-check': 'Calendario',
-    'ph-package': 'Insumo'
+    'ph-package': 'Insumo',
+    'ph-phone': 'Celular',
+    'ph-mouse': 'Mouse',
+    'ph-headphones': 'Auriculares',
+    'ph-paint-brush': 'Lavado',
+    'ph-hand-palm': 'Toalla o manos',
+    'ph-bed': 'Dormitorio',
+    'ph-moon': 'Descanso',
+    'ph-laptop': 'Computadora',
+    'ph-wrench': 'Mantenimiento',
+    'ph-archive': 'Estuche',
+    'ph-eyedropper': 'Gotas',
+    'ph-spray-bottle': 'Spray',
+    'ph-drop-half': 'Líquido',
+    'ph-user-focus': 'Cuidado personal'
 });
 
 export class CustomTrackersModule {
     constructor(appController) {
         this.app = appController;
         this.registry = this.loadRegistry();
-        this.archiveOpenSections = new Set();
         this.openHistoryIds = new Set();
         this.openInstructionIds = new Set();
         this.pendingDeleteIds = new Set();
         this.pendingHistoryDeleteKeys = new Set();
         this.editingId = null;
         this.lastDialogTrigger = null;
-        this.panels = new Map();
+        this.toastTimer = null;
+
+        this.managerRoot = document.getElementById('tab-seguimientos');
+        this.managerSummary = document.getElementById('custom-trackers-manager-summary');
+        this.managerFeedback = document.getElementById('custom-trackers-manager-feedback');
+        this.newTrackerButton = document.getElementById('btn-new-custom-tracker');
 
         this.ensureEditorDialog();
-        this.ensurePanels();
+        this.setupManagerListeners();
+        this.setupRuntimeListeners();
         this.renderAll();
     }
 
@@ -87,10 +113,7 @@ export class CustomTrackersModule {
 
     getEffectiveAlertConfig(tracker) {
         if (!tracker) {
-            return {
-                enabled: false,
-                time: '23:00'
-            };
+            return { enabled: false, time: '23:00' };
         }
 
         const stored = this.app.alerts?.configs?.[getCustomAlertKey(tracker.id)];
@@ -122,68 +145,105 @@ export class CustomTrackersModule {
         return `ct_${Date.now().toString(36)}_${randomPart}`.slice(0, 67);
     }
 
-    ensurePanels() {
-        Object.entries(CUSTOM_TRACKER_SECTIONS).forEach(([sectionKey, sectionConfig]) => {
-            const hostSection = document.getElementById(sectionConfig.mainSectionId);
-            if (!hostSection) return;
+    setupManagerListeners() {
+        this.newTrackerButton?.addEventListener('click', event => {
+            this.openEditor('hygiene', null, event.currentTarget);
+        });
 
-            let panel = hostSection.querySelector(
-                `.custom-trackers-panel[data-custom-section="${sectionKey}"]`
-            );
-            if (!panel) {
-                panel = document.createElement('div');
-                panel.className = 'custom-trackers-panel';
-                panel.dataset.customSection = sectionKey;
-                panel.innerHTML = `
-                    <div class="custom-trackers-panel-header">
-                        <div>
-                            <span class="custom-trackers-eyebrow">Configurable</span>
-                            <h2>Mis seguimientos de ${escapeHtml(sectionConfig.label)}</h2>
-                            <p>Creá tarjetas propias sin modificar ni desplegar código.</p>
-                        </div>
-                        <div class="custom-trackers-panel-actions">
-                            <button type="button" class="btn btn-primary" data-custom-action="new">
-                                <i class="ph ph-plus"></i>
-                                Nueva tarjeta
-                            </button>
-                            <button type="button" class="btn btn-secondary" data-custom-action="toggle-archive" aria-expanded="false">
-                                <i class="ph ph-archive"></i>
-                                <span>Archivadas</span>
-                                <span class="custom-archive-count">0</span>
-                            </button>
-                        </div>
-                    </div>
-                    <div class="custom-trackers-feedback hidden" role="status" aria-live="polite"></div>
-                    <div class="custom-trackers-grid"></div>
-                    <div class="custom-trackers-archive hidden">
-                        <div class="custom-trackers-archive-header">
-                            <h3>Tarjetas archivadas</h3>
-                            <p>Podés restaurarlas o borrarlas definitivamente.</p>
-                        </div>
-                        <div class="custom-trackers-archive-list"></div>
-                    </div>
-                `;
+        this.managerRoot?.addEventListener('click', event => {
+            const button = event.target.closest('[data-custom-manager-action]');
+            if (!button) return;
 
-                const tabs = Array.from(hostSection.children).find(child => (
-                    child.classList?.contains('tabs-container')
-                ));
-                if (tabs) tabs.insertAdjacentElement('afterend', panel);
-                else hostSection.prepend(panel);
+            const action = button.dataset.customManagerAction;
+            const trackerId = button.dataset.trackerId;
 
-                panel.addEventListener('click', event => {
-                    this.handlePanelAction(event, sectionKey);
-                });
+            if (action === 'new') {
+                this.openEditor(button.dataset.section || 'hygiene', null, button);
+            } else if (action === 'edit') {
+                const tracker = this.getTracker(trackerId);
+                if (tracker) this.openEditor(tracker.section, trackerId, button);
+            } else if (action === 'archive') {
+                this.archiveTracker(trackerId);
+            } else if (action === 'restore' || action === 'undo-archive') {
+                this.restoreTracker(trackerId);
+            } else if (action === 'request-delete') {
+                this.pendingDeleteIds.add(trackerId);
+                this.renderManager();
+            } else if (action === 'cancel-delete') {
+                this.pendingDeleteIds.delete(trackerId);
+                this.renderManager();
+            } else if (action === 'confirm-delete') {
+                this.deleteTracker(trackerId);
+            } else if (action === 'move-up') {
+                this.moveTracker(trackerId, -1);
+            } else if (action === 'move-down') {
+                this.moveTracker(trackerId, 1);
             }
+        });
+    }
 
-            this.panels.set(sectionKey, panel);
+    setupRuntimeListeners() {
+        document.addEventListener('click', event => {
+            const button = event.target.closest(
+                '.custom-tracker-card [data-custom-runtime-action]'
+            );
+            if (!button) return;
+
+            const action = button.dataset.customRuntimeAction;
+            const trackerId = button.dataset.trackerId;
+            const tracker = this.getTracker(trackerId);
+            if (!tracker) return;
+
+            if (action === 'record') {
+                this.recordTracker(trackerId);
+            } else if (action === 'toggle-history') {
+                if (this.openHistoryIds.has(trackerId)) this.openHistoryIds.delete(trackerId);
+                else this.openHistoryIds.add(trackerId);
+                this.renderSection(tracker.section);
+            } else if (action === 'toggle-instructions') {
+                if (this.openInstructionIds.has(trackerId)) {
+                    this.openInstructionIds.delete(trackerId);
+                } else {
+                    this.openInstructionIds.add(trackerId);
+                }
+                this.renderSection(tracker.section);
+            } else if (action === 'edit-latest') {
+                const latest = this.getHistory(trackerId)[0];
+                if (latest) {
+                    this.app.openEditModal(
+                        'customTracker',
+                        tracker.id,
+                        tracker.name,
+                        latest
+                    );
+                }
+            } else if (action === 'request-delete-history') {
+                this.pendingHistoryDeleteKeys.add(
+                    this.getHistoryDeleteKey(
+                        trackerId,
+                        Number(button.dataset.historyIndex)
+                    )
+                );
+                this.renderSection(tracker.section);
+            } else if (action === 'cancel-delete-history') {
+                this.pendingHistoryDeleteKeys.delete(
+                    this.getHistoryDeleteKey(
+                        trackerId,
+                        Number(button.dataset.historyIndex)
+                    )
+                );
+                this.renderSection(tracker.section);
+            } else if (action === 'confirm-delete-history') {
+                this.deleteHistoryEntry(
+                    trackerId,
+                    Number(button.dataset.historyIndex)
+                );
+            }
         });
     }
 
     ensureEditorDialog() {
-        if (document.getElementById('custom-tracker-dialog')) {
-            this.dialog = document.getElementById('custom-tracker-dialog');
-            return;
-        }
+        document.getElementById('custom-tracker-dialog')?.remove();
 
         const dialog = document.createElement('div');
         dialog.id = 'custom-tracker-dialog';
@@ -197,15 +257,22 @@ export class CustomTrackersModule {
                     <div>
                         <span class="custom-trackers-eyebrow">Seguimiento configurable</span>
                         <h2 id="custom-tracker-dialog-title">Nueva tarjeta</h2>
-                        <p id="custom-tracker-dialog-section"></p>
+                        <p id="custom-tracker-dialog-section">Elegí dónde aparecerá la tarjeta.</p>
                     </div>
                     <button type="button" class="custom-dialog-close" data-dialog-action="close" aria-label="Cerrar editor de tarjeta">
                         <i class="ph ph-x"></i>
                     </button>
                 </div>
                 <form id="custom-tracker-form" novalidate>
-                    <input type="hidden" id="custom-tracker-section">
                     <div class="custom-tracker-form-grid">
+                        <div class="input-group">
+                            <label for="custom-tracker-section">Sección de destino</label>
+                            <select id="custom-tracker-section" class="text-input"></select>
+                        </div>
+                        <div class="input-group">
+                            <label for="custom-tracker-subsection">Ubicación dentro de la sección</label>
+                            <select id="custom-tracker-subsection" class="text-input"></select>
+                        </div>
                         <div class="input-group custom-form-wide">
                             <label for="custom-tracker-name">Nombre</label>
                             <input id="custom-tracker-name" class="text-input" type="text" maxlength="80" autocomplete="off" placeholder="Ej: Limpiar los sillones" required>
@@ -219,11 +286,12 @@ export class CustomTrackersModule {
                             <input id="custom-tracker-action-other" class="text-input" type="text" maxlength="60" autocomplete="off" placeholder="Ej: Aspiré los sillones">
                         </div>
                         <div class="input-group">
-                            <label for="custom-tracker-interval">Repetir cada</label>
+                            <label for="custom-tracker-interval">Marcar como vencida después de</label>
                             <div class="custom-number-with-unit">
                                 <input id="custom-tracker-interval" class="number-input" type="number" min="1" max="3650" inputmode="numeric" required>
                                 <span>días</span>
                             </div>
+                            <small>La cuenta solo vuelve a empezar cuando registrás la acción.</small>
                         </div>
                         <div class="input-group">
                             <label for="custom-tracker-icon">Icono</label>
@@ -238,13 +306,17 @@ export class CustomTrackersModule {
                     <div class="custom-tracker-alert-block">
                         <label class="custom-tracker-alert-toggle" for="custom-tracker-alert-enabled">
                             <input id="custom-tracker-alert-enabled" type="checkbox">
-                            <span>
+                            <span class="custom-alert-icon"><i class="ph ph-bell"></i></span>
+                            <span class="custom-alert-copy">
                                 <strong>Notificación push</strong>
-                                <small>Avisar cuando la tarjeta esté vencida.</small>
+                                <small>Avisarme una vez al día mientras la tarjeta esté vencida.</small>
+                            </span>
+                            <span class="custom-alert-switch" aria-hidden="true">
+                                <span></span>
                             </span>
                         </label>
                         <div class="input-group custom-tracker-alert-time-wrap hidden">
-                            <label for="custom-tracker-alert-time">Hora del aviso</label>
+                            <label for="custom-tracker-alert-time">Hora del aviso diario</label>
                             <input id="custom-tracker-alert-time" class="time-input" type="time" value="23:00">
                         </div>
                     </div>
@@ -261,6 +333,13 @@ export class CustomTrackersModule {
         `;
         document.body.appendChild(dialog);
         this.dialog = dialog;
+
+        const sectionSelect = dialog.querySelector('#custom-tracker-section');
+        sectionSelect.innerHTML = Object.entries(CUSTOM_TRACKER_SECTIONS)
+            .map(([key, section]) => (
+                `<option value="${key}">${escapeHtml(section.label)}</option>`
+            ))
+            .join('');
 
         const actionSelect = dialog.querySelector('#custom-tracker-action');
         actionSelect.innerHTML = [
@@ -283,13 +362,21 @@ export class CustomTrackersModule {
                 this.closeEditor();
             }
         });
-        dialog.querySelector('#custom-tracker-action')?.addEventListener('change', () => {
+        sectionSelect.addEventListener('change', () => {
+            this.populateSubsectionOptions(sectionSelect.value);
+            if (!this.editingId) this.applySectionDefaults(sectionSelect.value);
+            this.updateEditorDestinationLabel();
+        });
+        dialog.querySelector('#custom-tracker-subsection').addEventListener('change', () => {
+            this.updateEditorDestinationLabel();
+        });
+        actionSelect.addEventListener('change', () => {
             this.updateEditorConditionalFields();
         });
-        dialog.querySelector('#custom-tracker-alert-enabled')?.addEventListener('change', () => {
+        dialog.querySelector('#custom-tracker-alert-enabled').addEventListener('change', () => {
             this.updateEditorConditionalFields();
         });
-        dialog.querySelector('#custom-tracker-form')?.addEventListener('submit', event => {
+        dialog.querySelector('#custom-tracker-form').addEventListener('submit', event => {
             event.preventDefault();
             this.saveEditor();
         });
@@ -320,6 +407,45 @@ export class CustomTrackersModule {
         });
     }
 
+    populateSubsectionOptions(sectionKey, selectedValue = null) {
+        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
+        const select = this.dialog.querySelector('#custom-tracker-subsection');
+        if (!section || !select) return;
+
+        select.innerHTML = Object.entries(section.subsections)
+            .map(([key, subsection]) => (
+                `<option value="${key}">${escapeHtml(subsection.label)}</option>`
+            ))
+            .join('');
+        select.value = section.subsections[selectedValue]
+            ? selectedValue
+            : section.defaultSubsection;
+    }
+
+    applySectionDefaults(sectionKey) {
+        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
+        if (!section) return;
+        this.dialog.querySelector('#custom-tracker-action').value = (
+            ACTION_PRESETS.includes(section.defaultAction)
+                ? section.defaultAction
+                : '__custom__'
+        );
+        this.dialog.querySelector('#custom-tracker-icon').value = section.defaultIcon;
+        this.updateEditorConditionalFields();
+    }
+
+    updateEditorDestinationLabel() {
+        const sectionKey = this.dialog.querySelector('#custom-tracker-section').value;
+        const subsectionKey = this.dialog.querySelector('#custom-tracker-subsection').value;
+        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
+        const subsection = section?.subsections?.[subsectionKey];
+        this.dialog.querySelector('#custom-tracker-dialog-section').textContent = (
+            section && subsection
+                ? `${section.label} · ${subsection.label}`
+                : 'Elegí dónde aparecerá la tarjeta.'
+        );
+    }
+
     updateEditorConditionalFields() {
         const actionSelect = this.dialog.querySelector('#custom-tracker-action');
         const customActionGroup = this.dialog.querySelector('.custom-action-other-group');
@@ -333,55 +459,62 @@ export class CustomTrackersModule {
             .classList.toggle('hidden', !alertEnabled);
     }
 
-    openEditor(sectionKey, trackerId = null, trigger = null) {
-        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
-        if (!section) return;
-
+    openEditor(sectionKey = 'hygiene', trackerId = null, trigger = null) {
         const tracker = trackerId ? this.getTracker(trackerId) : null;
         if (trackerId && !tracker) return;
+
+        const selectedSectionKey = tracker?.section || (
+            CUSTOM_TRACKER_SECTIONS[sectionKey] ? sectionKey : 'hygiene'
+        );
+        const section = CUSTOM_TRACKER_SECTIONS[selectedSectionKey];
 
         this.editingId = tracker?.id || null;
         this.lastDialogTrigger = trigger instanceof HTMLElement ? trigger : null;
         this.dialog.querySelector('#custom-tracker-dialog-title').textContent = tracker
             ? 'Editar tarjeta'
             : 'Nueva tarjeta';
-        this.dialog.querySelector('#custom-tracker-dialog-section').textContent = section.label;
-        this.dialog.querySelector('#custom-tracker-section').value = sectionKey;
+        this.dialog.querySelector('#custom-tracker-section').value = selectedSectionKey;
+        this.populateSubsectionOptions(selectedSectionKey, tracker?.subsection);
         this.dialog.querySelector('#custom-tracker-name').value = tracker?.name || '';
         this.dialog.querySelector('#custom-tracker-interval').value = tracker?.intervalDays || 30;
         this.dialog.querySelector('#custom-tracker-icon').value = tracker?.icon || section.defaultIcon;
-        this.dialog.querySelector('#custom-tracker-instructions').value = tracker?.instructions || '';
+        this.dialog.querySelector('#custom-tracker-instructions').value = (
+            tracker?.instructions || ''
+        );
 
         const actionSelect = this.dialog.querySelector('#custom-tracker-action');
         const hasPreset = tracker && ACTION_PRESETS.includes(tracker.actionLabel);
         actionSelect.value = tracker
             ? (hasPreset ? tracker.actionLabel : '__custom__')
-            : (ACTION_PRESETS.includes(section.defaultAction)
-                ? section.defaultAction
-                : '__custom__');
+            : section.defaultAction;
         this.dialog.querySelector('#custom-tracker-action-other').value = (
             tracker && !hasPreset ? tracker.actionLabel : ''
         );
 
         const alertConfig = tracker
             ? this.getEffectiveAlertConfig(tracker)
-            : {
-                enabled: false,
-                time: '23:00'
-            };
+            : { enabled: false, time: '23:00' };
         this.dialog.querySelector('#custom-tracker-alert-enabled').checked = (
             alertConfig.enabled === true
         );
         this.dialog.querySelector('#custom-tracker-alert-time').value = (
             alertConfig.time || '23:00'
         );
-        this.dialog.querySelector('#custom-tracker-form-error').classList.add('hidden');
-        this.dialog.querySelector('#custom-tracker-form-error').textContent = '';
+        const errorElement = this.dialog.querySelector('#custom-tracker-form-error');
+        errorElement.classList.add('hidden');
+        errorElement.textContent = '';
+        this.updateEditorDestinationLabel();
         this.updateEditorConditionalFields();
 
         this.dialog.classList.remove('hidden');
         document.body.classList.add('modal-open');
-        setTimeout(() => this.dialog.querySelector('#custom-tracker-name')?.focus(), 0);
+        const dialogCard = this.dialog.querySelector('.custom-tracker-dialog-card');
+        if (dialogCard) dialogCard.scrollTop = 0;
+        setTimeout(() => {
+            const nameInput = this.dialog.querySelector('#custom-tracker-name');
+            nameInput?.focus({ preventScroll: true });
+            if (dialogCard) dialogCard.scrollTop = 0;
+        }, 0);
     }
 
     closeEditor() {
@@ -396,6 +529,7 @@ export class CustomTrackersModule {
     saveEditor() {
         const errorElement = this.dialog.querySelector('#custom-tracker-form-error');
         const section = this.dialog.querySelector('#custom-tracker-section').value;
+        const subsection = this.dialog.querySelector('#custom-tracker-subsection').value;
         const actionChoice = this.dialog.querySelector('#custom-tracker-action').value;
         const actionLabel = actionChoice === '__custom__'
             ? this.dialog.querySelector('#custom-tracker-action-other').value
@@ -405,14 +539,29 @@ export class CustomTrackersModule {
         const existing = this.editingId ? this.getTracker(this.editingId) : null;
 
         try {
-            const order = existing?.order ?? (
-                Math.max(-1, ...this.registry.trackers.map(tracker => tracker.order)) + 1
+            const destinationChanged = existing && (
+                existing.section !== section || existing.subsection !== subsection
             );
+            const order = !existing || destinationChanged
+                ? Math.max(
+                    -1,
+                    ...this.registry.trackers
+                        .filter(tracker => (
+                            !tracker.archived
+                            && tracker.section === section
+                            && tracker.subsection === subsection
+                        ))
+                        .map(tracker => tracker.order)
+                ) + 1
+                : existing.order;
             const candidate = createCustomTracker({
                 section,
+                subsection,
                 name: this.dialog.querySelector('#custom-tracker-name').value,
                 actionLabel,
-                intervalDays: Number(this.dialog.querySelector('#custom-tracker-interval').value),
+                intervalDays: Number(
+                    this.dialog.querySelector('#custom-tracker-interval').value
+                ),
                 icon: this.dialog.querySelector('#custom-tracker-icon').value,
                 instructions: this.dialog.querySelector('#custom-tracker-instructions').value,
                 alert: {
@@ -441,8 +590,7 @@ export class CustomTrackersModule {
             this.syncAlertConfig(existing?.id || candidate.id, candidate.alert);
             this.persistRegistry();
             this.closeEditor();
-            this.showFeedback(
-                section,
+            this.showManagerFeedback(
                 existing ? 'Tarjeta actualizada.' : 'Tarjeta creada y sincronizada.'
             );
         } catch (error) {
@@ -472,84 +620,6 @@ export class CustomTrackersModule {
         }
     }
 
-    handlePanelAction(event, sectionKey) {
-        const button = event.target.closest('[data-custom-action]');
-        if (!button) return;
-        const action = button.dataset.customAction;
-        const trackerId = button.dataset.trackerId;
-
-        if (action === 'new') {
-            this.openEditor(sectionKey, null, button);
-        } else if (action === 'toggle-archive') {
-            if (this.archiveOpenSections.has(sectionKey)) {
-                this.archiveOpenSections.delete(sectionKey);
-            } else {
-                this.archiveOpenSections.add(sectionKey);
-            }
-            this.renderSection(sectionKey);
-        } else if (action === 'edit') {
-            this.openEditor(sectionKey, trackerId, button);
-        } else if (action === 'record') {
-            this.recordTracker(trackerId);
-        } else if (action === 'archive') {
-            this.archiveTracker(trackerId);
-        } else if (action === 'restore') {
-            this.restoreTracker(trackerId);
-        } else if (action === 'request-delete') {
-            this.pendingDeleteIds.add(trackerId);
-            this.renderSection(sectionKey);
-        } else if (action === 'cancel-delete') {
-            this.pendingDeleteIds.delete(trackerId);
-            this.renderSection(sectionKey);
-        } else if (action === 'confirm-delete') {
-            this.deleteTracker(trackerId);
-        } else if (action === 'move-up') {
-            this.moveTracker(trackerId, -1);
-        } else if (action === 'move-down') {
-            this.moveTracker(trackerId, 1);
-        } else if (action === 'toggle-history') {
-            if (this.openHistoryIds.has(trackerId)) this.openHistoryIds.delete(trackerId);
-            else this.openHistoryIds.add(trackerId);
-            this.renderSection(sectionKey);
-        } else if (action === 'toggle-instructions') {
-            if (this.openInstructionIds.has(trackerId)) {
-                this.openInstructionIds.delete(trackerId);
-            } else {
-                this.openInstructionIds.add(trackerId);
-            }
-            this.renderSection(sectionKey);
-        } else if (action === 'edit-latest') {
-            const tracker = this.getTracker(trackerId);
-            const latest = this.getHistory(trackerId)[0];
-            if (tracker && latest) {
-                this.app.openEditModal(
-                    'customTracker',
-                    tracker.id,
-                    tracker.name,
-                    latest
-                );
-            }
-        } else if (action === 'request-delete-history') {
-            this.pendingHistoryDeleteKeys.add(
-                this.getHistoryDeleteKey(trackerId, Number(button.dataset.historyIndex))
-            );
-            this.renderSection(sectionKey);
-        } else if (action === 'cancel-delete-history') {
-            this.pendingHistoryDeleteKeys.delete(
-                this.getHistoryDeleteKey(trackerId, Number(button.dataset.historyIndex))
-            );
-            this.renderSection(sectionKey);
-        } else if (action === 'confirm-delete-history') {
-            this.deleteHistoryEntry(
-                trackerId,
-                Number(button.dataset.historyIndex),
-                sectionKey
-            );
-        } else if (action === 'undo-archive') {
-            this.restoreTracker(trackerId);
-        }
-    }
-
     recordTracker(trackerId, when = new Date()) {
         const tracker = this.getTracker(trackerId);
         if (!tracker || tracker.archived) return;
@@ -564,7 +634,7 @@ export class CustomTrackersModule {
             .slice(0, 100);
         this.persistRegistry();
         if (navigator.vibrate) navigator.vibrate(40);
-        this.showFeedback(tracker.section, `${tracker.name}: registro guardado.`);
+        this.showRuntimeFeedback(`${tracker.name}: registro guardado.`);
     }
 
     updateLatestDate(trackerId, dateValue) {
@@ -579,7 +649,7 @@ export class CustomTrackersModule {
             .sort((a, b) => Date.parse(b) - Date.parse(a))
             .slice(0, 100);
         this.persistRegistry();
-        this.showFeedback(tracker.section, `Fecha de ${tracker.name} actualizada.`);
+        this.showRuntimeFeedback(`Fecha de ${tracker.name} actualizada.`);
         return true;
     }
 
@@ -594,15 +664,11 @@ export class CustomTrackersModule {
         this.clearPendingHistoryDeletes(trackerId);
         this.syncAlertConfig(tracker.id, tracker.alert, { disabled: true });
         this.persistRegistry();
-        this.showFeedback(
-            tracker.section,
-            `${tracker.name} fue archivada.`,
-            {
-                label: 'Deshacer',
-                action: 'undo-archive',
-                trackerId: tracker.id
-            }
-        );
+        this.showManagerFeedback(`${tracker.name} fue archivada.`, {
+            label: 'Deshacer',
+            action: 'undo-archive',
+            trackerId: tracker.id
+        });
     }
 
     restoreTracker(trackerId) {
@@ -612,14 +678,18 @@ export class CustomTrackersModule {
         tracker.order = Math.max(
             -1,
             ...this.registry.trackers
-                .filter(item => !item.archived && item.section === tracker.section)
+                .filter(item => (
+                    !item.archived
+                    && item.section === tracker.section
+                    && item.subsection === tracker.subsection
+                ))
                 .map(item => item.order)
         ) + 1;
         tracker.updatedAt = new Date().toISOString();
         this.syncAlertConfig(tracker.id, tracker.alert);
         this.pendingDeleteIds.delete(trackerId);
         this.persistRegistry();
-        this.showFeedback(tracker.section, `${tracker.name} volvió a estar activa.`);
+        this.showManagerFeedback(`${tracker.name} volvió a estar activa.`);
     }
 
     deleteTracker(trackerId) {
@@ -634,23 +704,33 @@ export class CustomTrackersModule {
         this.clearPendingHistoryDeletes(trackerId);
         this.syncAlertConfig(trackerId, tracker.alert, { remove: true });
         this.persistRegistry();
-        this.showFeedback(tracker.section, `${tracker.name} fue borrada definitivamente.`);
+        this.showManagerFeedback(`${tracker.name} fue borrada definitivamente.`);
     }
 
     moveTracker(trackerId, direction) {
         const tracker = this.getTracker(trackerId);
         if (!tracker || tracker.archived) return;
 
-        const sectionTrackers = this.registry.trackers
-            .filter(item => item.section === tracker.section && !item.archived)
+        const destinationTrackers = this.registry.trackers
+            .filter(item => (
+                item.section === tracker.section
+                && item.subsection === tracker.subsection
+                && !item.archived
+            ))
             .sort((a, b) => a.order - b.order);
-        const currentIndex = sectionTrackers.findIndex(item => item.id === trackerId);
+        const currentIndex = destinationTrackers.findIndex(item => item.id === trackerId);
         const targetIndex = currentIndex + direction;
-        if (currentIndex < 0 || targetIndex < 0 || targetIndex >= sectionTrackers.length) return;
+        if (
+            currentIndex < 0
+            || targetIndex < 0
+            || targetIndex >= destinationTrackers.length
+        ) {
+            return;
+        }
 
-        const [moved] = sectionTrackers.splice(currentIndex, 1);
-        sectionTrackers.splice(targetIndex, 0, moved);
-        sectionTrackers.forEach((item, index) => {
+        const [moved] = destinationTrackers.splice(currentIndex, 1);
+        destinationTrackers.splice(targetIndex, 0, moved);
+        destinationTrackers.forEach((item, index) => {
             item.order = index;
             item.updatedAt = new Date().toISOString();
         });
@@ -668,7 +748,7 @@ export class CustomTrackersModule {
         });
     }
 
-    deleteHistoryEntry(trackerId, historyIndex, sectionKey) {
+    deleteHistoryEntry(trackerId, historyIndex) {
         const tracker = this.getTracker(trackerId);
         const history = this.getHistory(trackerId);
         const confirmationKey = this.getHistoryDeleteKey(trackerId, historyIndex);
@@ -687,109 +767,222 @@ export class CustomTrackersModule {
         this.registry.histories[trackerId] = history;
         this.persistRegistry();
         this.openHistoryIds.add(trackerId);
-        this.renderSection(sectionKey);
+        this.renderSection(tracker.section);
     }
 
-    showFeedback(sectionKey, message, action = null) {
-        const feedback = this.panels.get(sectionKey)?.querySelector(
-            '.custom-trackers-feedback'
-        );
-        if (!feedback) return;
-
-        feedback.innerHTML = `
+    showManagerFeedback(message, action = null) {
+        if (!this.managerFeedback) return;
+        this.managerFeedback.innerHTML = `
             <span>${escapeHtml(message)}</span>
             ${action ? `
-                <button type="button" class="custom-feedback-action" data-custom-action="${action.action}" data-tracker-id="${action.trackerId}">
+                <button type="button" class="custom-feedback-action" data-custom-manager-action="${action.action}" data-tracker-id="${action.trackerId}">
                     ${escapeHtml(action.label)}
                 </button>
             ` : ''}
         `;
-        feedback.classList.remove('hidden');
+        this.managerFeedback.classList.remove('hidden');
+    }
+
+    showRuntimeFeedback(message) {
+        let toast = document.getElementById('custom-tracker-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'custom-tracker-toast';
+            toast.className = 'custom-tracker-toast hidden';
+            toast.setAttribute('role', 'status');
+            toast.setAttribute('aria-live', 'polite');
+            document.body.appendChild(toast);
+        }
+
+        clearTimeout(this.toastTimer);
+        toast.textContent = message;
+        toast.classList.remove('hidden');
+        this.toastTimer = setTimeout(() => toast.classList.add('hidden'), 3200);
     }
 
     renderAll() {
+        this.renderManager();
         Object.keys(CUSTOM_TRACKER_SECTIONS).forEach(sectionKey => {
             this.renderSection(sectionKey);
         });
     }
 
-    renderMainSection(mainSectionId) {
-        const entry = Object.entries(CUSTOM_TRACKER_SECTIONS).find(([, config]) => (
-            config.mainSectionId === mainSectionId
+    renderManager() {
+        if (!this.managerSummary) return;
+
+        this.managerSummary.innerHTML = Object.entries(CUSTOM_TRACKER_SECTIONS)
+            .map(([sectionKey, section]) => {
+                const active = this.registry.trackers
+                    .filter(tracker => tracker.section === sectionKey && !tracker.archived)
+                    .sort((a, b) => (
+                        a.subsection.localeCompare(b.subsection)
+                        || a.order - b.order
+                        || a.name.localeCompare(b.name, 'es')
+                    ));
+                const archived = this.registry.trackers
+                    .filter(tracker => tracker.section === sectionKey && tracker.archived)
+                    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+                const activeLabel = `${active.length} ${active.length === 1 ? 'activa' : 'activas'}`;
+                const archivedLabel = archived.length > 0
+                    ? ` · ${archived.length} ${archived.length === 1 ? 'archivada' : 'archivadas'}`
+                    : '';
+
+                return `
+                    <section class="custom-manager-section" data-manager-section="${sectionKey}">
+                        <div class="custom-manager-section-header">
+                            <div>
+                                <span class="custom-manager-section-icon">
+                                    <i class="ph ${section.defaultIcon}"></i>
+                                </span>
+                                <span>
+                                    <h3>${escapeHtml(section.label)}</h3>
+                                    <small>${activeLabel}${archivedLabel}</small>
+                                </span>
+                            </div>
+                            <button type="button" class="custom-manager-add" data-custom-manager-action="new" data-section="${sectionKey}" aria-label="Crear tarjeta en ${escapeHtml(section.label)}">
+                                <i class="ph ph-plus"></i>
+                            </button>
+                        </div>
+                        <div class="custom-manager-list">
+                            ${active.length > 0
+                                ? active.map(tracker => (
+                                    this.renderManagerActiveRow(tracker, active)
+                                )).join('')
+                                : `
+                                    <p class="custom-manager-empty">
+                                        Sin tarjetas personalizadas en esta sección.
+                                    </p>
+                                `}
+                            ${archived.length > 0 ? `
+                                <div class="custom-manager-archived-label">
+                                    <i class="ph ph-archive"></i>
+                                    Archivadas
+                                </div>
+                                ${archived.map(tracker => (
+                                    this.renderManagerArchivedRow(tracker)
+                                )).join('')}
+                            ` : ''}
+                        </div>
+                    </section>
+                `;
+            })
+            .join('');
+    }
+
+    renderManagerActiveRow(tracker, sectionTrackers) {
+        const subsection = CUSTOM_TRACKER_SECTIONS[tracker.section]
+            ?.subsections?.[tracker.subsection];
+        const sameDestination = sectionTrackers.filter(item => (
+            item.subsection === tracker.subsection
         ));
-        if (entry) this.renderSection(entry[0]);
+        const destinationIndex = sameDestination.findIndex(item => item.id === tracker.id);
+        return `
+            <div class="custom-manager-row">
+                <div class="custom-manager-row-name">
+                    <i class="ph ${tracker.icon}"></i>
+                    <span>
+                        <strong>${escapeHtml(tracker.name)}</strong>
+                        <small>${escapeHtml(subsection?.label || '')}</small>
+                    </span>
+                </div>
+                <div class="custom-manager-row-actions">
+                    <button type="button" data-custom-manager-action="move-up" data-tracker-id="${tracker.id}" ${destinationIndex <= 0 ? 'disabled' : ''} aria-label="Subir ${escapeHtml(tracker.name)}">
+                        <i class="ph ph-arrow-up"></i>
+                    </button>
+                    <button type="button" data-custom-manager-action="move-down" data-tracker-id="${tracker.id}" ${destinationIndex === sameDestination.length - 1 ? 'disabled' : ''} aria-label="Bajar ${escapeHtml(tracker.name)}">
+                        <i class="ph ph-arrow-down"></i>
+                    </button>
+                    <button type="button" data-custom-manager-action="edit" data-tracker-id="${tracker.id}" aria-label="Editar ${escapeHtml(tracker.name)}">
+                        <i class="ph ph-pencil-simple"></i>
+                    </button>
+                    <button type="button" data-custom-manager-action="archive" data-tracker-id="${tracker.id}" aria-label="Archivar ${escapeHtml(tracker.name)}">
+                        <i class="ph ph-archive"></i>
+                    </button>
+                </div>
+            </div>
+        `;
+    }
+
+    renderManagerArchivedRow(tracker) {
+        const awaitingConfirmation = this.pendingDeleteIds.has(tracker.id);
+        return `
+            <div class="custom-manager-row archived">
+                <div class="custom-manager-row-name">
+                    <i class="ph ${tracker.icon}"></i>
+                    <span>
+                        <strong>${escapeHtml(tracker.name)}</strong>
+                        <small>Historial conservado</small>
+                    </span>
+                </div>
+                <div class="custom-manager-row-actions ${awaitingConfirmation ? 'confirming' : ''}">
+                    <button type="button" data-custom-manager-action="restore" data-tracker-id="${tracker.id}" aria-label="Restaurar ${escapeHtml(tracker.name)}">
+                        <i class="ph ph-arrow-counter-clockwise"></i>
+                    </button>
+                    ${awaitingConfirmation ? `
+                        <button type="button" class="text-action" data-custom-manager-action="cancel-delete" data-tracker-id="${tracker.id}">
+                            Cancelar
+                        </button>
+                        <button type="button" class="text-action danger" data-custom-manager-action="confirm-delete" data-tracker-id="${tracker.id}">
+                            Borrar
+                        </button>
+                    ` : `
+                        <button type="button" class="danger" data-custom-manager-action="request-delete" data-tracker-id="${tracker.id}" aria-label="Borrar definitivamente ${escapeHtml(tracker.name)}">
+                            <i class="ph ph-trash"></i>
+                        </button>
+                    `}
+                </div>
+            </div>
+        `;
+    }
+
+    clearRuntimeCards(sectionKey) {
+        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
+        if (!section) return;
+        const hostIds = new Set(
+            Object.values(section.subsections).map(subsection => subsection.hostId)
+        );
+        hostIds.forEach(hostId => {
+            document.getElementById(hostId)
+                ?.querySelectorAll(`[data-custom-runtime-section="${sectionKey}"]`)
+                .forEach(element => element.remove());
+        });
     }
 
     renderSection(sectionKey) {
-        const panel = this.panels.get(sectionKey);
-        if (!panel) return;
+        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
+        if (!section) return;
+        this.clearRuntimeCards(sectionKey);
 
-        const active = this.registry.trackers
-            .filter(tracker => tracker.section === sectionKey && !tracker.archived)
-            .sort((a, b) => a.order - b.order);
-        const archived = this.registry.trackers
-            .filter(tracker => tracker.section === sectionKey && tracker.archived)
-            .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+        let active = this.registry.trackers
+            .filter(tracker => tracker.section === sectionKey && !tracker.archived);
+        if (sectionKey === 'hygiene') {
+            const currentCategory = this.app.hygiene?.currentCategory
+                || section.defaultSubsection;
+            active = active.filter(tracker => tracker.subsection === currentCategory);
+        }
 
-        const grid = panel.querySelector('.custom-trackers-grid');
-        grid.innerHTML = active.length > 0
-            ? active.map((tracker, index) => (
-                this.renderTrackerCard(tracker, index, active.length)
-            )).join('')
-            : `
-                <div class="custom-trackers-empty">
-                    <i class="ph ph-plus-circle"></i>
-                    <div>
-                        <strong>Todavía no creaste tarjetas propias.</strong>
-                        <span>Las tarjetas actuales siguen funcionando igual.</span>
-                    </div>
-                    <button type="button" class="btn btn-secondary" data-custom-action="new">Crear la primera</button>
-                </div>
-            `;
+        const grouped = Object.groupBy
+            ? Object.groupBy(active, tracker => tracker.subsection)
+            : active.reduce((result, tracker) => {
+                if (!result[tracker.subsection]) result[tracker.subsection] = [];
+                result[tracker.subsection].push(tracker);
+                return result;
+            }, {});
 
-        panel.querySelector('.custom-archive-count').textContent = archived.length;
-        const archiveButton = panel.querySelector('[data-custom-action="toggle-archive"]');
-        const archiveContainer = panel.querySelector('.custom-trackers-archive');
-        const archiveIsOpen = this.archiveOpenSections.has(sectionKey);
-        archiveButton.setAttribute('aria-expanded', String(archiveIsOpen));
-        archiveContainer.classList.toggle('hidden', !archiveIsOpen);
+        Object.entries(grouped).forEach(([subsectionKey, trackers]) => {
+            const hostId = section.subsections[subsectionKey]?.hostId;
+            const host = hostId ? document.getElementById(hostId) : null;
+            if (!host) return;
 
-        panel.querySelector('.custom-trackers-archive-list').innerHTML = archived.length > 0
-            ? archived.map(tracker => {
-                const awaitingConfirmation = this.pendingDeleteIds.has(tracker.id);
-                return `
-                <div class="custom-archived-row">
-                    <div>
-                        <i class="ph ${tracker.icon}"></i>
-                        <span>
-                            <strong>${escapeHtml(tracker.name)}</strong>
-                            <small>${this.getHistory(tracker.id).length} registros conservados</small>
-                        </span>
-                    </div>
-                    <div class="${awaitingConfirmation ? 'custom-delete-confirmation' : ''}">
-                        <button type="button" class="btn btn-secondary" data-custom-action="restore" data-tracker-id="${tracker.id}">
-                            Restaurar
-                        </button>
-                        ${awaitingConfirmation ? `
-                            <button type="button" class="btn custom-delete-cancel" data-custom-action="cancel-delete" data-tracker-id="${tracker.id}">
-                                Cancelar
-                            </button>
-                            <button type="button" class="btn custom-delete-confirm" data-custom-action="confirm-delete" data-tracker-id="${tracker.id}">
-                                Borrar definitivamente
-                            </button>
-                        ` : `
-                            <button type="button" class="custom-icon-danger" data-custom-action="request-delete" data-tracker-id="${tracker.id}" aria-label="Borrar definitivamente ${escapeHtml(tracker.name)}" title="Borrar definitivamente">
-                                <i class="ph ph-trash"></i>
-                            </button>
-                        `}
-                    </div>
-                </div>
-            `;
-            }).join('')
-            : '<p class="custom-archive-empty">No hay tarjetas archivadas en esta sección.</p>';
+            trackers
+                .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'es'))
+                .forEach(tracker => {
+                    host.insertAdjacentHTML('beforeend', this.renderTrackerCard(tracker));
+                });
+        });
     }
 
-    renderTrackerCard(tracker, index, total) {
+    renderTrackerCard(tracker) {
         const history = this.getHistory(tracker.id);
         const state = getCustomTrackerState(tracker, history);
         const status = STATUS_META[state.status] || STATUS_META.new;
@@ -805,7 +998,7 @@ export class CustomTrackersModule {
             : 'Después del primer registro';
 
         return `
-            <article class="custom-tracker-card status-${state.status}" data-tracker-id="${tracker.id}" style="--custom-status-color: ${status.color};">
+            <article class="custom-tracker-card status-${state.status}" data-tracker-id="${tracker.id}" data-custom-runtime-section="${tracker.section}" style="--custom-status-color: ${status.color};">
                 <div class="custom-tracker-card-header">
                     <div class="custom-tracker-identity">
                         <span class="custom-tracker-icon"><i class="ph ${tracker.icon}"></i></span>
@@ -814,25 +1007,6 @@ export class CustomTrackersModule {
                             <span class="custom-tracker-status">${status.label}</span>
                         </div>
                     </div>
-                    <details class="custom-tracker-menu">
-                        <summary aria-label="Gestionar ${safeName}" title="Gestionar tarjeta">
-                            <i class="ph ph-dots-three-vertical"></i>
-                        </summary>
-                        <div class="custom-tracker-menu-popover">
-                            <button type="button" data-custom-action="move-up" data-tracker-id="${tracker.id}" ${index === 0 ? 'disabled' : ''}>
-                                <i class="ph ph-arrow-up"></i> Subir
-                            </button>
-                            <button type="button" data-custom-action="move-down" data-tracker-id="${tracker.id}" ${index === total - 1 ? 'disabled' : ''}>
-                                <i class="ph ph-arrow-down"></i> Bajar
-                            </button>
-                            <button type="button" data-custom-action="edit" data-tracker-id="${tracker.id}">
-                                <i class="ph ph-pencil-simple"></i> Editar
-                            </button>
-                            <button type="button" data-custom-action="archive" data-tracker-id="${tracker.id}">
-                                <i class="ph ph-archive"></i> Archivar
-                            </button>
-                        </div>
-                    </details>
                 </div>
                 <div class="custom-tracker-metric">
                     <strong>${state.elapsedDays === null ? '--' : state.elapsedDays}</strong>
@@ -846,7 +1020,7 @@ export class CustomTrackersModule {
                     <span style="width: ${state.progress}%"></span>
                 </div>
                 ${tracker.instructions ? `
-                    <button type="button" class="custom-tracker-secondary-action" data-custom-action="toggle-instructions" data-tracker-id="${tracker.id}" aria-expanded="${instructionsOpen}">
+                    <button type="button" class="custom-tracker-secondary-action" data-custom-runtime-action="toggle-instructions" data-tracker-id="${tracker.id}" aria-expanded="${instructionsOpen}">
                         <i class="ph ph-book-open"></i>
                         ${instructionsOpen ? 'Ocultar instrucciones' : 'Ver instrucciones'}
                     </button>
@@ -854,7 +1028,7 @@ export class CustomTrackersModule {
                         ${escapeHtml(tracker.instructions).replace(/\n/g, '<br>')}
                     </div>
                 ` : ''}
-                <button type="button" class="custom-tracker-secondary-action" data-custom-action="toggle-history" data-tracker-id="${tracker.id}" aria-expanded="${historyOpen}">
+                <button type="button" class="custom-tracker-secondary-action" data-custom-runtime-action="toggle-history" data-tracker-id="${tracker.id}" aria-expanded="${historyOpen}">
                     <i class="ph ph-clock-counter-clockwise"></i>
                     Historial (${history.length})
                 </button>
@@ -862,7 +1036,7 @@ export class CustomTrackersModule {
                     ${history.length > 0 ? `
                         <div class="custom-tracker-history-toolbar">
                             <span>Últimos registros</span>
-                            <button type="button" data-custom-action="edit-latest" data-tracker-id="${tracker.id}">
+                            <button type="button" data-custom-runtime-action="edit-latest" data-tracker-id="${tracker.id}">
                                 Editar última fecha
                             </button>
                         </div>
@@ -880,15 +1054,15 @@ export class CustomTrackersModule {
                                         <span>${escapeHtml(DateUtils.formatDateTime(date))}</span>
                                         ${awaitingConfirmation ? `
                                             <span class="custom-history-delete-actions">
-                                                <button type="button" data-custom-action="cancel-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}">
+                                                <button type="button" data-custom-runtime-action="cancel-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}">
                                                     Cancelar
                                                 </button>
-                                                <button type="button" class="danger" data-custom-action="confirm-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}">
+                                                <button type="button" class="danger" data-custom-runtime-action="confirm-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}">
                                                     Borrar
                                                 </button>
                                             </span>
                                         ` : `
-                                            <button type="button" data-custom-action="request-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}" aria-label="Borrar registro de ${safeName}">
+                                            <button type="button" data-custom-runtime-action="request-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}" aria-label="Borrar registro de ${safeName}">
                                                 <i class="ph ph-trash"></i>
                                             </button>
                                         `}
@@ -898,7 +1072,7 @@ export class CustomTrackersModule {
                         </ol>
                     ` : '<p>Sin registros todavía.</p>'}
                 </div>
-                <button type="button" class="btn btn-primary custom-tracker-record" data-custom-action="record" data-tracker-id="${tracker.id}">
+                <button type="button" class="btn btn-primary custom-tracker-record" data-custom-runtime-action="record" data-tracker-id="${tracker.id}">
                     <i class="ph ph-check-circle"></i>
                     ${safeAction}
                 </button>

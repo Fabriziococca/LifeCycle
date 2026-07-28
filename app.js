@@ -231,7 +231,6 @@ class AppController {
         } else if (sectionId === 'tareas-section') {
             this.tareas?.render();
         }
-        this.customTrackers?.renderMainSection(sectionId);
     }
 
     activateSection(sectionId, { persist = true, render = true, smooth = false } = {}) {
@@ -281,6 +280,7 @@ class AppController {
         if (persist) this.saveUiState({ profileTab: tabId });
         this.scrollControlIntoView(sidebar, targetButton, smooth);
         if (render && tabId === 'alertas') this.alerts?.render();
+        if (render && tabId === 'seguimientos') this.customTrackers?.renderManager();
         return true;
     }
 

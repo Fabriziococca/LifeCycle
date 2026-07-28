@@ -59,7 +59,7 @@ Track annual/periodical visits for Dentists, Ophthalmologists, Clinical Blood Te
 Float notification center displaying overdue items across all sections, permitting immediate checklist completion (`✓ Listo`) from any screen. Supports custom background push notification schedules.
 
 ### 8. ⚙️ Configurable Trackers
-Create, edit, reorder, archive, restore, and delete personal trackers in Hygiene, Care, Lenses, and Health without modifying code. Each tracker supports an interval, automatic visual states, instructions, history, date correction, and an optional backend Push alert.
+Manage personal trackers from the centralized **Profile → Configurable Trackers** screen, then place each one in a specific Hygiene, Care, Lenses, or Health subsection without modifying code. The compact manager lists names and counts per section and supports create, edit, reorder, archive, restore, and protected deletion. Each runtime card supports a user-defined action, an overdue interval that restarts only after a recorded action, automatic visual states, optional instructions, history, date correction, and an optional daily backend Push alert while overdue. Specialized timers, inventory, and medical attachments remain owned by their dedicated modules.
 
 ---
 
