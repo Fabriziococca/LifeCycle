@@ -1,4 +1,8 @@
 import { normalizeActiveGymSession } from './gym-session-utils.mjs';
+import {
+    CUSTOM_TRACKER_FIELD,
+    validateCustomTrackerRegistry
+} from './custom-tracker-utils.mjs';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs';
 
 export const BACKUP_APP_NAME = 'LifeCycle';
@@ -390,6 +394,16 @@ function validateBackupDataShape(key, value) {
     switch (key) {
         case 'hygiene_tracker_data':
             Object.entries(value).forEach(([itemKey, itemValue]) => {
+                if (itemKey === CUSTOM_TRACKER_FIELD) {
+                    try {
+                        validateCustomTrackerRegistry(itemValue);
+                    } catch (error) {
+                        throw new BackupValidationError(
+                            `Las tarjetas configurables no son válidas: ${error.message}`
+                        );
+                    }
+                    return;
+                }
                 if (itemKey === 'robot_cleaner') {
                     assertRecord(itemValue, `${key}.${itemKey}`);
                     assertOptionalTextFields(itemValue, `${key}.${itemKey}`, [

@@ -555,6 +555,9 @@ export class AuthSyncModule {
                 if (this.app.hygiene) {
                     try { this.app.hygiene.data = this.app.hygiene.loadData(); } catch (e) { console.error("Error reloading hygiene:", e); }
                 }
+                if (this.app.customTrackers) {
+                    try { this.app.customTrackers.reload(); } catch (e) { console.error("Error reloading custom trackers:", e); }
+                }
                 if (this.app.grooming) {
                     try { this.app.grooming.data = this.app.grooming.loadData(); } catch (e) { console.error("Error reloading grooming:", e); }
                 }
@@ -635,6 +638,9 @@ export class AuthSyncModule {
             }
             if (this.app.alerts) {
                 try { this.app.alerts.render(); } catch (e) { console.error("Error rendering alerts:", e); }
+            }
+            if (this.app.customTrackers) {
+                try { this.app.customTrackers.renderAll(); } catch (e) { console.error("Error rendering custom trackers:", e); }
             }
             if (this.app.notificationsCenter) {
                 try { this.app.notificationsCenter.updateBadge(); } catch (e) { console.error("Error updating notifications badge:", e); }
@@ -820,50 +826,54 @@ export class AuthSyncModule {
         if (this.pushSyncPromise) return this.pushSyncPromise;
 
         this.pushSyncPromise = (async () => {
-            const { data: rows, error: readError } = await this.supabase
-                .from('push_subscriptions')
-                .select('id, subscription, created_at')
-                .eq('user_id', this.user.id);
+            const { data: { session }, error: sessionError } = await this.supabase.auth.getSession();
+            if (sessionError || !session?.access_token) {
+                throw new Error('La sesión venció. Volvé a iniciar sesión para registrar este dispositivo.');
+            }
 
-            if (readError) throw readError;
+            let lastError;
+            for (let attempt = 0; attempt < 2; attempt++) {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 12000);
 
-            const matchingRows = (rows || [])
-                .filter(row => row.subscription?.endpoint === subscriptionJSON.endpoint)
-                .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
-
-            if (matchingRows.length === 0) {
-                const { error: insertError } = await this.supabase
-                    .from('push_subscriptions')
-                    .insert({
-                        user_id: this.user.id,
-                        subscription: subscriptionJSON
+                try {
+                    const response = await fetch('/api/subscribe', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${session.access_token}`
+                        },
+                        body: JSON.stringify({ subscription: subscriptionJSON }),
+                        signal: controller.signal
                     });
+                    const result = await response.json().catch(() => ({}));
 
-                if (insertError) throw insertError;
-                return;
+                    if (response.ok) return result;
+
+                    const error = new Error(
+                        result.error || `El servidor rechazó el registro Push (HTTP ${response.status}).`
+                    );
+                    error.status = response.status;
+                    throw error;
+                } catch (error) {
+                    lastError = error?.name === 'AbortError'
+                        ? new Error('El registro Push tardó demasiado en responder.')
+                        : error;
+
+                    const canRetry = attempt === 0
+                        && (!error?.status || error.status >= 500);
+                    if (!canRetry) break;
+                    await new Promise(resolve => setTimeout(resolve, 500));
+                } finally {
+                    clearTimeout(timeoutId);
+                }
             }
 
-            const [rowToKeep, ...duplicates] = matchingRows;
-            const { error: updateError } = await this.supabase
-                .from('push_subscriptions')
-                .update({ subscription: subscriptionJSON })
-                .eq('id', rowToKeep.id);
-
-            if (updateError) throw updateError;
-
-            if (duplicates.length > 0) {
-                const { error: deleteError } = await this.supabase
-                    .from('push_subscriptions')
-                    .delete()
-                    .in('id', duplicates.map(row => row.id));
-
-                if (deleteError) throw deleteError;
-                console.log(`[Push] Se eliminaron ${duplicates.length} registros duplicados de este dispositivo.`);
-            }
+            throw lastError || new Error('No se pudo registrar este dispositivo para notificaciones.');
         })();
 
         try {
-            await this.pushSyncPromise;
+            return await this.pushSyncPromise;
         } finally {
             this.pushSyncPromise = null;
         }
@@ -985,7 +995,7 @@ export class AuthSyncModule {
                 });
             }
 
-            // 5. Send subscription to Supabase directly (runs in user's authenticated context)
+            // 5. Register the device through the authenticated backend endpoint.
             const subscriptionJSON = subscription.toJSON();
             await this.persistPushSubscription(subscriptionJSON);
 
@@ -1034,7 +1044,8 @@ export class AuthSyncModule {
             
             if (subscription) {
                 const subscriptionJSON = subscription.toJSON();
-                await this.persistPushSubscription(subscriptionJSON);
+                const registrationState = await this.persistPushSubscription(subscriptionJSON);
+                const registeredDevices = Number(registrationState?.registeredDevices);
 
                 if (this.btnEnablePush) {
                     this.btnEnablePush.innerText = '🔔 Notificaciones Activas en este Dispositivo';
@@ -1042,7 +1053,12 @@ export class AuthSyncModule {
                     this.btnEnablePush.style.color = 'var(--status-green)';
                 }
                 this.btnTestPush?.classList.remove('hidden');
-                this.setPushStatus('active', 'Este dispositivo está registrado y listo para recibir avisos.');
+                this.setPushStatus(
+                    'active',
+                    Number.isInteger(registeredDevices) && registeredDevices > 0
+                        ? `Este dispositivo está listo. Dispositivos registrados: ${registeredDevices}.`
+                        : 'Este dispositivo está registrado y listo para recibir avisos.'
+                );
             } else {
                 if (this.btnEnablePush) {
                     this.btnEnablePush.innerText = '🔔 Activar Notificaciones en este Dispositivo';

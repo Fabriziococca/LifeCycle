@@ -342,6 +342,7 @@ export const CATEGORY_NAMES = {
     higiene: '💧 Higiene y Baño',
     cuidado: '✂️ Cuidado Corporal',
     lentes: '👁️ Lentes & Anteojos',
+    salud: '🩺 Salud',
     vehiculo: '🚗 Vehículo',
     gym: '💪 Nutrición & Hábitos',
     otros: '⚙️ Otros Avisos'

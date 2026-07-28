@@ -11,6 +11,10 @@ import {
     parseAndValidateBackupText
 } from '../backup-utils.mjs';
 import { CLOUD_SYNC_KEYS } from '../sync-config.mjs';
+import {
+    createCustomTracker,
+    CUSTOM_TRACKER_FIELD
+} from '../custom-tracker-utils.mjs';
 
 const readFixture = fileName => readFileSync(
     new URL(`./fixtures/${fileName}`, import.meta.url),
@@ -258,5 +262,40 @@ test('browser restore fixtures stay representative and valid', () => {
     assert.equal(
         fullPlan.entries.find(([key]) => key === 'hygiene_tracker_data')[1],
         null
+    );
+});
+
+test('backup validates configurable tracker definitions and histories', () => {
+    const tracker = createCustomTracker({
+        section: 'hygiene',
+        name: 'Lavar sillones',
+        actionLabel: 'Registrar limpieza',
+        intervalDays: 30,
+        icon: 'ph-sparkle',
+        instructions: '',
+        alert: { enabled: true, time: '20:30' }
+    }, {
+        id: 'ct_sillones_1',
+        now: new Date('2026-07-28T12:00:00.000Z')
+    });
+    const validData = {
+        [CUSTOM_TRACKER_FIELD]: {
+            version: 1,
+            trackers: [tracker],
+            histories: {
+                [tracker.id]: ['2026-07-28T12:00:00.000Z']
+            }
+        }
+    };
+
+    assert.doesNotThrow(() => normalizeBackupStorageEntry(
+        'hygiene_tracker_data',
+        validData
+    ));
+
+    validData[CUSTOM_TRACKER_FIELD].trackers[0].intervalDays = 0;
+    assert.throws(
+        () => normalizeBackupStorageEntry('hygiene_tracker_data', validData),
+        /tarjetas configurables/
     );
 });

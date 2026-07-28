@@ -4,7 +4,7 @@ import { escapeHtml } from '../text-utils.mjs';
 export class HygieneModule {
     constructor(appController) {
         this.app = appController;
-        this.currentCategory = 'tecnologia';
+        this.currentCategory = this.app.uiState?.hygieneCategory || 'tecnologia';
         this.robotCard = document.getElementById('robot-cleaner-card');
         this.data = this.loadData();
         this.container = document.getElementById('tracker-container');
@@ -249,12 +249,14 @@ export class HygieneModule {
                 const infoBtn = clone.querySelector('.btn-info');
                 const instructionsCollapse = clone.querySelector('.instructions-collapse');
                 const instructionsContent = clone.querySelector('.instructions-content');
+                infoBtn.setAttribute('aria-label', `Ver instrucciones de ${item.name}`);
+                infoBtn.setAttribute('title', `Ver instrucciones de ${item.name}`);
                 
                 if (item.instructions && item.instructions.length > 0) {
                     instructionsContent.innerHTML = item.instructions.map(inst => `
                         <div class="instruction-step">
-                            <div class="instruction-step-title">${inst.step}</div>
-                            <div class="instruction-step-text">${inst.text}</div>
+                            <div class="instruction-step-title">${escapeHtml(inst.step)}</div>
+                            <div class="instruction-step-text">${escapeHtml(inst.text)}</div>
                         </div>
                     `).join('');
                     
@@ -263,6 +265,7 @@ export class HygieneModule {
                         const isOpen = instructionsCollapse.classList.contains('open');
                         instructionsCollapse.classList.toggle('open', !isOpen);
                         infoBtn.classList.toggle('active', !isOpen);
+                        infoBtn.setAttribute('aria-expanded', String(!isOpen));
                     });
                 } else {
                     infoBtn.style.display = 'none';
@@ -271,6 +274,8 @@ export class HygieneModule {
 
                 // Botón editar fecha retroactivamente
                 const editBtn = clone.querySelector('.btn-card-edit');
+                editBtn.setAttribute('aria-label', `Editar fecha del último registro de ${item.name}`);
+                editBtn.setAttribute('title', `Editar fecha del último registro de ${item.name}`);
                 editBtn.addEventListener('click', (e) => {
                     e.stopPropagation();
                     this.app.openEditModal('hygiene', item.id, item.name, lastDateVal);
@@ -358,6 +363,7 @@ export class HygieneModule {
                     else if (type === 'brush') { btnText = 'Registrar Cepillado'; btnIcon = 'ph-paint-brush'; }
                     
                     const subItemEl = document.createElement('div');
+                    const safeSubName = escapeHtml(item.subName);
                     subItemEl.className = 'group-subitem';
                     subItemEl.style.borderTop = index > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none';
                     subItemEl.style.paddingTop = index > 0 ? '1.25rem' : '0.5rem';
@@ -365,10 +371,10 @@ export class HygieneModule {
                     
                     subItemEl.innerHTML = `
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: #fff;">${item.subName}</h4>
+                            <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: #fff;">${safeSubName}</h4>
                             <div style="display: flex; align-items: center; gap: 8px;">
-                                <button class="btn-info sub-info-btn" title="Ver Instrucciones" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; font-size: 1rem;"><i class="ph ph-book-open"></i></button>
-                                <button class="btn-card-edit sub-edit-btn" title="Editar Fecha" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; font-size: 1rem;"><i class="ph ph-pencil-simple"></i></button>
+                                <button type="button" class="btn-info sub-info-btn" title="Ver instrucciones de ${safeSubName}" aria-label="Ver instrucciones de ${safeSubName}" aria-expanded="false" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; font-size: 1rem;"><i class="ph ph-book-open"></i></button>
+                                <button type="button" class="btn-card-edit sub-edit-btn" title="Editar fecha del último registro de ${safeSubName}" aria-label="Editar fecha del último registro de ${safeSubName}" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; font-size: 1rem;"><i class="ph ph-pencil-simple"></i></button>
                                 <span class="status-dot" style="background-color: ${statusColor}; width: 8px; height: 8px; border-radius: 50%; box-shadow: 0 0 8px ${statusColor};"></span>
                             </div>
                         </div>
@@ -391,11 +397,11 @@ export class HygieneModule {
                             <div class="progress-bar" style="width: ${this.getProgressWidth(daysElapsed, item.limits.red)}; background-color: ${statusColor}; height: 100%;"></div>
                         </div>
 
-                        <button class="btn btn-history hygiene-history-btn" style="margin-top: 0.5rem; width: 100%; font-size: 0.8rem; padding: 6px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">Ver historial</button>
+                        <button type="button" class="btn btn-history hygiene-history-btn" style="margin-top: 0.5rem; width: 100%; font-size: 0.8rem; padding: 6px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">Ver historial</button>
                         <div class="history-log hygiene-history-log hidden" style="margin-top: 0.5rem; background: rgba(0,0,0,0.15); border-radius: 6px; padding: 8px;"></div>
                         
                         <div class="card-footer" style="padding-top: 0.75rem; margin-top: 0.5rem;">
-                            <button class="btn-wash" style="padding: 0.6rem; font-size: 0.85rem;">
+                            <button type="button" class="btn-wash" style="padding: 0.6rem; font-size: 0.85rem;">
                                 <i class="ph-bold ${btnIcon}"></i>
                                 <span>${btnText}</span>
                             </button>
@@ -410,8 +416,8 @@ export class HygieneModule {
                     if (item.instructions && item.instructions.length > 0) {
                         instContent.innerHTML = item.instructions.map(inst => `
                             <div class="instruction-step">
-                                <div class="instruction-step-title">${inst.step}</div>
-                                <div class="instruction-step-text">${inst.text}</div>
+                                <div class="instruction-step-title">${escapeHtml(inst.step)}</div>
+                                <div class="instruction-step-text">${escapeHtml(inst.text)}</div>
                             </div>
                         `).join('');
                         
@@ -420,6 +426,7 @@ export class HygieneModule {
                             const isOpen = instCollapse.classList.contains('open');
                             instCollapse.classList.toggle('open', !isOpen);
                             infoBtn.classList.toggle('active', !isOpen);
+                            infoBtn.setAttribute('aria-expanded', String(!isOpen));
                         });
                     } else {
                         infoBtn.style.display = 'none';
@@ -464,6 +471,10 @@ export class HygieneModule {
     initTabs() {
         const tabsContainer = document.getElementById('tabs-container');
         if (!tabsContainer) return;
+
+        tabsContainer.querySelectorAll('.tab-btn').forEach(tab => {
+            tab.classList.toggle('active', tab.dataset.category === this.currentCategory);
+        });
         
         tabsContainer.addEventListener('click', (e) => {
             const btn = e.target.closest('.tab-btn');
@@ -471,6 +482,7 @@ export class HygieneModule {
             tabsContainer.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
             btn.classList.add('active');
             this.currentCategory = btn.dataset.category;
+            this.app.saveUiState?.({ hygieneCategory: this.currentCategory });
             this.render();
         });
     }

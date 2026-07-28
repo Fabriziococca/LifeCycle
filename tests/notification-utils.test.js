@@ -5,14 +5,17 @@ const assert = require('node:assert/strict');
 
 const {
     assertServerManagedUserDataPatch,
+    buildCustomTrackerNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
+    ensureCustomTrackerAlertConfigs,
     formatExpiryStatus,
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
     getPendingVeryUrgentTasks,
     groupSubscriptionsByUser,
     isExpiredPushError,
+    isIntervalReminderDue,
     normalizeIntervalHours,
     parseJsonValue
 } = require('../notification-utils');
@@ -103,6 +106,47 @@ test('normalizeIntervalHours enforces the supported range', () => {
     assert.equal(normalizeIntervalHours('80', 6), 48);
     assert.equal(normalizeIntervalHours('invalid', 6), 6);
     assert.equal(normalizeIntervalHours('invalid', 'invalid'), 4);
+});
+
+test('interval reminders run every configured period without quiet hours', () => {
+    const nowAtNight = new Date('2026-07-28T07:00:00.000Z'); // 04:00 in Argentina
+
+    assert.equal(isIntervalReminderDue({
+        now: nowAtNight,
+        lastNotifiedAt: '2026-07-28T03:00:00.000Z',
+        intervalHours: 4
+    }), true);
+    assert.equal(isIntervalReminderDue({
+        now: nowAtNight,
+        lastNotifiedAt: '2026-07-28T03:00:01.000Z',
+        intervalHours: 4
+    }), false);
+    assert.equal(isIntervalReminderDue({
+        now: nowAtNight,
+        lastNotifiedAt: null,
+        intervalHours: 4
+    }), true);
+});
+
+test('interval reminders recover from future state and support forced checks', () => {
+    const now = new Date('2026-07-28T12:00:00.000Z');
+
+    assert.equal(isIntervalReminderDue({
+        now,
+        lastNotifiedAt: '2026-07-29T12:00:00.000Z',
+        intervalHours: 4
+    }), true);
+    assert.equal(isIntervalReminderDue({
+        now,
+        lastNotifiedAt: '2026-07-28T11:59:59.000Z',
+        intervalHours: 48,
+        force: true
+    }), true);
+    assert.equal(isIntervalReminderDue({
+        now: 'invalid',
+        lastNotifiedAt: null,
+        intervalHours: 4
+    }), false);
 });
 
 test('getLatestValidDate keeps a new robot cycle from using an older server timestamp', () => {
@@ -198,4 +242,74 @@ test('vehicle maintenance reminders do not overwrite one another', () => {
     assert.match(reminder.body, /Líquido limpiavidrios: 87 días/);
     assert.match(reminder.body, /matafuegos venció hace 17 días/);
     assert.doesNotMatch(reminder.body, /Escobillas/);
+});
+
+test('custom tracker alert defaults are recovered from the synced registry', () => {
+    const alertsConfig = {};
+    const changed = ensureCustomTrackerAlertConfigs(alertsConfig, {
+        __custom_trackers_v1: {
+            version: 1,
+            trackers: [{
+                id: 'ct_sillones_1',
+                name: 'Lavar sillones',
+                intervalDays: 30,
+                archived: false,
+                alert: { enabled: true, time: '20:30' }
+            }],
+            histories: { ct_sillones_1: [] }
+        }
+    });
+
+    assert.equal(changed, true);
+    assert.deepEqual(alertsConfig['custom_tracker:ct_sillones_1'], {
+        enabled: true,
+        time: '20:30',
+        days: []
+    });
+});
+
+test('custom tracker notifications are emitted only when active and overdue', () => {
+    const hygieneData = {
+        __custom_trackers_v1: {
+            version: 1,
+            trackers: [{
+                id: 'ct_sillones_1',
+                name: 'Lavar   sillones',
+                intervalDays: 30,
+                archived: false
+            }],
+            histories: {
+                ct_sillones_1: ['2026-06-01T12:00:00.000Z']
+            }
+        }
+    };
+
+    const reminder = buildCustomTrackerNotification(
+        'custom_tracker:ct_sillones_1',
+        hygieneData,
+        () => 57
+    );
+    assert.deepEqual(reminder, {
+        title: '📅 Lavar sillones',
+        body: 'El seguimiento está vencido: pasaron 57 de 30 días.'
+    });
+
+    assert.equal(
+        buildCustomTrackerNotification(
+            'custom_tracker:ct_sillones_1',
+            hygieneData,
+            () => 20
+        ),
+        null
+    );
+
+    hygieneData.__custom_trackers_v1.trackers[0].archived = true;
+    assert.equal(
+        buildCustomTrackerNotification(
+            'custom_tracker:ct_sillones_1',
+            hygieneData,
+            () => 57
+        ),
+        null
+    );
 });

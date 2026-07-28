@@ -1,4 +1,5 @@
 import { ALERT_DEFINITIONS, CATEGORY_NAMES } from '../utils.js';
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
 export class AlertsModule {
     constructor(appController) {
@@ -9,10 +10,17 @@ export class AlertsModule {
         this.loadData();
     }
 
+    getDefinitions() {
+        return [
+            ...ALERT_DEFINITIONS,
+            ...(this.app.customTrackers?.getAlertDefinitions?.() || [])
+        ];
+    }
+
     loadData() {
         try {
             const defaultConfigs = {};
-            ALERT_DEFINITIONS.forEach(def => {
+            this.getDefinitions().forEach(def => {
                 const config = {
                     enabled: true,
                     time: def.defaultTime,
@@ -78,6 +86,10 @@ export class AlertsModule {
                 const dayBtn = e.target.closest('.day-btn[data-day]');
                 if (dayBtn) {
                     dayBtn.classList.toggle('active');
+                    dayBtn.setAttribute(
+                        'aria-pressed',
+                        String(dayBtn.classList.contains('active'))
+                    );
                 }
             };
         }
@@ -153,13 +165,20 @@ export class AlertsModule {
         if (!tabsNav) return;
 
         let html = '';
+        const definitions = this.getDefinitions();
+        const availableCategories = Object.keys(CATEGORY_NAMES).filter(cat => (
+            definitions.some(definition => definition.category === cat)
+        ));
+        if (!availableCategories.includes(this.activeCategory)) {
+            this.activeCategory = availableCategories[0] || 'higiene';
+        }
         Object.keys(CATEGORY_NAMES).forEach(cat => {
-            const count = ALERT_DEFINITIONS.filter(d => d.category === cat).length;
+            const count = definitions.filter(d => d.category === cat).length;
             if (count === 0) return;
             const isActive = this.activeCategory === cat;
 
             html += `
-                <button class="alerts-tab-btn ${isActive ? 'active' : ''}" data-category="${cat}">
+                <button type="button" class="alerts-tab-btn ${isActive ? 'active' : ''}" data-category="${cat}" aria-pressed="${isActive}">
                     <span>${CATEGORY_NAMES[cat]}</span>
                     <span style="background: rgba(255,255,255,0.15); padding: 1px 7px; border-radius: 10px; font-size: 0.75rem;">${count}</span>
                 </button>
@@ -175,7 +194,7 @@ export class AlertsModule {
 
         container.innerHTML = '';
 
-        const list = ALERT_DEFINITIONS.filter(def => def.category === this.activeCategory);
+        const list = this.getDefinitions().filter(def => def.category === this.activeCategory);
 
         if (list.length === 0) {
             container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 2rem;">No hay alertas en esta categoría.</div>';
@@ -188,6 +207,19 @@ export class AlertsModule {
         list.forEach(def => {
             const conf = this.configs[def.key] || { enabled: true, time: def.defaultTime, days: def.defaultDays || [] };
             const isRecurring = def.type === 'recurring';
+            const safeName = escapeHtml(def.name);
+            const dayButtons = [
+                [1, 'L', 'Lunes'],
+                [2, 'M', 'Martes'],
+                [3, 'M', 'Miércoles'],
+                [4, 'J', 'Jueves'],
+                [5, 'V', 'Viernes'],
+                [6, 'S', 'Sábado'],
+                [0, 'D', 'Domingo']
+            ].map(([day, shortName, fullName]) => {
+                const isActive = conf.days.includes(day);
+                return `<button type="button" class="day-btn ${isActive ? 'active' : ''}" data-day="${day}" aria-label="${fullName}" aria-pressed="${isActive}">${shortName}</button>`;
+            }).join('');
 
             const card = document.createElement('div');
             card.className = 'alert-card-item';
@@ -195,9 +227,9 @@ export class AlertsModule {
 
             card.innerHTML = `
                 <div class="alert-card-header">
-                    <div class="alert-card-title">${def.name}</div>
+                    <div class="alert-card-title">${safeName}</div>
                     <label class="custom-checkbox-container" style="display: flex; align-items: center; gap: 6px; cursor: pointer; user-select: none;">
-                        <input type="checkbox" class="alert-enabled-check" ${conf.enabled ? 'checked' : ''}>
+                        <input type="checkbox" class="alert-enabled-check" aria-label="Activar alerta de ${safeName}" ${conf.enabled ? 'checked' : ''}>
                         <span class="custom-checkbox"></span>
                     </label>
                 </div>
@@ -206,27 +238,21 @@ export class AlertsModule {
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);" title="Frecuencia de repetición dinámica mientras esté pendiente/sucio">Repetir cada:</span>
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <input type="number" class="alert-interval-input" min="1" max="48" value="${conf.interval_hours || (def.key === 'robot' ? 6 : 4)}" style="width: 60px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem; text-align: center;">
+                            <input type="number" class="alert-interval-input" min="1" max="48" value="${conf.interval_hours || (def.key === 'robot' ? 6 : 4)}" aria-label="Horas entre alertas de ${safeName}" style="width: 60px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem; text-align: center;">
                             <span style="font-size: 0.8rem; color: var(--text-secondary);">hs</span>
                         </div>
                     </div>
                     ` : `
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Hora de push:</span>
-                        <input type="time" class="alert-time-input" value="${conf.time}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem;">
+                        <input type="time" class="alert-time-input" value="${conf.time}" aria-label="Hora de alerta de ${safeName}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem;">
                     </div>
                     `}
                     ${isRecurring ? `
                     <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
                         <span style="font-size: 0.78rem; color: var(--text-secondary);">Días activos:</span>
                         <div class="day-selectors">
-                            <button class="day-btn ${conf.days.includes(1) ? 'active' : ''}" data-day="1">L</button>
-                            <button class="day-btn ${conf.days.includes(2) ? 'active' : ''}" data-day="2">M</button>
-                            <button class="day-btn ${conf.days.includes(3) ? 'active' : ''}" data-day="3">M</button>
-                            <button class="day-btn ${conf.days.includes(4) ? 'active' : ''}" data-day="4">J</button>
-                            <button class="day-btn ${conf.days.includes(5) ? 'active' : ''}" data-day="5">V</button>
-                            <button class="day-btn ${conf.days.includes(6) ? 'active' : ''}" data-day="6">S</button>
-                            <button class="day-btn ${conf.days.includes(0) ? 'active' : ''}" data-day="0">D</button>
+                            ${dayButtons}
                         </div>
                     </div>
                     ` : ''}

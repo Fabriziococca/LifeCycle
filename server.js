@@ -7,14 +7,17 @@ const { createClient } = require('@supabase/supabase-js');
 const sharedRules = require('./shared_rules.json');
 const {
     assertServerManagedUserDataPatch,
+    buildCustomTrackerNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
+    ensureCustomTrackerAlertConfigs,
     formatExpiryStatus,
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
     getPendingVeryUrgentTasks,
     groupSubscriptionsByUser,
     isExpiredPushError,
+    isIntervalReminderDue,
     normalizeIntervalHours,
     parseJsonValue
 } = require('./notification-utils');
@@ -72,7 +75,62 @@ console.warn = (...args) => {
 
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const configuredPort = Number.parseInt(process.env.PORT || '', 10);
+const PORT = Number.isInteger(configuredPort)
+    && configuredPort >= 0
+    && configuredPort <= 65535
+    ? configuredPort
+    : 3000;
+const notificationRuntimeState = {
+    running: false,
+    lastAttemptAt: null,
+    lastSuccessAt: null,
+    lastFailureAt: null,
+    lastDurationMs: null,
+    lastTrigger: null,
+    consecutiveFailures: 0,
+    engines: {
+        recurring: null,
+        configured: null
+    }
+};
+const transientDeliveryState = {
+    daily: new Map(),
+    interval: new Map()
+};
+
+function setBoundedDeliveryState(map, key, value, maxEntries = 1000) {
+    if (map.has(key)) map.delete(key);
+    map.set(key, value);
+    while (map.size > maxEntries) {
+        map.delete(map.keys().next().value);
+    }
+}
+
+function wasSentForDate(userId, alertKey, dateStr) {
+    return transientDeliveryState.daily.get(`${userId}:${alertKey}`) === dateStr;
+}
+
+function rememberSentForDate(userId, alertKey, dateStr) {
+    setBoundedDeliveryState(
+        transientDeliveryState.daily,
+        `${userId}:${alertKey}`,
+        dateStr
+    );
+}
+
+function getLastIntervalDelivery(userId, reminderKey) {
+    return transientDeliveryState.interval.get(`${userId}:${reminderKey}`) || null;
+}
+
+function rememberIntervalDelivery(userId, reminderKey, timestamp) {
+    setBoundedDeliveryState(
+        transientDeliveryState.interval,
+        `${userId}:${reminderKey}`,
+        timestamp,
+        200
+    );
+}
 
 // Configurar Web Push VAPID de forma segura (sin hardcodear en Git)
 let publicKey = process.env.VAPID_PUBLIC_KEY;
@@ -274,12 +332,13 @@ async function sendPushToSubscriptions({
 
 // Rate Limiter integrado y liviano (sin dependencias npm)
 const ipCounts = {};
-setInterval(() => {
+const rateLimitResetTimer = setInterval(() => {
     // Resetear contadores de IP cada 15 minutos para evitar fugas de memoria
     for (const ip in ipCounts) {
         delete ipCounts[ip];
     }
 }, 15 * 60 * 1000);
+rateLimitResetTimer.unref?.();
 
 const rateLimiter = (req, res, next) => {
     const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
@@ -345,7 +404,19 @@ app.get('/api/health', (req, res) => {
     res.setHeader('Cache-Control', 'no-store');
     res.json({
         status: 'ok',
-        commit: (process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7)
+        commit: (process.env.RENDER_GIT_COMMIT || 'local').slice(0, 7),
+        notifications: {
+            configured: Boolean(
+                supabase
+                && publicKey
+                && privateKey
+            ),
+            running: notificationRuntimeState.running,
+            lastAttemptAt: notificationRuntimeState.lastAttemptAt,
+            lastSuccessAt: notificationRuntimeState.lastSuccessAt,
+            lastFailureAt: notificationRuntimeState.lastFailureAt,
+            consecutiveFailures: notificationRuntimeState.consecutiveFailures
+        }
     });
 });
 
@@ -422,7 +493,14 @@ app.post('/api/subscribe', requireSupabaseUser, async (req, res) => {
             }
         }
 
-        res.json({ success: true });
+        const registeredDevices = new Set([
+            ...rows
+                .map(row => row.subscription?.endpoint)
+                .filter(Boolean),
+            subscription.endpoint
+        ]).size;
+
+        res.json({ success: true, registeredDevices });
     } catch (error) {
         console.error('[Push] Error guardando suscripción autenticada:', error);
         res.status(500).json({ error: 'No se pudo guardar la suscripción Push.' });
@@ -497,12 +575,72 @@ const checkAdminToken = (req, res, next) => {
 
 // Endpoint manual para disparar la revisión de recordatorios
 app.get('/api/check-reminders', checkAdminToken, async (req, res) => {
-    await checkAndSendAllAlerts(true);
-    res.json({ success: true, message: 'Revisión de recordatorios ejecutada (forzada para pruebas).' });
+    try {
+        const result = await runScheduledAlertChecks({
+            forceAll: true,
+            trigger: 'admin'
+        });
+        res.json({
+            success: true,
+            message: 'Revisión completa de recordatorios ejecutada (forzada para pruebas).',
+            result
+        });
+    } catch (error) {
+        res.status(500).json({
+            success: false,
+            error: 'La revisión de recordatorios terminó con errores.'
+        });
+    }
 });
 
 app.get('/api/admin/logs', checkAdminToken, (req, res) => {
     res.type('text/plain').send(logBuffer.join('\n'));
+});
+
+app.get('/api/admin/notification-status', checkAdminToken, async (req, res) => {
+    const database = {
+        userRows: null,
+        subscriptionRows: null,
+        uniqueEndpoints: null,
+        usersWithSubscriptions: null
+    };
+
+    if (supabase) {
+        try {
+            const [
+                { data: usersData, error: usersError },
+                { data: subscriptions, error: subscriptionsError }
+            ] = await Promise.all([
+                supabase.from('user_data').select('user_id'),
+                supabase
+                    .from('push_subscriptions')
+                    .select('id, user_id, subscription, created_at')
+            ]);
+
+            if (usersError) throw usersError;
+            if (subscriptionsError) throw subscriptionsError;
+
+            const grouped = groupSubscriptionsByUser(subscriptions || []);
+            database.userRows = usersData?.length || 0;
+            database.subscriptionRows = subscriptions?.length || 0;
+            database.uniqueEndpoints = Object.values(grouped)
+                .reduce((total, entries) => total + entries.length, 0);
+            database.usersWithSubscriptions = Object.keys(grouped).length;
+        } catch (error) {
+            console.error('[Push Status] No se pudo consultar el estado de suscripciones:', error);
+        }
+    }
+
+    res.setHeader('Cache-Control', 'no-store');
+    res.json({
+        configured: {
+            supabase: Boolean(supabase),
+            serviceRole: Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY),
+            vapid: Boolean(publicKey && privateKey)
+        },
+        scheduler: notificationRuntimeState,
+        database
+    });
 });
 
 // Endpoint manual de prueba para disparar alerta de robot inmediatamente si está sucio
@@ -552,8 +690,12 @@ app.get('*', (req, res) => {
 });
 
 // Iniciar servidor
-app.listen(PORT, () => {
-    console.log(`LifeCycle backend running on port ${PORT}`);
+const httpServer = app.listen(PORT, () => {
+    const address = httpServer.address();
+    const activePort = typeof address === 'object' && address
+        ? address.port
+        : PORT;
+    console.log(`LifeCycle backend running on port ${activePort}`);
 });
 
 // ==========================================================================
@@ -589,43 +731,99 @@ function getArgentinaTime() {
 }
 
 // ==========================================================================
-// Tarea Programada: Chequeo Diario a las 23:00 Argentina Time (UTC-3)
+// Tarea Programada: chequeo completo cada cinco minutos
 // ==========================================================================
 let scheduledAlertCheckRunning = false;
 
-async function runScheduledAlertChecks() {
+async function runScheduledAlertChecks({
+    forceAll = false,
+    trigger = 'scheduler'
+} = {}) {
     if (scheduledAlertCheckRunning) {
         console.warn('[Alert Scheduler] Se omitió un ciclo porque el anterior todavía está en ejecución.');
-        return;
+        return {
+            skipped: true,
+            reason: 'already-running'
+        };
     }
 
     scheduledAlertCheckRunning = true;
+    notificationRuntimeState.running = true;
+    notificationRuntimeState.lastAttemptAt = new Date().toISOString();
+    notificationRuntimeState.lastTrigger = trigger;
+    const startedAt = Date.now();
+    const engineResults = {};
+    const errors = [];
+
     try {
-        await checkAndSendRobotReminders();
-        await checkAndSendAllAlerts();
+        const engines = [
+            ['recurring', () => checkAndSendRobotReminders(forceAll)],
+            ['configured', () => checkAndSendAllAlerts(forceAll)]
+        ];
+
+        for (const [name, run] of engines) {
+            try {
+                await run();
+                engineResults[name] = {
+                    ok: true,
+                    completedAt: new Date().toISOString()
+                };
+            } catch (error) {
+                engineResults[name] = {
+                    ok: false,
+                    completedAt: new Date().toISOString()
+                };
+                errors.push(error);
+                console.error(`[Alert Scheduler] Falló el motor '${name}':`, error);
+            }
+        }
+
+        notificationRuntimeState.engines = engineResults;
+        notificationRuntimeState.lastDurationMs = Date.now() - startedAt;
+
+        if (errors.length > 0) {
+            notificationRuntimeState.lastFailureAt = new Date().toISOString();
+            notificationRuntimeState.consecutiveFailures += 1;
+            throw new AggregateError(errors, 'Uno o más motores de notificaciones fallaron.');
+        }
+
+        notificationRuntimeState.lastSuccessAt = new Date().toISOString();
+        notificationRuntimeState.consecutiveFailures = 0;
+        return {
+            skipped: false,
+            trigger,
+            forceAll,
+            durationMs: notificationRuntimeState.lastDurationMs,
+            engines: engineResults
+        };
     } finally {
         scheduledAlertCheckRunning = false;
+        notificationRuntimeState.running = false;
     }
 }
 
-setInterval(() => {
+const scheduledAlertTimer = setInterval(() => {
     runScheduledAlertChecks().catch(error => {
         console.error('[Alert Scheduler] Error no controlado:', error);
     });
 }, 5 * 60 * 1000);
+scheduledAlertTimer.unref?.();
 
 // Ejecutar un primer control poco después de cada despliegue/reinicio.
-setTimeout(() => {
-    runScheduledAlertChecks().catch(error => {
+const initialAlertTimer = setTimeout(() => {
+    runScheduledAlertChecks({ trigger: 'startup' }).catch(error => {
         console.error('[Alert Scheduler] Error en control inicial:', error);
     });
 }, 10 * 1000);
+initialAlertTimer.unref?.();
 
 // ==========================================================================
 // Motor Unificado y Dinámico de Alertas (Gestor de Alertas)
 // ==========================================================================
 async function checkAndSendAllAlerts(forceAll = false) {
-    if (!supabase) return;
+    if (!supabase) {
+        throw new Error('Supabase no está disponible para el motor de alertas configuradas.');
+    }
     try {
         const { year, month, day, hour, minutes, dayOfWeek, dateStr } = getArgentinaTime();
 
@@ -672,6 +870,10 @@ async function checkAndSendAllAlerts(forceAll = false) {
             const gymSupplements = parseJsonValue(data.gym_supplements, {});
             const oldReminders = gymSupplements?.custom_reminders || {};
             ensureAlertConfigs(alertsConfig, oldReminders);
+            ensureCustomTrackerAlertConfigs(
+                alertsConfig,
+                parseJsonValue(data.hygiene_tracker_data, {})
+            );
 
             // Inicializar log de envíos diarios si no existe
             if (!data.alerts_sent_log) {
@@ -721,7 +923,16 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 for (const candidate of candidates) {
                     // Verificar si ya fue enviada hoy para evitar spam en el mismo día
                     const usesItemLevelLog = key === 'projects_check' || key === 'tareas_urgentes_check';
-                    if (!forceAll && !usesItemLevelLog && data.alerts_sent_log[key] === candidate.dateStr) continue;
+                    if (
+                        !forceAll
+                        && !usesItemLevelLog
+                        && (
+                            data.alerts_sent_log[key] === candidate.dateStr
+                            || wasSentForDate(userId, key, candidate.dateStr)
+                        )
+                    ) {
+                        continue;
+                    }
 
                     // Si es una alerta periódica/recurrente, verificar día de la semana
                     const isRecurring = ['creatine', 'salmon', 'neck', 'weigh_in', 'laundry'].includes(key);
@@ -763,7 +974,17 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     const currentOdo = Number(data.vehicle_odometer) || 0;
                     const gymSupplements = parseJSONField(data.gym_supplements, {});
 
-                    switch(key) {
+                    const customTrackerNotification = buildCustomTrackerNotification(
+                        key,
+                        hygieneData,
+                        getDaysElapsed
+                    );
+                    if (customTrackerNotification) {
+                        shouldNotify = true;
+                        title = customTrackerNotification.title;
+                        body = customTrackerNotification.body;
+                    } else {
+                        switch(key) {
                         // Higiene
                         case 'esponja_africana':
                             if (hygieneData.esponja_africana) {
@@ -1168,7 +1389,13 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                         
                                         if (state !== 'green') {
                                             const logKey = `project_${p.id}_${state}`;
-                                            if (forceAll || data.alerts_sent_log[logKey] !== candidate.dateStr) {
+                                            if (
+                                                forceAll
+                                                || (
+                                                    data.alerts_sent_log[logKey] !== candidate.dateStr
+                                                    && !wasSentForDate(userId, logKey, candidate.dateStr)
+                                                )
+                                            ) {
                                                 const projTitle = `💼 Proyecto: ${p.project}`;
                                                 const daysRemaining = Math.max(0, Math.floor(remainingMs / 86400000));
                                                 const projBody = `El proyecto de ${p.client} se encuentra en estado ${stateLabel}. Quedan ${daysRemaining} días.`;
@@ -1189,6 +1416,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                                 });
 
                                                 if (!forceAll && result.successCount > 0) {
+                                                    rememberSentForDate(userId, logKey, candidate.dateStr);
                                                     data.alerts_sent_log[logKey] = candidate.dateStr;
                                                     sentLogUpdates[logKey] = candidate.dateStr;
                                                     dataChanged = true;
@@ -1274,7 +1502,13 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             if (allUrgentItems.length > 0) {
                                 for (const item of allUrgentItems) {
                                     const itemLogKey = `tareas_urgentes_${item.id}`;
-                                    if (forceAll || data.alerts_sent_log[itemLogKey] !== candidate.dateStr) {
+                                    if (
+                                        forceAll
+                                        || (
+                                            data.alerts_sent_log[itemLogKey] !== candidate.dateStr
+                                            && !wasSentForDate(userId, itemLogKey, candidate.dateStr)
+                                        )
+                                    ) {
                                         console.log(`[Alert Engine] Enviando push individual de tarea urgente '${item.title}' a usuario ${userId}`);
                                         const payload = JSON.stringify({
                                             title: item.title,
@@ -1291,6 +1525,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                         });
 
                                         if (!forceAll && result.successCount > 0) {
+                                            rememberSentForDate(userId, itemLogKey, candidate.dateStr);
                                             data.alerts_sent_log[itemLogKey] = candidate.dateStr;
                                             sentLogUpdates[itemLogKey] = candidate.dateStr;
                                             dataChanged = true;
@@ -1299,6 +1534,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 }
                             }
                             break;
+                        }
                     }
 
                     if (shouldNotify && title && body) {
@@ -1318,6 +1554,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         });
 
                         if (!forceAll && result.successCount > 0) {
+                            rememberSentForDate(userId, key, candidate.dateStr);
                             data.alerts_sent_log[key] = candidate.dateStr;
                             sentLogUpdates[key] = candidate.dateStr;
                             dataChanged = true;
@@ -1342,6 +1579,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
         }
     } catch (err) {
         console.error("Error al ejecutar el motor de alertas unificadas:", err);
+        throw err;
     }
 }
 
@@ -1378,8 +1616,10 @@ function getDaysUntil(dateString) {
 // ==========================================================================
 // Recordatorios del Robot Aspiradora (cada 6 horas)
 // ==========================================================================
-async function checkAndSendRobotReminders() {
-    if (!supabase) return;
+async function checkAndSendRobotReminders(forceAll = false) {
+    if (!supabase) {
+        throw new Error('Supabase no está disponible para el motor de alertas repetitivas.');
+    }
     
     try {
         const { data: usersData, error: dbError } = await supabase.from('user_data').select('*');
@@ -1408,44 +1648,53 @@ async function checkAndSendRobotReminders() {
             const isRobotEnabled = alertsConfig.robot?.enabled !== false;
             if (isRobotEnabled && robot && robot.status === 'dirty') {
                 const intervalHours = normalizeIntervalHours(alertsConfig.robot?.interval_hours, 6);
-                const intervalMs = intervalHours * 60 * 60 * 1000;
 
                 const markedDirtyAt = new Date(robot.marked_dirty_at);
-                const timeToCheck = getLatestValidDate([
-                    markedDirtyAt,
-                    robot.last_notified_at,
-                    data.robot_last_notified_at
-                ]) || markedDirtyAt;
-                const diffMs = now - timeToCheck;
-                
-                if (diffMs >= intervalMs) {
-                    const elapsedHours = Math.floor((now - markedDirtyAt) / (3600 * 1000));
-                    console.log(`[Robot Reminder] Enviando alerta a usuario ${userId} (sucio desde hace ${elapsedHours} hs, intervalo ${intervalHours}hs)`);
+                if (!Number.isFinite(markedDirtyAt.getTime())) {
+                    console.warn(`[Robot Reminder] Se ignoró un ciclo inválido para usuario ${userId}.`);
+                } else {
+                    const timeToCheck = getLatestValidDate([
+                        markedDirtyAt,
+                        robot.last_notified_at,
+                        data.robot_last_notified_at,
+                        getLastIntervalDelivery(userId, 'robot')
+                    ]) || markedDirtyAt;
                     
-                    const userSubs = subsByUser[userId] || [];
-                    if (userSubs.length === 0) continue;
-                    
-                    const payload = JSON.stringify({
-                        title: '🤖 Robot Aspiradora',
-                        body: `El robot lleva sucio ${elapsedHours}hs. Recordá lavarlo.`,
-                        url: '/'
-                    });
+                    if (isIntervalReminderDue({
+                        now,
+                        lastNotifiedAt: timeToCheck,
+                        intervalHours,
+                        force: forceAll
+                    })) {
+                        const elapsedHours = Math.floor((now - markedDirtyAt) / (3600 * 1000));
+                        console.log(`[Robot Reminder] Enviando alerta a usuario ${userId} (sucio desde hace ${elapsedHours} hs, intervalo ${intervalHours}hs)`);
 
-                    const result = await sendPushToSubscriptions({
-                        userId,
-                        subscriptions: userSubs,
-                        payload,
-                        context: 'robot aspiradora',
-                        delayMs: 250
-                    });
-
-                    if (result.successCount > 0) {
-                        try {
-                            await mergeServerUserDataKeys(userId, {
-                                robot_last_notified_at: now.toISOString()
+                        const userSubs = subsByUser[userId] || [];
+                        if (userSubs.length > 0) {
+                            const payload = JSON.stringify({
+                                title: '🤖 Robot Aspiradora',
+                                body: `El robot lleva sucio ${elapsedHours}hs. Recordá lavarlo.`,
+                                url: '/'
                             });
-                        } catch (updateErr) {
-                            console.error(`[Robot Reminder] Error al actualizar base de datos para usuario ${userId}:`, updateErr);
+
+                            const result = await sendPushToSubscriptions({
+                                userId,
+                                subscriptions: userSubs,
+                                payload,
+                                context: 'robot aspiradora',
+                                delayMs: 250
+                            });
+
+                            if (!forceAll && result.successCount > 0) {
+                                rememberIntervalDelivery(userId, 'robot', now.toISOString());
+                                try {
+                                    await mergeServerUserDataKeys(userId, {
+                                        robot_last_notified_at: now.toISOString()
+                                    });
+                                } catch (updateErr) {
+                                    console.error(`[Robot Reminder] Error al actualizar base de datos para usuario ${userId}:`, updateErr);
+                                }
+                            }
                         }
                     }
                 }
@@ -1456,15 +1705,19 @@ async function checkAndSendRobotReminders() {
             const isVeryUrgentEnabled = veryUrgentConf?.enabled !== false;
             if (isVeryUrgentEnabled) {
                 const intervalHours = normalizeIntervalHours(veryUrgentConf?.interval_hours, 4);
-                const intervalMs = intervalHours * 60 * 60 * 1000;
                 const pendingVeryUrgent = getPendingVeryUrgentTasks(data);
                 
                 if (pendingVeryUrgent.length > 0) {
-                    const lastNotifiedKey = data.very_urgent_last_notified_at;
-                    const lastNotifiedAt = lastNotifiedKey ? new Date(lastNotifiedKey) : null;
-                    const diffMs = lastNotifiedAt ? (now - lastNotifiedAt) : (intervalMs + 1);
-                    
-                    if (diffMs >= intervalMs) {
+                    const lastVeryUrgentDelivery = getLatestValidDate([
+                        data.very_urgent_last_notified_at,
+                        getLastIntervalDelivery(userId, 'very_urgent_tasks')
+                    ]);
+                    if (isIntervalReminderDue({
+                        now,
+                        lastNotifiedAt: lastVeryUrgentDelivery,
+                        intervalHours,
+                        force: forceAll
+                    })) {
                         const userSubs = subsByUser[userId] || [];
                         if (userSubs.length > 0) {
                             const taskNames = pendingVeryUrgent.slice(0, 2).map(t => t.text).join(', ');
@@ -1483,7 +1736,12 @@ async function checkAndSendRobotReminders() {
                                 delayMs: 250
                             });
 
-                            if (result.successCount > 0) {
+                            if (!forceAll && result.successCount > 0) {
+                                rememberIntervalDelivery(
+                                    userId,
+                                    'very_urgent_tasks',
+                                    now.toISOString()
+                                );
                                 try {
                                     await mergeServerUserDataKeys(userId, {
                                         very_urgent_last_notified_at: now.toISOString()
@@ -1499,6 +1757,17 @@ async function checkAndSendRobotReminders() {
         }
     } catch(err) {
         console.error("Error en checkAndSendRobotReminders:", err);
+        throw err;
     }
 }
 
+module.exports = {
+    app,
+    getLastIntervalDelivery,
+    httpServer,
+    notificationRuntimeState,
+    rememberIntervalDelivery,
+    rememberSentForDate,
+    wasSentForDate,
+    runScheduledAlertChecks
+};

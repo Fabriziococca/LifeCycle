@@ -5,6 +5,8 @@ const SERVER_MANAGED_USER_DATA_KEYS = new Set([
     'robot_last_notified_at',
     'very_urgent_last_notified_at'
 ]);
+const CUSTOM_TRACKER_FIELD = '__custom_trackers_v1';
+const CUSTOM_ALERT_PREFIX = 'custom_tracker:';
 
 function parseJsonValue(value, fallback) {
     if (value === null || value === undefined || value === '') return fallback;
@@ -23,6 +25,30 @@ function normalizeIntervalHours(value, fallbackHours) {
     const safeFallback = Number.isFinite(fallback) ? fallback : 4;
     const safeValue = Number.isFinite(parsed) ? parsed : safeFallback;
     return Math.min(48, Math.max(1, safeValue));
+}
+
+function isIntervalReminderDue({
+    now = new Date(),
+    lastNotifiedAt = null,
+    intervalHours = 4,
+    force = false
+} = {}) {
+    if (force) return true;
+
+    const nowTime = new Date(now).getTime();
+    if (!Number.isFinite(nowTime)) return false;
+
+    const lastTime = lastNotifiedAt
+        ? new Date(lastNotifiedAt).getTime()
+        : Number.NaN;
+    if (!Number.isFinite(lastTime)) return true;
+
+    // A future timestamp can only come from clock drift or corrupt state.
+    // It must not silence an important reminder indefinitely.
+    if (lastTime > nowTime) return true;
+
+    const safeInterval = normalizeIntervalHours(intervalHours, 4);
+    return nowTime - lastTime >= safeInterval * 60 * 60 * 1000;
 }
 
 function getLatestValidDate(values = []) {
@@ -214,16 +240,104 @@ function buildVehicleMaintenanceNotification(
     };
 }
 
+function getCustomTrackerRegistry(hygieneData = {}) {
+    const registry = hygieneData?.[CUSTOM_TRACKER_FIELD];
+    if (!registry || typeof registry !== 'object' || Array.isArray(registry)) return null;
+    if (!Array.isArray(registry.trackers)) return null;
+    if (!registry.histories || typeof registry.histories !== 'object' || Array.isArray(registry.histories)) {
+        return null;
+    }
+    return registry;
+}
+
+function ensureCustomTrackerAlertConfigs(alertsConfig, hygieneData = {}) {
+    const registry = getCustomTrackerRegistry(hygieneData);
+    if (!registry || !alertsConfig || typeof alertsConfig !== 'object') return false;
+
+    let changed = false;
+    registry.trackers.forEach(tracker => {
+        if (
+            !tracker
+            || tracker.archived
+            || typeof tracker.id !== 'string'
+            || !/^ct_[a-z0-9_-]{6,64}$/.test(tracker.id)
+        ) {
+            return;
+        }
+
+        const key = `${CUSTOM_ALERT_PREFIX}${tracker.id}`;
+        if (!alertsConfig[key]) {
+            const time = typeof tracker.alert?.time === 'string'
+                && /^([01]\d|2[0-3]):([0-5]\d)$/.test(tracker.alert.time)
+                ? tracker.alert.time
+                : '23:00';
+            alertsConfig[key] = {
+                enabled: tracker.alert?.enabled === true,
+                time,
+                days: []
+            };
+            changed = true;
+        }
+    });
+    return changed;
+}
+
+function buildCustomTrackerNotification(
+    alertKey,
+    hygieneData = {},
+    getDaysElapsed
+) {
+    if (
+        typeof alertKey !== 'string'
+        || !alertKey.startsWith(CUSTOM_ALERT_PREFIX)
+        || typeof getDaysElapsed !== 'function'
+    ) {
+        return null;
+    }
+
+    const registry = getCustomTrackerRegistry(hygieneData);
+    if (!registry) return null;
+
+    const trackerId = alertKey.slice(CUSTOM_ALERT_PREFIX.length);
+    const tracker = registry.trackers.find(item => item?.id === trackerId);
+    if (!tracker || tracker.archived) return null;
+
+    const name = typeof tracker.name === 'string'
+        ? tracker.name.replace(/\s+/g, ' ').trim().slice(0, 80)
+        : '';
+    const intervalDays = Number.parseInt(tracker.intervalDays, 10);
+    const history = Array.isArray(registry.histories[trackerId])
+        ? registry.histories[trackerId]
+        : [];
+    const lastEntry = history.find(value => (
+        typeof value === 'string' && Number.isFinite(Date.parse(value))
+    ));
+    if (!name || !Number.isInteger(intervalDays) || intervalDays < 1 || intervalDays > 3650 || !lastEntry) {
+        return null;
+    }
+
+    const elapsedDays = getDaysElapsed(lastEntry);
+    if (!Number.isFinite(elapsedDays) || elapsedDays < intervalDays) return null;
+
+    return {
+        title: `📅 ${name}`,
+        body: `El seguimiento está vencido: pasaron ${elapsedDays} de ${intervalDays} días.`
+    };
+}
+
 module.exports = {
     assertServerManagedUserDataPatch,
+    buildCustomTrackerNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
+    ensureCustomTrackerAlertConfigs,
     formatExpiryStatus,
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
     getPendingVeryUrgentTasks,
     groupSubscriptionsByUser,
     isExpiredPushError,
+    isIntervalReminderDue,
     normalizeIntervalHours,
     parseJsonValue
 };

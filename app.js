@@ -11,7 +11,12 @@ import { FinanzasModule } from './modules/FinanzasModule.js';
 import { TareasModule } from './modules/TareasModule.js';
 import { AlertsModule } from './modules/AlertsModule.js';
 import { NotificationsCenterModule } from './modules/NotificationsCenterModule.js';
+import { CustomTrackersModule } from './modules/CustomTrackersModule.js';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260727-cloud-first';
+import {
+    readUiState,
+    writeUiState
+} from './ui-state.mjs?v=20260728-ui-state';
 import {
     combineLocalDateWithTime,
     getLocalISODate,
@@ -31,7 +36,8 @@ class AppController {
         this.modalCancel = document.getElementById('modal-cancel');
         this.modalSave = document.getElementById('modal-save');
         
-        this.lastActiveSectionId = 'higiene-section';
+        this.uiState = readUiState(localStorage);
+        this.lastActiveSectionId = this.uiState.section;
         
         this.initNavigation();
         this.initModalListeners();
@@ -178,38 +184,74 @@ class AppController {
         mainNav.addEventListener('click', (e) => {
             const btn = e.target.closest('.nav-btn');
             if (!btn) return;
-
-            mainNav.querySelectorAll('.nav-btn').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-
-            const activeSectionId = btn.dataset.section;
-            this.lastActiveSectionId = activeSectionId;
-            document.querySelectorAll('.main-section').forEach(sec => {
-                sec.classList.toggle('hidden', sec.id !== activeSectionId);
-            });
-            
-            if (activeSectionId === 'cuidado-section') {
-                this.grooming.render();
-            } else if (activeSectionId === 'lenses-section') {
-                this.lenses.updateUI();
-                this.lenses.loadDatesAndStock();
-                this.lenses.renderHistory();
-            } else if (activeSectionId === 'higiene-section') {
-                this.hygiene.render();
-            } else if (activeSectionId === 'salud-section') {
-                this.health.render();
-            } else if (activeSectionId === 'vehiculo-section') {
-                this.vehicle.render();
-            } else if (activeSectionId === 'gym-section') {
-                this.gym.render();
-            } else if (activeSectionId === 'projects-section') {
-                this.projects.render();
-            } else if (activeSectionId === 'finanzas-section') {
-                this.finanzas.render();
-            } else if (activeSectionId === 'tareas-section') {
-                this.tareas.render();
-            }
+            this.activateSection(btn.dataset.section);
         });
+    }
+
+    saveUiState(patch) {
+        this.uiState = writeUiState(localStorage, this.uiState, patch);
+        return this.uiState;
+    }
+
+    scrollControlIntoView(container, control, smooth = false) {
+        if (!container || !control || container.scrollWidth <= container.clientWidth) return;
+
+        const targetLeft = control.offsetLeft
+            - ((container.clientWidth - control.offsetWidth) / 2);
+        const left = Math.max(0, targetLeft);
+        if (typeof container.scrollTo === 'function') {
+            container.scrollTo({
+                left,
+                behavior: smooth ? 'smooth' : 'auto'
+            });
+        } else {
+            container.scrollLeft = left;
+        }
+    }
+
+    renderSection(sectionId) {
+        if (sectionId === 'cuidado-section') {
+            this.grooming?.render();
+        } else if (sectionId === 'lenses-section') {
+            this.lenses?.updateUI();
+            this.lenses?.loadDatesAndStock();
+            this.lenses?.renderHistory();
+        } else if (sectionId === 'higiene-section') {
+            this.hygiene?.render();
+        } else if (sectionId === 'salud-section') {
+            this.health?.render();
+        } else if (sectionId === 'vehiculo-section') {
+            this.vehicle?.render();
+        } else if (sectionId === 'gym-section') {
+            this.gym?.render();
+        } else if (sectionId === 'projects-section') {
+            this.projects?.render();
+        } else if (sectionId === 'finanzas-section') {
+            this.finanzas?.render();
+        } else if (sectionId === 'tareas-section') {
+            this.tareas?.render();
+        }
+        this.customTrackers?.renderMainSection(sectionId);
+    }
+
+    activateSection(sectionId, { persist = true, render = true, smooth = false } = {}) {
+        const mainNav = document.getElementById('main-nav');
+        const targetButton = mainNav?.querySelector(`.nav-btn[data-section="${sectionId}"]`);
+        const targetSection = document.getElementById(sectionId);
+        if (!targetButton || !targetSection) return false;
+
+        mainNav.querySelectorAll('.nav-btn').forEach(button => {
+            button.classList.toggle('active', button === targetButton);
+        });
+        document.querySelectorAll('.main-section').forEach(section => {
+            section.classList.toggle('hidden', section.id !== sectionId);
+        });
+
+        this.lastActiveSectionId = sectionId;
+        if (persist) this.saveUiState({ section: sectionId });
+        this.scrollControlIntoView(mainNav, targetButton, smooth);
+        if (render) this.renderSection(sectionId);
+        return true;
     }
 
     initProfileTabs() {
@@ -219,17 +261,37 @@ class AppController {
         sidebar.addEventListener('click', (e) => {
             const btn = e.target.closest('.profile-menu-item');
             if (!btn) return;
-            
-            sidebar.querySelectorAll('.profile-menu-item').forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            
-            const targetTab = btn.dataset.tab;
-            document.querySelectorAll('.profile-tab-content').forEach(content => {
-                content.classList.toggle('hidden', content.id !== `tab-${targetTab}`);
-            });
-            if (targetTab === 'alertas') {
-                this.alerts.render();
-            }
+            this.activateProfileTab(btn.dataset.tab, { smooth: true });
+        });
+    }
+
+    activateProfileTab(tabId, { persist = true, render = true, smooth = false } = {}) {
+        const sidebar = document.querySelector('.profile-sidebar');
+        const targetButton = sidebar?.querySelector(`.profile-menu-item[data-tab="${tabId}"]`);
+        const targetContent = document.getElementById(`tab-${tabId}`);
+        if (!targetButton || !targetContent) return false;
+
+        sidebar.querySelectorAll('.profile-menu-item').forEach(button => {
+            button.classList.toggle('active', button === targetButton);
+        });
+        document.querySelectorAll('.profile-tab-content').forEach(content => {
+            content.classList.toggle('hidden', content !== targetContent);
+        });
+
+        if (persist) this.saveUiState({ profileTab: tabId });
+        this.scrollControlIntoView(sidebar, targetButton, smooth);
+        if (render && tabId === 'alertas') this.alerts?.render();
+        return true;
+    }
+
+    restoreUiState() {
+        this.activateSection(this.uiState.section, {
+            persist: false,
+            render: true
+        });
+        this.activateProfileTab(this.uiState.profileTab, {
+            persist: false,
+            render: false
         });
     }
 
@@ -247,11 +309,10 @@ class AppController {
                 const profileSec = document.getElementById('perfil-section');
                 if (profileSec) {
                     profileSec.classList.remove('hidden');
-                    const activeMenu = document.querySelector('.profile-sidebar .profile-menu-item.active');
-                    const targetTab = activeMenu ? activeMenu.dataset.tab : 'cuenta';
-                    if (targetTab === 'alertas') {
-                        this.alerts.render();
-                    }
+                    this.activateProfileTab(this.uiState.profileTab, {
+                        persist: false,
+                        render: true
+                    });
                 }
             });
         }
@@ -263,20 +324,10 @@ class AppController {
                 if (profileSec) profileSec.classList.add('hidden');
                 
                 const targetSecId = this.lastActiveSectionId || 'higiene-section';
-                const targetSec = document.getElementById(targetSecId);
-                if (targetSec) targetSec.classList.remove('hidden');
-                
-                if (targetSecId === 'cuidado-section') this.grooming.render();
-                else if (targetSecId === 'lenses-section') {
-                    this.lenses.updateUI();
-                    this.lenses.loadDatesAndStock();
-                    this.lenses.renderHistory();
-                } else if (targetSecId === 'higiene-section') this.hygiene.render();
-                else if (targetSecId === 'salud-section') this.health.render();
-                else if (targetSecId === 'vehiculo-section') this.vehicle.render();
-                else if (targetSecId === 'gym-section') this.gym.render();
-                else if (targetSecId === 'projects-section') this.projects.render();
-                else if (targetSecId === 'finanzas-section') this.finanzas.render();
+                this.activateSection(targetSecId, {
+                    persist: false,
+                    render: true
+                });
             });
         }
     }
@@ -289,9 +340,13 @@ class AppController {
             this.modalTitle.innerText = `Editar: ${displayName}`;
         }
         if (this.modalDesc) {
-            this.modalDesc.innerText = type === 'hygiene' 
-                ? '¿Cuándo realizaste la última acción de lavado o limpieza?' 
-                : '¿Cuándo registraste este hábito corporal por última vez?';
+            if (type === 'hygiene') {
+                this.modalDesc.innerText = '¿Cuándo realizaste la última acción de lavado o limpieza?';
+            } else if (type === 'customTracker') {
+                this.modalDesc.innerText = '¿Cuándo realizaste esta acción por última vez?';
+            } else {
+                this.modalDesc.innerText = '¿Cuándo registraste este hábito corporal por última vez?';
+            }
         }
 
         if (this.modalDate) {
@@ -367,6 +422,8 @@ class AppController {
             this.lenses.loadDatesAndStock();
             this.lenses.updateUI();
             this.auth?.syncToCloud(false).catch(() => {});
+        } else if (this.currentEditType === 'customTracker') {
+            this.customTrackers?.updateLatestDate(this.currentEditId, selectedDate);
         }
 
         this.notificationsCenter?.updateBadge();
@@ -445,10 +502,12 @@ class AppController {
         this.projects = new ProjectsModule(this);
         this.finanzas = new FinanzasModule(this);
         this.tareas = new TareasModule(this);
+        this.customTrackers = new CustomTrackersModule(this);
         this.backups = new BackupModule(this);
         this.auth = new AuthSyncModule(this);
         this.alerts = new AlertsModule(this);
         this.notificationsCenter = new NotificationsCenterModule(this);
+        this.restoreUiState();
         
         setInterval(() => {
             const activeSection = document.querySelector('.main-section:not(.hidden)');

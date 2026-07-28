@@ -588,8 +588,8 @@
                                 <div id="doc-dni-days" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">--</div>
                             </div>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <input type="date" id="doc-dni-input" class="date-input" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
-                                <button class="btn btn-primary btn-save-doc" data-doc="dni" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
+                                <input type="date" id="doc-dni-input" class="date-input" aria-label="Vencimiento del DNI" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
+                                <button type="button" class="btn btn-primary btn-save-doc" data-doc="dni" title="Guardar vencimiento del DNI" aria-label="Guardar vencimiento del DNI" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
                             </div>
                         </div>
 
@@ -606,8 +606,8 @@
                                 <div id="doc-license-days" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">--</div>
                             </div>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <input type="date" id="doc-license-input" class="date-input" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
-                                <button class="btn btn-primary btn-save-doc" data-doc="license" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
+                                <input type="date" id="doc-license-input" class="date-input" aria-label="Vencimiento del registro de conducir" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
+                                <button type="button" class="btn btn-primary btn-save-doc" data-doc="license" title="Guardar vencimiento del registro de conducir" aria-label="Guardar vencimiento del registro de conducir" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
                             </div>
                         </div>
 
@@ -624,8 +624,8 @@
                                 <div id="doc-insurance-days" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">--</div>
                             </div>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <input type="date" id="doc-insurance-input" class="date-input" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
-                                <button class="btn btn-primary btn-save-doc" data-doc="insurance" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
+                                <input type="date" id="doc-insurance-input" class="date-input" aria-label="Vencimiento del seguro del auto" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
+                                <button type="button" class="btn btn-primary btn-save-doc" data-doc="insurance" title="Guardar vencimiento del seguro del auto" aria-label="Guardar vencimiento del seguro del auto" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
                             </div>
                         </div>
 
@@ -642,8 +642,8 @@
                                 <div id="doc-vtv-days" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 2px;">--</div>
                             </div>
                             <div style="display: flex; gap: 0.5rem; align-items: center;">
-                                <input type="date" id="doc-vtv-input" class="date-input" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
-                                <button class="btn btn-primary btn-save-doc" data-doc="vtv" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
+                                <input type="date" id="doc-vtv-input" class="date-input" aria-label="Vencimiento de la VTV" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; margin: 0; width: 140px;">
+                                <button type="button" class="btn btn-primary btn-save-doc" data-doc="vtv" title="Guardar vencimiento de la VTV" aria-label="Guardar vencimiento de la VTV" style="padding: 0.4rem 0.8rem; font-size: 0.85rem; margin: 0; height: 32px; display: flex; align-items: center; justify-content: center;"><i class="ph ph-floppy-disk"></i></button>
                             </div>
                         </div>
                     </div>
@@ -2415,10 +2415,10 @@
                     <i class="card-icon"></i>
                 </div>
                 <div class="header-actions">
-                    <button class="btn-info" title="Ver Instrucciones">
+                    <button type="button" class="btn-info" title="Ver instrucciones" aria-label="Ver instrucciones" aria-expanded="false">
                         <i class="ph ph-book-open"></i>
                     </button>
-                    <button class="btn-card-edit" title="Editar Fecha de Lavado">
+                    <button type="button" class="btn-card-edit" title="Editar fecha del último registro" aria-label="Editar fecha del último registro">
                         <i class="ph ph-pencil-simple"></i>
                     </button>
                     <div class="status-indicator">
@@ -2451,7 +2451,7 @@
                     <div class="progress-bar"></div>
                 </div>
                 
-                <button class="btn btn-history hygiene-history-btn" style="margin-top: 0.75rem; width: 100%; display: none; font-size: 0.85rem; padding: 6px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">Ver historial</button>
+                <button type="button" class="btn btn-history hygiene-history-btn" style="margin-top: 0.75rem; width: 100%; display: none; font-size: 0.85rem; padding: 6px 12px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); border-radius: 6px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">Ver historial</button>
                 <div class="history-log hygiene-history-log hidden" style="margin-top: 0.5rem; background: rgba(0,0,0,0.15); border-radius: 6px; padding: 8px;"></div>
             </div>
 
@@ -2460,7 +2460,7 @@
             </div>
 
             <div class="card-footer">
-                <button class="btn-wash">
+                <button type="button" class="btn-wash">
                     <i class="ph-bold ph-waves"></i>
                     <span>Registrar Lavado</span>
                 </button>

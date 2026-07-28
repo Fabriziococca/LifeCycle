@@ -1,4 +1,5 @@
 import { DateUtils, getLocalISODate, LENS_LIMITS } from '../utils.js';
+import { resolveLensStartDate } from '../lens-time-utils.mjs?v=20260728-lens-time';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
 const CIRCUMFERENCE = 502; // 2 * Math.PI * 80 (basado en r=80 del SVG)
@@ -37,10 +38,22 @@ export class LensModule {
         }
     }
 
+    getEffectiveStartDate(referenceDate = new Date()) {
+        return resolveLensStartDate(this.startTime, referenceDate);
+    }
+
     calculateTime() {
         if (!this.startTime) return;
         const now = new Date();
-        const start = new Date(this.startTime);
+        const start = this.getEffectiveStartDate(now);
+        if (!start) {
+            if (this.uiTimer) this.uiTimer.innerText = '--:--:--';
+            if (this.ring) {
+                this.ring.style.strokeDashoffset = CIRCUMFERENCE;
+                this.ring.style.stroke = 'var(--status-red)';
+            }
+            return;
+        }
         const diff = now - start;
 
         const h = Math.floor(diff / 3600000);
@@ -75,11 +88,13 @@ export class LensModule {
             this.uiActiveState?.classList.remove('hidden');
             this.uiIdleState?.classList.add('hidden');
             
-            const start = new Date(this.startTime);
-            const hours = start.getHours().toString().padStart(2, '0');
-            const minutes = start.getMinutes().toString().padStart(2, '0');
-            if (this.uiStartTimeDisplay) {
+            const start = this.getEffectiveStartDate();
+            if (start && this.uiStartTimeDisplay) {
+                const hours = start.getHours().toString().padStart(2, '0');
+                const minutes = start.getMinutes().toString().padStart(2, '0');
                 this.uiStartTimeDisplay.innerText = `Puestos a las ${hours}:${minutes}`;
+            } else if (this.uiStartTimeDisplay) {
+                this.uiStartTimeDisplay.innerText = 'Inicio inválido. Retirá y registrá los lentes nuevamente.';
             }
             
             if (this.interval) clearInterval(this.interval);
@@ -120,12 +135,14 @@ export class LensModule {
         
         if (customEndValue && this.startTime) {
             const [h, m] = customEndValue.split(':');
-            const startObj = new Date(this.startTime);
-            end = new Date(startObj);
-            end.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
-            
-            if (end < startObj) end.setDate(end.getDate() + 1);
-            if (end > new Date()) end = new Date();
+            const startObj = this.getEffectiveStartDate();
+            if (startObj) {
+                end = new Date(startObj);
+                end.setHours(parseInt(h, 10), parseInt(m, 10), 0, 0);
+
+                if (end < startObj) end.setDate(end.getDate() + 1);
+                if (end > new Date()) end = new Date();
+            }
         }
 
         if (confirm('¿Te sacaste los lentes?')) {
@@ -254,6 +271,8 @@ export class LensModule {
             const lastDateStr = lastDateVal ? lastDateVal.split('-').reverse().join('/') : 'N/A';
             const daysDisplay = daysElapsed !== null && daysElapsed !== '--' ? daysElapsed : '--';
             const progressPct = daysElapsed !== '--' && daysElapsed !== null ? Math.min((parseInt(daysElapsed) / item.limit) * 100, 100) : 0;
+            const safeName = escapeHtml(item.name);
+            const safeActionText = escapeHtml(item.actionText);
 
             card.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
@@ -261,10 +280,10 @@ export class LensModule {
                         <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                             <i class="ph ${item.icon}" style="font-size: 1.25rem; color: ${colorVar};"></i>
                         </div>
-                        <strong style="font-size: 0.92rem; color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;">${item.name}</strong>
+                        <strong style="font-size: 0.92rem; color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;">${safeName}</strong>
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                        <button class="btn-card-edit" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s;" title="Editar Fecha de Último Uso"><i class="ph ph-pencil"></i></button>
+                        <button type="button" class="btn-card-edit" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s;" title="Editar fecha del último registro de ${safeName}" aria-label="Editar fecha del último registro de ${safeName}"><i class="ph ph-pencil"></i></button>
                         <span class="badge ${statusClass}" style="font-size: 0.65rem; padding: 3px 8px; font-weight: 700; border-radius: 20px; letter-spacing: 0.3px;">${statusBadge}</span>
                     </div>
                 </div>
@@ -286,9 +305,9 @@ export class LensModule {
                     </div>
                 </div>
 
-                <button class="btn-mini-action btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 0.85rem; margin: 0; display: flex; align-items: center; justify-content: center; gap: 8px; height: 36px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid ${colorVar}50; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                <button type="button" class="btn-mini-action btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 0.85rem; margin: 0; display: flex; align-items: center; justify-content: center; gap: 8px; height: 36px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid ${colorVar}50; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">
                     <i class="ph-bold ph-check-circle" style="color: ${colorVar}; font-size: 1rem;"></i>
-                    <span>${item.actionText}</span>
+                    <span>${safeActionText}</span>
                 </button>
             `;
 
@@ -376,7 +395,8 @@ export class LensModule {
 
     saveToHistory(endTime = new Date()) {
         if (!this.startTime) return;
-        const start = new Date(this.startTime);
+        const start = this.getEffectiveStartDate(endTime);
+        if (!start) return;
         let diff = Math.max(endTime - start, 0);
         const h = Math.floor(diff / 3600000);
         const m = Math.floor((diff % 3600000) / 60000);

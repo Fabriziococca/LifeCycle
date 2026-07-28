@@ -7,6 +7,7 @@ import {
     parseDateLocal
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { getCustomTrackerState } from '../custom-tracker-utils.mjs?v=20260728-custom-trackers';
 
 export class NotificationsCenterModule {
     constructor(appController) {
@@ -307,7 +308,29 @@ export class NotificationsCenterModule {
                 }
             }
 
-            // 7. PENDING URGENT GENERAL TASKS
+            // 7. SEGUIMIENTOS CONFIGURABLES
+            if (this.app.customTrackers) {
+                this.app.customTrackers.registry.trackers
+                    .filter(tracker => !tracker.archived)
+                    .forEach(tracker => {
+                        const state = getCustomTrackerState(
+                            tracker,
+                            this.app.customTrackers.getHistory(tracker.id),
+                            now
+                        );
+                        if (state.status === 'red') {
+                            items.push({
+                                module: 'custom_tracker',
+                                id: tracker.id,
+                                name: tracker.name,
+                                icon: tracker.icon,
+                                desc: `Pasaron ${state.elapsedDays} de ${tracker.intervalDays} días.`
+                            });
+                        }
+                    });
+            }
+
+            // 8. PENDING URGENT GENERAL TASKS
             if (this.app.tareas && this.app.tareas.tasks) {
                 const pendingUrgentTasks = this.app.tareas.tasks.filter(t => !t.completed && (t.urgency === 'urgente' || t.urgency === 'muy_urgente'));
                 pendingUrgentTasks.forEach(t => {
@@ -323,7 +346,7 @@ export class NotificationsCenterModule {
                 });
             }
 
-            // 8. PENDING URGENT PROJECT TASKS
+            // 9. PENDING URGENT PROJECT TASKS
             const freelanceProjs = this.app.tareas?.getFreelanceProjects ? this.app.tareas.getFreelanceProjects() : (this.app.projects?.projects || []);
             freelanceProjs.forEach(p => {
                 if (p.tasks) {
@@ -422,6 +445,8 @@ export class NotificationsCenterModule {
             const today = getLocalISODate();
             localStorage.setItem(id, today);
             this.app.lenses.loadDatesAndStock();
+        } else if (module === 'custom_tracker') {
+            this.app.customTrackers?.recordTracker(id);
         } else if (module === 'vehicle') {
             if (id === 'oil') {
                 const dateVal = getLocalISODate();

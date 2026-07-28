@@ -221,6 +221,8 @@ export class GroomingModule {
 
             // Editar fecha
             const editBtn = clone.querySelector('.btn-card-edit');
+            editBtn.setAttribute('aria-label', `Editar fecha del último registro de ${zone.name}`);
+            editBtn.setAttribute('title', `Editar fecha del último registro de ${zone.name}`);
             editBtn.addEventListener('click', (e) => {
                 e.stopPropagation();
                 this.app.openEditModal('grooming', zone.id, zone.name, lastSession);

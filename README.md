@@ -13,7 +13,7 @@ graph TD
     Client[Client PWA: HTML5 / CSS3 / ES6+] -->|Authenticated reads and per-key writes| Supabase{Supabase Database}
     Supabase -->|Row-Level Security / Realtime| Client
     Client -->|Runtime cache only| LS[(LocalStorage)]
-    Server[Backend: Node.js Express / Render] -->|Cron Check every 5m| Supabase
+    Server[Backend: Node.js Express / Render] -->|Scheduler check every 5m| Supabase
     Server -->|Web Push Protocol| Client
 ```
 
@@ -57,3 +57,18 @@ Track annual/periodical visits for Dentists, Ophthalmologists, Clinical Blood Te
 
 ### 7. 🔔 Centralized Notifications Panel
 Float notification center displaying overdue items across all sections, permitting immediate checklist completion (`✓ Listo`) from any screen. Supports custom background push notification schedules.
+
+### 8. ⚙️ Configurable Trackers
+Create, edit, reorder, archive, restore, and delete personal trackers in Hygiene, Care, Lenses, and Health without modifying code. Each tracker supports an interval, automatic visual states, instructions, history, date correction, and an optional backend Push alert.
+
+---
+
+## ✅ Verification
+
+```bash
+npm ci
+npm test
+node --check server.js
+```
+
+The repository also runs these checks through GitHub Actions. Product findings are documented in [`docs/AUDITORIA_PRODUCTO_UX_2026-07-28.md`](docs/AUDITORIA_PRODUCTO_UX_2026-07-28.md), and deployment, Push, backup, Render, and Supabase verification steps are documented in [`docs/OPERACION_Y_VERIFICACION.md`](docs/OPERACION_Y_VERIFICACION.md).
