@@ -1,3 +1,5 @@
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+
 export class TareasModule {
     constructor(appController) {
         this.app = appController;
@@ -669,6 +671,7 @@ export class TareasModule {
                             ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px;">Urgente</span>`
                             : '');
                     const isEditing = String(this.editingTaskId) === String(t.id);
+                    const safeTaskText = escapeHtml(t.text || '');
                     const row = document.createElement('div');
                     row.className = 'task-item';
                     row.setAttribute('data-task-id', t.id);
@@ -678,14 +681,14 @@ export class TareasModule {
                         row.innerHTML = `
                             <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
                                 <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; opacity:0.5; pointer-events:none;">
-                                    <input type="checkbox" disabled class="task-check">
+                                    <input type="checkbox" disabled class="task-check" aria-label="Tarea en edición">
                                     <span class="custom-checkbox"></span>
                                 </label>
-                                <input type="text" class="text-input edit-task-input" value="${t.text}" style="flex:1; margin:0; padding:6px 10px; font-size:0.95rem; height:36px; min-width:0;">
+                                <input type="text" class="text-input edit-task-input" value="${safeTaskText}" aria-label="Editar descripción de la tarea" style="flex:1; margin:0; padding:6px 10px; font-size:0.95rem; height:36px; min-width:0;">
                             </div>
                             <div style="display:flex; gap:8px; align-items:center; margin-left:10px;">
-                                <button class="btn-save-task" style="background:none; border:none; color:var(--status-green); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-check"></i></button>
-                                <button class="btn-cancel-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-x"></i></button>
+                                <button type="button" class="btn-save-task" title="Guardar tarea" aria-label="Guardar tarea" style="background:none; border:none; color:var(--status-green); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-check"></i></button>
+                                <button type="button" class="btn-cancel-task" title="Cancelar edición" aria-label="Cancelar edición" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-x"></i></button>
                             </div>
                         `;
                         const input = row.querySelector('.edit-task-input');
@@ -723,15 +726,15 @@ export class TareasModule {
                         row.innerHTML = `
                             <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
                                 <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; flex-shrink:0;">
-                                    <input type="checkbox" class="task-check">
+                                    <input type="checkbox" class="task-check" aria-label="Marcar tarea como completada">
                                     <span class="custom-checkbox"></span>
                                 </label>
-                                <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text} ${badge}</span>
+                                <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText} ${badge}</span>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                                <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
-                                <button class="btn-edit-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
-                                <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                                <button type="button" class="btn-view-task" title="Ver tarea completa" aria-label="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
+                                <button type="button" class="btn-edit-task" title="Editar tarea" aria-label="Editar tarea" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
+                                <button type="button" class="btn-delete-task" title="Eliminar tarea" aria-label="Eliminar tarea" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
                             </div>
                         `;
 
@@ -772,6 +775,7 @@ export class TareasModule {
                 completedList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay tareas completadas todavía.</p>';
             } else {
                 completed.forEach(t => {
+                    const safeTaskText = escapeHtml(t.text || '');
                     const row = document.createElement('div');
                     row.className = 'task-item';
                     row.setAttribute('data-task-id', t.id);
@@ -779,14 +783,14 @@ export class TareasModule {
                     row.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px; opacity: 0.6; flex:1; min-width:0;">
                             <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; flex-shrink:0;">
-                                <input type="checkbox" checked class="task-check">
+                                <input type="checkbox" checked class="task-check" aria-label="Marcar tarea como pendiente">
                                 <span class="custom-checkbox"></span>
                             </label>
-                            <span class="task-text-span" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text}</span>
+                            <span class="task-text-span" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText}</span>
                         </div>
                         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                            <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
-                            <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                            <button type="button" class="btn-view-task" title="Ver tarea completa" aria-label="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
+                            <button type="button" class="btn-delete-task" title="Eliminar tarea" aria-label="Eliminar tarea" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
                         </div>
                     `;
 
@@ -841,6 +845,7 @@ export class TareasModule {
                             ? `<span class="badge" style="background:var(--status-red); color:white; font-size:0.65rem; padding:2px 6px;">Urgente</span>`
                             : '');
                     const isEditing = String(this.editingTaskId) === String(t.id);
+                    const safeTaskText = escapeHtml(t.text || '');
                     const row = document.createElement('div');
                     row.className = 'task-item';
                     row.setAttribute('data-task-id', t.id);
@@ -850,14 +855,14 @@ export class TareasModule {
                         row.innerHTML = `
                             <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
                                 <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; opacity:0.5; pointer-events:none;">
-                                    <input type="checkbox" disabled class="task-check">
+                                    <input type="checkbox" disabled class="task-check" aria-label="Tarea en edición">
                                     <span class="custom-checkbox"></span>
                                 </label>
-                                <input type="text" class="text-input edit-task-input" value="${t.text}" style="flex:1; margin:0; padding:6px 10px; font-size:0.95rem; height:36px; min-width:0;">
+                                <input type="text" class="text-input edit-task-input" value="${safeTaskText}" aria-label="Editar descripción de la tarea" style="flex:1; margin:0; padding:6px 10px; font-size:0.95rem; height:36px; min-width:0;">
                             </div>
                             <div style="display:flex; gap:8px; align-items:center; margin-left:10px;">
-                                <button class="btn-save-task" style="background:none; border:none; color:var(--status-green); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-check"></i></button>
-                                <button class="btn-cancel-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-x"></i></button>
+                                <button type="button" class="btn-save-task" title="Guardar tarea" aria-label="Guardar tarea" style="background:none; border:none; color:var(--status-green); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-check"></i></button>
+                                <button type="button" class="btn-cancel-task" title="Cancelar edición" aria-label="Cancelar edición" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-x"></i></button>
                             </div>
                         `;
                         const input = row.querySelector('.edit-task-input');
@@ -893,15 +898,15 @@ export class TareasModule {
                         row.innerHTML = `
                             <div style="display:flex; align-items:center; gap:10px; flex:1; min-width:0;">
                                 <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; flex-shrink:0;">
-                                    <input type="checkbox" class="task-check">
+                                    <input type="checkbox" class="task-check" aria-label="Marcar tarea como completada">
                                     <span class="custom-checkbox"></span>
                                 </label>
-                                <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text} ${badge}</span>
+                                <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText} ${badge}</span>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                                <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
-                                <button class="btn-edit-task" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
-                                <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                                <button type="button" class="btn-view-task" title="Ver tarea completa" aria-label="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
+                                <button type="button" class="btn-edit-task" title="Editar tarea" aria-label="Editar tarea" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
+                                <button type="button" class="btn-delete-task" title="Eliminar tarea" aria-label="Eliminar tarea" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
                             </div>
                         `;
 
@@ -927,6 +932,7 @@ export class TareasModule {
                 completedList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay tareas completadas todavía.</p>';
             } else {
                 completed.forEach(t => {
+                    const safeTaskText = escapeHtml(t.text || '');
                     const row = document.createElement('div');
                     row.className = 'task-item';
                     row.setAttribute('data-task-id', t.id);
@@ -934,14 +940,14 @@ export class TareasModule {
                     row.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px; opacity: 0.6; flex:1; min-width:0;">
                             <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; flex-shrink:0;">
-                                <input type="checkbox" checked class="task-check">
+                                <input type="checkbox" checked class="task-check" aria-label="Marcar tarea como pendiente">
                                 <span class="custom-checkbox"></span>
                             </label>
-                            <span class="task-text-span" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${t.text}</span>
+                            <span class="task-text-span" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText}</span>
                         </div>
                         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                            <button class="btn-view-task" title="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
-                            <button class="btn-delete-task" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                            <button type="button" class="btn-view-task" title="Ver tarea completa" aria-label="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
+                            <button type="button" class="btn-delete-task" title="Eliminar tarea" aria-label="Eliminar tarea" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
                         </div>
                     `;
 

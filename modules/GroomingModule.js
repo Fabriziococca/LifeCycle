@@ -1,4 +1,5 @@
 import { DateUtils, GROOMING_RULES, parseDateLocal, ZONES } from '../utils.js';
+import { escapeHtml } from '../text-utils.mjs';
 
 export class GroomingModule {
     constructor(appController) {
@@ -101,10 +102,11 @@ export class GroomingModule {
             const formatted = dateObj
                 ? dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short', year: 'numeric' })
                 : dateStr;
+            const safeZoneId = escapeHtml(zoneId);
             return `
                 <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 0.8rem;">
-                    <span>${formatted}</span>
-                    <button class="btn-delete-grooming-history" data-zone="${zoneId}" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 2px 6px;" title="Borrar registro">❌</button>
+                    <span>${escapeHtml(formatted)}</span>
+                    <button type="button" class="btn-delete-grooming-history" data-zone="${safeZoneId}" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 2px 6px;" title="Borrar registro" aria-label="Borrar registro de cuidado personal">❌</button>
                 </div>
             `;
         }).join('');

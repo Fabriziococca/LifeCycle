@@ -1,0 +1,12 @@
+{
+  "appName": "LifeCycle",
+  "tareas_list": [
+    {
+      "id": "fixture-legacy",
+      "text": "Restaurada desde backup anterior",
+      "category": "Personal",
+      "urgency": "no_urgente",
+      "completed": false
+    }
+  ]
+}

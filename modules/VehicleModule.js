@@ -1,4 +1,5 @@
 import { DateUtils, getLocalISODate } from '../utils.js';
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
 export class VehicleModule {
     constructor(controller) {
@@ -643,18 +644,20 @@ export class VehicleModule {
                 : '<span class="badge gray">Baja Urgencia</span>';
 
             const dateStr = this.formatDate(issue.createdAt);
+            const safeTitle = escapeHtml(issue.title || 'Pendiente sin título');
+            const safeDate = escapeHtml(dateStr || '-');
 
             div.innerHTML = `
                 <div class="vehicle-issue-content">
                     <div class="vehicle-issue-title-row">
-                        <strong style="color:white; font-size:0.95rem;">${issue.title}</strong>
+                        <strong style="color:white; font-size:0.95rem;">${safeTitle}</strong>
                         ${urgencyBadge}
                     </div>
                     <div class="vehicle-issue-meta">
-                        <span><i class="ph ph-calendar-blank" style="vertical-align: middle; margin-right: 4px;"></i>Reportado el: ${dateStr}</span>
+                        <span><i class="ph ph-calendar-blank" style="vertical-align: middle; margin-right: 4px;"></i>Reportado el: ${safeDate}</span>
                     </div>
                 </div>
-                <button class="btn-solve" data-id="${issue.id}">
+                <button type="button" class="btn-solve" aria-label="Marcar como solucionado: ${safeTitle}">
                     <i class="ph ph-check-circle"></i> Solucionar
                 </button>
             `;
@@ -886,20 +889,25 @@ export class VehicleModule {
                     if (details.filterOil) components.push('F. Aceite');
                     if (details.filterAir) components.push('F. Aire');
                     if (details.filterCabin) components.push('F. Habitáculo');
+                    const entryKm = Number(entry.km);
+                    const safeKm = Number.isFinite(entryKm)
+                        ? entryKm.toLocaleString('es-AR')
+                        : '-';
+                    const safeDate = escapeHtml(this.formatDate(entry.date));
 
                     li.innerHTML = `
                         <div style="display:flex; justify-content:space-between; align-items:center; font-weight:600; margin-bottom: 0.25rem;">
-                            <span>${entry.km.toLocaleString('es-AR')} km</span>
-                            <span style="font-size:0.8rem; color:var(--text-secondary);">${this.formatDate(entry.date)}</span>
+                            <span>${safeKm} km</span>
+                            <span style="font-size:0.8rem; color:var(--text-secondary);">${safeDate}</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span style="font-size:0.8rem; color:var(--text-secondary);">Cambio: ${components.join(', ') || 'Ninguno'}</span>
-                            <button class="btn-delete-maint" data-id="${entry.id}" style="border:none; background:transparent; cursor:pointer;" title="Eliminar registro">❌</button>
+                            <button type="button" class="btn-delete-maint" style="border:none; background:transparent; cursor:pointer;" title="Eliminar registro" aria-label="Eliminar registro de aceite">❌</button>
                         </div>
                     `;
 
-                    li.querySelector('.btn-delete-maint').addEventListener('click', (e) => {
-                        this.deleteMaintenance(e.currentTarget.dataset.id);
+                    li.querySelector('.btn-delete-maint').addEventListener('click', () => {
+                        this.deleteMaintenance(entry.id);
                     });
 
                     ul.appendChild(li);
@@ -931,20 +939,27 @@ export class VehicleModule {
                     if (entry.type === 'Reemplazo de Neumáticos' && entry.details && entry.details.position) {
                         extraDetails = ` (${entry.details.position})`;
                     }
+                    const safeType = escapeHtml(entry.type || 'Mantenimiento');
+                    const safeExtraDetails = escapeHtml(extraDetails);
+                    const safeDate = escapeHtml(this.formatDate(entry.date));
+                    const entryKm = Number(entry.km);
+                    const safeKm = Number.isFinite(entryKm)
+                        ? entryKm.toLocaleString('es-AR')
+                        : '-';
 
                     li.innerHTML = `
                         <div style="display:flex; justify-content:space-between; align-items:center; font-weight:600; margin-bottom: 0.25rem;">
-                            <span>${entry.type}${extraDetails}</span>
-                            <span style="font-size:0.8rem; color:var(--text-secondary);">${this.formatDate(entry.date)}</span>
+                            <span>${safeType}${safeExtraDetails}</span>
+                            <span style="font-size:0.8rem; color:var(--text-secondary);">${safeDate}</span>
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
-                            <span style="font-size:0.8rem; color:var(--text-secondary);">A los ${entry.km.toLocaleString('es-AR')} km</span>
-                            <button class="btn-delete-maint" data-id="${entry.id}" style="border:none; background:transparent; cursor:pointer;" title="Eliminar registro">❌</button>
+                            <span style="font-size:0.8rem; color:var(--text-secondary);">A los ${safeKm} km</span>
+                            <button type="button" class="btn-delete-maint" style="border:none; background:transparent; cursor:pointer;" title="Eliminar registro" aria-label="Eliminar registro de mantenimiento">❌</button>
                         </div>
                     `;
 
-                    li.querySelector('.btn-delete-maint').addEventListener('click', (e) => {
-                        this.deleteMaintenance(e.currentTarget.dataset.id);
+                    li.querySelector('.btn-delete-maint').addEventListener('click', () => {
+                        this.deleteMaintenance(entry.id);
                     });
 
                     ul.appendChild(li);

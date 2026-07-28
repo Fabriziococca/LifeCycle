@@ -1,4 +1,5 @@
 import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
 export class HealthModule {
     constructor(controller) {
@@ -287,10 +288,14 @@ export class HealthModule {
 
         Object.keys(this.medicalData).forEach(key => {
             const doc = this.medicalData[key];
-            const name = key.charAt(0).toUpperCase() + key.slice(1);
+            if (!doc || typeof doc !== 'object' || Array.isArray(doc)) return;
+
+            const name = escapeHtml(key.charAt(0).toUpperCase() + key.slice(1));
+            const safeKey = escapeHtml(key);
             const daysElapsed = this.calculateDaysElapsed(doc.lastVisit);
             
-            const frequencyDays = doc.frequencyMonths * 30.5;
+            const frequencyMonths = Math.min(60, Math.max(1, Number(doc.frequencyMonths) || 6));
+            const frequencyDays = frequencyMonths * 30.5;
             let statusColor = 'var(--status-green)';
             let statusText = 'Al día';
             let shadowColor = 'var(--status-green-glow)';
@@ -310,11 +315,11 @@ export class HealthModule {
             }
 
             const daysDisplay = daysElapsed !== null ? `${daysElapsed} días` : '--';
-            const lastVisitDisplay = this.formatDate(doc.lastVisit);
+            const lastVisitDisplay = escapeHtml(this.formatDate(doc.lastVisit));
             
             let nextVisitDisplay = 'N/A';
             if (doc.lastVisit) {
-                const nextDateObj = this.addMonths(doc.lastVisit, doc.frequencyMonths);
+                const nextDateObj = this.addMonths(doc.lastVisit, frequencyMonths);
                 if (nextDateObj) {
                     const yyyy = nextDateObj.getFullYear();
                     const mm = String(nextDateObj.getMonth() + 1).padStart(2, '0');
@@ -330,11 +335,11 @@ export class HealthModule {
             }
             
             let historyHtml = '';
-            if (doc.history && doc.history.length > 0) {
+            if (Array.isArray(doc.history) && doc.history.length > 0) {
                 historyHtml = doc.history.map((dateStr, idx) => `
                     <li style="font-size: 0.85rem; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.15); border-radius: var(--border-radius-sm);">
-                        <span>${this.formatDate(dateStr)}</span>
-                        <button class="btn-delete-visit-history" data-key="${key}" data-index="${idx}" title="Borrar registro" style="border:none; background:transparent; cursor:pointer;">❌</button>
+                        <span>${escapeHtml(this.formatDate(dateStr))}</span>
+                        <button type="button" class="btn-delete-visit-history" data-key="${safeKey}" data-index="${idx}" title="Borrar registro" aria-label="Borrar visita de ${name}" style="border:none; background:transparent; cursor:pointer;">❌</button>
                     </li>
                 `).join('');
             } else {
@@ -354,7 +359,7 @@ export class HealthModule {
                             <span class="badge ${badgeClass}" style="font-size: 0.65rem; padding: 2px 6px; text-transform: uppercase;">${statusText}</span>
                         </h3>
                     </div>
-                    <button class="btn-edit-retro-medical" data-key="${key}" title="Editar fecha de última visita" style="background:transparent; border:none; cursor:pointer; color:var(--text-secondary);">
+                    <button type="button" class="btn-edit-retro-medical" data-key="${safeKey}" title="Editar fecha de última visita" aria-label="Editar fecha de ${name}" style="background:transparent; border:none; cursor:pointer; color:var(--text-secondary);">
                         <i class="ph ph-pencil-simple" style="font-size: 1.2rem;"></i>
                     </button>
                 </div>
@@ -363,7 +368,7 @@ export class HealthModule {
                     <div class="frequency-control">
                         <i class="ph ph-calendar-blank"></i>
                         <span>Frecuencia:</span>
-                        <input type="number" class="frequency-input" data-key="${key}" value="${doc.frequencyMonths}" min="1" max="60">
+                        <input type="number" class="frequency-input" data-key="${safeKey}" value="${frequencyMonths}" min="1" max="60" aria-label="Frecuencia en meses para ${name}">
                         <span>meses</span>
                     </div>
 
@@ -383,9 +388,9 @@ export class HealthModule {
                         </div>
                     </div>
 
-                    <button class="btn btn-record btn-quick-visit" data-key="${key}" style="width: 100%;">✓ Registrar Visita Hoy</button>
+                    <button type="button" class="btn btn-record btn-quick-visit" data-key="${safeKey}" style="width: 100%;">✓ Registrar Visita Hoy</button>
                     
-                    <button class="btn btn-history btn-toggle-visit-history" style="margin-top: 0.5rem; width:100%;">Ver Historial</button>
+                    <button type="button" class="btn btn-history btn-toggle-visit-history" style="margin-top: 0.5rem; width:100%;">Ver Historial</button>
                     <div class="history-log hidden" style="margin-top: 0.75rem;">
                         <ul style="padding-left: 0; display:flex; flex-direction:column; gap:0.4rem; list-style:none; margin:0;">
                             ${historyHtml}

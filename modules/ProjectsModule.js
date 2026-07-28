@@ -1,4 +1,5 @@
 import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
 export class ProjectsModule {
     constructor(appController) {
@@ -773,6 +774,28 @@ export class ProjectsModule {
                 else rateColor = 'var(--status-red)';
             }
 
+            const safeClient = escapeHtml(p.client || '');
+            const safeProjectName = escapeHtml(p.project || '');
+            const safeStatusNote = escapeHtml(
+                p.statusNote || '+ Asignar estado (ej: Esperando credenciales)'
+            );
+            const safeCountdownText = escapeHtml(countdownText);
+            const safeLeftDateLabel = escapeHtml(leftDateLabel);
+            const safeLeftDateValue = escapeHtml(leftDateVal);
+            const safeRightDateLabel = escapeHtml(rightDateLabel);
+            const safeRightDateValue = escapeHtml(rightDateVal);
+            const feeDescription = p.feeType === 'direct'
+                ? 'Sin comisiones'
+                : (
+                    p.feeType === 'paypal_direct'
+                        ? 'PayPal Direct'
+                        : (
+                            p.feeType === 'custom'
+                                ? `Workana ${p.manualPercent}%`
+                                : `Workana ${p.feeType || 20}%`
+                        )
+                );
+
             const card = document.createElement('div');
             card.className = 'card';
             card.setAttribute('data-project-id', p.id);
@@ -783,22 +806,22 @@ export class ProjectsModule {
                 <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.75rem; gap: 12px;">
                     <div style="min-width: 0; flex: 1;">
                         <h3 class="project-client" style="color:white; font-size:1.2rem; margin:0; display:flex; align-items:center; flex-wrap:wrap; gap: 6px;">
-                            ${p.client} ${badgeSpan} ${sourceBadge}
+                            ${safeClient} ${badgeSpan} ${sourceBadge}
                         </h3>
-                        <p class="project-name" style="color:var(--text-secondary); font-size:0.88rem; margin: 3px 0 8px 0; font-weight: 500;">${p.project}</p>
+                        <p class="project-name" style="color:var(--text-secondary); font-size:0.88rem; margin: 3px 0 8px 0; font-weight: 500;">${safeProjectName}</p>
                         <div>
                             <span class="project-status-pill ${!p.statusNote ? 'empty-status' : ''}" title="Haz clic para cambiar el estado de seguimiento" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
                                 <i class="ph ph-push-pin"></i> 
-                                <span class="status-note-text">${p.statusNote || '+ Asignar estado (ej: Esperando credenciales)'}</span>
+                                <span class="status-note-text">${safeStatusNote}</span>
                                 <i class="ph ph-pencil-simple" style="font-size: 0.8rem; opacity: 0.7;"></i>
                             </span>
                         </div>
                     </div>
                     <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0;">
                         <div class="countdown-badge" style="background: rgba(0,0,0,0.3); border: 1.5px solid ${colorVar}; color: ${colorVar}; padding: 6px 12px; border-radius: 12px; font-weight: 800; font-size: 1.1rem; font-variant-numeric: tabular-nums; box-shadow: 0 0 10px ${colorVar}30; white-space: nowrap;">
-                            ${countdownText}
+                            ${safeCountdownText}
                         </div>
-                        <button class="btn-history-delete" title="Eliminar proyecto" style="background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; padding: 2px; font-size: 1.1rem; transition: color 0.2s;"><i class="ph ph-trash"></i></button>
+                        <button type="button" class="btn-history-delete" title="Eliminar proyecto" aria-label="Eliminar proyecto ${safeProjectName}" style="background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; padding: 2px; font-size: 1.1rem; transition: color 0.2s;"><i class="ph ph-trash"></i></button>
                     </div>
                 </div>
 
@@ -807,7 +830,7 @@ export class ProjectsModule {
                 </div>
 
                 <div class="finance-block" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid var(--surface-border); padding: 8px 12px; border-radius: 8px; margin-bottom: 0.75rem;">
-                    <span class="gross-amount" style="font-size: 0.8rem; color: var(--text-secondary);">Bruto: ${this.app.formatCurrency(p.budgetGross || 0)} (${p.feeType === 'direct' ? 'Sin comisiones' : (p.feeType === 'paypal_direct' ? 'PayPal Direct' : (p.feeType === 'custom' ? `Workana ${p.manualPercent}%` : `Workana ${p.feeType || 20}%`))})</span>
+                    <span class="gross-amount" style="font-size: 0.8rem; color: var(--text-secondary);">Bruto: ${this.app.formatCurrency(p.budgetGross || 0)} (${escapeHtml(feeDescription)})</span>
                     <strong class="net-amount" style="font-size: 0.95rem; color: var(--status-green);">Neto: ${this.app.formatCurrency(p.budgetNet || 0)}</strong>
                 </div>
 
@@ -827,12 +850,12 @@ export class ProjectsModule {
 
                 <div class="project-dates" style="margin-bottom: 0.75rem;">
                     <div class="date-block">
-                        <span>${leftDateLabel}</span>
-                        <strong>${leftDateVal}</strong>
+                        <span>${safeLeftDateLabel}</span>
+                        <strong>${safeLeftDateValue}</strong>
                     </div>
                     <div class="date-block" style="text-align: right;">
-                        <span>${rightDateLabel}</span>
-                        <strong>${rightDateVal}</strong>
+                        <span>${safeRightDateLabel}</span>
+                        <strong>${safeRightDateValue}</strong>
                     </div>
                 </div>
                 
@@ -1180,15 +1203,19 @@ export class ProjectsModule {
                         }
                     }
                 }
+                const safeClient = escapeHtml(p.client || '');
+                const safeProjectName = escapeHtml(p.project || '');
+                const safeDate = escapeHtml(dateStr);
+                const safeProjectId = escapeHtml(p.id);
                 projItems += `
                     <div class="history-project-item">
                         <div class="history-project-info">
-                            <span class="history-project-title">${p.client} - ${p.project}</span>
-                            <span class="history-project-date">Cobrado: ${dateStr}</span>
+                            <span class="history-project-title">${safeClient} - ${safeProjectName}</span>
+                            <span class="history-project-date">Cobrado: ${safeDate}</span>
                         </div>
                         <div class="history-project-actions">
                             <span class="history-project-net">+ ${this.app.formatCurrency(p.budgetNet)}</span>
-                            <button class="btn-delete-history-project" data-id="${p.id}">&times;</button>
+                            <button type="button" class="btn-delete-history-project" data-id="${safeProjectId}" title="Desconfirmar pago" aria-label="Desconfirmar pago de ${safeProjectName}">&times;</button>
                         </div>
                     </div>
                 `;
@@ -1196,7 +1223,7 @@ export class ProjectsModule {
 
             card.innerHTML = `
                 <div class="history-month-header">
-                    <h4>${m.title}</h4>
+                    <h4>${escapeHtml(m.title)}</h4>
                     <div style="display:flex; align-items:center; gap:10px;">
                         <strong style="color:var(--status-green);">+ ${this.app.formatCurrency(m.totalNet)}</strong>
                         <span class="toggle-icon"><i class="ph ph-caret-down"></i></span>

@@ -1,278 +1,200 @@
 import { getLocalISODate } from '../utils.js';
+import {
+    applyBackupEntries,
+    BackupValidationError,
+    createBackupPayload,
+    getBackupCategories,
+    MAX_BACKUP_BYTES,
+    parseAndValidateBackupText
+} from '../backup-utils.mjs?v=20260727-safe-backup';
 
 export class BackupModule {
     constructor(appController) {
         this.app = appController;
         this.btnExport = document.getElementById('btnExportUnified');
+        this.btnImport = document.getElementById('btnImportUnified');
         this.importFile = document.getElementById('importFileUnified');
+        this.status = document.getElementById('backup-status');
         this.init();
     }
 
-    exportUnifiedData() {
-        const unifiedData = {
-            appName: "LifeCycle",
-            exportDate: new Date().toISOString(),
-            hygiene_tracker_data: localStorage.getItem('hygiene_tracker_data'),
-            groomingData_v2: localStorage.getItem('groomingData_v2'),
-            lensesStartTime: localStorage.getItem('lensesStartTime'),
-            lensesHistory: localStorage.getItem('lensesHistory'),
-            lensStock: localStorage.getItem('lensStock'),
-            lensDate: localStorage.getItem('lensDate'),
-            solutionDate: localStorage.getItem('solutionDate'),
-            caseDate: localStorage.getItem('caseDate'),
-            systaneDate: localStorage.getItem('systaneDate'),
-            clothWashDate: localStorage.getItem('clothWashDate'),
-            clothChangeDate: localStorage.getItem('clothChangeDate'),
-            health_medical_data: localStorage.getItem('health_medical_data'),
-            health_blood_tests: localStorage.getItem('health_blood_tests'),
-            vehicle_odometer: localStorage.getItem('vehicle_odometer'),
-            vehicle_maintenance_log: localStorage.getItem('vehicle_maintenance_log'),
-            vehicle_tracker_data: localStorage.getItem('vehicle_tracker_data'),
-            vehicle_issues: localStorage.getItem('vehicle_issues'),
-            gym_records: localStorage.getItem('gym_records'),
-            gym_routine: localStorage.getItem('gym_routine'),
-            gym_routine_focus: localStorage.getItem('gym_routine_focus'),
-            gym_sessions: localStorage.getItem('gym_sessions'),
-            gym_active_session: localStorage.getItem('gym_active_session'),
-            gym_meals: localStorage.getItem('gym_meals'),
-            gym_general_meals: localStorage.getItem('gym_general_meals'),
-            gym_supplements: localStorage.getItem('gym_supplements'),
-            gym_weight: localStorage.getItem('gym_weight'),
-            projectPulseData: localStorage.getItem('projectPulseData'),
-            projectPulseHistory: localStorage.getItem('projectPulseHistory'),
-            projectPulseSubscription: localStorage.getItem('projectPulseSubscription'),
-            alerts_config: localStorage.getItem('alerts_config'),
-            finanzasData: localStorage.getItem('finanzasData'),
-            tareas_list: localStorage.getItem('tareas_list'),
-            tareas_categories: localStorage.getItem('tareas_categories'),
-            tareas_pinned_projects: localStorage.getItem('tareas_pinned_projects'),
-            tareas_pinned_project_ids: localStorage.getItem('tareas_pinned_project_ids'),
-            tareas_removed_project_ids: localStorage.getItem('tareas_removed_project_ids')
-        };
-
-        const blob = new Blob([JSON.stringify(unifiedData, null, 2)], { type: "application/json" });
-        const a = document.createElement("a");
-        a.href = URL.createObjectURL(blob);
-        a.download = `LifeCycle_Backup_${getLocalISODate()}.json`;
-        a.click();
+    setStatus(message = '', state = 'neutral') {
+        if (!this.status) return;
+        this.status.textContent = message;
+        this.status.dataset.state = state;
+        this.status.classList.toggle('hidden', !message);
     }
 
-    importData(event) {
-        const file = event.target.files[0];
+    setImportBusy(isBusy) {
+        if (this.btnImport) {
+            this.btnImport.disabled = isBusy;
+            this.btnImport.setAttribute('aria-busy', String(isBusy));
+        }
+        if (this.btnExport) {
+            this.btnExport.disabled = isBusy;
+        }
+    }
+
+    exportUnifiedData() {
+        try {
+            const unifiedData = createBackupPayload(
+                key => localStorage.getItem(key)
+            );
+            const serializedBackup = JSON.stringify(unifiedData, null, 2);
+            const blob = new Blob(
+                [serializedBackup],
+                { type: 'application/json' }
+            );
+            if (blob.size > MAX_BACKUP_BYTES) {
+                throw new BackupValidationError(
+                    'El contenido actual supera el límite de 64 MB. Eliminá adjuntos médicos antiguos muy pesados antes de exportar.'
+                );
+            }
+            const objectUrl = URL.createObjectURL(blob);
+            const link = document.createElement('a');
+            link.href = objectUrl;
+            link.download = `LifeCycle_Backup_${getLocalISODate()}.json`;
+            link.style.display = 'none';
+            document.body.appendChild(link);
+            link.click();
+            link.remove();
+            setTimeout(() => URL.revokeObjectURL(objectUrl), 0);
+            this.setStatus('Backup validado y descargado correctamente.', 'success');
+        } catch (error) {
+            console.error('[Backup] No se pudo generar el respaldo:', error);
+            this.setStatus(
+                `No se pudo generar el backup: ${error.message}`,
+                'error'
+            );
+            alert(`No se pudo generar el backup: ${error.message}`);
+        }
+    }
+
+    validateSelectedFile(file) {
+        const hasJsonExtension = file.name.toLowerCase().endsWith('.json');
+        const allowedMimeTypes = new Set([
+            '',
+            'application/json',
+            'text/json',
+            'text/plain'
+        ]);
+
+        if (!hasJsonExtension || !allowedMimeTypes.has(file.type || '')) {
+            throw new BackupValidationError('Seleccioná un archivo de backup con extensión .json.');
+        }
+        if (file.size <= 0) {
+            throw new BackupValidationError('El archivo seleccionado está vacío.');
+        }
+        if (file.size > MAX_BACKUP_BYTES) {
+            throw new BackupValidationError('El backup supera el límite permitido de 64 MB.');
+        }
+    }
+
+    buildConfirmationMessage(plan) {
+        const categoryList = plan.categories.map(category => `• ${category}`).join('\n');
+        const scopeMessage = plan.mode === 'full'
+            ? 'Este backup completo reemplazará los datos actuales. Las secciones vacías del archivo también se vaciarán.'
+            : 'Este es un backup anterior. Solo se actualizarán las secciones presentes en el archivo.';
+
+        return [
+            'El backup fue validado correctamente.',
+            '',
+            scopeMessage,
+            '',
+            'Secciones detectadas:',
+            categoryList,
+            '',
+            '¿Querés continuar con la restauración?'
+        ].join('\n');
+    }
+
+    applyPlanAtomically(plan) {
+        const auth = this.app.auth;
+        const previousRestoringState = auth?.isRestoring ?? false;
+
+        if (auth) auth.isRestoring = true;
+        try {
+            return applyBackupEntries(localStorage, plan.entries);
+        } finally {
+            if (auth) auth.isRestoring = previousRestoringState;
+        }
+    }
+
+    async queueCloudSync(changedKeys) {
+        const auth = this.app.auth;
+        if (!auth?.user || changedKeys.length === 0) return true;
+
+        changedKeys.forEach(key => auth.queueKeySync(key));
+        try {
+            return await auth.syncToCloud(false);
+        } catch (error) {
+            console.error('[Backup] La restauración quedó pendiente de sincronización:', error);
+            return false;
+        }
+    }
+
+    async importData(event) {
+        const file = event.target.files?.[0];
         if (!file) return;
 
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            try {
-                const rawData = JSON.parse(e.target.result);
-                let importedCategories = [];
+        this.setImportBusy(true);
+        this.setStatus('Validando el archivo antes de modificar tus datos...', 'working');
 
-                if (rawData.groomingData_v2) {
-                    const dataVal = typeof rawData.groomingData_v2 === 'string' 
-                        ? rawData.groomingData_v2 
-                        : JSON.stringify(rawData.groomingData_v2);
-                    localStorage.setItem('groomingData_v2', dataVal);
-                    importedCategories.push("Cuidado Corporal (HabitSync)");
-                }
+        try {
+            this.validateSelectedFile(file);
+            const fileText = await file.text();
+            const plan = parseAndValidateBackupText(fileText);
 
-                const lensKeys = [
-                    'lensDate', 'solutionDate', 'caseDate', 'systaneDate',
-                    'clothWashDate', 'clothChangeDate', 'lensStock',
-                    'lensesHistory', 'lensesStartTime'
-                ];
-                let lensFound = false;
-                lensKeys.forEach(key => {
-                    if (rawData[key] !== undefined && rawData[key] !== null) {
-                        const val = typeof rawData[key] === 'object' ? JSON.stringify(rawData[key]) : rawData[key];
-                        localStorage.setItem(key, val);
-                        lensFound = true;
-                    }
-                });
-                if (lensFound) {
-                    importedCategories.push("Lentes de Contacto (LensTracker)");
-                }
-
-                if (rawData.hygiene_tracker_data) {
-                    const dataVal = typeof rawData.hygiene_tracker_data === 'string' 
-                        ? rawData.hygiene_tracker_data 
-                        : JSON.stringify(rawData.hygiene_tracker_data);
-                    localStorage.setItem('hygiene_tracker_data', dataVal);
-                    importedCategories.push("Higiene");
-                } else if (rawData.appName === undefined && !rawData.groomingData_v2 && !lensFound && !rawData.gym_routine && !rawData.projectPulseData) {
-                    localStorage.setItem('hygiene_tracker_data', JSON.stringify(rawData));
-                    importedCategories.push("Higiene");
-                }
-
-                // Salud
-                let healthFound = false;
-                if (rawData.health_medical_data) {
-                    const dataVal = typeof rawData.health_medical_data === 'string' 
-                        ? rawData.health_medical_data 
-                        : JSON.stringify(rawData.health_medical_data);
-                    localStorage.setItem('health_medical_data', dataVal);
-                    healthFound = true;
-                }
-                if (rawData.health_blood_tests) {
-                    const dataVal = typeof rawData.health_blood_tests === 'string' 
-                        ? rawData.health_blood_tests 
-                        : JSON.stringify(rawData.health_blood_tests);
-                    localStorage.setItem('health_blood_tests', dataVal);
-                    healthFound = true;
-                }
-                if (healthFound) {
-                    importedCategories.push("Salud y Controles Médicos");
-                }
-
-                // Vehículo
-                let vehicleFound = false;
-                if (rawData.vehicle_odometer !== undefined && rawData.vehicle_odometer !== null) {
-                    localStorage.setItem('vehicle_odometer', rawData.vehicle_odometer.toString());
-                    vehicleFound = true;
-                }
-                if (rawData.vehicle_maintenance_log) {
-                    const dataVal = typeof rawData.vehicle_maintenance_log === 'string' 
-                        ? rawData.vehicle_maintenance_log 
-                        : JSON.stringify(rawData.vehicle_maintenance_log);
-                    localStorage.setItem('vehicle_maintenance_log', dataVal);
-                    vehicleFound = true;
-                }
-                if (rawData.vehicle_tracker_data) {
-                    const dataVal = typeof rawData.vehicle_tracker_data === 'string' 
-                        ? rawData.vehicle_tracker_data 
-                        : JSON.stringify(rawData.vehicle_tracker_data);
-                    localStorage.setItem('vehicle_tracker_data', dataVal);
-                    vehicleFound = true;
-                }
-                if (rawData.vehicle_issues) {
-                    const dataVal = typeof rawData.vehicle_issues === 'string' 
-                        ? rawData.vehicle_issues 
-                        : JSON.stringify(rawData.vehicle_issues);
-                    localStorage.setItem('vehicle_issues', dataVal);
-                    vehicleFound = true;
-                }
-                if (vehicleFound) {
-                    importedCategories.push("Vehículo y Mantenimiento");
-                }
-
-                // Gimnasio
-                const gymKeys = [
-                    'gym_records', 'gym_routine', 'gym_routine_focus', 
-                    'gym_sessions', 'gym_active_session', 'gym_meals', 'gym_general_meals', 'gym_supplements', 'gym_weight'
-                ];
-                let gymFound = false;
-                gymKeys.forEach(key => {
-                    if (rawData[key] !== undefined && rawData[key] !== null) {
-                        const val = typeof rawData[key] === 'object' ? JSON.stringify(rawData[key]) : rawData[key];
-                        localStorage.setItem(key, val);
-                        gymFound = true;
-                    }
-                });
-                if (gymFound) {
-                    importedCategories.push("Gimnasio (GymTracker)");
-                }
-
-                // Proyectos
-                let projectsFound = false;
-                if (rawData.projectPulseData) {
-                    const dataVal = typeof rawData.projectPulseData === 'string' 
-                        ? rawData.projectPulseData 
-                        : JSON.stringify(rawData.projectPulseData);
-                    localStorage.setItem('projectPulseData', dataVal);
-                    projectsFound = true;
-                }
-                if (rawData.projectPulseHistory) {
-                    const dataVal = typeof rawData.projectPulseHistory === 'string' 
-                        ? rawData.projectPulseHistory 
-                        : JSON.stringify(rawData.projectPulseHistory);
-                    localStorage.setItem('projectPulseHistory', dataVal);
-                    projectsFound = true;
-                }
-                if (rawData.projectPulseSubscription) {
-                    const dataVal = typeof rawData.projectPulseSubscription === 'string' 
-                        ? rawData.projectPulseSubscription 
-                        : JSON.stringify(rawData.projectPulseSubscription);
-                    localStorage.setItem('projectPulseSubscription', dataVal);
-                    projectsFound = true;
-                }
-                if (projectsFound) {
-                    importedCategories.push("Proyectos (ProjectPulse)");
-                }
-
-                // Finanzas
-                if (rawData.finanzasData) {
-                    const dataVal = typeof rawData.finanzasData === 'string' 
-                        ? rawData.finanzasData 
-                        : JSON.stringify(rawData.finanzasData);
-                    localStorage.setItem('finanzasData', dataVal);
-                    importedCategories.push("Finanzas");
-                }
-
-                if (rawData.alerts_config) {
-                    const dataVal = typeof rawData.alerts_config === 'string' 
-                        ? rawData.alerts_config 
-                        : JSON.stringify(rawData.alerts_config);
-                    localStorage.setItem('alerts_config', dataVal);
-                    importedCategories.push("Configuración de Alertas");
-                }
-
-                // Tareas
-                let tasksFound = false;
-                if (rawData.tareas_list) {
-                    const dataVal = typeof rawData.tareas_list === 'string'
-                        ? rawData.tareas_list
-                        : JSON.stringify(rawData.tareas_list);
-                    localStorage.setItem('tareas_list', dataVal);
-                    tasksFound = true;
-                }
-                if (rawData.tareas_categories) {
-                    const dataVal = typeof rawData.tareas_categories === 'string'
-                        ? rawData.tareas_categories
-                        : JSON.stringify(rawData.tareas_categories);
-                    localStorage.setItem('tareas_categories', dataVal);
-                    tasksFound = true;
-                }
-                if (rawData.tareas_pinned_projects) {
-                    const dataVal = typeof rawData.tareas_pinned_projects === 'string'
-                        ? rawData.tareas_pinned_projects
-                        : JSON.stringify(rawData.tareas_pinned_projects);
-                    localStorage.setItem('tareas_pinned_projects', dataVal);
-                }
-                if (rawData.tareas_pinned_project_ids) {
-                    const dataVal = typeof rawData.tareas_pinned_project_ids === 'string'
-                        ? rawData.tareas_pinned_project_ids
-                        : JSON.stringify(rawData.tareas_pinned_project_ids);
-                    localStorage.setItem('tareas_pinned_project_ids', dataVal);
-                }
-                if (rawData.tareas_removed_project_ids) {
-                    const dataVal = typeof rawData.tareas_removed_project_ids === 'string'
-                        ? rawData.tareas_removed_project_ids
-                        : JSON.stringify(rawData.tareas_removed_project_ids);
-                    localStorage.setItem('tareas_removed_project_ids', dataVal);
-                }
-                if (tasksFound) {
-                    importedCategories.push("Lista de Tareas");
-                }
-
-                if (importedCategories.length > 0) {
-                    alert(`Backup restaurado correctamente. Módulos importados:\n- ${importedCategories.join('\n- ')}`);
-                    location.reload();
-                } else {
-                    alert('Archivo JSON válido pero no contiene datos compatibles de LifeCycle.');
-                }
-            } catch (err) {
-                console.error(err);
-                alert('Ocurrió un error al procesar el archivo. Asegúrate de que sea un JSON válido.');
+            if (!confirm(this.buildConfirmationMessage(plan))) {
+                this.setStatus('Importación cancelada. No se modificó ningún dato.', 'neutral');
+                return;
             }
-        };
-        reader.readAsText(file);
+
+            this.setStatus('Restaurando el backup de forma segura...', 'working');
+            const changedKeys = this.applyPlanAtomically(plan);
+
+            if (changedKeys.length === 0) {
+                this.setStatus('El backup ya coincide con los datos actuales.', 'success');
+                alert('El backup es válido, pero sus datos ya coinciden con LifeCycle.');
+                return;
+            }
+
+            this.setStatus('Datos restaurados. Sincronizando con la nube...', 'working');
+            const cloudSynced = await this.queueCloudSync(changedKeys);
+            const changedCategories = getBackupCategories(changedKeys);
+            const categoryList = changedCategories.map(category => `- ${category}`).join('\n');
+
+            if (cloudSynced) {
+                this.setStatus('Backup restaurado y sincronizado correctamente.', 'success');
+                alert(`Backup restaurado correctamente.\n\nSecciones actualizadas:\n${categoryList}`);
+            } else {
+                this.setStatus(
+                    'Backup restaurado localmente. La sincronización cloud quedó pendiente y se reintentará automáticamente.',
+                    'warning'
+                );
+                alert(
+                    `El backup se restauró correctamente, pero la sincronización cloud quedó pendiente.\n\n`
+                    + `LifeCycle volverá a intentarlo automáticamente.\n\nSecciones actualizadas:\n${categoryList}`
+                );
+            }
+
+            location.reload();
+        } catch (error) {
+            console.error('[Backup] Error procesando el archivo:', error);
+            const message = error instanceof BackupValidationError
+                ? error.message
+                : 'No se pudo procesar el archivo sin arriesgar tus datos.';
+            this.setStatus(message, 'error');
+            alert(`No se importó ningún dato.\n\n${message}`);
+        } finally {
+            if (this.importFile) this.importFile.value = '';
+            this.setImportBusy(false);
+        }
     }
 
     init() {
-        if (this.btnExport) {
-            this.btnExport.addEventListener('click', () => this.exportUnifiedData());
-        }
-        if (this.importFile) {
-            this.importFile.addEventListener('change', (e) => this.importData(e));
-        }
+        this.btnExport?.addEventListener('click', () => this.exportUnifiedData());
+        this.btnImport?.addEventListener('click', () => this.importFile?.click());
+        this.importFile?.addEventListener('change', event => this.importData(event));
     }
 }

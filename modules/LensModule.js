@@ -1,4 +1,5 @@
 import { DateUtils, getLocalISODate, LENS_LIMITS } from '../utils.js';
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
 const CIRCUMFERENCE = 502; // 2 * Math.PI * 80 (basado en r=80 del SVG)
 
@@ -405,12 +406,14 @@ export class LensModule {
 
         history.forEach((item, index) => {
             const li = document.createElement('li');
+            const safeDate = escapeHtml(item.date || '-');
+            const safeDuration = escapeHtml(item.duration || '-');
             li.innerHTML = `
                 <div style="display: flex; gap: 10px; flex-grow: 1; justify-content: space-between; align-items: center;">
-                    <span class="hist-date">${item.date}</span>
-                    <span class="hist-time">${item.duration}</span>
+                    <span class="hist-date">${safeDate}</span>
+                    <span class="hist-time">${safeDuration}</span>
                 </div>
-                <button class="btn-delete-entry" data-index="${index}" title="Borrar registro">❌</button>
+                <button type="button" class="btn-delete-entry" data-index="${index}" title="Borrar registro" aria-label="Borrar uso de lentes del ${safeDate}">❌</button>
             `;
             this.historyList.appendChild(li);
         });

@@ -3,6 +3,7 @@ import {
     getLocalISOMonth,
     parseDateLocal
 } from '../utils.js';
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
 export class FinanzasModule {
     constructor(appController) {
@@ -627,7 +628,7 @@ export class FinanzasModule {
             const d = new Date(parseInt(yr), parseInt(mn) - 1, 1);
             const label = d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
             const capitalized = label.charAt(0).toUpperCase() + label.slice(1);
-            return `<option value="${m}">${capitalized}</option>`;
+            return `<option value="${escapeHtml(m)}">${escapeHtml(capitalized)}</option>`;
         }).join('');
 
         if (sortedMonths.includes(selected)) {
@@ -869,10 +870,13 @@ export class FinanzasModule {
             const dateStr = dateObj
                 ? dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
                 : e.date;
+            const safeDescription = escapeHtml(e.description || 'Sin descripción');
+            const safeDate = escapeHtml(dateStr || '-');
+            const safeId = escapeHtml(e.id);
 
             const isManual = !String(e.id).startsWith('proj-');
             const deleteBtn = isManual
-                ? `<button class="btn-delete-fin-item" data-id="${e.id}" style="background:none; border:none; color:var(--status-red); cursor:pointer; padding:6px; display:flex; align-items:center;" title="Eliminar"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>`
+                ? `<button type="button" class="btn-delete-fin-item" data-id="${safeId}" style="background:none; border:none; color:var(--status-red); cursor:pointer; padding:6px; display:flex; align-items:center;" title="Eliminar ingreso" aria-label="Eliminar ingreso ${safeDescription}"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>`
                 : `<span style="font-size: 0.7rem; color: var(--text-secondary); padding: 4px 8px; background: rgba(255,255,255,0.03); border:1px solid var(--surface-border); border-radius:4px;">Proyecto</span>`;
 
             return `
@@ -882,8 +886,8 @@ export class FinanzasModule {
                             <i class="ph ${icon}" style="font-size:1.2rem;"></i>
                         </div>
                         <div style="min-width:0;">
-                            <h4 style="margin:0; font-size:0.95rem; color:white; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${e.description}</h4>
-                            <p style="margin:3px 0 0 0; font-size:0.75rem; color:var(--text-secondary);">${catName} • ${dateStr}</p>
+                            <h4 style="margin:0; font-size:0.95rem; color:white; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeDescription}</h4>
+                            <p style="margin:3px 0 0 0; font-size:0.75rem; color:var(--text-secondary);">${catName} • ${safeDate}</p>
                         </div>
                     </div>
                     <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
@@ -915,7 +919,7 @@ export class FinanzasModule {
             otros: { name: 'Otros', color: 'var(--text-secondary)', icon: 'ph-dots-three-circle' }
         };
 
-        const grouped = {};
+        const grouped = Object.create(null);
         monthExpenses.forEach(e => {
             const cat = e.category || 'otros';
             grouped[cat] = (grouped[cat] || 0) + Number(e.amount || 0);
@@ -944,7 +948,7 @@ export class FinanzasModule {
             breakdownHtml = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay gastos registrados en este mes.</p>';
         } else {
             breakdownHtml = sortedExpenseCategories.map(([cat, amount], idx) => {
-                const meta = expenseCategoryConfig[cat] || {
+                const meta = (Object.hasOwn(expenseCategoryConfig, cat) && expenseCategoryConfig[cat]) || {
                     name: cat.charAt(0).toUpperCase() + cat.slice(1),
                     color: this.getCategoryColor(cat, idx),
                     icon: 'ph-tag'
@@ -954,7 +958,7 @@ export class FinanzasModule {
                     <div style="display:flex; flex-direction:column; gap:6px;">
                         <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
                             <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;">
-                                <i class="ph ${meta.icon}" style="color:${meta.color};"></i> ${meta.name}
+                                <i class="ph ${meta.icon}" style="color:${meta.color};"></i> ${escapeHtml(meta.name)}
                             </span>
                             <strong style="color:white;">${this.app.formatCurrency(amount)} (${pct.toFixed(0)}%)</strong>
                         </div>
@@ -979,7 +983,7 @@ export class FinanzasModule {
 
         this.listContainer.innerHTML = monthExpenses.map(e => {
             const cat = e.category || 'otros';
-            const meta = expenseCategoryConfig[cat] || {
+            const meta = (Object.hasOwn(expenseCategoryConfig, cat) && expenseCategoryConfig[cat]) || {
                 name: cat.charAt(0).toUpperCase() + cat.slice(1),
                 color: this.getCategoryColor(cat, 9),
                 icon: 'ph-tag'
@@ -989,6 +993,10 @@ export class FinanzasModule {
             const dateStr = dateObj
                 ? dateObj.toLocaleDateString('es-AR', { day: '2-digit', month: 'short' })
                 : e.date;
+            const safeDescription = escapeHtml(e.description || 'Sin descripción');
+            const safeCategoryName = escapeHtml(meta.name);
+            const safeDate = escapeHtml(dateStr || '-');
+            const safeId = escapeHtml(e.id);
 
             return `
                 <div class="card" style="margin:0; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; border: 1px solid rgba(255,255,255,0.03); gap: 10px;">
@@ -997,13 +1005,13 @@ export class FinanzasModule {
                             <i class="ph ${meta.icon}" style="font-size:1.2rem;"></i>
                         </div>
                         <div style="min-width:0;">
-                            <h4 style="margin:0; font-size:0.95rem; color:white; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${e.description}</h4>
-                            <p style="margin:3px 0 0 0; font-size:0.75rem; color:var(--text-secondary);">${meta.name} • ${dateStr}</p>
+                            <h4 style="margin:0; font-size:0.95rem; color:white; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeDescription}</h4>
+                            <p style="margin:3px 0 0 0; font-size:0.75rem; color:var(--text-secondary);">${safeCategoryName} • ${safeDate}</p>
                         </div>
                     </div>
                     <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
                         <strong style="color:var(--status-orange); font-size:0.95rem;">- ${this.app.formatCurrency(e.amount)}</strong>
-                        <button class="btn-delete-fin-expense-item" data-id="${e.id}" style="background:none; border:none; color:var(--status-red); cursor:pointer; padding:6px; display:flex; align-items:center;" title="Eliminar"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>
+                        <button type="button" class="btn-delete-fin-expense-item" data-id="${safeId}" style="background:none; border:none; color:var(--status-red); cursor:pointer; padding:6px; display:flex; align-items:center;" title="Eliminar gasto" aria-label="Eliminar gasto ${safeDescription}"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>
                     </div>
                 </div>
             `;

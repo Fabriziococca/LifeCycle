@@ -804,26 +804,33 @@ export class GymModule {
         }
 
         // Ordenar alfabéticamente
-        const sorted = [...this.records].sort((a, b) => a.name.localeCompare(b.name));
+        const sorted = [...this.records].sort((a, b) => (
+            String(a.name || '').localeCompare(String(b.name || ''))
+        ));
 
         sorted.forEach(r => {
+            const safeName = escapeHtml(r.name || 'Ejercicio');
+            const weight = Number(r.weight);
+            const reps = Number(r.reps);
+            const rir = Number(r.rir);
+            const safeDate = escapeHtml(r.date || '-');
             const card = document.createElement('div');
             card.className = 'card';
             card.innerHTML = `
                 <div class="card-header" style="justify-content: space-between;">
-                    <h3 style="color: white; font-size: 1rem; margin: 0;">🏆 ${r.name}</h3>
-                    <button class="btn-history-delete" data-id="${r.id}" title="Eliminar PR"><i class="ph ph-trash" style="font-size:1.1rem;"></i></button>
+                    <h3 style="color: white; font-size: 1rem; margin: 0;">🏆 ${safeName}</h3>
+                    <button type="button" class="btn-history-delete" title="Eliminar PR" aria-label="Eliminar récord de ${safeName}"><i class="ph ph-trash" style="font-size:1.1rem;"></i></button>
                 </div>
                 <div class="card-body" style="padding-top: 5px;">
                     <div style="font-size: 1.8rem; font-weight: 900; color: var(--status-green); margin: 5px 0;">
-                        ${r.weight} <span style="font-size: 1rem; font-weight: normal; color: var(--text-secondary);">kg</span>
+                        ${Number.isFinite(weight) ? weight : 0} <span style="font-size: 1rem; font-weight: normal; color: var(--text-secondary);">kg</span>
                     </div>
                     <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 15px;">
-                        <span><strong style="color:white;">Reps:</strong> ${r.reps}</span>
-                        <span><strong style="color:white;">RIR:</strong> ${r.rir}</span>
+                        <span><strong style="color:white;">Reps:</strong> ${Number.isFinite(reps) ? reps : 0}</span>
+                        <span><strong style="color:white;">RIR:</strong> ${Number.isFinite(rir) ? rir : '-'}</span>
                     </div>
                     <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 10px; text-align: right;">
-                        Logrado: ${r.date}
+                        Logrado: ${safeDate}
                     </div>
                 </div>
             `;
@@ -851,6 +858,7 @@ export class GymModule {
         days.forEach(day => {
             const dayExercises = this.routine.filter(r => r.day === day);
             const focus = this.routineFocus[day] || '';
+            const safeFocus = escapeHtml(focus);
 
             const card = document.createElement('div');
             card.className = 'day-card';
@@ -858,7 +866,7 @@ export class GymModule {
             card.innerHTML = `
                 <div style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 0.5rem; margin-bottom: 1rem;">
                     <h3 style="margin: 0; color: var(--primary-color); font-size: 1.1rem;">${day}</h3>
-                    <input type="text" class="day-focus-input" data-day="${day}" placeholder="Ej: Pecho y Tríceps" value="${focus}">
+                    <input type="text" class="day-focus-input" data-day="${day}" placeholder="Ej: Pecho y Tríceps" value="${safeFocus}" aria-label="Foco de la rutina del ${day}">
                 </div>
                 <div class="routine-exercises-list" style="display:flex; flex-direction:column; gap:8px;">
                     ${dayExercises.length === 0 ? '<p style="color:var(--text-secondary); font-size:0.8rem; font-style:italic; padding:5px 0;">Sin ejercicios programados.</p>' : ''}
@@ -874,28 +882,33 @@ export class GymModule {
                 item.style.alignItems = 'stretch';
                 item.style.gap = '8px';
 
-                const w = ex.weight !== null ? ex.weight : '';
-                const reps = ex.reps !== null ? ex.reps : '';
-                const series = ex.series !== undefined && ex.series !== null ? ex.series : 3;
+                const exerciseId = escapeHtml(ex.id);
+                const exerciseName = escapeHtml(ex.name || '');
+                const parsedWeight = Number(ex.weight);
+                const parsedReps = Number(ex.reps);
+                const parsedSeries = Number(ex.series);
+                const w = ex.weight !== null && Number.isFinite(parsedWeight) ? parsedWeight : '';
+                const reps = ex.reps !== null && Number.isFinite(parsedReps) ? parsedReps : '';
+                const series = Number.isFinite(parsedSeries) && parsedSeries > 0 ? parsedSeries : 3;
 
                 item.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                        <input type="text" class="routine-name-input" data-id="${ex.id}" value="${ex.name}" style="background:transparent; border:none; border-bottom:1px solid transparent; color:white; font-weight:600; font-size:1rem; padding:2px 0; width:80%; outline:none; transition: border-color 0.2s;" onfocus="this.style.borderBottomColor='var(--primary-color)'" onblur="this.style.borderBottomColor='transparent'">
-                        <button type="button" class="btn-history-delete" data-id="${ex.id}" style="padding:0;"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                        <input type="text" class="routine-name-input" data-id="${exerciseId}" value="${exerciseName}" aria-label="Nombre del ejercicio" style="background:transparent; border:none; border-bottom:1px solid transparent; color:white; font-weight:600; font-size:1rem; padding:2px 0; width:80%; outline:none; transition: border-color 0.2s;" onfocus="this.style.borderBottomColor='var(--primary-color)'" onblur="this.style.borderBottomColor='transparent'">
+                        <button type="button" class="btn-history-delete" data-id="${exerciseId}" style="padding:0;" title="Eliminar ejercicio" aria-label="Eliminar ejercicio ${exerciseName}"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </div>
                     <div class="routine-inputs-row">
                         <div class="input-unit-wrapper">
-                            <input type="number" step="0.5" class="routine-weight-input" data-id="${ex.id}" placeholder="0.0" value="${w}">
+                            <input type="number" step="0.5" class="routine-weight-input" data-id="${exerciseId}" placeholder="0.0" value="${w}" aria-label="Peso de ${exerciseName}">
                             <span class="unit-label">kg</span>
                         </div>
                         <span class="separator">×</span>
                         <div class="input-unit-wrapper">
-                            <input type="number" class="routine-reps-input" data-id="${ex.id}" placeholder="0" value="${reps}">
+                            <input type="number" class="routine-reps-input" data-id="${exerciseId}" placeholder="0" value="${reps}" aria-label="Repeticiones de ${exerciseName}">
                             <span class="unit-label">reps</span>
                         </div>
                         <span class="separator">|</span>
                         <div class="input-unit-wrapper">
-                            <input type="number" class="routine-series-input" data-id="${ex.id}" placeholder="3" value="${series}" min="1">
+                            <input type="number" class="routine-series-input" data-id="${exerciseId}" placeholder="3" value="${series}" min="1" aria-label="Series de ${exerciseName}">
                             <span class="unit-label">series</span>
                         </div>
                     </div>
@@ -911,8 +924,8 @@ export class GymModule {
             form.className = 'inline-add-exercise-form';
             form.setAttribute('data-day', day);
             form.innerHTML = `
-                <input type="text" class="text-input" placeholder="Añadir ejercicio..." required>
-                <button type="submit" class="btn btn-primary"><i class="ph ph-plus"></i></button>
+                <input type="text" class="text-input" placeholder="Añadir ejercicio..." aria-label="Añadir ejercicio al ${day}" required>
+                <button type="submit" class="btn btn-primary" title="Añadir ejercicio" aria-label="Añadir ejercicio al ${day}"><i class="ph ph-plus"></i></button>
             `;
             card.appendChild(form);
 
@@ -960,19 +973,19 @@ export class GymModule {
                     <div style="display: grid; grid-template-columns: auto 1.2fr 1.2fr 1.2fr auto; align-items: center; gap: 10px; margin-bottom: 8px; font-size: 0.85rem;">
                         <span style="color: var(--text-secondary); font-weight:600; min-width: 50px;">Serie ${idx + 1}</span>
                         <div class="input-unit-wrapper" style="margin:0;">
-                            <input type="number" step="0.5" class="session-set-weight" data-exercise-index="${exerciseIndex}" data-index="${idx}" value="${set.weight}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
+                            <input type="number" step="0.5" min="0" class="session-set-weight" data-exercise-index="${exerciseIndex}" data-index="${idx}" value="${set.weight}" aria-label="Peso de ${safeExerciseName}, serie ${idx + 1}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
                             <span class="unit-label" style="font-size:0.75rem;">kg</span>
                         </div>
                         <div class="input-unit-wrapper" style="margin:0;">
-                            <input type="number" class="session-set-reps" data-exercise-index="${exerciseIndex}" data-index="${idx}" value="${set.reps}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
+                            <input type="number" min="0" class="session-set-reps" data-exercise-index="${exerciseIndex}" data-index="${idx}" value="${set.reps}" aria-label="Repeticiones de ${safeExerciseName}, serie ${idx + 1}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
                             <span class="unit-label" style="font-size:0.75rem;">reps</span>
                         </div>
                         <div class="input-unit-wrapper" style="margin:0;">
                             <span class="unit-label-prefix" style="font-size:0.75rem;">RIR</span>
-                            <input type="number" class="session-set-rir" data-exercise-index="${exerciseIndex}" data-index="${idx}" placeholder="-" value="${rirVal}" min="0" max="10" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
+                            <input type="number" class="session-set-rir" data-exercise-index="${exerciseIndex}" data-index="${idx}" placeholder="-" value="${rirVal}" min="0" max="10" aria-label="RIR de ${safeExerciseName}, serie ${idx + 1}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
                         </div>
                         <label class="fail-checkbox-wrapper" style="margin:0; display: flex; align-items: center; gap: 4px;">
-                            <input type="checkbox" class="session-set-failed" data-exercise-index="${exerciseIndex}" data-index="${idx}" ${isFailedChecked}>
+                            <input type="checkbox" class="session-set-failed" data-exercise-index="${exerciseIndex}" data-index="${idx}" aria-label="Marcar fallo en ${safeExerciseName}, serie ${idx + 1}" ${isFailedChecked}>
                             <span style="font-size: 0.8rem;">Fallo</span>
                         </label>
                     </div>
@@ -982,7 +995,7 @@ export class GymModule {
             exDiv.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px dashed var(--surface-border); padding-bottom: 5px;">
                     <strong style="color: white; font-size: 0.95rem;">${safeExerciseName}</strong>
-                    <button type="button" class="btn-history-delete" style="padding:0;" title="Quitar Ejercicio"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
+                    <button type="button" class="btn-history-delete" style="padding:0;" title="Quitar ejercicio" aria-label="Quitar ejercicio ${safeExerciseName}"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
                 </div>
                 <div style="display:flex; flex-direction:column;">
                     ${setsHtml}
@@ -1027,12 +1040,12 @@ export class GymModule {
                 const setsStr = sets.map((val, idx) => {
                     let suffix = '';
                     if (val.rir !== undefined && val.rir !== null && val.rir !== '') {
-                        suffix += ` (RIR ${val.rir})`;
+                        suffix += ` (RIR ${escapeHtml(val.rir)})`;
                     }
                     if (val.failed) {
                         suffix += ' 💥';
                     }
-                    return `S${idx+1}: <strong>${val.weight}kg</strong> x ${val.reps}${suffix}`;
+                    return `S${idx+1}: <strong>${escapeHtml(val.weight)}kg</strong> x ${escapeHtml(val.reps)}${suffix}`;
                 }).join(' | ');
                 exHtml += `
                     <div style="font-size:0.85rem; background:rgba(0,0,0,0.15); padding:8px; border-radius:6px; border:1px solid var(--surface-border);">
@@ -1112,7 +1125,11 @@ export class GymModule {
         // Auto-complete list for groups
         const fixedGroups = [...new Set(this.meals.fixed.map(m => m.group).filter(Boolean))];
         const fixedDatalist = document.getElementById('fixed-groups-list');
-        if (fixedDatalist) fixedDatalist.innerHTML = fixedGroups.map(g => `<option value="${g}">`).join('');
+        if (fixedDatalist) {
+            fixedDatalist.innerHTML = fixedGroups
+                .map(group => `<option value="${escapeHtml(group)}">`)
+                .join('');
+        }
     }
 
     renderMealRows(body, meals, type) {
@@ -1125,7 +1142,7 @@ export class GymModule {
         }
 
         const order = [];
-        const groupsMap = {};
+        const groupsMap = Object.create(null);
 
         meals.forEach(meal => {
             const grp = meal.group ? meal.group.trim() : '';
@@ -1167,15 +1184,16 @@ export class GymModule {
 
                 const collapsedKey = `${type}-${grpName}`;
                 const isCollapsed = !!this.collapsedGroups[collapsedKey];
+                const safeGroupName = escapeHtml(grpName);
 
                 const trHeader = document.createElement('tr');
                 trHeader.style.background = 'rgba(255,255,255,0.02)';
                 trHeader.innerHTML = `
                     <td style="padding: 8px;">
-                        <button type="button" class="btn-group-toggle" style="background:transparent; border:none; color:var(--primary-color); cursor:pointer; padding: 2px 5px; font-size:0.8rem;">
+                        <button type="button" class="btn-group-toggle" style="background:transparent; border:none; color:var(--primary-color); cursor:pointer; padding: 2px 5px; font-size:0.8rem;" title="Mostrar u ocultar grupo" aria-label="Mostrar u ocultar grupo ${safeGroupName}">
                             <i class="ph ${isCollapsed ? 'ph-caret-right' : 'ph-caret-down'}"></i>
                         </button>
-                        <strong style="color: white;">📁 ${grpName}</strong>
+                        <strong style="color: white;">📁 ${safeGroupName}</strong>
                     </td>
                     <td style="color:var(--text-secondary);">-</td>
                     <td style="font-weight:bold; color:white;">${grpKcal.toFixed(0)}</td>
@@ -1185,7 +1203,7 @@ export class GymModule {
                     <td style="font-weight:bold; color:white;">${grpSodium.toFixed(0)}mg</td>
                     <td style="font-weight:bold; color:white;">${grpFiber.toFixed(1)}g</td>
                     <td style="text-align:right;">
-                        <button class="btn-history-delete" style="padding:0;" title="Eliminar Grupo"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                        <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar grupo" aria-label="Eliminar grupo ${safeGroupName}"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </td>
                 `;
                 trHeader.querySelector('.btn-group-toggle').addEventListener('click', () => {
@@ -1198,6 +1216,9 @@ export class GymModule {
 
                 if (!isCollapsed) {
                     grpMeals.forEach(m => {
+                        const safeMealName = escapeHtml(m.name || 'Comida');
+                        const safeQuantity = escapeHtml(m.qty || 1);
+                        const safeUnit = escapeHtml(m.unit || 'u');
                         const trItem = document.createElement('tr');
                         const mKcal = parseFloat(m.kcal) || 0;
                         const mProtein = parseFloat(m.protein) || 0;
@@ -1206,8 +1227,8 @@ export class GymModule {
                         const mSodium = parseFloat(m.sodium) || 0;
                         const mFiber = parseFloat(m.fiber) || 0;
                         trItem.innerHTML = `
-                            <td style="padding: 8px 8px 8px 24px; color: var(--text-secondary);">↳ ${m.name}</td>
-                            <td style="color:var(--text-secondary);">${m.qty || 1}${m.unit || 'u'}</td>
+                            <td style="padding: 8px 8px 8px 24px; color: var(--text-secondary);">↳ ${safeMealName}</td>
+                            <td style="color:var(--text-secondary);">${safeQuantity}${safeUnit}</td>
                             <td style="color:white;">${mKcal.toFixed(0)}</td>
                             <td style="color:white;">${mProtein.toFixed(1)}g</td>
                             <td style="color:white;">${mCarbs.toFixed(1)}g</td>
@@ -1215,8 +1236,8 @@ export class GymModule {
                             <td style="color:white;">${mSodium.toFixed(0)}mg</td>
                             <td style="color:white;">${mFiber.toFixed(1)}g</td>
                             <td style="text-align:right; white-space:nowrap;">
-                                <button class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar Comida"><i class="ph ph-pencil" style="font-size:0.95rem;"></i></button>
-                                <button class="btn-history-delete" style="padding:0;" title="Eliminar Comida"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
+                                <button type="button" class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar comida" aria-label="Editar comida ${safeMealName}"><i class="ph ph-pencil" style="font-size:0.95rem;"></i></button>
+                                <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar comida" aria-label="Eliminar comida ${safeMealName}"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
                             </td>
                         `;
                         trItem.querySelector('.btn-history-edit').addEventListener('click', () => {
@@ -1230,6 +1251,9 @@ export class GymModule {
                 }
             } else {
                 const m = item.meal;
+                const safeMealName = escapeHtml(m.name || 'Comida');
+                const safeQuantity = escapeHtml(m.qty || 1);
+                const safeUnit = escapeHtml(m.unit || 'u');
                 const mKcal = parseFloat(m.kcal) || 0;
                 const mProtein = parseFloat(m.protein) || 0;
                 const mCarbs = parseFloat(m.carbs) || 0;
@@ -1246,8 +1270,8 @@ export class GymModule {
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="padding: 8px; font-weight:600; color:white;">${m.name}</td>
-                    <td>${m.qty || 1}${m.unit || 'u'}</td>
+                    <td style="padding: 8px; font-weight:600; color:white;">${safeMealName}</td>
+                    <td>${safeQuantity}${safeUnit}</td>
                     <td style="color:white;">${mKcal.toFixed(0)}</td>
                     <td style="color:white;">${mProtein.toFixed(1)}g</td>
                     <td style="color:white;">${mCarbs.toFixed(1)}g</td>
@@ -1255,8 +1279,8 @@ export class GymModule {
                     <td style="color:white;">${mSodium.toFixed(0)}mg</td>
                     <td style="color:white;">${mFiber.toFixed(1)}g</td>
                     <td style="text-align:right; white-space:nowrap;">
-                        <button class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar Comida"><i class="ph ph-pencil" style="font-size:1rem;"></i></button>
-                        <button class="btn-history-delete" style="padding:0;" title="Eliminar Comida"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                        <button type="button" class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar comida" aria-label="Editar comida ${safeMealName}"><i class="ph ph-pencil" style="font-size:1rem;"></i></button>
+                        <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar comida" aria-label="Eliminar comida ${safeMealName}"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </td>
                 `;
                 tr.querySelector('.btn-history-edit').addEventListener('click', () => {
@@ -1360,6 +1384,11 @@ export class GymModule {
         // History list
         historyBox.innerHTML = '';
         this.weight.forEach(w => {
+            const safeDate = escapeHtml(
+                typeof w.date === 'string' ? w.date.split('-').reverse().join('/') : '-'
+            );
+            const numericWeight = Number(w.weight);
+            const numericFasting = Number(w.fasting);
             const el = document.createElement('div');
             el.style.display = 'flex';
             el.style.justifyContent = 'space-between';
@@ -1369,8 +1398,8 @@ export class GymModule {
             el.style.color = 'white';
             el.style.alignItems = 'center';
             el.innerHTML = `
-                <span>📅 ${w.date.split('-').reverse().join('/')} - ⚖️ <strong>${w.weight.toFixed(2)}kg</strong> ${w.fasting ? `(${w.fasting}h ayuno)` : ''}</span>
-                <button class="btn-history-delete" style="padding:0;"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
+                <span>📅 ${safeDate} - ⚖️ <strong>${Number.isFinite(numericWeight) ? numericWeight.toFixed(2) : '-'}kg</strong> ${Number.isFinite(numericFasting) && numericFasting > 0 ? `(${numericFasting}h ayuno)` : ''}</span>
+                <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar registro de peso" aria-label="Eliminar registro de peso del ${safeDate}"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
             `;
             el.querySelector('.btn-history-delete').addEventListener('click', () => {
                 this.deleteWeight(w.id);
@@ -1410,7 +1439,11 @@ export class GymModule {
         const polylinePoints = points.map(p => `${p.x},${p.y}`).join(' ');
 
         const dots = points.map(p => {
-            const dateStr = p.date.split('-').reverse().slice(0, 2).join('/');
+            const dateStr = escapeHtml(
+                typeof p.date === 'string'
+                    ? p.date.split('-').reverse().slice(0, 2).join('/')
+                    : '-'
+            );
             return `
                 <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--primary-color)" stroke="#ffffff" stroke-width="1.5">
                     <title>${dateStr}: ${p.weight.toFixed(2)} kg</title>
@@ -1506,6 +1539,9 @@ export class GymModule {
 
         histBox.innerHTML = '';
         this.supplements.vit_d_history.forEach(t => {
+            const safeDate = escapeHtml(
+                parseDateLocal(t.date)?.toLocaleDateString('es-AR') || t.date || '-'
+            );
             const el = document.createElement('div');
             el.style.display = 'flex';
             el.style.justifyContent = 'space-between';
@@ -1515,8 +1551,8 @@ export class GymModule {
             el.style.color = 'white';
             el.style.alignItems = 'center';
             el.innerHTML = `
-                <span>📅 Toma: ${parseDateLocal(t.date)?.toLocaleDateString('es-AR') || t.date}</span>
-                <button class="btn-history-delete" style="padding:0;"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
+                <span>📅 Toma: ${safeDate}</span>
+                <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar toma" aria-label="Eliminar toma de Vitamina D del ${safeDate}"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
             `;
             el.querySelector('.btn-history-delete').addEventListener('click', () => {
                 this.deleteVitdTake(t.id);
@@ -1671,6 +1707,9 @@ export class GymModule {
         this.supplements.painkillers_history.forEach(p => {
             const dateObj = parseDateLocal(p.date);
             const friendlyDate = dateObj ? dateObj.toLocaleDateString('es-AR') : p.date;
+            const safeDate = escapeHtml(friendlyDate || '-');
+            const safeType = escapeHtml(p.type || 'Sin especificar');
+            const safeNote = p.note ? `(${escapeHtml(p.note)})` : '';
             const el = document.createElement('div');
             el.style.display = 'flex';
             el.style.justifyContent = 'space-between';
@@ -1680,8 +1719,8 @@ export class GymModule {
             el.style.color = 'white';
             el.style.alignItems = 'center';
             el.innerHTML = `
-                <span>📅 ${friendlyDate} - 💊 <strong>${p.type}</strong> ${p.note ? `(${p.note})` : ''}</span>
-                <button class="btn-history-delete" style="padding:0;"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
+                <span>📅 ${safeDate} - 💊 <strong>${safeType}</strong> ${safeNote}</span>
+                <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar toma" aria-label="Eliminar toma de ${safeType} del ${safeDate}"><i class="ph ph-trash" style="font-size:0.9rem;"></i></button>
             `;
             el.querySelector('.btn-history-delete').addEventListener('click', () => {
                 this.deletePainkillerTake(p.id);
@@ -1773,7 +1812,7 @@ export class GymModule {
         }
 
         const order = [];
-        const groupsMap = {};
+        const groupsMap = Object.create(null);
 
         filtered.forEach(meal => {
             const grp = meal.group ? meal.group.trim() : '';
@@ -1798,19 +1837,20 @@ export class GymModule {
 
                 const collapsedKey = `general-${grpName}`;
                 const isCollapsed = !!this.collapsedGroups[collapsedKey];
+                const safeGroupName = escapeHtml(grpName);
 
                 const trHeader = document.createElement('tr');
                 trHeader.style.background = 'rgba(255,255,255,0.02)';
                 trHeader.innerHTML = `
                     <td style="padding: 8px;">
-                        <button type="button" class="btn-group-toggle" style="background:transparent; border:none; color:var(--primary-color); cursor:pointer; padding: 2px 5px; font-size:0.8rem;">
+                        <button type="button" class="btn-group-toggle" style="background:transparent; border:none; color:var(--primary-color); cursor:pointer; padding: 2px 5px; font-size:0.8rem;" title="Mostrar u ocultar grupo" aria-label="Mostrar u ocultar grupo ${safeGroupName}">
                             <i class="ph ${isCollapsed ? 'ph-caret-right' : 'ph-caret-down'}"></i>
                         </button>
-                        <strong style="color: white;">📁 ${grpName}</strong>
+                        <strong style="color: white;">📁 ${safeGroupName}</strong>
                     </td>
                     <td colspan="7" style="color:var(--text-secondary);">-</td>
                     <td style="text-align:right;">
-                        <button class="btn-history-delete" style="padding:0;" title="Eliminar Grupo"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                        <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar grupo" aria-label="Eliminar grupo ${safeGroupName}"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </td>
                 `;
                 trHeader.querySelector('.btn-group-toggle').addEventListener('click', () => {
@@ -1823,10 +1863,13 @@ export class GymModule {
 
                 if (!isCollapsed) {
                     grpMeals.forEach(m => {
+                        const safeMealName = escapeHtml(m.name || 'Comida');
+                        const safeQuantity = escapeHtml(m.qty || 1);
+                        const safeUnit = escapeHtml(m.unit || 'u');
                         const trItem = document.createElement('tr');
                         trItem.innerHTML = `
-                            <td style="padding: 8px 8px 8px 24px; color: var(--text-secondary);">↳ ${m.name}</td>
-                            <td style="color:var(--text-secondary);">${m.qty || 1}${m.unit || 'u'}</td>
+                            <td style="padding: 8px 8px 8px 24px; color: var(--text-secondary);">↳ ${safeMealName}</td>
+                            <td style="color:var(--text-secondary);">${safeQuantity}${safeUnit}</td>
                             <td style="color:white;">${(parseFloat(m.kcal) || 0).toFixed(0)}</td>
                             <td style="color:white;">${(parseFloat(m.protein) || 0).toFixed(1)}g</td>
                             <td style="color:white;">${(parseFloat(m.carbs) || 0).toFixed(1)}g</td>
@@ -1834,9 +1877,9 @@ export class GymModule {
                             <td style="color:white;">${(parseFloat(m.sodium) || 0).toFixed(0)}mg</td>
                             <td style="color:white;">${(parseFloat(m.fiber) || 0).toFixed(1)}g</td>
                             <td style="text-align:right; white-space:nowrap;">
-                                <button class="btn-copy-fixed" style="padding:0; margin-right:6px;" title="Copiar a Comidas Fijas"><i class="ph ph-calendar-plus" style="font-size:0.95rem;"></i></button>
-                                <button class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar Comida"><i class="ph ph-pencil" style="font-size:0.95rem;"></i></button>
-                                <button class="btn-history-delete" style="padding:0;" title="Eliminar Comida"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
+                                <button type="button" class="btn-copy-fixed" style="padding:0; margin-right:6px;" title="Copiar a comidas fijas" aria-label="Copiar ${safeMealName} a comidas fijas"><i class="ph ph-calendar-plus" style="font-size:0.95rem;"></i></button>
+                                <button type="button" class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar comida" aria-label="Editar comida ${safeMealName}"><i class="ph ph-pencil" style="font-size:0.95rem;"></i></button>
+                                <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar comida" aria-label="Eliminar comida ${safeMealName}"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
                             </td>
                         `;
                         trItem.querySelector('.btn-copy-fixed').addEventListener('click', () => {
@@ -1853,10 +1896,13 @@ export class GymModule {
                 }
             } else {
                 const m = item.meal;
+                const safeMealName = escapeHtml(m.name || 'Comida');
+                const safeQuantity = escapeHtml(m.qty || 1);
+                const safeUnit = escapeHtml(m.unit || 'u');
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="padding: 8px; font-weight:600; color:white;">${m.name}</td>
-                    <td>${m.qty || 1}${m.unit || 'u'}</td>
+                    <td style="padding: 8px; font-weight:600; color:white;">${safeMealName}</td>
+                    <td>${safeQuantity}${safeUnit}</td>
                     <td style="color:white;">${(parseFloat(m.kcal) || 0).toFixed(0)}</td>
                     <td style="color:white;">${(parseFloat(m.protein) || 0).toFixed(1)}g</td>
                     <td style="color:white;">${(parseFloat(m.carbs) || 0).toFixed(1)}g</td>
@@ -1864,9 +1910,9 @@ export class GymModule {
                     <td style="color:white;">${(parseFloat(m.sodium) || 0).toFixed(0)}mg</td>
                     <td style="color:white;">${(parseFloat(m.fiber) || 0).toFixed(1)}g</td>
                     <td style="text-align:right; white-space:nowrap;">
-                        <button class="btn-copy-fixed" style="padding:0; margin-right:6px;" title="Copiar a Comidas Fijas"><i class="ph ph-calendar-plus" style="font-size:1rem;"></i></button>
-                        <button class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar Comida"><i class="ph ph-pencil" style="font-size:1rem;"></i></button>
-                        <button class="btn-history-delete" style="padding:0;" title="Eliminar Comida"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
+                        <button type="button" class="btn-copy-fixed" style="padding:0; margin-right:6px;" title="Copiar a comidas fijas" aria-label="Copiar ${safeMealName} a comidas fijas"><i class="ph ph-calendar-plus" style="font-size:1rem;"></i></button>
+                        <button type="button" class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar comida" aria-label="Editar comida ${safeMealName}"><i class="ph ph-pencil" style="font-size:1rem;"></i></button>
+                        <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar comida" aria-label="Eliminar comida ${safeMealName}"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </td>
                 `;
                 tr.querySelector('.btn-copy-fixed').addEventListener('click', () => {
@@ -1885,6 +1931,10 @@ export class GymModule {
         // Datalist autocomplete for general groups
         const generalGroups = [...new Set(this.generalMeals.map(m => m.group).filter(Boolean))];
         const generalDatalist = document.getElementById('general-groups-list');
-        if (generalDatalist) generalDatalist.innerHTML = generalGroups.map(g => `<option value="${g}">`).join('');
+        if (generalDatalist) {
+            generalDatalist.innerHTML = generalGroups
+                .map(group => `<option value="${escapeHtml(group)}">`)
+                .join('');
+        }
     }
 }

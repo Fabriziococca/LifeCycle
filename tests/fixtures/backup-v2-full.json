@@ -1,0 +1,53 @@
+{
+  "appName": "LifeCycle",
+  "backupVersion": 2,
+  "exportDate": "2026-07-28T12:00:00.000Z",
+  "data": {
+    "hygiene_tracker_data": null,
+    "groomingData_v2": null,
+    "lensesStartTime": null,
+    "lensesHistory": null,
+    "lensStock": 0,
+    "lensDate": null,
+    "solutionDate": null,
+    "caseDate": null,
+    "systaneDate": null,
+    "clothWashDate": null,
+    "clothChangeDate": null,
+    "health_medical_data": null,
+    "health_blood_tests": null,
+    "vehicle_odometer": 0,
+    "vehicle_maintenance_log": null,
+    "gym_records": null,
+    "gym_routine": null,
+    "gym_routine_focus": null,
+    "gym_sessions": null,
+    "gym_active_session": null,
+    "gym_meals": null,
+    "gym_general_meals": null,
+    "gym_supplements": null,
+    "gym_weight": null,
+    "projectPulseData": null,
+    "projectPulseHistory": null,
+    "projectPulseSubscription": null,
+    "alerts_config": null,
+    "finanzasData": null,
+    "vehicle_tracker_data": null,
+    "vehicle_issues": null,
+    "tareas_list": [
+      {
+        "id": "fixture-v2",
+        "text": "Restaurada desde backup completo",
+        "category": "LifeCycle",
+        "urgency": "urgente",
+        "completed": false
+      }
+    ],
+    "tareas_categories": [
+      "LifeCycle"
+    ],
+    "tareas_pinned_projects": null,
+    "tareas_pinned_project_ids": null,
+    "tareas_removed_project_ids": null
+  }
+}

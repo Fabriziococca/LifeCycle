@@ -1777,17 +1777,22 @@
                                 <h3>Copia de Seguridad (Backup)</h3>
                             </div>
                             <div class="card-body">
-                                <p class="backup-text">Descarga un respaldo local completo de todas tus secciones o importa un archivo JSON anteriormente guardado.</p>
+                                <p class="backup-text">Descargá un respaldo local de los datos y configuraciones de todas tus secciones, o restaurá un archivo JSON anteriormente guardado.</p>
+                                <p id="backup-import-help" class="backup-help">
+                                    Antes de importar, LifeCycle valida el archivo completo y te muestra qué secciones reemplazará. No se modifica ningún dato sin tu confirmación.
+                                    Los adjuntos médicos privados permanecen protegidos en Supabase Storage; este JSON conserva sus referencias.
+                                </p>
                                 
                                 <div class="backup-buttons">
-                                    <button id="btnExportUnified" class="btn btn-primary">
+                                    <button id="btnExportUnified" type="button" class="btn btn-primary">
                                         <i class="ph-bold ph-download-simple"></i> Descargar Backup Unificado
                                     </button>
-                                    <label for="importFileUnified" class="btn btn-wash" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%;">
+                                    <button id="btnImportUnified" type="button" class="btn btn-wash" aria-describedby="backup-import-help backup-status" style="cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 0.5rem; width: 100%;">
                                         <i class="ph-bold ph-upload-simple"></i> Importar Backup (.json)
-                                    </label>
-                                    <input type="file" id="importFileUnified" class="hidden" accept=".json">
+                                    </button>
+                                    <input type="file" id="importFileUnified" class="hidden" accept="application/json,.json" aria-label="Seleccionar archivo de backup de LifeCycle">
                                 </div>
+                                <p id="backup-status" class="backup-status hidden" role="status" aria-live="polite"></p>
                             </div>
                         </div>
                     </div>
@@ -2365,7 +2370,7 @@
                     <span id="tareas-detail-category" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.75rem; padding: 3px 8px; margin-bottom: 6px; display: inline-block;">Freelance</span>
                     <h3 style="margin: 0; font-size: 1.1rem; color: white;">Detalle de la Tarea</h3>
                 </div>
-                <button id="tareas-detail-close-btn" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.4rem; line-height: 1; padding: 4px;">&times;</button>
+                <button id="tareas-detail-close-btn" type="button" title="Cerrar detalle" aria-label="Cerrar detalle de la tarea" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.4rem; line-height: 1; padding: 4px;">&times;</button>
             </div>
             
             <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 1.25rem; margin-bottom: 1.25rem; max-height: 320px; overflow-y: auto;">

@@ -6,6 +6,7 @@ import {
     LENS_LIMITS,
     parseDateLocal
 } from '../utils.js';
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
 export class NotificationsCenterModule {
     constructor(appController) {
@@ -383,15 +384,18 @@ export class NotificationsCenterModule {
         items.forEach(item => {
             const el = document.createElement('div');
             el.className = 'notification-item';
+            const safeIcon = escapeHtml(item.icon || 'ph-bell');
+            const safeName = escapeHtml(item.name || 'Recordatorio');
+            const safeDescription = escapeHtml(item.desc || '');
             el.innerHTML = `
                 <div class="notification-item-info">
                     <div class="notification-item-title">
-                        <i class="ph ${item.icon}"></i>
-                        <span>${item.name}</span>
+                        <i class="ph ${safeIcon}"></i>
+                        <span>${safeName}</span>
                     </div>
-                    <div class="notification-item-desc">${item.desc}</div>
+                    <div class="notification-item-desc">${safeDescription}</div>
                 </div>
-                <button class="notification-item-btn">
+                <button type="button" class="notification-item-btn" aria-label="Marcar como resuelto: ${safeName}">
                     <i class="ph ph-check"></i> Listo
                 </button>
             `;
