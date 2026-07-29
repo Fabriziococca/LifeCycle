@@ -11,9 +11,12 @@ export class AlertsModule {
     }
 
     getDefinitions() {
+        const trackerDefinitions = this.app.customTrackers?.getAlertDefinitions?.() || [];
+        const trackerKeys = this.app.customTrackers?.getManagedAlertKeys?.()
+            || new Set(trackerDefinitions.map(definition => definition.key));
         return [
-            ...ALERT_DEFINITIONS,
-            ...(this.app.customTrackers?.getAlertDefinitions?.() || [])
+            ...ALERT_DEFINITIONS.filter(definition => !trackerKeys.has(definition.key)),
+            ...trackerDefinitions
         ];
     }
 
@@ -22,7 +25,7 @@ export class AlertsModule {
             const defaultConfigs = {};
             this.getDefinitions().forEach(def => {
                 const config = {
-                    enabled: true,
+                    enabled: def.defaultEnabled !== false,
                     time: def.defaultTime,
                     days: def.defaultDays || []
                 };

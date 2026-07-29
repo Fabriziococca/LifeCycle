@@ -24,6 +24,7 @@ const VALID_PROFILE_TABS = new Set([
     'instalacion',
     'backup',
     'seguimientos',
+    'modulos',
     'alertas'
 ]);
 

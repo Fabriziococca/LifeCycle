@@ -247,8 +247,8 @@ test('vehicle maintenance reminders do not overwrite one another', () => {
 test('custom tracker alert defaults are recovered from the synced registry', () => {
     const alertsConfig = {};
     const changed = ensureCustomTrackerAlertConfigs(alertsConfig, {
-        __custom_trackers_v1: {
-            version: 1,
+        __trackers_v2: {
+            version: 2,
             trackers: [{
                 id: 'ct_sillones_1',
                 name: 'Lavar sillones',
@@ -270,8 +270,8 @@ test('custom tracker alert defaults are recovered from the synced registry', () 
 
 test('custom tracker notifications are emitted only when active and overdue', () => {
     const hygieneData = {
-        __custom_trackers_v1: {
-            version: 1,
+        __trackers_v2: {
+            version: 2,
             trackers: [{
                 id: 'ct_sillones_1',
                 name: 'Lavar   sillones',
@@ -290,26 +290,48 @@ test('custom tracker notifications are emitted only when active and overdue', ()
         () => 57
     );
     assert.deepEqual(reminder, {
+        handled: true,
+        shouldNotify: true,
         title: '📅 Lavar sillones',
         body: 'El seguimiento está vencido: pasaron 57 de 30 días.'
     });
 
-    assert.equal(
+    assert.deepEqual(
         buildCustomTrackerNotification(
             'custom_tracker:ct_sillones_1',
             hygieneData,
             () => 20
         ),
-        null
+        {
+            handled: true,
+            shouldNotify: false
+        }
     );
 
-    hygieneData.__custom_trackers_v1.trackers[0].archived = true;
-    assert.equal(
+    hygieneData.__trackers_v2.trackers[0].archived = true;
+    assert.deepEqual(
         buildCustomTrackerNotification(
             'custom_tracker:ct_sillones_1',
             hygieneData,
             () => 57
         ),
-        null
+        {
+            handled: true,
+            shouldNotify: false
+        }
+    );
+
+    hygieneData.__trackers_v2.trackers[0].archived = false;
+    hygieneData.__trackers_v2.trackers[0].deleted = true;
+    assert.deepEqual(
+        buildCustomTrackerNotification(
+            'custom_tracker:ct_sillones_1',
+            hygieneData,
+            () => 57
+        ),
+        {
+            handled: true,
+            shouldNotify: false
+        }
     );
 });

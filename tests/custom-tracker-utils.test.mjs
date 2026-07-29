@@ -4,7 +4,9 @@ import assert from 'node:assert/strict';
 import {
     buildCustomAlertDefinitions,
     createCustomTracker,
+    createEmptyCustomTrackerRegistry,
     CUSTOM_TRACKER_FIELD,
+    CUSTOM_TRACKER_SCHEMA_VERSION,
     getCustomAlertKey,
     getCustomTrackerState,
     normalizeCustomTrackerRegistry,
@@ -31,7 +33,7 @@ function createTracker(overrides = {}) {
 test('custom tracker registry normalizes trackers and their histories', () => {
     const tracker = createTracker();
     const registry = validateCustomTrackerRegistry({
-        version: 1,
+        ...createEmptyCustomTrackerRegistry(),
         trackers: [tracker],
         histories: {
             [tracker.id]: [
@@ -41,7 +43,8 @@ test('custom tracker registry normalizes trackers and their histories', () => {
         }
     });
 
-    assert.equal(CUSTOM_TRACKER_FIELD, '__custom_trackers_v1');
+    assert.equal(CUSTOM_TRACKER_FIELD, '__trackers_v2');
+    assert.equal(registry.version, CUSTOM_TRACKER_SCHEMA_VERSION);
     assert.equal(registry.trackers[0].name, 'Lavar sillones');
     assert.equal(registry.trackers[0].subsection, 'tecnologia');
     assert.equal(
@@ -53,15 +56,18 @@ test('custom tracker registry normalizes trackers and their histories', () => {
 test('strict custom tracker validation rejects unsafe or malformed data', () => {
     assert.throws(
         () => validateCustomTrackerRegistry({
-            version: 1,
-            trackers: [{ ...createTracker(), intervalDays: 0 }],
+            ...createEmptyCustomTrackerRegistry(),
+            trackers: [{
+                ...createTracker(),
+                cadence: { unit: 'days', value: 0 }
+            }],
             histories: {}
         }),
         /intervalDays/
     );
     assert.throws(
         () => validateCustomTrackerRegistry({
-            version: 1,
+            ...createEmptyCustomTrackerRegistry(),
             trackers: [{ ...createTracker(), section: 'unknown' }],
             histories: {}
         }),
@@ -69,7 +75,7 @@ test('strict custom tracker validation rejects unsafe or malformed data', () => 
     );
     assert.throws(
         () => validateCustomTrackerRegistry({
-            version: 1,
+            ...createEmptyCustomTrackerRegistry(),
             trackers: [{
                 ...createTracker(),
                 subsection: 'ubicacion_inexistente'
@@ -84,7 +90,7 @@ test('legacy cards gain a safe default location and new cards keep their destina
     const legacyTracker = { ...createTracker() };
     delete legacyTracker.subsection;
     const migrated = validateCustomTrackerRegistry({
-        version: 1,
+        ...createEmptyCustomTrackerRegistry(),
         trackers: [legacyTracker],
         histories: { [legacyTracker.id]: [] }
     });
@@ -127,10 +133,13 @@ test('custom tracker alerts use stable unique keys and section categories', () =
     const tracker = createTracker({
         id: 'ct_salud_001',
         section: 'health',
-        name: 'Control clínico'
+        name: 'Control clínico',
+        template: 'medical',
+        cadence: { unit: 'months', value: 6 },
+        thresholds: { warningDays: 30 }
     });
     const definitions = buildCustomAlertDefinitions({
-        version: 1,
+        ...createEmptyCustomTrackerRegistry(),
         trackers: [tracker],
         histories: { [tracker.id]: [] }
     });
@@ -141,6 +150,7 @@ test('custom tracker alerts use stable unique keys and section categories', () =
         name: 'Control clínico',
         category: 'salud',
         type: 'interval',
+        defaultEnabled: true,
         defaultTime: '20:30',
         defaultDays: []
     });
@@ -148,7 +158,7 @@ test('custom tracker alerts use stable unique keys and section categories', () =
 
 test('defensive normalization ignores broken optional entries', () => {
     const normalized = normalizeCustomTrackerRegistry({
-        version: 1,
+        ...createEmptyCustomTrackerRegistry(),
         trackers: [
             createTracker(),
             { id: 'broken' }
@@ -156,4 +166,41 @@ test('defensive normalization ignores broken optional entries', () => {
         histories: {}
     });
     assert.equal(normalized.trackers.length, 1);
+});
+
+test('archived and deleted cards keep their identity but expose no active alert', () => {
+    const archived = {
+        ...createTracker({ id: 'ct_archived_001' }),
+        archived: true
+    };
+    const deleted = {
+        ...createTracker({ id: 'ct_deleted_001' }),
+        archived: true,
+        deleted: true,
+        deletedAt: '2026-07-28T13:00:00.000Z'
+    };
+    const registry = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        trackers: [archived, deleted],
+        histories: {
+            [archived.id]: [],
+            [deleted.id]: []
+        }
+    });
+
+    assert.equal(registry.trackers[1].deleted, true);
+    assert.equal(registry.trackers[1].deletedAt, '2026-07-28T13:00:00.000Z');
+    assert.deepEqual(buildCustomAlertDefinitions(registry), []);
+});
+
+test('module visibility defaults to visible and preserves explicit hidden modules', () => {
+    const registry = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        modulePreferences: {
+            'higiene-section': { visible: false }
+        }
+    });
+
+    assert.equal(registry.modulePreferences['higiene-section'].visible, false);
+    assert.equal(registry.modulePreferences['projects-section'].visible, true);
 });

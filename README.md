@@ -58,8 +58,11 @@ Track annual/periodical visits for Dentists, Ophthalmologists, Clinical Blood Te
 ### 7. 🔔 Centralized Notifications Panel
 Float notification center displaying overdue items across all sections, permitting immediate checklist completion (`✓ Listo`) from any screen. Supports custom background push notification schedules.
 
-### 8. ⚙️ Configurable Trackers
-Manage personal trackers from the centralized **Profile → Configurable Trackers** screen, then place each one in a specific Hygiene, Care, Lenses, or Health subsection without modifying code. The compact manager lists names and counts per section and supports create, edit, reorder, archive, restore, and protected deletion. Each runtime card supports a user-defined action, an overdue interval that restarts only after a recorded action, automatic visual states, optional instructions, history, date correction, and an optional daily backend Push alert while overdue. Specialized timers, inventory, and medical attachments remain owned by their dedicated modules.
+### 8. ⚙️ Unified Configurable Trackers
+Every recurring card in Hygiene, Care, Lenses, and Health uses the same versioned model and is managed from **Profile → Trackers**. Existing personal cards are migrated in place with their histories, thresholds, alert settings, and specialized behavior preserved; a fresh account starts with no predefined cards. The centralized manager supports create, edit, reorder, archive, restore, and protected permanent deletion. Each runtime card supports a user-defined action, a daily or monthly cadence that restarts only after a recorded action, automatic visual states, optional instructions, history correction, and an optional daily backend Push alert while overdue. Specialized timers, inventory, and medical attachments remain owned by their dedicated modules.
+
+### 9. 🧭 Personalized Navigation
+The **Profile → Modules** screen can hide or restore any main module without deleting its information or notifications. At least one module always remains visible, and navigation automatically falls back to an available module when the previous selection is hidden.
 
 ---
 

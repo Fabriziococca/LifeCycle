@@ -280,7 +280,7 @@ test('backup validates configurable tracker definitions and histories', () => {
     });
     const validData = {
         [CUSTOM_TRACKER_FIELD]: {
-            version: 1,
+            version: 2,
             trackers: [tracker],
             histories: {
                 [tracker.id]: ['2026-07-28T12:00:00.000Z']

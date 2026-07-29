@@ -161,6 +161,10 @@ export class GroomingModule {
         this.gridSection.innerHTML = '';
         this.toolsSection.innerHTML = '';
         if (this.barbaSection) this.barbaSection.innerHTML = '';
+        if (this.app.customTrackers?.registry?.version === 2) {
+            this.app.customTrackers.renderSection('grooming');
+            return;
+        }
 
         ZONES.forEach(zone => {
             const history = this.data[zone.id] || [];

@@ -536,6 +536,7 @@ export class AuthSyncModule {
     }
 
     restoreDataLocally(cloudData) {
+        let migratedTrackers = false;
         this.isRestoring = true;
         try {
             CLOUD_RESTORE_KEYS.forEach(key => {
@@ -556,7 +557,11 @@ export class AuthSyncModule {
                     try { this.app.hygiene.data = this.app.hygiene.loadData(); } catch (e) { console.error("Error reloading hygiene:", e); }
                 }
                 if (this.app.customTrackers) {
-                    try { this.app.customTrackers.reload(); } catch (e) { console.error("Error reloading custom trackers:", e); }
+                    try {
+                        migratedTrackers = this.app.customTrackers.reload();
+                    } catch (e) {
+                        console.error("Error reloading custom trackers:", e);
+                    }
                 }
                 if (this.app.grooming) {
                     try { this.app.grooming.data = this.app.grooming.loadData(); } catch (e) { console.error("Error reloading grooming:", e); }
@@ -647,6 +652,9 @@ export class AuthSyncModule {
             }
         } finally {
             this.isRestoring = false;
+        }
+        if (migratedTrackers) {
+            this.queueKeySync('hygiene_tracker_data');
         }
     }
 

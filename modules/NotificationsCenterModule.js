@@ -7,7 +7,7 @@ import {
     parseDateLocal
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
-import { getCustomTrackerState } from '../custom-tracker-utils.mjs?v=20260728-custom-trackers';
+import { getCustomTrackerState } from '../custom-tracker-utils.mjs?v=20260729-trackers-v2';
 
 export class NotificationsCenterModule {
     constructor(appController) {
@@ -47,27 +47,53 @@ export class NotificationsCenterModule {
         const items = [];
         try {
             const now = new Date();
+            const hasUnifiedTrackers = this.app.customTrackers?.registry?.version === 2;
+
+            if (hasUnifiedTrackers) {
+                this.app.customTrackers.registry.trackers
+                    .filter(tracker => !tracker.archived && !tracker.deleted)
+                    .forEach(tracker => {
+                        const state = getCustomTrackerState(
+                            tracker,
+                            this.app.customTrackers.getHistory(tracker.id),
+                            now
+                        );
+                        if (state.status !== 'red') return;
+                        const cadenceText = state.cadence.unit === 'months'
+                            ? `${state.cadence.value} ${state.cadence.value === 1 ? 'mes' : 'meses'}`
+                            : `${state.dueValue} días`;
+                        items.push({
+                            module: 'custom_tracker',
+                            id: tracker.id,
+                            name: tracker.name,
+                            icon: tracker.icon,
+                            desc: `Pasaron ${state.elapsedDays} días; frecuencia configurada: ${cadenceText}.`
+                        });
+                    });
+            }
 
             // 1. HIGIENE
             if (this.app.hygiene) {
                 const hData = this.app.hygiene.data || {};
-                itemsConfig.forEach(item => {
-                    if (!item.limits) return;
-                    const val = hData[item.id];
-                    // Permitir soporte para arrays (historial) o strings
-                    const history = Array.isArray(val) ? val : (val ? [val] : []);
-                    const lastDateVal = history[0] || null;
-                    const elapsed = this.app.hygiene.getDaysElapsed(lastDateVal);
-                    if (elapsed !== null && elapsed >= item.limits.red) {
-                        items.push({
-                            module: 'hygiene',
-                            id: item.id,
-                            name: item.name,
-                            icon: item.icon || 'ph-sparkle',
-                            desc: `Pasaron ${elapsed} de ${item.limits.red} días.`
-                        });
-                    }
-                });
+                if (!hasUnifiedTrackers) {
+                    itemsConfig.forEach(item => {
+                        if (!item.limits) return;
+                        const val = hData[item.id];
+                        // Permitir soporte para arrays (historial) o strings
+                        const history = Array.isArray(val) ? val : (val ? [val] : []);
+                        const lastDateVal = history[0] || null;
+                        const elapsed = this.app.hygiene.getDaysElapsed(lastDateVal);
+                        if (elapsed !== null && elapsed >= item.limits.red) {
+                            items.push({
+                                module: 'hygiene',
+                                id: item.id,
+                                name: item.name,
+                                icon: item.icon || 'ph-sparkle',
+                                desc: `Pasaron ${elapsed} de ${item.limits.red} días.`
+                            });
+                        }
+                    });
+                }
                 // Robot aspiradora
                 if (hData.robot_cleaner && hData.robot_cleaner.status === 'dirty') {
                     let timeText = 'Robot Sucio';
@@ -88,7 +114,7 @@ export class NotificationsCenterModule {
             }
 
             // 2. CUIDADO CORPORAL
-            if (this.app.grooming) {
+            if (this.app.grooming && !hasUnifiedTrackers) {
                 const gData = this.app.grooming.data || {};
                 const groomingItems = [
                     { id: 'barba', name: 'Afeitado de Barba', icon: 'ph-scissors' },
@@ -123,7 +149,7 @@ export class NotificationsCenterModule {
             }
 
             // 3. LENTES DE CONTACTO
-            if (this.app.lenses) {
+            if (this.app.lenses && !hasUnifiedTrackers) {
                 const checks = [
                     { key: 'lensDate', label: 'Reemplazo de Lentes', limit: LENS_LIMITS.lenses, icon: 'ph-eye' },
                     { key: 'solutionDate', label: 'Solución Lentes', limit: LENS_LIMITS.solution, icon: 'ph-eye' },
@@ -309,7 +335,7 @@ export class NotificationsCenterModule {
             }
 
             // 7. SEGUIMIENTOS CONFIGURABLES
-            if (this.app.customTrackers) {
+            if (this.app.customTrackers && !hasUnifiedTrackers) {
                 this.app.customTrackers.registry.trackers
                     .filter(tracker => !tracker.archived)
                     .forEach(tracker => {

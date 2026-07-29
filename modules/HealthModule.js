@@ -280,13 +280,15 @@ export class HealthModule {
     render() {
         this.renderMedicalCards();
         this.renderBloodTestsCard();
-        // renderMedicalCards reemplaza la grilla de controles.
-        this.controller.customTrackers?.renderSection('health');
     }
 
     renderMedicalCards() {
         if (!this.gridContainer) return;
         this.gridContainer.innerHTML = '';
+        if (this.controller.customTrackers?.registry?.version === 2) {
+            this.controller.customTrackers.renderSection('health');
+            return;
+        }
 
         Object.keys(this.medicalData).forEach(key => {
             const doc = this.medicalData[key];

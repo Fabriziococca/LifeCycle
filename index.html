@@ -1628,6 +1628,10 @@
                         <i class="ph ph-stack"></i>
                         <span>Seguimientos</span>
                     </button>
+                    <button class="profile-menu-item" data-tab="modulos">
+                        <i class="ph ph-squares-four"></i>
+                        <span>Módulos</span>
+                    </button>
                     <button class="profile-menu-item" data-tab="alertas">
                         <i class="ph ph-bell-ringing"></i>
                         <span>Gestor de Alertas</span>
@@ -1807,10 +1811,10 @@
                             <div class="custom-trackers-manager-header">
                                 <div>
                                     <span class="custom-trackers-eyebrow">Personalización</span>
-                                    <h2>Seguimientos configurables</h2>
+                                    <h2>Tus seguimientos</h2>
                                     <p>
-                                        Creá y administrá tarjetas que después usarás desde
-                                        Higiene, Cuidado, Lentes o Salud.
+                                        Administrá desde un solo lugar todas las tarjetas de
+                                        Higiene, Cuidado, Lentes y Salud.
                                     </p>
                                 </div>
                                 <button id="btn-new-custom-tracker" type="button" class="btn btn-primary">
@@ -1821,9 +1825,9 @@
                             <div class="custom-trackers-manager-note">
                                 <i class="ph ph-info"></i>
                                 <span>
-                                    Este creador está pensado para seguimientos por vencimiento.
-                                    Los cronómetros, el stock y los adjuntos continúan en sus
-                                    módulos especializados.
+                                    Cada tarjeta conserva su historial y su comportamiento.
+                                    Al archivarla desaparece del uso diario, pero podés
+                                    restaurarla cuando quieras.
                                 </span>
                             </div>
                             <div id="custom-trackers-manager-summary"></div>
@@ -1831,7 +1835,32 @@
                         </div>
                     </div>
 
-                    <!-- Pestaña 6: Gestor de Alertas -->
+                    <!-- Pestaña 6: Visibilidad de módulos -->
+                    <div class="profile-tab-content hidden" id="tab-modulos">
+                        <div class="module-visibility-manager">
+                            <div class="custom-trackers-manager-header">
+                                <div>
+                                    <span class="custom-trackers-eyebrow">Navegación</span>
+                                    <h2>Módulos visibles</h2>
+                                    <p>
+                                        Ocultá lo que no quieras ver en el día a día. Ningún
+                                        dato ni alerta se elimina al ocultar un módulo.
+                                    </p>
+                                </div>
+                            </div>
+                            <div class="custom-trackers-manager-note">
+                                <i class="ph ph-eye-slash"></i>
+                                <span>
+                                    Siempre quedará al menos un módulo visible. Podés recuperar
+                                    cualquier módulo desde esta misma pantalla.
+                                </span>
+                            </div>
+                            <div id="module-visibility-summary"></div>
+                            <p id="module-visibility-feedback" class="module-visibility-feedback hidden" role="status" aria-live="polite"></p>
+                        </div>
+                    </div>
+
+                    <!-- Pestaña 7: Gestor de Alertas -->
                     <div class="profile-tab-content hidden" id="tab-alertas">
                         <div class="card" style="margin-bottom: 2rem;">
                             <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 12px; margin-bottom: 16px; flex-wrap: wrap; gap: 1rem;">

@@ -235,6 +235,12 @@ class AppController {
 
     activateSection(sectionId, { persist = true, render = true, smooth = false } = {}) {
         const mainNav = document.getElementById('main-nav');
+        if (
+            this.customTrackers
+            && !this.customTrackers.isModuleVisible(sectionId)
+        ) {
+            return false;
+        }
         const targetButton = mainNav?.querySelector(`.nav-btn[data-section="${sectionId}"]`);
         const targetSection = document.getElementById(sectionId);
         if (!targetButton || !targetSection) return false;
@@ -281,11 +287,15 @@ class AppController {
         this.scrollControlIntoView(sidebar, targetButton, smooth);
         if (render && tabId === 'alertas') this.alerts?.render();
         if (render && tabId === 'seguimientos') this.customTrackers?.renderManager();
+        if (render && tabId === 'modulos') this.customTrackers?.renderModulesManager();
         return true;
     }
 
     restoreUiState() {
-        this.activateSection(this.uiState.section, {
+        const targetSection = this.customTrackers?.isModuleVisible(this.uiState.section)
+            ? this.uiState.section
+            : this.customTrackers?.getFirstVisibleModuleId();
+        this.activateSection(targetSection, {
             persist: false,
             render: true
         });
@@ -323,7 +333,12 @@ class AppController {
                 const profileSec = document.getElementById('perfil-section');
                 if (profileSec) profileSec.classList.add('hidden');
                 
-                const targetSecId = this.lastActiveSectionId || 'higiene-section';
+                const targetSecId = (
+                    this.lastActiveSectionId
+                    && this.customTrackers?.isModuleVisible(this.lastActiveSectionId)
+                )
+                    ? this.lastActiveSectionId
+                    : this.customTrackers?.getFirstVisibleModuleId();
                 this.activateSection(targetSecId, {
                     persist: false,
                     render: true

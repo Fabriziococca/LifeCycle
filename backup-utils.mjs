@@ -1,6 +1,7 @@
 import { normalizeActiveGymSession } from './gym-session-utils.mjs';
 import {
     CUSTOM_TRACKER_FIELD,
+    LEGACY_CUSTOM_TRACKER_FIELD,
     validateCustomTrackerRegistry
 } from './custom-tracker-utils.mjs';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs';
@@ -402,6 +403,16 @@ function validateBackupDataShape(key, value) {
                             `Las tarjetas configurables no son válidas: ${error.message}`
                         );
                     }
+                    return;
+                }
+                if (itemKey === LEGACY_CUSTOM_TRACKER_FIELD) {
+                    assertRecord(itemValue, `${key}.${itemKey}`);
+                    if (!Array.isArray(itemValue.trackers)) {
+                        throw new BackupValidationError(
+                            'El registro anterior de tarjetas no contiene una lista válida.'
+                        );
+                    }
+                    assertRecord(itemValue.histories, `${key}.${itemKey}.histories`);
                     return;
                 }
                 if (itemKey === 'robot_cleaner') {

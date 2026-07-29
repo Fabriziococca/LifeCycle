@@ -1,14 +1,20 @@
 import {
+    APP_MODULES,
     buildCustomAlertDefinitions,
     createCustomTracker,
     CUSTOM_TRACKER_FIELD,
     CUSTOM_TRACKER_ICONS,
     CUSTOM_TRACKER_SECTIONS,
+    CUSTOM_TRACKER_TEMPLATES,
     getCustomAlertKey,
     getCustomTrackerState,
     normalizeCustomTrackerRegistry
-} from '../custom-tracker-utils.mjs?v=20260728-custom-trackers-v2';
-import { DateUtils } from '../utils.js';
+} from '../custom-tracker-utils.mjs?v=20260729-trackers-v2';
+import {
+    migrateLegacyTrackerRegistry,
+    readLegacyTrackerSnapshot
+} from '../tracker-migration.mjs?v=20260729-trackers-v2';
+import { DateUtils, getLocalISODate } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
 const STATUS_META = Object.freeze({
@@ -44,6 +50,7 @@ const ICON_LABELS = Object.freeze({
     'ph-heartbeat': 'Salud',
     'ph-tooth': 'Dental',
     'ph-first-aid': 'Médico',
+    'ph-first-aid-kit': 'Estudio médico',
     'ph-calendar-check': 'Calendario',
     'ph-package': 'Insumo',
     'ph-phone': 'Celular',
@@ -57,14 +64,18 @@ const ICON_LABELS = Object.freeze({
     'ph-wrench': 'Mantenimiento',
     'ph-archive': 'Estuche',
     'ph-eyedropper': 'Gotas',
+    'ph-spray': 'Lavado',
     'ph-spray-bottle': 'Spray',
     'ph-drop-half': 'Líquido',
-    'ph-user-focus': 'Cuidado personal'
+    'ph-user': 'Persona',
+    'ph-user-focus': 'Cuidado personal',
+    'ph-arrows-clockwise': 'Reemplazo'
 });
 
 export class CustomTrackersModule {
     constructor(appController) {
         this.app = appController;
+        this.app.customTrackers = this;
         this.registry = this.loadRegistry();
         this.openHistoryIds = new Set();
         this.openInstructionIds = new Set();
@@ -78,18 +89,28 @@ export class CustomTrackersModule {
         this.managerSummary = document.getElementById('custom-trackers-manager-summary');
         this.managerFeedback = document.getElementById('custom-trackers-manager-feedback');
         this.newTrackerButton = document.getElementById('btn-new-custom-tracker');
+        this.modulesRoot = document.getElementById('tab-modulos');
+        this.modulesSummary = document.getElementById('module-visibility-summary');
+        this.modulesFeedback = document.getElementById('module-visibility-feedback');
 
         this.ensureEditorDialog();
         this.setupManagerListeners();
+        this.setupModuleListeners();
         this.setupRuntimeListeners();
         this.renderAll();
+        this.applyModuleVisibility();
     }
 
     loadRegistry() {
-        const stored = this.app.hygiene?.data?.[CUSTOM_TRACKER_FIELD];
-        const registry = normalizeCustomTrackerRegistry(stored);
+        const snapshot = readLegacyTrackerSnapshot(localStorage);
+        const result = migrateLegacyTrackerRegistry(snapshot);
+        const registry = normalizeCustomTrackerRegistry(result.registry);
+        this.lastMigration = result;
         if (this.app.hygiene?.data) {
             this.app.hygiene.data[CUSTOM_TRACKER_FIELD] = registry;
+            if (result.migrated) {
+                this.app.hygiene.saveData();
+            }
         }
         return registry;
     }
@@ -97,10 +118,20 @@ export class CustomTrackersModule {
     reload() {
         this.registry = this.loadRegistry();
         this.renderAll();
+        this.applyModuleVisibility();
+        return this.lastMigration?.migrated === true;
     }
 
     getAlertDefinitions() {
         return buildCustomAlertDefinitions(this.registry);
+    }
+
+    getManagedAlertKeys() {
+        return new Set(
+            this.registry.trackers
+                .map(tracker => getCustomAlertKey(tracker))
+                .filter(Boolean)
+        );
     }
 
     getTracker(trackerId) {
@@ -116,7 +147,7 @@ export class CustomTrackersModule {
             return { enabled: false, time: '23:00' };
         }
 
-        const stored = this.app.alerts?.configs?.[getCustomAlertKey(tracker.id)];
+        const stored = this.app.alerts?.configs?.[getCustomAlertKey(tracker)];
         return {
             enabled: stored
                 ? stored.enabled === true
@@ -130,6 +161,7 @@ export class CustomTrackersModule {
         this.app.hygiene.data[CUSTOM_TRACKER_FIELD] = this.registry;
         this.app.hygiene.saveData();
         this.renderAll();
+        this.applyModuleVisibility();
         this.app.notificationsCenter?.updateBadge();
     }
 
@@ -161,7 +193,9 @@ export class CustomTrackersModule {
                 this.openEditor(button.dataset.section || 'hygiene', null, button);
             } else if (action === 'edit') {
                 const tracker = this.getTracker(trackerId);
-                if (tracker) this.openEditor(tracker.section, trackerId, button);
+                if (tracker && !tracker.deleted) {
+                    this.openEditor(tracker.section, trackerId, button);
+                }
             } else if (action === 'archive') {
                 this.archiveTracker(trackerId);
             } else if (action === 'restore' || action === 'undo-archive') {
@@ -180,6 +214,108 @@ export class CustomTrackersModule {
                 this.moveTracker(trackerId, 1);
             }
         });
+    }
+
+    setupModuleListeners() {
+        this.modulesRoot?.addEventListener('click', event => {
+            const button = event.target.closest('[data-module-visibility-action]');
+            if (!button) return;
+            const moduleId = button.dataset.moduleId;
+            if (!APP_MODULES[moduleId]) return;
+            this.toggleModuleVisibility(moduleId);
+        });
+    }
+
+    isModuleVisible(moduleId) {
+        return this.registry.modulePreferences?.[moduleId]?.visible !== false;
+    }
+
+    getFirstVisibleModuleId() {
+        return Object.keys(APP_MODULES).find(moduleId => this.isModuleVisible(moduleId))
+            || null;
+    }
+
+    toggleModuleVisibility(moduleId) {
+        const current = this.isModuleVisible(moduleId);
+        const visibleCount = Object.keys(APP_MODULES)
+            .filter(id => this.isModuleVisible(id))
+            .length;
+        if (current && visibleCount <= 1) {
+            this.showModulesFeedback(
+                'Debe quedar al menos un módulo visible para poder volver a la aplicación.'
+            );
+            return false;
+        }
+
+        this.registry.modulePreferences[moduleId] = {
+            visible: !current
+        };
+        this.persistRegistry();
+        this.showModulesFeedback(
+            !current
+                ? `${APP_MODULES[moduleId].label} volvió a la navegación.`
+                : `${APP_MODULES[moduleId].label} quedó oculto sin borrar sus datos.`
+        );
+        return true;
+    }
+
+    applyModuleVisibility() {
+        const mainNav = document.getElementById('main-nav');
+        Object.keys(APP_MODULES).forEach(moduleId => {
+            const visible = this.isModuleVisible(moduleId);
+            const navButton = mainNav?.querySelector(
+                `.nav-btn[data-section="${moduleId}"]`
+            );
+            navButton?.classList.toggle('module-hidden', !visible);
+            navButton?.setAttribute('aria-hidden', String(!visible));
+            if (navButton) navButton.tabIndex = visible ? 0 : -1;
+        });
+
+        const activeModuleId = this.app.lastActiveSectionId;
+        if (activeModuleId && !this.isModuleVisible(activeModuleId)) {
+            this.app.lastActiveSectionId = this.getFirstVisibleModuleId();
+        }
+        this.renderModulesManager();
+    }
+
+    renderModulesManager() {
+        if (!this.modulesSummary) return;
+        this.modulesSummary.innerHTML = Object.entries(APP_MODULES)
+            .map(([moduleId, module]) => {
+                const visible = this.isModuleVisible(moduleId);
+                return `
+                    <article class="module-visibility-card ${visible ? '' : 'is-hidden'}">
+                        <span class="module-visibility-icon">
+                            <i class="ph ${module.icon}"></i>
+                        </span>
+                        <span class="module-visibility-copy">
+                            <strong>${escapeHtml(module.label)}</strong>
+                            <small>${visible ? 'Visible en la navegación' : 'Oculto · datos conservados'}</small>
+                        </span>
+                        <button
+                            type="button"
+                            class="module-visibility-toggle ${visible ? 'active' : ''}"
+                            data-module-visibility-action="toggle"
+                            data-module-id="${moduleId}"
+                            aria-label="${visible ? 'Ocultar' : 'Mostrar'} módulo ${escapeHtml(module.label)}"
+                            aria-pressed="${visible}"
+                        >
+                            <span aria-hidden="true"></span>
+                        </button>
+                    </article>
+                `;
+            })
+            .join('');
+    }
+
+    showModulesFeedback(message) {
+        if (!this.modulesFeedback) return;
+        this.modulesFeedback.textContent = message;
+        this.modulesFeedback.classList.remove('hidden');
+        clearTimeout(this.modulesFeedbackTimer);
+        this.modulesFeedbackTimer = setTimeout(() => {
+            this.modulesFeedback?.classList.add('hidden');
+        }, 3600);
     }
 
     setupRuntimeListeners() {
@@ -274,6 +410,11 @@ export class CustomTrackersModule {
                             <select id="custom-tracker-subsection" class="text-input"></select>
                         </div>
                         <div class="input-group custom-form-wide">
+                            <label for="custom-tracker-template">Tipo de seguimiento</label>
+                            <select id="custom-tracker-template" class="text-input"></select>
+                            <small id="custom-tracker-template-help"></small>
+                        </div>
+                        <div class="input-group custom-form-wide">
                             <label for="custom-tracker-name">Nombre</label>
                             <input id="custom-tracker-name" class="text-input" type="text" maxlength="80" autocomplete="off" placeholder="Ej: Limpiar los sillones" required>
                         </div>
@@ -286,16 +427,37 @@ export class CustomTrackersModule {
                             <input id="custom-tracker-action-other" class="text-input" type="text" maxlength="60" autocomplete="off" placeholder="Ej: Aspiré los sillones">
                         </div>
                         <div class="input-group">
-                            <label for="custom-tracker-interval">Marcar como vencida después de</label>
+                            <label id="custom-tracker-interval-label" for="custom-tracker-interval">Marcar como vencida después de</label>
                             <div class="custom-number-with-unit">
                                 <input id="custom-tracker-interval" class="number-input" type="number" min="1" max="3650" inputmode="numeric" required>
-                                <span>días</span>
+                                <span id="custom-tracker-interval-unit">días</span>
                             </div>
                             <small>La cuenta solo vuelve a empezar cuando registrás la acción.</small>
                         </div>
                         <div class="input-group">
                             <label for="custom-tracker-icon">Icono</label>
                             <select id="custom-tracker-icon" class="text-input"></select>
+                        </div>
+                        <div class="input-group custom-day-thresholds">
+                            <label for="custom-tracker-yellow">Mostrar atención desde</label>
+                            <div class="custom-number-with-unit">
+                                <input id="custom-tracker-yellow" class="number-input" type="number" min="1" max="3650" inputmode="numeric">
+                                <span>días</span>
+                            </div>
+                        </div>
+                        <div class="input-group custom-day-thresholds">
+                            <label for="custom-tracker-orange">Mostrar próximo desde</label>
+                            <div class="custom-number-with-unit">
+                                <input id="custom-tracker-orange" class="number-input" type="number" min="1" max="3650" inputmode="numeric">
+                                <span>días</span>
+                            </div>
+                        </div>
+                        <div class="input-group custom-month-warning hidden">
+                            <label for="custom-tracker-warning-days">Avisar con anticipación</label>
+                            <div class="custom-number-with-unit">
+                                <input id="custom-tracker-warning-days" class="number-input" type="number" min="1" max="365" inputmode="numeric">
+                                <span>días</span>
+                            </div>
                         </div>
                         <div class="input-group custom-form-wide">
                             <label for="custom-tracker-instructions">Instrucciones opcionales</label>
@@ -341,6 +503,13 @@ export class CustomTrackersModule {
             ))
             .join('');
 
+        const templateSelect = dialog.querySelector('#custom-tracker-template');
+        templateSelect.innerHTML = Object.entries(CUSTOM_TRACKER_TEMPLATES)
+            .map(([key, template]) => (
+                `<option value="${key}">${escapeHtml(template.label)}</option>`
+            ))
+            .join('');
+
         const actionSelect = dialog.querySelector('#custom-tracker-action');
         actionSelect.innerHTML = [
             ...ACTION_PRESETS.map(action => (
@@ -366,6 +535,16 @@ export class CustomTrackersModule {
             this.populateSubsectionOptions(sectionSelect.value);
             if (!this.editingId) this.applySectionDefaults(sectionSelect.value);
             this.updateEditorDestinationLabel();
+        });
+        templateSelect.addEventListener('change', () => {
+            if (!this.editingId) {
+                const isMedical = templateSelect.value === 'medical';
+                dialog.querySelector('#custom-tracker-interval').value = isMedical ? 6 : 30;
+                dialog.querySelector('#custom-tracker-yellow').value = 21;
+                dialog.querySelector('#custom-tracker-orange').value = 25;
+                dialog.querySelector('#custom-tracker-warning-days').value = 30;
+            }
+            this.updateEditorConditionalFields();
         });
         dialog.querySelector('#custom-tracker-subsection').addEventListener('change', () => {
             this.updateEditorDestinationLabel();
@@ -425,12 +604,19 @@ export class CustomTrackersModule {
     applySectionDefaults(sectionKey) {
         const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
         if (!section) return;
+        const templateSelect = this.dialog.querySelector('#custom-tracker-template');
+        templateSelect.value = section.defaultTemplate;
         this.dialog.querySelector('#custom-tracker-action').value = (
             ACTION_PRESETS.includes(section.defaultAction)
                 ? section.defaultAction
                 : '__custom__'
         );
         this.dialog.querySelector('#custom-tracker-icon').value = section.defaultIcon;
+        const isMedical = section.defaultTemplate === 'medical';
+        this.dialog.querySelector('#custom-tracker-interval').value = isMedical ? 6 : 30;
+        this.dialog.querySelector('#custom-tracker-yellow').value = 21;
+        this.dialog.querySelector('#custom-tracker-orange').value = 25;
+        this.dialog.querySelector('#custom-tracker-warning-days').value = 30;
         this.updateEditorConditionalFields();
     }
 
@@ -457,11 +643,38 @@ export class CustomTrackersModule {
         const alertEnabled = this.dialog.querySelector('#custom-tracker-alert-enabled').checked;
         this.dialog.querySelector('.custom-tracker-alert-time-wrap')
             .classList.toggle('hidden', !alertEnabled);
+
+        const templateKey = this.dialog.querySelector('#custom-tracker-template').value;
+        const template = CUSTOM_TRACKER_TEMPLATES[templateKey]
+            || CUSTOM_TRACKER_TEMPLATES.routine;
+        const isMedical = template.cadenceUnit === 'months';
+        const intervalInput = this.dialog.querySelector('#custom-tracker-interval');
+        const yellowInput = this.dialog.querySelector('#custom-tracker-yellow');
+        const orangeInput = this.dialog.querySelector('#custom-tracker-orange');
+        const warningInput = this.dialog.querySelector('#custom-tracker-warning-days');
+        this.dialog.querySelector('#custom-tracker-interval-label').textContent = (
+            isMedical ? 'Repetir el control cada' : 'Marcar como vencida después de'
+        );
+        this.dialog.querySelector('#custom-tracker-interval-unit').textContent = (
+            isMedical ? 'meses' : 'días'
+        );
+        intervalInput.max = isMedical ? '120' : '3650';
+        this.dialog.querySelectorAll('.custom-day-thresholds').forEach(element => {
+            element.classList.toggle('hidden', isMedical);
+        });
+        this.dialog.querySelector('.custom-month-warning')
+            .classList.toggle('hidden', !isMedical);
+        yellowInput.required = !isMedical;
+        orangeInput.required = !isMedical;
+        warningInput.required = isMedical;
+        this.dialog.querySelector('#custom-tracker-template-help').textContent = (
+            template.description
+        );
     }
 
     openEditor(sectionKey = 'hygiene', trackerId = null, trigger = null) {
         const tracker = trackerId ? this.getTracker(trackerId) : null;
-        if (trackerId && !tracker) return;
+        if (trackerId && (!tracker || tracker.deleted)) return;
 
         const selectedSectionKey = tracker?.section || (
             CUSTOM_TRACKER_SECTIONS[sectionKey] ? sectionKey : 'hygiene'
@@ -475,8 +688,27 @@ export class CustomTrackersModule {
             : 'Nueva tarjeta';
         this.dialog.querySelector('#custom-tracker-section').value = selectedSectionKey;
         this.populateSubsectionOptions(selectedSectionKey, tracker?.subsection);
+        const templateSelect = this.dialog.querySelector('#custom-tracker-template');
+        templateSelect.value = tracker?.template || section.defaultTemplate;
+        templateSelect.disabled = Boolean(
+            tracker && this.getHistory(tracker.id).length > 0
+        );
         this.dialog.querySelector('#custom-tracker-name').value = tracker?.name || '';
-        this.dialog.querySelector('#custom-tracker-interval').value = tracker?.intervalDays || 30;
+        this.dialog.querySelector('#custom-tracker-interval').value = (
+            tracker?.cadence?.value
+            || (section.defaultTemplate === 'medical' ? 6 : 30)
+        );
+        this.dialog.querySelector('#custom-tracker-yellow').value = (
+            tracker?.thresholds?.yellow
+            || Math.max(1, Math.floor((tracker?.intervalDays || 30) * 0.7))
+        );
+        this.dialog.querySelector('#custom-tracker-orange').value = (
+            tracker?.thresholds?.orange
+            || Math.max(1, Math.floor((tracker?.intervalDays || 30) * 0.85))
+        );
+        this.dialog.querySelector('#custom-tracker-warning-days').value = (
+            tracker?.thresholds?.warningDays || 30
+        );
         this.dialog.querySelector('#custom-tracker-icon').value = tracker?.icon || section.defaultIcon;
         this.dialog.querySelector('#custom-tracker-instructions').value = (
             tracker?.instructions || ''
@@ -505,6 +737,11 @@ export class CustomTrackersModule {
         errorElement.textContent = '';
         this.updateEditorDestinationLabel();
         this.updateEditorConditionalFields();
+        if (templateSelect.disabled) {
+            this.dialog.querySelector('#custom-tracker-template-help').textContent = (
+                'El tipo se conserva porque la tarjeta ya tiene historial. Podés editar el resto de la configuración.'
+            );
+        }
 
         this.dialog.classList.remove('hidden');
         document.body.classList.add('modal-open');
@@ -522,6 +759,8 @@ export class CustomTrackersModule {
         this.dialog.classList.add('hidden');
         document.body.classList.remove('modal-open');
         this.editingId = null;
+        const templateSelect = this.dialog.querySelector('#custom-tracker-template');
+        if (templateSelect) templateSelect.disabled = false;
         this.lastDialogTrigger?.focus?.();
         this.lastDialogTrigger = null;
     }
@@ -537,6 +776,28 @@ export class CustomTrackersModule {
         const alertEnabled = this.dialog.querySelector('#custom-tracker-alert-enabled').checked;
         const alertTime = this.dialog.querySelector('#custom-tracker-alert-time').value || '23:00';
         const existing = this.editingId ? this.getTracker(this.editingId) : null;
+        const template = existing && this.getHistory(existing.id).length > 0
+            ? existing.template
+            : this.dialog.querySelector('#custom-tracker-template').value;
+        const cadenceUnit = CUSTOM_TRACKER_TEMPLATES[template]?.cadenceUnit || 'days';
+        const cadenceValue = Number(
+            this.dialog.querySelector('#custom-tracker-interval').value
+        );
+        const thresholds = cadenceUnit === 'months'
+            ? {
+                warningDays: Number(
+                    this.dialog.querySelector('#custom-tracker-warning-days').value
+                )
+            }
+            : {
+                yellow: Number(
+                    this.dialog.querySelector('#custom-tracker-yellow').value
+                ),
+                orange: Number(
+                    this.dialog.querySelector('#custom-tracker-orange').value
+                ),
+                red: cadenceValue
+            };
 
         try {
             const destinationChanged = existing && (
@@ -548,6 +809,7 @@ export class CustomTrackersModule {
                     ...this.registry.trackers
                         .filter(tracker => (
                             !tracker.archived
+                            && !tracker.deleted
                             && tracker.section === section
                             && tracker.subsection === subsection
                         ))
@@ -557,13 +819,23 @@ export class CustomTrackersModule {
             const candidate = createCustomTracker({
                 section,
                 subsection,
+                template,
                 name: this.dialog.querySelector('#custom-tracker-name').value,
                 actionLabel,
-                intervalDays: Number(
-                    this.dialog.querySelector('#custom-tracker-interval').value
-                ),
+                cadence: {
+                    unit: cadenceUnit,
+                    value: cadenceValue
+                },
+                intervalDays: cadenceUnit === 'days'
+                    ? cadenceValue
+                    : Math.max(1, Math.round(cadenceValue * 30.5)),
+                thresholds,
                 icon: this.dialog.querySelector('#custom-tracker-icon').value,
                 instructions: this.dialog.querySelector('#custom-tracker-instructions').value,
+                behavior: existing?.behavior || {},
+                legacySource: existing?.legacySource || null,
+                group: existing?.group || null,
+                alertKey: existing?.alertKey,
                 alert: {
                     enabled: alertEnabled,
                     time: alertTime
@@ -587,7 +859,8 @@ export class CustomTrackersModule {
                 this.registry.histories[candidate.id] = [];
             }
 
-            this.syncAlertConfig(existing?.id || candidate.id, candidate.alert);
+            this.mirrorLegacyTracker(candidate);
+            this.syncAlertConfig(candidate, candidate.alert);
             this.persistRegistry();
             this.closeEditor();
             this.showManagerFeedback(
@@ -599,10 +872,10 @@ export class CustomTrackersModule {
         }
     }
 
-    syncAlertConfig(trackerId, alertConfig, { remove = false, disabled = false } = {}) {
+    syncAlertConfig(trackerOrId, alertConfig, { remove = false, disabled = false } = {}) {
         if (!this.app.alerts) return;
 
-        const key = getCustomAlertKey(trackerId);
+        const key = getCustomAlertKey(trackerOrId);
         if (remove) {
             delete this.app.alerts.configs[key];
         } else {
@@ -622,7 +895,7 @@ export class CustomTrackersModule {
 
     recordTracker(trackerId, when = new Date()) {
         const tracker = this.getTracker(trackerId);
-        if (!tracker || tracker.archived) return;
+        if (!tracker || tracker.archived || tracker.deleted) return;
 
         const date = when instanceof Date ? when : new Date(when);
         if (Number.isNaN(date.getTime())) return;
@@ -631,7 +904,14 @@ export class CustomTrackersModule {
         history.unshift(date.toISOString());
         this.registry.histories[trackerId] = [...new Set(history)]
             .sort((a, b) => Date.parse(b) - Date.parse(a))
-            .slice(0, 100);
+            .slice(0, 1000);
+        if (tracker.behavior?.decrementStock && tracker.behavior?.stockKey === 'lensStock') {
+            const stock = Math.max(0, Number.parseInt(localStorage.getItem('lensStock'), 10) || 0);
+            if (stock > 0) {
+                localStorage.setItem('lensStock', String(stock - 1));
+            }
+        }
+        this.mirrorLegacyTracker(tracker);
         this.persistRegistry();
         if (navigator.vibrate) navigator.vibrate(40);
         this.showRuntimeFeedback(`${tracker.name}: registro guardado.`);
@@ -640,29 +920,107 @@ export class CustomTrackersModule {
     updateLatestDate(trackerId, dateValue) {
         const tracker = this.getTracker(trackerId);
         const date = dateValue instanceof Date ? dateValue : new Date(dateValue);
-        if (!tracker || Number.isNaN(date.getTime())) return false;
+        if (
+            !tracker
+            || tracker.archived
+            || tracker.deleted
+            || Number.isNaN(date.getTime())
+        ) {
+            return false;
+        }
 
         const history = this.getHistory(trackerId);
         if (history.length > 0) history[0] = date.toISOString();
         else history.unshift(date.toISOString());
         this.registry.histories[trackerId] = history
             .sort((a, b) => Date.parse(b) - Date.parse(a))
-            .slice(0, 100);
+            .slice(0, 1000);
+        this.mirrorLegacyTracker(tracker);
         this.persistRegistry();
         this.showRuntimeFeedback(`Fecha de ${tracker.name} actualizada.`);
         return true;
     }
 
+    mirrorLegacyTracker(tracker) {
+        const source = tracker?.legacySource;
+        if (!source) return;
+        const history = this.getHistory(tracker.id);
+        const latest = history[0] || null;
+
+        if (source.kind === 'hygiene' && this.app.hygiene) {
+            this.app.hygiene.data[source.key] = source.mode === 'single'
+                ? latest
+                : history.slice(0, 10);
+            this.app.hygiene.saveData();
+            return;
+        }
+
+        if (source.kind === 'grooming' && this.app.grooming) {
+            this.app.grooming.data[source.key] = history.slice(0, 10);
+            this.app.grooming.saveData();
+            return;
+        }
+
+        if (source.kind === 'lens') {
+            if (latest) {
+                localStorage.setItem(source.key, getLocalISODate(new Date(latest)));
+            } else {
+                localStorage.removeItem(source.key);
+            }
+            return;
+        }
+
+        if (source.kind === 'health' && this.app.health) {
+            const existing = this.app.health.medicalData[source.key] || {};
+            this.app.health.medicalData[source.key] = {
+                ...existing,
+                lastVisit: latest ? getLocalISODate(new Date(latest)) : null,
+                frequencyMonths: tracker.cadence?.unit === 'months'
+                    ? tracker.cadence.value
+                    : (existing.frequencyMonths || 6),
+                history: history.map(value => getLocalISODate(new Date(value)))
+            };
+            this.app.health.saveMedicalData();
+        }
+    }
+
+    clearLegacyTracker(tracker) {
+        const source = tracker?.legacySource;
+        if (!source) return;
+
+        if (source.kind === 'hygiene' && this.app.hygiene) {
+            delete this.app.hygiene.data[source.key];
+            this.app.hygiene.saveData();
+            return;
+        }
+
+        if (source.kind === 'grooming' && this.app.grooming) {
+            delete this.app.grooming.data[source.key];
+            this.app.grooming.saveData();
+            return;
+        }
+
+        if (source.kind === 'lens') {
+            localStorage.removeItem(source.key);
+            return;
+        }
+
+        if (source.kind === 'health' && this.app.health) {
+            delete this.app.health.medicalData[source.key];
+            this.app.health.saveMedicalData();
+        }
+    }
+
     archiveTracker(trackerId) {
         const tracker = this.getTracker(trackerId);
-        if (!tracker || tracker.archived) return;
+        if (!tracker || tracker.archived || tracker.deleted) return;
         tracker.archived = true;
         tracker.updatedAt = new Date().toISOString();
         tracker.alert = this.getEffectiveAlertConfig(tracker);
         this.openHistoryIds.delete(trackerId);
         this.openInstructionIds.delete(trackerId);
         this.clearPendingHistoryDeletes(trackerId);
-        this.syncAlertConfig(tracker.id, tracker.alert, { disabled: true });
+        this.syncAlertConfig(tracker, tracker.alert, { disabled: true });
         this.persistRegistry();
         this.showManagerFeedback(`${tracker.name} fue archivada.`, {
             label: 'Deshacer',
@@ -673,20 +1031,21 @@ export class CustomTrackersModule {
 
     restoreTracker(trackerId) {
         const tracker = this.getTracker(trackerId);
-        if (!tracker || !tracker.archived) return;
+        if (!tracker || !tracker.archived || tracker.deleted) return;
         tracker.archived = false;
         tracker.order = Math.max(
             -1,
             ...this.registry.trackers
                 .filter(item => (
                     !item.archived
+                    && !item.deleted
                     && item.section === tracker.section
                     && item.subsection === tracker.subsection
                 ))
                 .map(item => item.order)
         ) + 1;
         tracker.updatedAt = new Date().toISOString();
-        this.syncAlertConfig(tracker.id, tracker.alert);
+        this.syncAlertConfig(tracker, tracker.alert);
         this.pendingDeleteIds.delete(trackerId);
         this.persistRegistry();
         this.showManagerFeedback(`${tracker.name} volvió a estar activa.`);
@@ -694,28 +1053,43 @@ export class CustomTrackersModule {
 
     deleteTracker(trackerId) {
         const tracker = this.getTracker(trackerId);
-        if (!tracker || !tracker.archived || !this.pendingDeleteIds.has(trackerId)) return;
+        if (
+            !tracker
+            || !tracker.archived
+            || tracker.deleted
+            || !this.pendingDeleteIds.has(trackerId)
+        ) {
+            return;
+        }
 
-        this.registry.trackers = this.registry.trackers.filter(item => item.id !== trackerId);
-        delete this.registry.histories[trackerId];
+        tracker.deleted = true;
+        tracker.deletedAt = new Date().toISOString();
+        tracker.updatedAt = tracker.deletedAt;
+        tracker.alert = {
+            ...tracker.alert,
+            enabled: false
+        };
+        this.registry.histories[trackerId] = [];
+        this.clearLegacyTracker(tracker);
         this.pendingDeleteIds.delete(trackerId);
         this.openHistoryIds.delete(trackerId);
         this.openInstructionIds.delete(trackerId);
         this.clearPendingHistoryDeletes(trackerId);
-        this.syncAlertConfig(trackerId, tracker.alert, { remove: true });
+        this.syncAlertConfig(tracker, tracker.alert, { remove: true });
         this.persistRegistry();
         this.showManagerFeedback(`${tracker.name} fue borrada definitivamente.`);
     }
 
     moveTracker(trackerId, direction) {
         const tracker = this.getTracker(trackerId);
-        if (!tracker || tracker.archived) return;
+        if (!tracker || tracker.archived || tracker.deleted) return;
 
         const destinationTrackers = this.registry.trackers
             .filter(item => (
                 item.section === tracker.section
                 && item.subsection === tracker.subsection
                 && !item.archived
+                && !item.deleted
             ))
             .sort((a, b) => a.order - b.order);
         const currentIndex = destinationTrackers.findIndex(item => item.id === trackerId);
@@ -765,6 +1139,7 @@ export class CustomTrackersModule {
         history.splice(historyIndex, 1);
         this.clearPendingHistoryDeletes(trackerId);
         this.registry.histories[trackerId] = history;
+        this.mirrorLegacyTracker(tracker);
         this.persistRegistry();
         this.openHistoryIds.add(trackerId);
         this.renderSection(tracker.section);
@@ -802,9 +1177,11 @@ export class CustomTrackersModule {
 
     renderAll() {
         this.renderManager();
-        Object.keys(CUSTOM_TRACKER_SECTIONS).forEach(sectionKey => {
-            this.renderSection(sectionKey);
-        });
+        this.renderModulesManager();
+        this.app.hygiene?.render();
+        this.app.grooming?.render();
+        this.app.lenses?.loadDatesAndStock();
+        this.app.health?.render();
     }
 
     renderManager() {
@@ -813,14 +1190,22 @@ export class CustomTrackersModule {
         this.managerSummary.innerHTML = Object.entries(CUSTOM_TRACKER_SECTIONS)
             .map(([sectionKey, section]) => {
                 const active = this.registry.trackers
-                    .filter(tracker => tracker.section === sectionKey && !tracker.archived)
+                    .filter(tracker => (
+                        tracker.section === sectionKey
+                        && !tracker.archived
+                        && !tracker.deleted
+                    ))
                     .sort((a, b) => (
                         a.subsection.localeCompare(b.subsection)
                         || a.order - b.order
                         || a.name.localeCompare(b.name, 'es')
                     ));
                 const archived = this.registry.trackers
-                    .filter(tracker => tracker.section === sectionKey && tracker.archived)
+                    .filter(tracker => (
+                        tracker.section === sectionKey
+                        && tracker.archived
+                        && !tracker.deleted
+                    ))
                     .sort((a, b) => a.name.localeCompare(b.name, 'es'));
                 const activeLabel = `${active.length} ${active.length === 1 ? 'activa' : 'activas'}`;
                 const archivedLabel = archived.length > 0
@@ -850,7 +1235,7 @@ export class CustomTrackersModule {
                                 )).join('')
                                 : `
                                     <p class="custom-manager-empty">
-                                        Sin tarjetas personalizadas en esta sección.
+                                        No hay tarjetas activas en esta sección.
                                     </p>
                                 `}
                             ${archived.length > 0 ? `
@@ -954,7 +1339,11 @@ export class CustomTrackersModule {
         this.clearRuntimeCards(sectionKey);
 
         let active = this.registry.trackers
-            .filter(tracker => tracker.section === sectionKey && !tracker.archived);
+            .filter(tracker => (
+                tracker.section === sectionKey
+                && !tracker.archived
+                && !tracker.deleted
+            ));
         if (sectionKey === 'hygiene') {
             const currentCategory = this.app.hygiene?.currentCategory
                 || section.defaultSubsection;
@@ -996,6 +1385,12 @@ export class CustomTrackersModule {
         const nextLabel = state.nextDate
             ? DateUtils.formatFriendlyDate(state.nextDate)
             : 'Después del primer registro';
+        const cadenceLabel = state.cadence.unit === 'months'
+            ? `cada ${state.cadence.value} ${state.cadence.value === 1 ? 'mes' : 'meses'}`
+            : `de ${state.dueValue} días`;
+        const prediction = tracker.behavior?.prediction === 'beard'
+            ? this.getBeardPrediction(history)
+            : '';
 
         return `
             <article class="custom-tracker-card status-${state.status}" data-tracker-id="${tracker.id}" data-custom-runtime-section="${tracker.section}" style="--custom-status-color: ${status.color};">
@@ -1010,7 +1405,7 @@ export class CustomTrackersModule {
                 </div>
                 <div class="custom-tracker-metric">
                     <strong>${state.elapsedDays === null ? '--' : state.elapsedDays}</strong>
-                    <span>de ${tracker.intervalDays} días</span>
+                    <span>${escapeHtml(cadenceLabel)}</span>
                 </div>
                 <div class="custom-tracker-dates">
                     <span>Último <strong>${escapeHtml(latestLabel)}</strong></span>
@@ -1019,6 +1414,9 @@ export class CustomTrackersModule {
                 <div class="custom-tracker-progress" aria-hidden="true">
                     <span style="width: ${state.progress}%"></span>
                 </div>
+                ${prediction ? `
+                    <p class="custom-tracker-prediction">${escapeHtml(prediction)}</p>
+                ` : ''}
                 ${tracker.instructions ? `
                     <button type="button" class="custom-tracker-secondary-action" data-custom-runtime-action="toggle-instructions" data-tracker-id="${tracker.id}" aria-expanded="${instructionsOpen}">
                         <i class="ph ph-book-open"></i>
@@ -1078,5 +1476,35 @@ export class CustomTrackersModule {
                 </button>
             </article>
         `;
+    }
+
+    getBeardPrediction(history) {
+        if (!Array.isArray(history) || history.length === 0) return 'Sin registros para proyectar.';
+        const validDates = history
+            .map(value => new Date(value))
+            .filter(date => !Number.isNaN(date.getTime()));
+        if (validDates.length === 0) return 'Sin registros para proyectar.';
+
+        let intervalMs = 2 * 86_400_000;
+        if (validDates.length >= 2) {
+            const differences = [];
+            const count = Math.min(validDates.length - 1, 3);
+            for (let index = 0; index < count; index += 1) {
+                const difference = validDates[index] - validDates[index + 1];
+                if (difference > 12 * 60 * 60 * 1000) differences.push(difference);
+            }
+            if (differences.length > 0) {
+                intervalMs = differences.reduce((sum, value) => sum + value, 0)
+                    / differences.length;
+                if (intervalMs > 4 * 86_400_000) intervalMs = 2.5 * 86_400_000;
+            }
+        }
+
+        const next = new Date(validDates[0].getTime() + intervalMs);
+        const label = next.toLocaleDateString('es-AR', {
+            weekday: 'long',
+            day: 'numeric'
+        });
+        return `Próximo afeitado proyectado: ${label.charAt(0).toUpperCase()}${label.slice(1)}`;
     }
 }

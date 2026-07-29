@@ -198,8 +198,6 @@ export class LensModule {
         this.checkStockWarning(stock);
 
         this.renderCards();
-        // renderCards reemplaza todo el contenedor de insumos.
-        this.app.customTrackers?.renderSection('lenses');
         this.app.notificationsCenter?.updateBadge();
     }
 
@@ -208,6 +206,10 @@ export class LensModule {
         if (!container) return;
 
         container.innerHTML = '';
+        if (this.app.customTrackers?.registry?.version === 2) {
+            this.app.customTrackers.renderSection('lenses');
+            return;
+        }
 
         const items = [
             { key: 'lensDate', name: 'Lentes de Contacto', limit: LENS_LIMITS.lenses, icon: 'ph-eye', actionText: 'Nuevo Par', isLens: true },
@@ -467,6 +469,16 @@ export class LensModule {
             const el = document.getElementById(item.id);
             if (el) {
                 el.addEventListener('change', (e) => {
+                    const tracker = this.app.customTrackers?.registry?.trackers
+                        ?.find(candidate => candidate.legacySource?.kind === 'lens'
+                            && candidate.legacySource.key === item.key);
+                    if (tracker) {
+                        this.app.customTrackers.updateLatestDate(
+                            tracker.id,
+                            `${e.target.value}T12:00:00.000Z`
+                        );
+                        return;
+                    }
                     localStorage.setItem(item.key, e.target.value);
                     this.loadDatesAndStock();
                 });
@@ -482,6 +494,17 @@ export class LensModule {
 
         if (this.btnNewPair) {
             this.btnNewPair.addEventListener('click', () => {
+                const tracker = this.app.customTrackers?.registry?.trackers
+                    ?.find(item => item.legacySource?.kind === 'lens'
+                        && item.legacySource.key === 'lensDate');
+                if (tracker) {
+                    if (!tracker.archived && !tracker.deleted) {
+                        this.app.customTrackers.recordTracker(tracker.id);
+                    } else {
+                        alert('La tarjeta de lentes de contacto está archivada o fue eliminada.');
+                    }
+                    return;
+                }
                 let stock = parseInt(localStorage.getItem('lensStock')) || 0;
                 if (stock > 0) {
                     stock -= 1;

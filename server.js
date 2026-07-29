@@ -979,8 +979,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         hygieneData,
                         getDaysElapsed
                     );
-                    if (customTrackerNotification) {
-                        shouldNotify = true;
+                    if (customTrackerNotification?.handled) {
+                        shouldNotify = customTrackerNotification.shouldNotify === true;
                         title = customTrackerNotification.title;
                         body = customTrackerNotification.body;
                     } else {

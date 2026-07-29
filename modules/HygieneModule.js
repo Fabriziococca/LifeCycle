@@ -158,6 +158,10 @@ export class HygieneModule {
         }
 
         this.container.innerHTML = '';
+        if (this.app.customTrackers?.registry?.version === 2) {
+            this.app.customTrackers.renderSection('hygiene');
+            return;
+        }
 
         const filteredItems = itemsConfig.filter(item => item.category === this.currentCategory);
 
