@@ -132,6 +132,27 @@ test('quick task capture is global, categorized and keyboard accessible', async 
     assert.match(appSource, /showToast\(message/);
 });
 
+test('global search is local, keyboard accessible and routes to source modules', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+    const searchSource = await readFile(
+        path.join(ROOT, 'modules', 'GlobalSearchModule.js'),
+        'utf8'
+    );
+
+    assert.match(index, /id="global-search-btn"/);
+    assert.match(index, /id="global-search-modal"/);
+    assert.match(index, /id="global-search-input"/);
+    assert.match(index, /role="listbox"/);
+    assert.match(appSource, /new GlobalSearchModule\(this\)/);
+    assert.match(searchSource, /event\.ctrlKey \|\| event\.metaKey/);
+    assert.match(searchSource, /event\.key === 'ArrowDown'/);
+    assert.match(searchSource, /event\.key === 'Enter'/);
+    assert.match(searchSource, /activateSection\?\.\('tareas-section'/);
+    assert.match(searchSource, /renderMonthlyHistory\?\.\('all'\)/);
+    assert.doesNotMatch(searchSource, /finanzas|attachments|medicalData/);
+});
+
 test('mobile navigation explains horizontal overflow and reacts after authentication', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');

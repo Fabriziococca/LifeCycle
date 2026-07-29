@@ -1641,7 +1641,7 @@ export class ProjectsModule {
                 const safeDate = escapeHtml(dateStr);
                 const safeProjectId = escapeHtml(p.id);
                 projItems += `
-                    <div class="history-project-item">
+                    <div class="history-project-item" data-history-project-id="${safeProjectId}">
                         <div class="history-project-info">
                             <span class="history-project-title">${safeClient} - ${safeProjectName}</span>
                             <span class="history-project-date">Cobrado: ${safeDate}</span>

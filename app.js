@@ -13,6 +13,7 @@ import { AlertsModule } from './modules/AlertsModule.js';
 import { NotificationsCenterModule } from './modules/NotificationsCenterModule.js';
 import { CustomTrackersModule } from './modules/CustomTrackersModule.js';
 import { TodayModule } from './modules/TodayModule.js';
+import { GlobalSearchModule } from './modules/GlobalSearchModule.js';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260729-project-templates';
 import {
     readUiState,
@@ -477,25 +478,7 @@ class AppController {
 
         if (profileBtn) {
             profileBtn.addEventListener('click', () => {
-                if (this.customTrackers?.reorderContext?.scope === 'runtime') {
-                    this.customTrackers.cancelReorderMode({ silent: true });
-                }
-                if (this.customTrackers?.bulkContext) {
-                    this.customTrackers.cancelBulkMode({ silent: true });
-                }
-                if (mainNav) mainNav.classList.add('hidden');
-                document.querySelectorAll('.main-section').forEach(sec => {
-                    sec.classList.add('hidden');
-                });
-                const profileSec = document.getElementById('perfil-section');
-                if (profileSec) {
-                    profileSec.classList.remove('hidden');
-                    this.activateProfileTab(this.uiState.profileTab, {
-                        persist: false,
-                        render: true
-                    });
-                    requestAnimationFrame(() => this.refreshNavigationHints());
-                }
+                this.openProfileTab(this.uiState.profileTab, { persist: false });
             });
         }
 
@@ -521,6 +504,29 @@ class AppController {
                 requestAnimationFrame(() => this.refreshNavigationHints());
             });
         }
+    }
+
+    openProfileTab(tabId = this.uiState.profileTab, { persist = true } = {}) {
+        if (this.customTrackers?.reorderContext?.scope === 'runtime') {
+            this.customTrackers.cancelReorderMode({ silent: true });
+        }
+        if (this.customTrackers?.bulkContext) {
+            this.customTrackers.cancelBulkMode({ silent: true });
+        }
+        document.getElementById('main-nav')?.classList.add('hidden');
+        document.querySelectorAll('.main-section').forEach(section => {
+            section.classList.add('hidden');
+        });
+        const profileSection = document.getElementById('perfil-section');
+        if (!profileSection) return false;
+
+        profileSection.classList.remove('hidden');
+        this.activateProfileTab(tabId, {
+            persist,
+            render: true
+        });
+        requestAnimationFrame(() => this.refreshNavigationHints());
+        return true;
     }
 
     openEditModal(type, id, displayName, currentDateVal) {
@@ -707,6 +713,7 @@ class AppController {
         this.alerts = new AlertsModule(this);
         this.notificationsCenter = new NotificationsCenterModule(this);
         this.today = new TodayModule(this);
+        this.globalSearch = new GlobalSearchModule(this);
         this.restoreUiState();
         requestAnimationFrame(() => this.refreshNavigationHints());
         

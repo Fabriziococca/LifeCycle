@@ -91,6 +91,21 @@
             </button>
         </div>
 
+        <!-- Búsqueda local de tarjetas, tareas y proyectos -->
+        <div class="global-search-wrapper">
+            <button
+                id="global-search-btn"
+                class="global-search-btn"
+                type="button"
+                aria-label="Buscar en LifeCycle"
+                data-tooltip="Buscar en LifeCycle (Ctrl+K)"
+            >
+                <i class="ph ph-magnifying-glass"></i>
+                <span>Buscar</span>
+                <kbd>Ctrl K</kbd>
+            </button>
+        </div>
+
         <!-- Centro de Notificaciones (Tareas Críticas en Rojo) -->
         <div class="notifications-wrapper">
             <button id="notification-bell-btn" class="bell-btn" aria-label="Abrir tareas críticas pendientes" data-tooltip="Tareas críticas pendientes">
@@ -1998,6 +2013,56 @@
             </div>
         </section>
     </main>
+
+    <div
+        id="global-search-modal"
+        class="modal global-search-modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="global-search-title"
+    >
+        <div class="global-search-dialog">
+            <header class="global-search-header">
+                <div>
+                    <span class="global-search-eyebrow">NAVEGACIÓN RÁPIDA</span>
+                    <h2 id="global-search-title">Buscar en LifeCycle</h2>
+                </div>
+                <button
+                    id="global-search-close"
+                    type="button"
+                    class="icon-btn"
+                    aria-label="Cerrar buscador"
+                    data-tooltip="Cerrar buscador"
+                >
+                    <i class="ph ph-x"></i>
+                </button>
+            </header>
+            <label class="global-search-input-shell" for="global-search-input">
+                <i class="ph ph-magnifying-glass"></i>
+                <input
+                    id="global-search-input"
+                    type="search"
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder="Tarjeta, tarea, cliente o proyecto…"
+                    aria-controls="global-search-results"
+                    aria-autocomplete="list"
+                >
+                <kbd>Esc</kbd>
+            </label>
+            <div
+                id="global-search-results"
+                class="global-search-results"
+                role="listbox"
+                aria-label="Resultados de búsqueda"
+            ></div>
+            <footer class="global-search-footer">
+                <span><kbd>↑</kbd><kbd>↓</kbd> recorrer</span>
+                <span><kbd>Enter</kbd> abrir</span>
+                <span><i class="ph ph-device-mobile"></i> Búsqueda local</span>
+            </footer>
+        </div>
+    </div>
 
     <!-- Modal de Edición Común (Retroactivo) -->
     <div id="edit-modal" class="modal hidden">
