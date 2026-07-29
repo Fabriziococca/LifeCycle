@@ -66,7 +66,7 @@ LifeCycle ya tiene una base de producto útil y coherente. Sus mejores decisione
 
 La principal rigidez detectada al comenzar la auditoría estaba en Higiene, Cuidado, Lentes y Salud. Ese bloqueo quedó resuelto al migrar sus tarjetas al modelo configurable común. Vehículo conserva flujos especializados definidos en código porque combinan kilometraje, fechas, documentación y fallas; no conviene mezclarlos todavía con una tarjeta recurrente genérica.
 
-La limitación de producto con mejor oportunidad de ahorro restante es la repetición de estructuras en Proyectos y movimientos periódicos en Finanzas. Antes de ampliar esos modelos se debe validar, a partir del uso real, qué datos conviene convertir en plantilla o regla recurrente.
+La repetición de estructuras en Proyectos y de movimientos periódicos en Finanzas también quedó resuelta: los proyectos admiten plantillas reutilizables sin copiar cliente ni fechas, y Finanzas ofrece reglas recurrentes que siempre requieren confirmación antes de registrar una transacción. Las oportunidades transversales con mayor impacto restante son unificar diálogos y mensajes, y concentrar la experiencia de una sesión activa de Gimnasio.
 
 También persiste cierta fragmentación: cada módulo desarrolló sus propios patrones de formulario, confirmación, historial, edición y notificación. Funciona, pero aumenta la carga mental y el costo de mantenimiento. La unificación de diálogos y mensajes es una mejora transversal, no una razón para reescribir los modelos de dominio.
 
@@ -237,8 +237,8 @@ No toda constante de código es una limitación de producto. Los límites de seg
 
 | Área | Situación actual | Decisión |
 | --- | --- | --- |
-| Proyectos | Crear trabajos similares puede exigir repetir etapas y tareas. | Próxima candidata: plantillas reutilizables, después de identificar qué campos realmente se repiten. |
-| Finanzas | Los movimientos periódicos todavía se cargan manualmente y varias categorías de ingresos son fijas. | Próxima candidata: reglas recurrentes confirmables y categorías reutilizables, sin generar transacciones silenciosamente. |
+| Proyectos | Crear trabajos similares exigía repetir plazo, comisión, plan y tareas. | Resuelto con plantillas reutilizables que nunca copian cliente ni fechas y dejan el presupuesto como dato optativo. |
+| Finanzas | Los movimientos periódicos exigían repetir la misma carga manual. | Resuelto con reglas recurrentes confirmables e idempotentes; nunca generan transacciones silenciosamente. Las categorías de ingresos continúan acotadas al modelo actual. |
 | Confirmaciones y errores | Conviven diálogos nativos del navegador con avisos propios de LifeCycle. | Mejora transversal posterior: diálogo compartido, mensajes en contexto y deshacer cuando la operación sea recuperable. |
 | Gimnasio | Rutinas y ejercicios son editables, pero una sesión activa comparte pantalla con herramientas secundarias. | Mejorar el modo entrenamiento centrado; no hace falta un nuevo constructor de rutinas. |
 | Vehículo | Los tipos y umbrales de mantenimiento principales están especializados en código. | Mantener por ahora. Volverlos configurables solo cuando aparezca un caso real que no pueda representarse sin despliegue. |

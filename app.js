@@ -13,7 +13,7 @@ import { AlertsModule } from './modules/AlertsModule.js';
 import { NotificationsCenterModule } from './modules/NotificationsCenterModule.js';
 import { CustomTrackersModule } from './modules/CustomTrackersModule.js';
 import { TodayModule } from './modules/TodayModule.js';
-import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260727-cloud-first';
+import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260729-project-templates';
 import {
     readUiState,
     writeUiState

@@ -4,7 +4,7 @@ import {
     CLOUD_SERVER_MANAGED_KEYS,
     CLOUD_SYNC_KEYS,
     SYNC_PENDING_STORAGE_KEY
-} from '../sync-config.mjs?v=20260727-cloud-first';
+} from '../sync-config.mjs?v=20260729-project-templates';
 import {
     areStoredValuesEqual,
     buildCloudPatch

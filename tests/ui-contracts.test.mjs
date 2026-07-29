@@ -195,3 +195,40 @@ test('task creation presents urgent work first and keeps non-urgent as long-term
         assert.match(markup, /No urgente \(largo plazo\)/);
     });
 });
+
+test('project templates reuse structure without copying client identity or dates', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const projectsSource = await readFile(
+        path.join(ROOT, 'modules', 'ProjectsModule.js'),
+        'utf8'
+    );
+    const templateUtils = await readFile(
+        path.join(ROOT, 'project-template-utils.mjs'),
+        'utf8'
+    );
+
+    assert.match(index, /id="projectTemplateSelect"/);
+    assert.match(index, /id="project-templates-modal"/);
+    assert.match(index, /aria-labelledby="project-templates-modal-title"/);
+    assert.match(index, /El cliente y las fechas nunca se copian/);
+    assert.match(projectsSource, /getProjectTemplatePayload/);
+    assert.match(projectsSource, /templatePayload\.tasks/);
+    assert.doesNotMatch(templateUtils, /\bclient\s*:/);
+    assert.doesNotMatch(templateUtils, /\baccepted\s*:/);
+});
+
+test('recurring finances require confirmation and protect each occurrence from duplicates', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const financeSource = await readFile(
+        path.join(ROOT, 'modules', 'FinanzasModule.js'),
+        'utf8'
+    );
+
+    assert.match(index, /id="btnManageFinanceRecurring"/);
+    assert.match(index, /aria-labelledby="finance-recurring-modal-title"/);
+    assert.match(index, /No se crean ingresos ni gastos automáticamente/);
+    assert.match(index, /id="fin-recurring-due-panel"/);
+    assert.match(financeSource, /openFinanceRecurringRegistration/);
+    assert.match(financeSource, /hasRecordedFinanceOccurrence/);
+    assert.match(financeSource, /recurringOccurrence/);
+});

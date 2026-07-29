@@ -1,5 +1,12 @@
 import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import {
+    buildProjectTemplate,
+    getProjectTemplatePayload,
+    normalizeProjectTemplateRegistry,
+    removeProjectTemplate,
+    upsertProjectTemplate
+} from '../project-template-utils.mjs?v=20260729-project-templates';
 
 export class ProjectsModule {
     constructor(appController) {
@@ -8,6 +15,8 @@ export class ProjectsModule {
         this.history = [];
         this.currentProjectId = null;
         this.editingStatusNoteProjectId = null;
+        this.selectedTemplateId = null;
+        this.templateModalReturnFocus = null;
         this.FIXED_FEE = 0.0732; // Costo operativo retiro PayPal/Lemon (7.32%)
 
         window.projects = this;
@@ -51,10 +60,14 @@ export class ProjectsModule {
                     startDate: '2026-04-24'
                 };
             }
+
+            const templates = localStorage.getItem('projectPulseTemplates');
+            this.templateRegistry = normalizeProjectTemplateRegistry(templates);
         } catch (err) {
             console.error('Error loading Projects data', err);
             this.projects = [];
             this.history = [];
+            this.templateRegistry = normalizeProjectTemplateRegistry(null);
             this.subscription = {
                 plan: 'Explorer',
                 cost: 37.18,
@@ -68,6 +81,338 @@ export class ProjectsModule {
         localStorage.setItem('projectPulseData', JSON.stringify(this.projects));
         localStorage.setItem('projectPulseHistory', JSON.stringify(this.history));
         localStorage.setItem('projectPulseSubscription', JSON.stringify(this.subscription));
+    }
+
+    saveTemplateData() {
+        this.templateRegistry = normalizeProjectTemplateRegistry(this.templateRegistry);
+        localStorage.setItem('projectPulseTemplates', JSON.stringify(this.templateRegistry));
+    }
+
+    getProjectTemplateById(templateId) {
+        const id = String(templateId || '');
+        return this.templateRegistry?.templates?.find(template => template.id === id) || null;
+    }
+
+    getProjectTemplateDraftSource() {
+        return {
+            project: document.getElementById('projectName')?.value?.trim() || '',
+            deliveryDays: document.getElementById('deliveryDays')?.value || null,
+            budgetGross: document.getElementById('budgetGross')?.value || null,
+            feeType: document.getElementById('workanaFeeSelect')?.value || '20',
+            manualPercent: document.getElementById('customWorkanaFee')?.value || 0,
+            source: document.getElementById('projectSourceSelect')?.value || 'workana',
+            summary: '',
+            phases: '',
+            tasks: []
+        };
+    }
+
+    resolveProjectTemplateSource(sourceValue) {
+        if (!sourceValue || sourceValue === 'draft') {
+            return this.getProjectTemplateDraftSource();
+        }
+
+        const separatorIndex = sourceValue.indexOf(':');
+        if (separatorIndex < 0) return null;
+        const collection = sourceValue.slice(0, separatorIndex);
+        const projectId = sourceValue.slice(separatorIndex + 1);
+        const sourceList = collection === 'history' ? this.history : this.projects;
+        return sourceList.find(project => String(project.id) === projectId) || null;
+    }
+
+    renderProjectTemplateControls() {
+        const select = document.getElementById('projectTemplateSelect');
+        if (!select) return;
+
+        const templates = this.templateRegistry?.templates || [];
+        const selectedTemplate = this.getProjectTemplateById(this.selectedTemplateId);
+        if (!selectedTemplate) this.selectedTemplateId = null;
+
+        select.innerHTML = [
+            '<option value="">Sin plantilla</option>',
+            ...templates.map(template => (
+                `<option value="${escapeHtml(template.id)}">${escapeHtml(template.name)}</option>`
+            ))
+        ].join('');
+        select.value = this.selectedTemplateId || '';
+        this.updateProjectTemplateSummary();
+    }
+
+    updateProjectTemplateSummary() {
+        const summary = document.getElementById('projectTemplateSummary');
+        if (!summary) return;
+        const template = this.getProjectTemplateById(this.selectedTemplateId);
+
+        if (!template) {
+            summary.textContent = this.templateRegistry?.templates?.length
+                ? 'Elegí una plantilla para completar la estructura repetitiva del proyecto.'
+                : 'Todavía no hay plantillas. Podés crearlas desde un proyecto existente o desde este formulario.';
+            return;
+        }
+
+        const details = [];
+        if (template.deliveryDays !== null) details.push(`${template.deliveryDays} días`);
+        if (template.tasks.length) {
+            details.push(`${template.tasks.length} ${template.tasks.length === 1 ? 'tarea' : 'tareas'}`);
+        }
+        if (template.summary || template.phases) details.push('plan incluido');
+        if (template.includeBudget && template.budgetGross !== null) details.push('presupuesto incluido');
+
+        summary.textContent = details.length
+            ? `${template.name}: ${details.join(' · ')}. Podés ajustar cualquier dato antes de guardar.`
+            : `${template.name} aplicada. Podés ajustar cualquier dato antes de guardar.`;
+    }
+
+    applyProjectTemplate(templateId, { closeManager = false, announce = true } = {}) {
+        const template = this.getProjectTemplateById(templateId);
+        this.selectedTemplateId = template?.id || null;
+
+        const select = document.getElementById('projectTemplateSelect');
+        if (select) select.value = this.selectedTemplateId || '';
+
+        if (!template) {
+            this.updateProjectTemplateSummary();
+            return;
+        }
+
+        const projectName = document.getElementById('projectName');
+        const deliveryDays = document.getElementById('deliveryDays');
+        const budgetGross = document.getElementById('budgetGross');
+        const feeSelect = document.getElementById('workanaFeeSelect');
+        const manualFee = document.getElementById('customWorkanaFee');
+        const sourceSelect = document.getElementById('projectSourceSelect');
+        const customContainer = document.getElementById('customFeeContainer');
+
+        if (projectName && template.projectName) projectName.value = template.projectName;
+        if (deliveryDays && template.deliveryDays !== null) {
+            deliveryDays.value = String(template.deliveryDays);
+        }
+        if (budgetGross && template.includeBudget && template.budgetGross !== null) {
+            budgetGross.value = String(template.budgetGross);
+        }
+        if (feeSelect) feeSelect.value = String(template.feeType);
+        if (manualFee) manualFee.value = String(template.manualPercent || 0);
+        if (sourceSelect) sourceSelect.value = template.source;
+        customContainer?.classList.toggle('hidden', template.feeType !== 'custom');
+
+        this.updateProjectTemplateSummary();
+        if (closeManager) {
+            this.templateModalReturnFocus = projectName || select;
+            this.closeProjectTemplatesModal();
+        }
+        if (announce) this.app.showToast?.(`Plantilla ${template.name} aplicada.`);
+        if (!closeManager) projectName?.focus();
+    }
+
+    renderProjectTemplateSourceOptions() {
+        const select = document.getElementById('project-template-source');
+        if (!select) return;
+        const previousValue = select.value || 'draft';
+        select.replaceChildren();
+
+        const draftOption = document.createElement('option');
+        draftOption.value = 'draft';
+        draftOption.textContent = 'Formulario de Nuevo Proyecto';
+        select.appendChild(draftOption);
+
+        const appendProjectGroup = (label, collection, prefix) => {
+            if (!collection.length) return;
+            const group = document.createElement('optgroup');
+            group.label = label;
+            collection.forEach(project => {
+                const option = document.createElement('option');
+                option.value = `${prefix}:${project.id}`;
+                option.textContent = project.client
+                    ? `${project.client} — ${project.project}`
+                    : project.project;
+                group.appendChild(option);
+            });
+            select.appendChild(group);
+        };
+
+        appendProjectGroup('Proyectos activos', this.projects, 'active');
+        appendProjectGroup(
+            'Historial reciente',
+            [...this.history].slice(-20).reverse(),
+            'history'
+        );
+
+        const availableValues = Array.from(select.options).map(option => option.value);
+        select.value = availableValues.includes(previousValue) ? previousValue : 'draft';
+    }
+
+    openProjectTemplatesModal(returnFocusElement = null) {
+        const modal = document.getElementById('project-templates-modal');
+        if (!modal) return;
+        this.templateModalReturnFocus = returnFocusElement || document.activeElement;
+        this.renderProjectTemplateSourceOptions();
+        this.renderProjectTemplatesManager();
+        modal.classList.remove('hidden');
+        setTimeout(() => document.getElementById('project-template-name')?.focus(), 0);
+    }
+
+    closeProjectTemplatesModal() {
+        const modal = document.getElementById('project-templates-modal');
+        modal?.classList.add('hidden');
+        const error = document.getElementById('project-template-form-error');
+        error?.classList.add('hidden');
+        if (error) error.textContent = '';
+        const returnFocus = this.templateModalReturnFocus;
+        this.templateModalReturnFocus = null;
+        setTimeout(() => returnFocus?.focus?.(), 0);
+    }
+
+    createProjectTemplateFromManager() {
+        const nameInput = document.getElementById('project-template-name');
+        const sourceSelect = document.getElementById('project-template-source');
+        const includeBudgetInput = document.getElementById('project-template-include-budget');
+        const error = document.getElementById('project-template-form-error');
+        const name = nameInput?.value?.trim() || '';
+        const source = this.resolveProjectTemplateSource(sourceSelect?.value || 'draft');
+        const includeBudget = includeBudgetInput?.checked === true;
+
+        const showError = message => {
+            if (!error) return;
+            error.textContent = message;
+            error.classList.remove('hidden');
+        };
+
+        error?.classList.add('hidden');
+        if (error) error.textContent = '';
+        if (!name) {
+            showError('Escribí un nombre para identificar la plantilla.');
+            nameInput?.focus();
+            return;
+        }
+        if (!source) {
+            showError('El proyecto elegido ya no está disponible.');
+            return;
+        }
+
+        const hasUsefulDraft = sourceSelect?.value !== 'draft'
+            || Boolean(source.project || source.deliveryDays);
+        if (!hasUsefulDraft) {
+            showError('Completá al menos el nombre del proyecto o los días de entrega en el formulario.');
+            return;
+        }
+        if (includeBudget && !(Number(source.budgetGross) >= 0)) {
+            showError('Completá un presupuesto válido o desactivá la opción de incluirlo.');
+            return;
+        }
+
+        const now = new Date().toISOString();
+        const template = buildProjectTemplate(source, {
+            id: `project-template-${Date.now()}-${this.templateRegistry.templates.length + 1}`,
+            name,
+            includeBudget,
+            now
+        });
+
+        this.templateRegistry = upsertProjectTemplate(this.templateRegistry, template);
+        this.saveTemplateData();
+        this.renderProjectTemplateControls();
+        this.renderProjectTemplatesManager();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.app.showToast?.(`Plantilla ${template.name} guardada.`);
+
+        if (nameInput) nameInput.value = '';
+        if (includeBudgetInput) includeBudgetInput.checked = false;
+        nameInput?.focus();
+    }
+
+    renderProjectTemplatesManager() {
+        const list = document.getElementById('project-templates-list');
+        const count = document.getElementById('project-template-count');
+        if (!list || !count) return;
+
+        const templates = this.templateRegistry?.templates || [];
+        count.textContent = `${templates.length} ${templates.length === 1 ? 'guardada' : 'guardadas'}`;
+
+        if (!templates.length) {
+            list.innerHTML = `
+                <div class="project-template-empty">
+                    <i class="ph ph-stack-simple" style="font-size:1.5rem;"></i>
+                    <p style="margin:0.45rem 0 0;">Todavía no guardaste ninguna plantilla.</p>
+                </div>
+            `;
+            return;
+        }
+
+        list.innerHTML = templates.map(template => {
+            const details = [];
+            if (template.deliveryDays !== null) details.push(`${template.deliveryDays} días`);
+            if (template.tasks.length) {
+                details.push(`${template.tasks.length} ${template.tasks.length === 1 ? 'tarea' : 'tareas'}`);
+            }
+            if (template.summary || template.phases) details.push('con plan');
+            details.push(
+                template.includeBudget && template.budgetGross !== null
+                    ? `USD ${template.budgetGross.toFixed(2)}`
+                    : 'precio variable'
+            );
+            const subtitle = template.projectName
+                ? `${template.projectName} · ${details.join(' · ')}`
+                : details.join(' · ');
+
+            return `
+                <article class="project-template-list-item">
+                    <div class="project-template-list-copy">
+                        <strong>${escapeHtml(template.name)}</strong>
+                        <span>${escapeHtml(subtitle)}</span>
+                    </div>
+                    <div class="project-template-list-actions">
+                        <button
+                            type="button"
+                            class="project-template-apply"
+                            data-template-id="${escapeHtml(template.id)}"
+                        >
+                            Aplicar
+                        </button>
+                        <button
+                            type="button"
+                            class="icon-action-button project-template-delete"
+                            data-template-id="${escapeHtml(template.id)}"
+                            aria-label="Eliminar plantilla ${escapeHtml(template.name)}"
+                            data-tooltip="Eliminar plantilla"
+                        >
+                            <i class="ph ph-trash"></i>
+                        </button>
+                    </div>
+                </article>
+            `;
+        }).join('');
+
+        list.querySelectorAll('.project-template-apply').forEach(button => {
+            button.addEventListener('click', () => {
+                this.applyProjectTemplate(button.dataset.templateId, {
+                    closeManager: true
+                });
+            });
+        });
+
+        list.querySelectorAll('.project-template-delete').forEach(button => {
+            button.addEventListener('click', () => {
+                const template = this.getProjectTemplateById(button.dataset.templateId);
+                if (!template) return;
+                const confirmed = confirm(
+                    `¿Eliminar la plantilla "${template.name}"? Los proyectos creados con ella no se modificarán.`
+                );
+                if (!confirmed) return;
+
+                this.templateRegistry = removeProjectTemplate(
+                    this.templateRegistry,
+                    template.id
+                );
+                if (this.selectedTemplateId === template.id) {
+                    this.selectedTemplateId = null;
+                }
+                this.saveTemplateData();
+                this.renderProjectTemplateControls();
+                this.renderProjectTemplatesManager();
+                this.app.auth?.syncToCloud(false).catch(() => {});
+                this.app.showToast?.(`Plantilla ${template.name} eliminada.`);
+            });
+        });
     }
 
     calculateNet(gross, feeType, manualPercent, isDelegated = false, isReceived = false) {
@@ -164,6 +509,42 @@ export class ProjectsModule {
             });
         }
 
+        const templateSelect = document.getElementById('projectTemplateSelect');
+        const templateManageButton = document.getElementById('btnManageProjectTemplates');
+        const templateModal = document.getElementById('project-templates-modal');
+        const templateCloseButton = document.getElementById('project-templates-close');
+        const templateCreateForm = document.getElementById('project-template-create-form');
+
+        templateSelect?.addEventListener('change', () => {
+            this.applyProjectTemplate(templateSelect.value);
+        });
+
+        templateManageButton?.addEventListener('click', () => {
+            this.openProjectTemplatesModal(templateManageButton);
+        });
+
+        templateCloseButton?.addEventListener('click', () => {
+            this.closeProjectTemplatesModal();
+        });
+
+        templateModal?.addEventListener('click', event => {
+            if (event.target === templateModal) {
+                this.closeProjectTemplatesModal();
+            }
+        });
+
+        templateModal?.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.closeProjectTemplatesModal();
+            }
+        });
+
+        templateCreateForm?.addEventListener('submit', event => {
+            event.preventDefault();
+            this.createProjectTemplateFromManager();
+        });
+
         // Quick Now Date/Time button for project acceptance
         const btnNowAccept = document.getElementById('btn-now-accept-date');
         if (btnNowAccept) {
@@ -197,12 +578,18 @@ export class ProjectsModule {
                 const isDel = false;
                 const isRec = false;
 
+                const template = this.getProjectTemplateById(this.selectedTemplateId);
+                const projectId = Date.now();
+                const templatePayload = getProjectTemplatePayload(
+                    template,
+                    (_, index) => projectId + index + 1
+                );
                 const timeTotal = days * 24 * 60 * 60 * 1000;
                 const deadline = new Date(new Date(accepted).getTime() + timeTotal).toISOString();
                 const net = this.calculateNet(gross, feeType, customPct, isDel, isRec);
 
                 const newProj = {
-                    id: Date.now(),
+                    id: projectId,
                     client,
                     project,
                     accepted,
@@ -215,9 +602,9 @@ export class ProjectsModule {
                     budgetNet: net,
                     timeSpent: 0,
                     timerStart: null,
-                    tasks: [],
-                    summary: '',
-                    phases: '',
+                    tasks: templatePayload.tasks,
+                    summary: templatePayload.summary,
+                    phases: templatePayload.phases,
                     isDelivered: false,
                     deliveredAt: null,
                     deadline,
@@ -228,7 +615,15 @@ export class ProjectsModule {
                 this.saveData();
                 this.render();
                 form.reset();
+                this.selectedTemplateId = null;
+                if (templateSelect) templateSelect.value = '';
+                this.updateProjectTemplateSummary();
                 customContainer?.classList.add('hidden');
+                this.app.showToast?.(
+                    template
+                        ? `Proyecto creado con la plantilla ${template.name}.`
+                        : 'Proyecto creado.'
+                );
             });
         }
 
@@ -599,6 +994,7 @@ export class ProjectsModule {
 
     render() {
         this.renderSubscription();
+        this.renderProjectTemplateControls();
         const list = document.getElementById('projectsList');
         const activeCount = document.getElementById('activeCount');
         if (!list || !activeCount) return;

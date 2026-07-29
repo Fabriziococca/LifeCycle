@@ -6,7 +6,7 @@ import {
     getBackupCategories,
     MAX_BACKUP_BYTES,
     parseAndValidateBackupText
-} from '../backup-utils.mjs?v=20260727-safe-backup';
+} from '../backup-utils.mjs?v=20260729-project-templates';
 
 export class BackupModule {
     constructor(appController) {

@@ -128,3 +128,27 @@ Antes de entregar un cambio de interfaz:
 
 Las pruebas de contratos de interfaz en `tests/ui-contracts.test.mjs` cubren
 parte de estas reglas. No reemplazan la verificación funcional en navegador.
+
+## 10. Plantillas reutilizables
+
+- Una plantilla reutiliza estructura, no identidad: nunca copia cliente, fecha
+  de aceptación, fecha límite calculada ni estados de entrega.
+- Puede copiar nombre de servicio, plazo, comisión, origen, plan y tareas; las
+  tareas se crean con identificadores nuevos y siempre pendientes.
+- El presupuesto es optativo porque puede variar entre clientes.
+- Aplicar una plantilla solo completa el formulario. El usuario puede revisar
+  y modificar todo antes de crear el proyecto.
+- Administrarlas es una acción ocasional; seleccionarlas permanece junto al
+  formulario donde realmente ahorran tiempo.
+
+## 11. Movimientos financieros recurrentes
+
+- Una regla recurrente nunca crea ingresos ni gastos silenciosamente.
+- Al vencer se muestra como pendiente y abre el formulario original con datos
+  precargados; el registro ocurre únicamente después de la confirmación.
+- Monto, moneda, fecha, categoría y descripción siguen siendo editables en
+  cada ocurrencia.
+- Cada ocurrencia guarda el identificador de la regla y su fecha prevista para
+  impedir duplicados.
+- Una regla se puede pausar sin perder su configuración. Eliminarla no borra
+  movimientos financieros que ya fueron confirmados.

@@ -4,6 +4,15 @@ import {
     parseDateLocal
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import {
+    advanceFinanceRecurringRule,
+    buildFinanceRecurringRule,
+    getDueFinanceRecurringRules,
+    hasRecordedFinanceOccurrence,
+    normalizeFinanceRecurringRules,
+    removeFinanceRecurringRule,
+    upsertFinanceRecurringRule
+} from '../finance-recurring-utils.mjs?v=20260729-finance-recurring';
 
 export class FinanzasModule {
     constructor(appController) {
@@ -11,6 +20,9 @@ export class FinanzasModule {
         this.data = this.loadData();
         this.currentProjectId = null;
         this.activeTab = 'income'; // 'income' o 'expense'
+        this.pendingRecurringContext = null;
+        this.editingRecurringRuleId = null;
+        this.recurringModalReturnFocus = null;
 
         this.monthSelect = document.getElementById('finanzas-month-select');
         this.listContainer = document.getElementById('finanzasList');
@@ -20,12 +32,13 @@ export class FinanzasModule {
 
     loadData() {
         const raw = localStorage.getItem('finanzasData');
-        const defaultData = { entries: [], expenses: [] };
+        const defaultData = { entries: [], expenses: [], recurringRules: [] };
         if (!raw) return defaultData;
         try {
             const parsed = JSON.parse(raw) || {};
             if (!parsed.entries) parsed.entries = [];
             if (!parsed.expenses) parsed.expenses = [];
+            parsed.recurringRules = normalizeFinanceRecurringRules(parsed.recurringRules);
             return parsed;
         } catch (e) {
             console.error("Error parsing finanzas data:", e);
@@ -35,6 +48,519 @@ export class FinanzasModule {
 
     saveData() {
         localStorage.setItem('finanzasData', JSON.stringify(this.data));
+    }
+
+    getFinanceRecurringRuleById(ruleId) {
+        const id = String(ruleId || '');
+        return (this.data.recurringRules || []).find(rule => rule.id === id) || null;
+    }
+
+    getFinanceRecurringCategoryLabel(type, category) {
+        const labels = {
+            income: {
+                discord: 'Discord',
+                trading: 'Trading',
+                extraordinary: 'Ingreso extraordinario'
+            },
+            expense: {
+                comida: 'Comida & Supermercado',
+                vehiculo: 'Vehículo & Nafta',
+                servicios: 'Servicios & Suscripciones',
+                salud: 'Salud & Farmacia',
+                ocio: 'Salidas & Ocio',
+                otros: 'Otros'
+            }
+        };
+        return labels[type]?.[category]
+            || (category ? category.charAt(0).toUpperCase() + category.slice(1) : 'Otros');
+    }
+
+    formatFinanceRecurringAmount(rule) {
+        const locale = rule.currency === 'ARS' ? 'es-AR' : 'en-US';
+        const value = new Intl.NumberFormat(locale, {
+            minimumFractionDigits: rule.currency === 'ARS' ? 0 : 2,
+            maximumFractionDigits: rule.currency === 'ARS' ? 0 : 2
+        }).format(rule.amount);
+        return `${rule.currency} ${value}`;
+    }
+
+    formatFinanceRecurringDate(dateValue) {
+        const date = parseDateLocal(dateValue);
+        return date
+            ? date.toLocaleDateString('es-AR', {
+                day: 'numeric',
+                month: 'short',
+                year: 'numeric'
+            })
+            : dateValue;
+    }
+
+    getFinanceRecurringFrequencyLabel(intervalMonths) {
+        if (intervalMonths === 1) return 'mensual';
+        if (intervalMonths === 12) return 'anual';
+        return `cada ${intervalMonths} meses`;
+    }
+
+    clearPendingRecurringRegistration() {
+        this.pendingRecurringContext = null;
+        const incomeNote = document.getElementById('fin-log-recurring-context');
+        const expenseNote = document.getElementById('fin-expense-recurring-context');
+        const incomeSave = document.getElementById('fin-log-save');
+        const expenseSave = document.getElementById('fin-expense-save');
+
+        incomeNote?.classList.add('hidden');
+        expenseNote?.classList.add('hidden');
+        if (incomeNote) incomeNote.textContent = '';
+        if (expenseNote) expenseNote.textContent = '';
+        if (incomeSave) incomeSave.textContent = 'Guardar Ingreso';
+        if (expenseSave) expenseSave.textContent = 'Guardar Gasto';
+    }
+
+    renderFinanceRecurringCategoryOptions(selectedCategory = null) {
+        const typeSelect = document.getElementById('finance-recurring-type');
+        const categorySelect = document.getElementById('finance-recurring-category');
+        if (!typeSelect || !categorySelect) return;
+
+        const type = typeSelect.value === 'income' ? 'income' : 'expense';
+        const options = type === 'income'
+            ? [
+                ['discord', 'Discord (Negocio)'],
+                ['trading', 'Trading'],
+                ['extraordinary', 'Ingreso extraordinario']
+            ]
+            : [
+                ['comida', 'Comida & Supermercado'],
+                ['vehiculo', 'Vehículo & Nafta'],
+                ['servicios', 'Servicios & Suscripciones'],
+                ['salud', 'Salud & Farmacia'],
+                ['ocio', 'Salidas & Ocio'],
+                ['otros', 'Otros'],
+                ['custom', '+ Categoría personalizada']
+            ];
+
+        const fixedValues = options.map(([value]) => value);
+        const targetValue = fixedValues.includes(selectedCategory)
+            ? selectedCategory
+            : (type === 'expense' && selectedCategory ? 'custom' : options[0][0]);
+
+        categorySelect.innerHTML = options
+            .map(([value, label]) => (
+                `<option value="${value}">${escapeHtml(label)}</option>`
+            ))
+            .join('');
+        categorySelect.value = targetValue;
+
+        const customInput = document.getElementById('finance-recurring-custom-category');
+        if (customInput && targetValue === 'custom' && selectedCategory) {
+            customInput.value = selectedCategory;
+        }
+        this.updateFinanceRecurringCustomCategoryVisibility();
+    }
+
+    updateFinanceRecurringCustomCategoryVisibility() {
+        const type = document.getElementById('finance-recurring-type')?.value;
+        const category = document.getElementById('finance-recurring-category')?.value;
+        const group = document.getElementById('finance-recurring-custom-category-group');
+        const input = document.getElementById('finance-recurring-custom-category');
+        const show = type === 'expense' && category === 'custom';
+        group?.classList.toggle('hidden', !show);
+        if (input) input.required = show;
+    }
+
+    resetFinanceRecurringForm() {
+        this.editingRecurringRuleId = null;
+        const form = document.getElementById('finance-recurring-form');
+        form?.reset();
+
+        const type = document.getElementById('finance-recurring-type');
+        const nextDate = document.getElementById('finance-recurring-next-date');
+        const custom = document.getElementById('finance-recurring-custom-category');
+        const title = document.getElementById('finance-recurring-form-title');
+        const save = document.getElementById('finance-recurring-save');
+        const reset = document.getElementById('finance-recurring-form-reset');
+        const error = document.getElementById('finance-recurring-form-error');
+
+        if (type) type.value = 'expense';
+        if (nextDate) nextDate.value = getLocalISODate();
+        if (custom) custom.value = '';
+        if (title) title.textContent = 'Nuevo movimiento';
+        if (save) save.innerHTML = '<i class="ph ph-floppy-disk"></i> Guardar recurrente';
+        reset?.classList.add('hidden');
+        error?.classList.add('hidden');
+        if (error) error.textContent = '';
+        this.renderFinanceRecurringCategoryOptions();
+    }
+
+    openFinanceRecurringModal(returnFocusElement = null) {
+        const modal = document.getElementById('finance-recurring-modal');
+        if (!modal) return;
+        this.recurringModalReturnFocus = returnFocusElement || document.activeElement;
+        this.resetFinanceRecurringForm();
+        this.renderFinanceRecurringManager();
+        modal.classList.remove('hidden');
+        setTimeout(() => document.getElementById('finance-recurring-name')?.focus(), 0);
+    }
+
+    closeFinanceRecurringModal() {
+        document.getElementById('finance-recurring-modal')?.classList.add('hidden');
+        this.resetFinanceRecurringForm();
+        const returnFocus = this.recurringModalReturnFocus;
+        this.recurringModalReturnFocus = null;
+        setTimeout(() => returnFocus?.focus?.(), 0);
+    }
+
+    saveFinanceRecurringRule() {
+        const type = document.getElementById('finance-recurring-type')?.value || 'expense';
+        const categoryValue = document.getElementById('finance-recurring-category')?.value || 'otros';
+        const customCategory = document.getElementById('finance-recurring-custom-category')?.value?.trim() || '';
+        const category = type === 'expense' && categoryValue === 'custom'
+            ? customCategory
+            : categoryValue;
+        const nextDueDate = document.getElementById('finance-recurring-next-date')?.value || '';
+        const existing = this.getFinanceRecurringRuleById(this.editingRecurringRuleId);
+        const error = document.getElementById('finance-recurring-form-error');
+
+        const showError = message => {
+            if (!error) return;
+            error.textContent = message;
+            error.classList.remove('hidden');
+        };
+        error?.classList.add('hidden');
+        if (error) error.textContent = '';
+
+        if (!category) {
+            showError('Escribí el nombre de la categoría personalizada.');
+            document.getElementById('finance-recurring-custom-category')?.focus();
+            return;
+        }
+
+        try {
+            const rule = buildFinanceRecurringRule({
+                id: existing?.id,
+                type,
+                name: document.getElementById('finance-recurring-name')?.value || '',
+                category,
+                description: document.getElementById('finance-recurring-description')?.value || '',
+                amount: document.getElementById('finance-recurring-amount')?.value,
+                currency: document.getElementById('finance-recurring-currency')?.value || 'USD',
+                intervalMonths: document.getElementById('finance-recurring-interval')?.value || 1,
+                anchorDay: Number(nextDueDate.slice(8, 10)),
+                nextDueDate,
+                active: existing?.active !== false,
+                createdAt: existing?.createdAt
+            }, {
+                id: existing?.id || `finance-recurring-${Date.now()}-${this.data.recurringRules.length + 1}`
+            });
+
+            this.data.recurringRules = upsertFinanceRecurringRule(
+                this.data.recurringRules,
+                rule
+            );
+            this.saveData();
+            this.app.auth?.syncToCloud(false).catch(() => {});
+            this.renderFinanceRecurringManager();
+            this.renderFinanceRecurringDuePanel();
+            this.resetFinanceRecurringForm();
+            this.app.showToast?.(
+                existing
+                    ? `Movimiento ${rule.name} actualizado.`
+                    : `Movimiento ${rule.name} creado.`
+            );
+        } catch (saveError) {
+            showError(saveError.message);
+        }
+    }
+
+    editFinanceRecurringRule(ruleId) {
+        const rule = this.getFinanceRecurringRuleById(ruleId);
+        if (!rule) return;
+        this.editingRecurringRuleId = rule.id;
+
+        const setValue = (id, value) => {
+            const element = document.getElementById(id);
+            if (element) element.value = String(value ?? '');
+        };
+        setValue('finance-recurring-name', rule.name);
+        setValue('finance-recurring-type', rule.type);
+        this.renderFinanceRecurringCategoryOptions(rule.category);
+        setValue('finance-recurring-description', rule.description);
+        setValue('finance-recurring-amount', rule.amount);
+        setValue('finance-recurring-currency', rule.currency);
+        setValue('finance-recurring-interval', rule.intervalMonths);
+        setValue('finance-recurring-next-date', rule.nextDueDate);
+
+        const title = document.getElementById('finance-recurring-form-title');
+        const save = document.getElementById('finance-recurring-save');
+        const reset = document.getElementById('finance-recurring-form-reset');
+        if (title) title.textContent = `Editar ${rule.name}`;
+        if (save) save.innerHTML = '<i class="ph ph-floppy-disk"></i> Guardar cambios';
+        reset?.classList.remove('hidden');
+        document.getElementById('finance-recurring-name')?.focus();
+    }
+
+    toggleFinanceRecurringRule(ruleId) {
+        const rule = this.getFinanceRecurringRuleById(ruleId);
+        if (!rule) return;
+        this.data.recurringRules = upsertFinanceRecurringRule(
+            this.data.recurringRules,
+            {
+                ...rule,
+                active: !rule.active,
+                updatedAt: new Date().toISOString()
+            }
+        );
+        this.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.renderFinanceRecurringManager();
+        this.renderFinanceRecurringDuePanel();
+        this.app.showToast?.(
+            `${rule.name} ${rule.active ? 'pausado' : 'reactivado'}.`
+        );
+    }
+
+    deleteFinanceRecurringRule(ruleId) {
+        const rule = this.getFinanceRecurringRuleById(ruleId);
+        if (!rule) return;
+        const confirmed = confirm(
+            `¿Eliminar el recurrente "${rule.name}"? Los movimientos ya registrados se conservarán.`
+        );
+        if (!confirmed) return;
+
+        this.data.recurringRules = removeFinanceRecurringRule(
+            this.data.recurringRules,
+            rule.id
+        );
+        if (this.editingRecurringRuleId === rule.id) {
+            this.resetFinanceRecurringForm();
+        }
+        this.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.renderFinanceRecurringManager();
+        this.renderFinanceRecurringDuePanel();
+        this.app.showToast?.(`Movimiento ${rule.name} eliminado.`);
+    }
+
+    renderFinanceRecurringManager() {
+        const list = document.getElementById('finance-recurring-list');
+        const count = document.getElementById('finance-recurring-count');
+        if (!list || !count) return;
+        const rules = this.data.recurringRules || [];
+        const activeCount = rules.filter(rule => rule.active).length;
+        count.textContent = `${rules.length} ${rules.length === 1 ? 'movimiento' : 'movimientos'} · ${activeCount} ${activeCount === 1 ? 'activo' : 'activos'}`;
+
+        if (!rules.length) {
+            list.innerHTML = `
+                <div class="project-template-empty">
+                    <i class="ph ph-arrows-clockwise" style="font-size:1.5rem;"></i>
+                    <p style="margin:0.45rem 0 0;">Todavía no configuraste movimientos recurrentes.</p>
+                </div>
+            `;
+            return;
+        }
+
+        list.innerHTML = rules.map(rule => {
+            const typeLabel = rule.type === 'income' ? 'Ingreso' : 'Gasto';
+            const categoryLabel = this.getFinanceRecurringCategoryLabel(rule.type, rule.category);
+            const nextDate = this.formatFinanceRecurringDate(rule.nextDueDate);
+            const frequency = this.getFinanceRecurringFrequencyLabel(rule.intervalMonths);
+            const statusLabel = rule.active ? 'Activo' : 'Pausado';
+
+            return `
+                <article class="finance-recurring-list-item ${rule.active ? '' : 'is-paused'}">
+                    <div class="finance-recurring-list-copy">
+                        <strong>${escapeHtml(rule.name)}</strong>
+                        <span>${escapeHtml(typeLabel)} · ${escapeHtml(categoryLabel)} · ${escapeHtml(this.formatFinanceRecurringAmount(rule))}</span>
+                        <span>Próximo: ${escapeHtml(nextDate)} · ${escapeHtml(frequency)}</span>
+                    </div>
+                    <div class="finance-recurring-list-actions">
+                        <span class="finance-recurring-status">${statusLabel}</span>
+                        <button
+                            type="button"
+                            class="icon-action-button finance-recurring-edit"
+                            data-rule-id="${escapeHtml(rule.id)}"
+                            aria-label="Editar movimiento ${escapeHtml(rule.name)}"
+                            data-tooltip="Editar recurrente"
+                        >
+                            <i class="ph ph-pencil-simple"></i>
+                        </button>
+                        <button
+                            type="button"
+                            class="icon-action-button finance-recurring-toggle"
+                            data-rule-id="${escapeHtml(rule.id)}"
+                            aria-label="${rule.active ? 'Pausar' : 'Reactivar'} movimiento ${escapeHtml(rule.name)}"
+                            data-tooltip="${rule.active ? 'Pausar recurrente' : 'Reactivar recurrente'}"
+                        >
+                            <i class="ph ${rule.active ? 'ph-pause' : 'ph-play'}"></i>
+                        </button>
+                        <button
+                            type="button"
+                            class="icon-action-button finance-recurring-delete"
+                            data-rule-id="${escapeHtml(rule.id)}"
+                            aria-label="Eliminar movimiento ${escapeHtml(rule.name)}"
+                            data-tooltip="Eliminar recurrente"
+                        >
+                            <i class="ph ph-trash"></i>
+                        </button>
+                    </div>
+                </article>
+            `;
+        }).join('');
+
+        list.querySelectorAll('.finance-recurring-edit').forEach(button => {
+            button.addEventListener('click', () => {
+                this.editFinanceRecurringRule(button.dataset.ruleId);
+            });
+        });
+        list.querySelectorAll('.finance-recurring-toggle').forEach(button => {
+            button.addEventListener('click', () => {
+                this.toggleFinanceRecurringRule(button.dataset.ruleId);
+            });
+        });
+        list.querySelectorAll('.finance-recurring-delete').forEach(button => {
+            button.addEventListener('click', () => {
+                this.deleteFinanceRecurringRule(button.dataset.ruleId);
+            });
+        });
+    }
+
+    renderFinanceRecurringDuePanel() {
+        const panel = document.getElementById('fin-recurring-due-panel');
+        const list = document.getElementById('fin-recurring-due-list');
+        const copy = document.getElementById('fin-recurring-due-copy');
+        if (!panel || !list || !copy) return;
+
+        const dueRules = getDueFinanceRecurringRules(
+            this.data.recurringRules,
+            getLocalISODate()
+        );
+        panel.classList.toggle('hidden', dueRules.length === 0);
+        if (!dueRules.length) {
+            list.innerHTML = '';
+            return;
+        }
+
+        copy.textContent = `${dueRules.length} ${dueRules.length === 1 ? 'movimiento necesita' : 'movimientos necesitan'} tu confirmación.`;
+        list.innerHTML = dueRules.map(rule => {
+            const typeLabel = rule.type === 'income' ? 'Ingreso' : 'Gasto';
+            return `
+                <article class="finance-recurring-due-item">
+                    <div class="finance-recurring-due-copy">
+                        <strong>${escapeHtml(rule.name)}</strong>
+                        <span>${escapeHtml(typeLabel)} · ${escapeHtml(this.formatFinanceRecurringAmount(rule))} · previsto para ${escapeHtml(this.formatFinanceRecurringDate(rule.nextDueDate))}</span>
+                    </div>
+                    <button
+                        type="button"
+                        class="finance-recurring-confirm"
+                        data-rule-id="${escapeHtml(rule.id)}"
+                    >
+                        Revisar y registrar
+                    </button>
+                </article>
+            `;
+        }).join('');
+
+        list.querySelectorAll('.finance-recurring-confirm').forEach(button => {
+            button.addEventListener('click', () => {
+                this.openFinanceRecurringRegistration(button.dataset.ruleId);
+            });
+        });
+    }
+
+    openFinanceRecurringRegistration(ruleId) {
+        const rule = this.getFinanceRecurringRuleById(ruleId);
+        if (!rule) return;
+        this.clearPendingRecurringRegistration();
+        this.pendingRecurringContext = {
+            ruleId: rule.id,
+            occurrenceDate: rule.nextDueDate
+        };
+
+        const noteText = `Confirmando "${rule.name}" previsto para ${this.formatFinanceRecurringDate(rule.nextDueDate)}. Podés corregir los datos antes de guardar.`;
+
+        if (rule.type === 'income') {
+            const form = document.getElementById('finanzas-log-form');
+            form?.reset();
+            const category = document.getElementById('fin-input-category');
+            const month = document.getElementById('fin-input-month');
+            const date = document.getElementById('fin-input-date');
+            const description = document.getElementById('fin-input-desc');
+            const amount = document.getElementById('fin-input-amount');
+            const currency = document.getElementById('fin-input-currency');
+            const note = document.getElementById('fin-log-recurring-context');
+            const save = document.getElementById('fin-log-save');
+
+            if (category) category.value = rule.category;
+            this.toggleModalFields();
+            if (month) month.value = rule.nextDueDate.slice(0, 7);
+            if (date) date.value = rule.nextDueDate;
+            if (description) description.value = rule.description;
+            if (amount) amount.value = String(rule.amount);
+            if (currency) currency.value = rule.currency;
+            if (note) {
+                note.textContent = noteText;
+                note.classList.remove('hidden');
+            }
+            if (save) save.textContent = 'Confirmar Ingreso';
+            document.getElementById('finanzas-log-modal')?.classList.remove('hidden');
+            amount?.focus();
+            return;
+        }
+
+        const form = document.getElementById('finanzas-expense-form');
+        form?.reset();
+        const category = document.getElementById('fin-expense-category');
+        const customGroup = document.getElementById('fin-expense-group-custom');
+        const custom = document.getElementById('fin-expense-custom-name');
+        const date = document.getElementById('fin-expense-date');
+        const description = document.getElementById('fin-expense-desc');
+        const amount = document.getElementById('fin-expense-amount');
+        const currency = document.getElementById('fin-expense-currency');
+        const note = document.getElementById('fin-expense-recurring-context');
+        const save = document.getElementById('fin-expense-save');
+        const fixedExpenseCategories = new Set([
+            'comida',
+            'vehiculo',
+            'servicios',
+            'salud',
+            'ocio',
+            'otros'
+        ]);
+
+        if (category) {
+            category.value = fixedExpenseCategories.has(rule.category)
+                ? rule.category
+                : 'custom';
+        }
+        const isCustom = !fixedExpenseCategories.has(rule.category);
+        customGroup?.classList.toggle('hidden', !isCustom);
+        if (custom) {
+            custom.value = isCustom ? rule.category : '';
+            custom.required = isCustom;
+        }
+        if (date) date.value = rule.nextDueDate;
+        if (description) description.value = rule.description;
+        if (amount) amount.value = String(rule.amount);
+        if (currency) currency.value = rule.currency;
+        if (note) {
+            note.textContent = noteText;
+            note.classList.remove('hidden');
+        }
+        if (save) save.textContent = 'Confirmar Gasto';
+        document.getElementById('finanzas-expense-modal')?.classList.remove('hidden');
+        amount?.focus();
+    }
+
+    advanceFinanceRecurringAfterRecord(context) {
+        if (!context) return;
+        const rule = this.getFinanceRecurringRuleById(context.ruleId);
+        if (!rule) return;
+        const advanced = advanceFinanceRecurringRule(rule, {
+            occurrenceDate: context.occurrenceDate
+        });
+        this.data.recurringRules = upsertFinanceRecurringRule(
+            this.data.recurringRules,
+            advanced
+        );
     }
 
     init() {
@@ -90,6 +616,7 @@ export class FinanzasModule {
         const categorySelect = document.getElementById('fin-input-category');
 
         btnOpenModal?.addEventListener('click', () => {
+            this.clearPendingRecurringRegistration();
             form?.reset();
             const dateInp = document.getElementById('fin-input-date');
             const monthInp = document.getElementById('fin-input-month');
@@ -102,6 +629,7 @@ export class FinanzasModule {
 
         cancelBtn?.addEventListener('click', () => {
             modal?.classList.add('hidden');
+            this.clearPendingRecurringRegistration();
         });
 
         categorySelect?.addEventListener('change', () => {
@@ -122,6 +650,7 @@ export class FinanzasModule {
         const customCategoryGroup = document.getElementById('fin-expense-group-custom');
 
         btnOpenExpenseModal?.addEventListener('click', () => {
+            this.clearPendingRecurringRegistration();
             expenseForm?.reset();
             const dateInp = document.getElementById('fin-expense-date');
             if (dateInp) dateInp.value = getLocalISODate();
@@ -131,6 +660,7 @@ export class FinanzasModule {
 
         cancelExpenseBtn?.addEventListener('click', () => {
             expenseModal?.classList.add('hidden');
+            this.clearPendingRecurringRegistration();
         });
 
         expenseCategorySelect?.addEventListener('change', () => {
@@ -148,6 +678,43 @@ export class FinanzasModule {
         expenseForm?.addEventListener('submit', (e) => {
             e.preventDefault();
             this.saveExpenseEntry();
+        });
+
+        const recurringManageButton = document.getElementById('btnManageFinanceRecurring');
+        const recurringModal = document.getElementById('finance-recurring-modal');
+        const recurringCloseButton = document.getElementById('finance-recurring-close');
+        const recurringForm = document.getElementById('finance-recurring-form');
+        const recurringType = document.getElementById('finance-recurring-type');
+        const recurringCategory = document.getElementById('finance-recurring-category');
+        const recurringResetButton = document.getElementById('finance-recurring-form-reset');
+
+        recurringManageButton?.addEventListener('click', () => {
+            this.openFinanceRecurringModal(recurringManageButton);
+        });
+        recurringCloseButton?.addEventListener('click', () => {
+            this.closeFinanceRecurringModal();
+        });
+        recurringModal?.addEventListener('click', event => {
+            if (event.target === recurringModal) this.closeFinanceRecurringModal();
+        });
+        recurringModal?.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.closeFinanceRecurringModal();
+            }
+        });
+        recurringType?.addEventListener('change', () => {
+            this.renderFinanceRecurringCategoryOptions();
+        });
+        recurringCategory?.addEventListener('change', () => {
+            this.updateFinanceRecurringCustomCategoryVisibility();
+        });
+        recurringResetButton?.addEventListener('click', () => {
+            this.resetFinanceRecurringForm();
+        });
+        recurringForm?.addEventListener('submit', event => {
+            event.preventDefault();
+            this.saveFinanceRecurringRule();
         });
 
         // Selector del mes global
@@ -218,6 +785,26 @@ export class FinanzasModule {
     }
 
     async saveEntry() {
+        const recurringContext = this.pendingRecurringContext
+            ? { ...this.pendingRecurringContext }
+            : null;
+        if (
+            recurringContext
+            && hasRecordedFinanceOccurrence(
+                this.data,
+                recurringContext.ruleId,
+                recurringContext.occurrenceDate
+            )
+        ) {
+            this.advanceFinanceRecurringAfterRecord(recurringContext);
+            this.saveData();
+            document.getElementById('finanzas-log-modal')?.classList.add('hidden');
+            this.clearPendingRecurringRegistration();
+            this.render();
+            this.app.showToast?.('Ese ingreso ya estaba registrado; se corrigió su próxima fecha.');
+            return;
+        }
+
         const category = document.getElementById('fin-input-category')?.value;
         const amountInput = parseFloat(document.getElementById('fin-input-amount')?.value) || 0;
         const currency = document.getElementById('fin-input-currency')?.value || 'USD';
@@ -259,13 +846,19 @@ export class FinanzasModule {
             category,
             date: dateVal,
             amount,
-            description: descVal
+            description: descVal,
+            ...(recurringContext ? {
+                recurringRuleId: recurringContext.ruleId,
+                recurringOccurrence: recurringContext.occurrenceDate
+            } : {})
         };
 
         this.data.entries.push(newEntry);
+        this.advanceFinanceRecurringAfterRecord(recurringContext);
         this.saveData();
 
         document.getElementById('finanzas-log-modal')?.classList.add('hidden');
+        this.clearPendingRecurringRegistration();
 
         this.app.auth?.syncToCloud(false).catch(() => {});
         this.render();
@@ -281,6 +874,26 @@ export class FinanzasModule {
     }
 
     async saveExpenseEntry() {
+        const recurringContext = this.pendingRecurringContext
+            ? { ...this.pendingRecurringContext }
+            : null;
+        if (
+            recurringContext
+            && hasRecordedFinanceOccurrence(
+                this.data,
+                recurringContext.ruleId,
+                recurringContext.occurrenceDate
+            )
+        ) {
+            this.advanceFinanceRecurringAfterRecord(recurringContext);
+            this.saveData();
+            document.getElementById('finanzas-expense-modal')?.classList.add('hidden');
+            this.clearPendingRecurringRegistration();
+            this.render();
+            this.app.showToast?.('Ese gasto ya estaba registrado; se corrigió su próxima fecha.');
+            return;
+        }
+
         const categorySelect = document.getElementById('fin-expense-category')?.value;
         const customName = (document.getElementById('fin-expense-custom-name')?.value || '').trim();
         const amountInput = parseFloat(document.getElementById('fin-expense-amount')?.value) || 0;
@@ -308,13 +921,19 @@ export class FinanzasModule {
             category,
             date: dateVal,
             amount,
-            description: descVal
+            description: descVal,
+            ...(recurringContext ? {
+                recurringRuleId: recurringContext.ruleId,
+                recurringOccurrence: recurringContext.occurrenceDate
+            } : {})
         };
 
         this.data.expenses.push(newExpense);
+        this.advanceFinanceRecurringAfterRecord(recurringContext);
         this.saveData();
 
         document.getElementById('finanzas-expense-modal')?.classList.add('hidden');
+        this.clearPendingRecurringRegistration();
 
         this.app.auth?.syncToCloud(false).catch(() => {});
         this.render();
@@ -639,6 +1258,7 @@ export class FinanzasModule {
     }
 
     render() {
+        this.renderFinanceRecurringDuePanel();
         const combined = this.getCombinedEntries();
         const expenses = this.data.expenses || [];
         const now = new Date();

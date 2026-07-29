@@ -45,6 +45,7 @@ const JSON_ROOT_TYPES = Object.freeze({
     projectPulseData: 'array',
     projectPulseHistory: 'array',
     projectPulseSubscription: 'object',
+    projectPulseTemplates: 'object',
     alerts_config: 'object',
     finanzasData: 'object',
     tareas_list: 'array',
@@ -132,7 +133,8 @@ const CATEGORY_GROUPS = Object.freeze([
         keys: [
             'projectPulseData',
             'projectPulseHistory',
-            'projectPulseSubscription'
+            'projectPulseSubscription',
+            'projectPulseTemplates'
         ]
     },
     { label: 'Gestor de alertas', keys: ['alerts_config'] },
@@ -150,6 +152,11 @@ const CATEGORY_GROUPS = Object.freeze([
 ]);
 
 const SUPPORTED_KEY_SET = new Set(CLOUD_SYNC_KEYS);
+const OPTIONAL_FULL_BACKUP_KEYS = new Set([
+    // Incorporada después de publicar el formato v2. Los backups v2 anteriores
+    // siguen siendo válidos y restauran esta sección como vacía.
+    'projectPulseTemplates'
+]);
 
 export class BackupValidationError extends Error {
     constructor(message, options = {}) {
@@ -356,10 +363,90 @@ function validateProject(project, path) {
     }
 }
 
+function validateProjectTemplate(template, path) {
+    assertOptionalId(template, path);
+    assertText(template.name, `${path}.name`);
+    assertOptionalTextFields(template, path, [
+        'projectName',
+        'feeType',
+        'source',
+        'summary',
+        'phases',
+        'createdAt',
+        'updatedAt'
+    ]);
+    assertOptionalNumberFields(template, path, [
+        'deliveryDays',
+        'budgetGross',
+        'manualPercent'
+    ]);
+    assertOptionalBooleanFields(template, path, ['includeBudget']);
+    if (Object.hasOwn(template, 'tasks')) {
+        assertArrayOfRecords(template.tasks, `${path}.tasks`, validateTask);
+    }
+}
+
 function validateFinanceItem(item, path) {
     assertOptionalId(item, path);
-    assertOptionalTextFields(item, path, ['description', 'category', 'date', 'source']);
+    assertOptionalTextFields(item, path, [
+        'description',
+        'category',
+        'date',
+        'source',
+        'recurringRuleId',
+        'recurringOccurrence'
+    ]);
     assertOptionalNumberFields(item, path, ['amount']);
+    if (
+        Object.hasOwn(item, 'recurringOccurrence')
+        && item.recurringOccurrence !== null
+        && !isValidISODate(item.recurringOccurrence)
+    ) {
+        throw new BackupValidationError(`"${path}.recurringOccurrence" no es una fecha válida.`);
+    }
+}
+
+function validateFinanceRecurringRule(rule, path) {
+    assertOptionalId(rule, path);
+    assertText(rule.name, `${path}.name`);
+    assertText(rule.type, `${path}.type`);
+    assertText(rule.category, `${path}.category`);
+    assertText(rule.nextDueDate, `${path}.nextDueDate`);
+    if (!isValidISODate(rule.nextDueDate)) {
+        throw new BackupValidationError(`"${path}.nextDueDate" no es una fecha válida.`);
+    }
+    if (!['income', 'expense'].includes(rule.type)) {
+        throw new BackupValidationError(`"${path}.type" no es un tipo financiero válido.`);
+    }
+    assertOptionalTextFields(rule, path, [
+        'description',
+        'currency',
+        'createdAt',
+        'updatedAt'
+    ]);
+    assertOptionalNumberFields(rule, path, [
+        'amount',
+        'intervalMonths',
+        'anchorDay'
+    ]);
+    assertOptionalBooleanFields(rule, path, ['active']);
+    if (!(Number(rule.amount) > 0)) {
+        throw new BackupValidationError(`"${path}.amount" debe ser mayor que cero.`);
+    }
+    if (
+        !Number.isInteger(Number(rule.intervalMonths))
+        || Number(rule.intervalMonths) < 1
+        || Number(rule.intervalMonths) > 24
+    ) {
+        throw new BackupValidationError(`"${path}.intervalMonths" no es una frecuencia válida.`);
+    }
+    if (
+        !Number.isInteger(Number(rule.anchorDay))
+        || Number(rule.anchorDay) < 1
+        || Number(rule.anchorDay) > 31
+    ) {
+        throw new BackupValidationError(`"${path}.anchorDay" no es un día válido.`);
+    }
 }
 
 function validateMeal(meal, path) {
@@ -553,6 +640,16 @@ function validateBackupDataShape(key, value) {
             assertOptionalTextFields(value, key, ['plan', 'startDate']);
             assertOptionalNumberFields(value, key, ['cost', 'cycle']);
             break;
+        case 'projectPulseTemplates':
+            assertOptionalNumberFields(value, key, ['version']);
+            if (Object.hasOwn(value, 'templates')) {
+                assertArrayOfRecords(
+                    value.templates,
+                    `${key}.templates`,
+                    validateProjectTemplate
+                );
+            }
+            break;
         case 'alerts_config':
             Object.entries(value).forEach(([alertKey, config]) => {
                 const path = `${key}.${alertKey}`;
@@ -573,6 +670,13 @@ function validateBackupDataShape(key, value) {
                     assertArrayOfRecords(value[section], `${key}.${section}`, validateFinanceItem);
                 }
             });
+            if (Object.hasOwn(value, 'recurringRules')) {
+                assertArrayOfRecords(
+                    value.recurringRules,
+                    `${key}.recurringRules`,
+                    validateFinanceRecurringRule
+                );
+            }
             break;
         case 'tareas_list':
             assertArrayOfRecords(value, key, validateTask);
@@ -765,7 +869,10 @@ export function parseAndValidateBackupText(text) {
             throw new BackupValidationError(`El backup contiene una clave desconocida: "${unknownKeys[0]}".`);
         }
 
-        const missingKeys = CLOUD_SYNC_KEYS.filter(key => !Object.hasOwn(root.data, key));
+        const missingKeys = CLOUD_SYNC_KEYS.filter(key => (
+            !Object.hasOwn(root.data, key)
+            && !OPTIONAL_FULL_BACKUP_KEYS.has(key)
+        ));
         if (missingKeys.length > 0) {
             throw new BackupValidationError(`El backup está incompleto: falta la sección "${missingKeys[0]}".`);
         }

@@ -1403,6 +1403,21 @@
                 </div>
                 <div class="card-body">
                     <form id="projectForm">
+                        <div class="project-template-picker">
+                            <div class="project-template-picker-copy">
+                                <label for="projectTemplateSelect">Plantilla reutilizable <span>(opcional)</span></label>
+                                <p id="projectTemplateSummary">Elegí una plantilla para completar la estructura repetitiva del proyecto.</p>
+                            </div>
+                            <div class="project-template-picker-actions">
+                                <select id="projectTemplateSelect" class="text-input" aria-describedby="projectTemplateSummary">
+                                    <option value="">Sin plantilla</option>
+                                </select>
+                                <button type="button" id="btnManageProjectTemplates" class="btn btn-secondary">
+                                    <i class="ph ph-stack"></i> Administrar
+                                </button>
+                            </div>
+                        </div>
+
                         <div class="form-row">
                             <div class="input-group half">
                                 <label for="clientName">Cliente</label>
@@ -1513,6 +1528,19 @@
                 </div>
             </div>
 
+            <section id="fin-recurring-due-panel" class="finance-recurring-due-panel hidden" aria-labelledby="fin-recurring-due-title">
+                <div class="finance-recurring-due-heading">
+                    <div class="finance-recurring-due-icon">
+                        <i class="ph ph-calendar-check"></i>
+                    </div>
+                    <div>
+                        <h3 id="fin-recurring-due-title">Movimientos por confirmar</h3>
+                        <p id="fin-recurring-due-copy">Revisalos antes de agregarlos a tus finanzas.</p>
+                    </div>
+                </div>
+                <div id="fin-recurring-due-list" class="finance-recurring-due-list"></div>
+            </section>
+
             <!-- Control de Pestañas (Ingresos vs Gastos) -->
             <div class="segmented-control" style="display: flex; background: rgba(255,255,255,0.03); padding: 4px; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid var(--surface-border);">
                 <button class="segment-btn active" id="btnFinTabIncome" style="flex: 1; padding: 10px; border: none; background: rgba(255,255,255,0.05); color: white; cursor: pointer; font-weight: bold; border-radius: 6px; font-size: 0.9rem; display:flex; align-items:center; justify-content:center; gap:8px; transition: background 0.2s;">
@@ -1526,7 +1554,10 @@
             <!-- Cabecera de la sección de distribución -->
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.25rem; flex-wrap: wrap; gap: 10px;">
                 <h3 id="fin-section-title" style="margin:0;">Distribución de Ingresos</h3>
-                <div style="display:flex; align-items:center; gap:10px;">
+                <div class="finance-header-actions" style="display:flex; align-items:center; gap:10px;">
+                    <button id="btnManageFinanceRecurring" class="btn btn-secondary" style="margin: 0; width: auto; padding: 8px 12px; font-size: 0.85rem; height:auto; display:flex; align-items:center; gap:6px;">
+                        <i class="ph ph-arrows-clockwise"></i> Recurrentes
+                    </button>
                     <select id="finanzas-month-select" class="number-input" style="width:auto; padding:6px 12px; margin:0; font-size:0.85rem; height: auto;"></select>
                     <button id="btnOpenFinanzasModal" class="btn btn-primary" style="margin: 0; width: auto; padding: 8px 12px; font-size: 0.85rem; height:auto; display:flex; align-items:center; gap:6px;">
                         <i class="ph ph-plus-circle" style="font-size:1rem;"></i> Registrar Ingreso
@@ -2165,6 +2196,7 @@
         <div class="modal-content">
             <h3>Registrar Ingreso</h3>
             <p class="modal-desc" style="margin-bottom: 1.5rem;">Cargá un nuevo ingreso a tus finanzas.</p>
+            <div id="fin-log-recurring-context" class="finance-recurring-registration-note hidden"></div>
 
             <form id="finanzas-log-form" onsubmit="event.preventDefault();">
                 <div class="input-group">
@@ -2263,6 +2295,7 @@
         <div class="modal-content">
             <h3 style="color: var(--status-orange);">Registrar Gasto</h3>
             <p class="modal-desc" style="margin-bottom: 1.5rem;">Cargá un nuevo gasto a tus finanzas.</p>
+            <div id="fin-expense-recurring-context" class="finance-recurring-registration-note hidden"></div>
 
             <form id="finanzas-expense-form" onsubmit="event.preventDefault();">
                 <div class="input-group">
@@ -2310,6 +2343,149 @@
                     <button type="submit" id="fin-expense-save" class="btn btn-save" style="background-color: var(--status-orange); border-color: var(--status-orange);">Guardar Gasto</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <div
+        id="finance-recurring-modal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="finance-recurring-modal-title"
+    >
+        <div class="modal-content finance-recurring-modal-content">
+            <div class="finance-recurring-modal-header">
+                <div>
+                    <span class="profile-eyebrow">FINANZAS</span>
+                    <h3 id="finance-recurring-modal-title">Movimientos recurrentes</h3>
+                    <p class="modal-desc">LifeCycle te los recuerda, pero solo se registran cuando vos confirmás cada ocurrencia.</p>
+                </div>
+                <button
+                    type="button"
+                    id="finance-recurring-close"
+                    class="icon-action-button"
+                    aria-label="Cerrar movimientos recurrentes"
+                    data-tooltip="Cerrar"
+                >
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+
+            <div class="finance-recurring-safety-note">
+                <i class="ph ph-shield-check"></i>
+                <span>No se crean ingresos ni gastos automáticamente.</span>
+            </div>
+
+            <form id="finance-recurring-form" class="finance-recurring-form-card">
+                <div class="finance-recurring-form-heading">
+                    <div>
+                        <h4 id="finance-recurring-form-title">Nuevo movimiento</h4>
+                        <p>Definí qué dato querés volver a confirmar cuando llegue la fecha.</p>
+                    </div>
+                    <button type="button" id="finance-recurring-form-reset" class="btn btn-secondary hidden">
+                        Cancelar edición
+                    </button>
+                </div>
+
+                <div class="form-row">
+                    <div class="input-group half">
+                        <label for="finance-recurring-name">Nombre</label>
+                        <input
+                            type="text"
+                            id="finance-recurring-name"
+                            class="text-input"
+                            maxlength="80"
+                            placeholder="Ej: Internet mensual"
+                            required
+                        >
+                    </div>
+                    <div class="input-group half">
+                        <label for="finance-recurring-type">Tipo</label>
+                        <select id="finance-recurring-type" class="text-input">
+                            <option value="expense">Gasto</option>
+                            <option value="income">Ingreso</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="form-row">
+                    <div class="input-group half">
+                        <label for="finance-recurring-category">Categoría</label>
+                        <select id="finance-recurring-category" class="text-input"></select>
+                    </div>
+                    <div id="finance-recurring-custom-category-group" class="input-group half hidden">
+                        <label for="finance-recurring-custom-category">Categoría personalizada</label>
+                        <input
+                            type="text"
+                            id="finance-recurring-custom-category"
+                            class="text-input"
+                            maxlength="60"
+                            placeholder="Ej: Gimnasio"
+                        >
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="finance-recurring-description">Descripción al registrar</label>
+                    <input
+                        type="text"
+                        id="finance-recurring-description"
+                        class="text-input"
+                        maxlength="160"
+                        placeholder="Ej: Abono de internet"
+                        required
+                    >
+                </div>
+
+                <div class="form-row">
+                    <div class="input-group half">
+                        <label for="finance-recurring-amount">Monto habitual</label>
+                        <div class="finance-recurring-amount-row">
+                            <input
+                                type="number"
+                                id="finance-recurring-amount"
+                                class="number-input"
+                                min="0.01"
+                                step="0.01"
+                                placeholder="0.00"
+                                required
+                            >
+                            <select id="finance-recurring-currency" class="number-input">
+                                <option value="USD">USD</option>
+                                <option value="ARS">ARS</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="input-group half">
+                        <label for="finance-recurring-interval">Frecuencia</label>
+                        <select id="finance-recurring-interval" class="text-input">
+                            <option value="1">Todos los meses</option>
+                            <option value="2">Cada 2 meses</option>
+                            <option value="3">Cada 3 meses</option>
+                            <option value="6">Cada 6 meses</option>
+                            <option value="12">Todos los años</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div class="input-group">
+                    <label for="finance-recurring-next-date">Próxima fecha a confirmar</label>
+                    <input type="date" id="finance-recurring-next-date" class="date-input" required>
+                </div>
+
+                <div id="finance-recurring-form-error" class="form-error hidden" role="alert"></div>
+                <button type="submit" id="finance-recurring-save" class="btn btn-primary finance-recurring-save">
+                    <i class="ph ph-floppy-disk"></i> Guardar recurrente
+                </button>
+            </form>
+
+            <div class="finance-recurring-list-heading">
+                <div>
+                    <h4>Configurados</h4>
+                    <p id="finance-recurring-count">0 movimientos</p>
+                </div>
+            </div>
+            <div id="finance-recurring-list" class="finance-recurring-list"></div>
         </div>
     </div>
 
@@ -2383,6 +2559,87 @@
             <div class="modal-actions" style="margin-top: 1.5rem;">
                 <button id="proj-plan-modal-save" class="btn btn-save" style="width: 100%;">Guardar Cambios</button>
             </div>
+        </div>
+    </div>
+
+    <div
+        id="project-templates-modal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="project-templates-modal-title"
+    >
+        <div class="modal-content project-templates-modal-content">
+            <div class="project-templates-modal-header">
+                <div>
+                    <span class="profile-eyebrow">PROYECTOS</span>
+                    <h3 id="project-templates-modal-title">Plantillas reutilizables</h3>
+                    <p class="modal-desc">Reutilizá plazos, comisión, origen, plan y tareas. El cliente y las fechas nunca se copian.</p>
+                </div>
+                <button
+                    type="button"
+                    id="project-templates-close"
+                    class="icon-action-button"
+                    aria-label="Cerrar plantillas de proyectos"
+                    data-tooltip="Cerrar"
+                >
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+
+            <form id="project-template-create-form" class="project-template-create-card">
+                <div class="project-template-form-heading">
+                    <div>
+                        <h4>Nueva plantilla</h4>
+                        <p>Podés tomar los datos del formulario actual o de un proyecto existente.</p>
+                    </div>
+                    <i class="ph ph-copy"></i>
+                </div>
+
+                <div class="form-row">
+                    <div class="input-group half">
+                        <label for="project-template-name">Nombre de la plantilla</label>
+                        <input
+                            type="text"
+                            id="project-template-name"
+                            class="text-input"
+                            maxlength="80"
+                            placeholder="Ej: Landing page estándar"
+                            required
+                        >
+                    </div>
+                    <div class="input-group half">
+                        <label for="project-template-source">Tomar estructura de</label>
+                        <select id="project-template-source" class="text-input" required>
+                            <option value="draft">Formulario de Nuevo Proyecto</option>
+                        </select>
+                    </div>
+                </div>
+
+                <label class="project-template-budget-option" for="project-template-include-budget">
+                    <input type="checkbox" id="project-template-include-budget">
+                    <span class="project-template-budget-check" aria-hidden="true">
+                        <i class="ph ph-check"></i>
+                    </span>
+                    <span>
+                        <strong>Incluir el presupuesto</strong>
+                        <small>Dejalo desactivado si el precio cambia entre clientes.</small>
+                    </span>
+                </label>
+
+                <div id="project-template-form-error" class="form-error hidden" role="alert"></div>
+                <button type="submit" class="btn btn-primary project-template-save-button">
+                    <i class="ph ph-floppy-disk"></i> Guardar plantilla
+                </button>
+            </form>
+
+            <div class="project-template-list-heading">
+                <div>
+                    <h4>Tus plantillas</h4>
+                    <p id="project-template-count">0 guardadas</p>
+                </div>
+            </div>
+            <div id="project-templates-list" class="project-templates-list"></div>
         </div>
     </div>
 

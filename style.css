@@ -5397,3 +5397,562 @@ body.modal-open {
         grid-column: 1 / -1;
     }
 }
+
+/* Plantillas reutilizables de Proyectos */
+.project-template-picker {
+    display: flex;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.35rem;
+    padding: 1rem;
+    border: 1px solid rgba(59, 130, 246, 0.26);
+    border-radius: 14px;
+    background: rgba(59, 130, 246, 0.055);
+}
+
+.project-template-picker-copy {
+    min-width: 0;
+}
+
+.project-template-picker-copy label {
+    display: block;
+    margin-bottom: 0.3rem;
+    color: #ffffff;
+    font-size: 0.88rem;
+    font-weight: 700;
+}
+
+.project-template-picker-copy label span {
+    color: var(--text-secondary);
+    font-weight: 500;
+}
+
+.project-template-picker-copy p {
+    max-width: 510px;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.45;
+}
+
+.project-template-picker-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    flex-shrink: 0;
+}
+
+.project-template-picker-actions .text-input {
+    width: min(260px, 30vw);
+    min-width: 190px;
+    margin: 0;
+}
+
+.project-template-picker-actions .btn {
+    width: auto;
+    height: 42px;
+    margin: 0;
+    white-space: nowrap;
+}
+
+.project-templates-modal-content {
+    width: min(780px, 94vw);
+    max-width: 780px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.project-templates-modal-header,
+.project-template-list-heading,
+.project-template-form-heading,
+.project-template-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.project-templates-modal-header {
+    align-items: flex-start;
+}
+
+.project-templates-modal-header h3,
+.project-template-list-heading h4,
+.project-template-form-heading h4 {
+    margin: 0;
+}
+
+.project-templates-modal-header .modal-desc,
+.project-template-list-heading p,
+.project-template-form-heading p {
+    margin: 0.35rem 0 0;
+}
+
+.project-template-create-card {
+    margin-top: 1.25rem;
+    padding: 1rem;
+    border: 1px solid rgba(59, 130, 246, 0.25);
+    border-radius: 14px;
+    background: rgba(59, 130, 246, 0.055);
+}
+
+.project-template-form-heading {
+    margin-bottom: 1rem;
+}
+
+.project-template-form-heading p,
+.project-template-list-heading p {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+}
+
+.project-template-form-heading > i {
+    color: #60a5fa;
+    font-size: 1.5rem;
+}
+
+.project-template-budget-option {
+    display: flex;
+    align-items: center;
+    gap: 0.7rem;
+    margin-top: 0.2rem;
+    padding: 0.75rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 11px;
+    cursor: pointer;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.project-template-budget-option input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+}
+
+.project-template-budget-check {
+    display: grid;
+    width: 24px;
+    height: 24px;
+    flex: 0 0 24px;
+    place-items: center;
+    border: 1px solid rgba(148, 163, 184, 0.5);
+    border-radius: 7px;
+    color: transparent;
+    background: rgba(15, 23, 42, 0.75);
+    transition: 160ms ease;
+}
+
+.project-template-budget-option input:checked + .project-template-budget-check {
+    border-color: #3b82f6;
+    color: #ffffff;
+    background: #3b82f6;
+}
+
+.project-template-budget-option input:focus-visible + .project-template-budget-check {
+    outline: 3px solid rgba(96, 165, 250, 0.4);
+    outline-offset: 2px;
+}
+
+.project-template-budget-option strong,
+.project-template-budget-option small {
+    display: block;
+}
+
+.project-template-budget-option small {
+    margin-top: 0.15rem;
+    color: var(--text-secondary);
+}
+
+.project-template-save-button.btn {
+    width: auto;
+    margin: 0.9rem 0 0 auto;
+}
+
+.project-template-list-heading {
+    margin: 1.4rem 0 0.75rem;
+}
+
+.project-templates-list {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.project-template-list-item {
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.project-template-list-copy {
+    min-width: 0;
+}
+
+.project-template-list-copy strong,
+.project-template-list-copy span {
+    display: block;
+}
+
+.project-template-list-copy strong {
+    overflow: hidden;
+    color: #ffffff;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.project-template-list-copy span {
+    margin-top: 0.25rem;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+}
+
+.project-template-list-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.45rem;
+    flex-shrink: 0;
+}
+
+.project-template-apply {
+    min-height: 36px;
+    padding: 0.45rem 0.75rem;
+    border: 1px solid rgba(59, 130, 246, 0.4);
+    border-radius: 9px;
+    color: #bfdbfe;
+    background: rgba(59, 130, 246, 0.12);
+    cursor: pointer;
+    font-weight: 700;
+}
+
+.project-template-empty {
+    padding: 1.35rem;
+    border: 1px dashed var(--surface-border);
+    border-radius: 12px;
+    color: var(--text-secondary);
+    text-align: center;
+}
+
+@media (max-width: 760px) {
+    .project-template-picker {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .project-template-picker-actions {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .project-template-picker-actions .text-input,
+    .project-template-picker-actions .btn {
+        width: 100%;
+        min-width: 0;
+    }
+
+    .project-template-create-card .form-row {
+        flex-direction: column;
+    }
+
+    .project-template-create-card .input-group.half {
+        width: 100%;
+    }
+
+    .project-template-list-item {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .project-template-list-actions {
+        justify-content: flex-end;
+    }
+}
+
+/* Movimientos recurrentes de Finanzas */
+.finance-recurring-due-panel {
+    margin-bottom: 1.5rem;
+    padding: 1rem;
+    border: 1px solid rgba(245, 158, 11, 0.32);
+    border-radius: 16px;
+    background: rgba(245, 158, 11, 0.055);
+}
+
+.finance-recurring-due-heading,
+.finance-recurring-due-item,
+.finance-recurring-modal-header,
+.finance-recurring-form-heading,
+.finance-recurring-list-heading,
+.finance-recurring-list-item {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.finance-recurring-due-heading {
+    justify-content: flex-start;
+}
+
+.finance-recurring-due-icon {
+    display: grid;
+    width: 42px;
+    height: 42px;
+    flex: 0 0 42px;
+    place-items: center;
+    border-radius: 12px;
+    color: #fbbf24;
+    background: rgba(245, 158, 11, 0.13);
+    font-size: 1.3rem;
+}
+
+.finance-recurring-due-heading h3,
+.finance-recurring-modal-header h3,
+.finance-recurring-form-heading h4,
+.finance-recurring-list-heading h4 {
+    margin: 0;
+}
+
+.finance-recurring-due-heading p,
+.finance-recurring-form-heading p,
+.finance-recurring-list-heading p {
+    margin: 0.25rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+}
+
+.finance-recurring-due-list {
+    display: grid;
+    gap: 0.55rem;
+    margin-top: 0.85rem;
+}
+
+.finance-recurring-due-item {
+    padding: 0.8rem 0.9rem;
+    border: 1px solid rgba(245, 158, 11, 0.22);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.42);
+}
+
+.finance-recurring-due-copy {
+    min-width: 0;
+}
+
+.finance-recurring-due-copy strong,
+.finance-recurring-due-copy span {
+    display: block;
+}
+
+.finance-recurring-due-copy strong {
+    overflow: hidden;
+    color: #ffffff;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.finance-recurring-due-copy span {
+    margin-top: 0.2rem;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+}
+
+.finance-recurring-confirm {
+    min-height: 38px;
+    padding: 0.5rem 0.8rem;
+    border: 1px solid rgba(245, 158, 11, 0.42);
+    border-radius: 9px;
+    color: #fef3c7;
+    background: rgba(245, 158, 11, 0.15);
+    cursor: pointer;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+.finance-recurring-modal-content {
+    width: min(820px, 94vw);
+    max-width: 820px;
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.finance-recurring-modal-header {
+    align-items: flex-start;
+}
+
+.finance-recurring-safety-note {
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    margin-top: 1rem;
+    padding: 0.75rem 0.85rem;
+    border: 1px solid rgba(16, 185, 129, 0.24);
+    border-radius: 11px;
+    color: #a7f3d0;
+    background: rgba(16, 185, 129, 0.07);
+    font-size: 0.82rem;
+}
+
+.finance-recurring-registration-note {
+    margin: -0.5rem 0 1.1rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid rgba(245, 158, 11, 0.3);
+    border-radius: 10px;
+    color: #fde68a;
+    background: rgba(245, 158, 11, 0.08);
+    font-size: 0.8rem;
+    line-height: 1.45;
+}
+
+.finance-recurring-form-card {
+    margin-top: 1rem;
+    padding: 1rem;
+    border: 1px solid rgba(59, 130, 246, 0.24);
+    border-radius: 14px;
+    background: rgba(59, 130, 246, 0.045);
+}
+
+.finance-recurring-form-heading {
+    align-items: flex-start;
+    margin-bottom: 1rem;
+}
+
+.finance-recurring-form-heading .btn {
+    width: auto;
+    margin: 0;
+    padding: 0.45rem 0.7rem;
+    font-size: 0.76rem;
+}
+
+.finance-recurring-amount-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.5rem;
+}
+
+.finance-recurring-amount-row .number-input {
+    width: 100%;
+    margin: 0;
+}
+
+.finance-recurring-amount-row select.number-input {
+    width: auto;
+    min-width: 78px;
+}
+
+.finance-recurring-save.btn {
+    width: auto;
+    margin: 0.9rem 0 0 auto;
+}
+
+.finance-recurring-list-heading {
+    margin: 1.35rem 0 0.75rem;
+}
+
+.finance-recurring-list {
+    display: grid;
+    gap: 0.65rem;
+}
+
+.finance-recurring-list-item {
+    padding: 0.85rem 0.95rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.025);
+}
+
+.finance-recurring-list-item.is-paused {
+    opacity: 0.65;
+}
+
+.finance-recurring-list-copy {
+    min-width: 0;
+}
+
+.finance-recurring-list-copy strong,
+.finance-recurring-list-copy span {
+    display: block;
+}
+
+.finance-recurring-list-copy strong {
+    overflow: hidden;
+    color: #ffffff;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.finance-recurring-list-copy span {
+    margin-top: 0.2rem;
+    color: var(--text-secondary);
+    font-size: 0.76rem;
+}
+
+.finance-recurring-list-actions {
+    display: flex;
+    align-items: center;
+    gap: 0.4rem;
+    flex-shrink: 0;
+}
+
+.finance-recurring-status {
+    display: inline-flex;
+    align-items: center;
+    min-height: 30px;
+    padding: 0.3rem 0.6rem;
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    border-radius: 999px;
+    color: #6ee7b7;
+    background: rgba(16, 185, 129, 0.08);
+    font-size: 0.7rem;
+    font-weight: 700;
+}
+
+.finance-recurring-list-item.is-paused .finance-recurring-status {
+    border-color: var(--surface-border);
+    color: var(--text-secondary);
+    background: rgba(255, 255, 255, 0.03);
+}
+
+@media (max-width: 760px) {
+    .finance-header-actions {
+        width: 100%;
+        flex-wrap: wrap;
+    }
+
+    .finance-header-actions #finanzas-month-select {
+        flex: 1 1 145px;
+    }
+
+    .finance-header-actions #btnOpenFinanzasModal,
+    .finance-header-actions #btnOpenFinanzasExpenseModal {
+        flex: 1 1 160px;
+        justify-content: center;
+    }
+
+    .finance-recurring-due-item,
+    .finance-recurring-list-item {
+        align-items: stretch;
+        flex-direction: column;
+    }
+
+    .finance-recurring-confirm {
+        width: 100%;
+    }
+
+    .finance-recurring-form-card .form-row {
+        flex-direction: column;
+    }
+
+    .finance-recurring-form-card .input-group.half {
+        width: 100%;
+    }
+
+    .finance-recurring-list-actions {
+        justify-content: flex-end;
+    }
+
+    #btnManageFinanceRecurring {
+        order: 3;
+        width: 100% !important;
+        justify-content: center;
+    }
+}

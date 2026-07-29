@@ -265,6 +265,49 @@ test('browser restore fixtures stay representative and valid', () => {
     );
 });
 
+test('older v2 backups remain valid before project templates existed', () => {
+    const payload = createBackupPayload(() => null, new Date('2026-07-28T12:00:00.000Z'));
+    delete payload.data.projectPulseTemplates;
+
+    const plan = parseAndValidateBackupText(JSON.stringify(payload));
+    assert.equal(plan.mode, 'full');
+    assert.equal(
+        plan.entries.find(([key]) => key === 'projectPulseTemplates')[1],
+        null
+    );
+});
+
+test('backup validates confirmable recurring finance rules', () => {
+    const recurringRule = {
+        id: 'internet',
+        type: 'expense',
+        name: 'Internet',
+        category: 'servicios',
+        description: 'Abono mensual',
+        amount: 25,
+        currency: 'USD',
+        intervalMonths: 1,
+        anchorDay: 10,
+        nextDueDate: '2026-08-10',
+        active: true
+    };
+
+    assert.doesNotThrow(() => normalizeBackupStorageEntry('finanzasData', {
+        entries: [],
+        expenses: [],
+        recurringRules: [recurringRule]
+    }));
+
+    assert.throws(
+        () => normalizeBackupStorageEntry('finanzasData', {
+            entries: [],
+            expenses: [],
+            recurringRules: [{ ...recurringRule, nextDueDate: '2026-02-30' }]
+        }),
+        /nextDueDate/
+    );
+});
+
 test('backup validates configurable tracker definitions and histories', () => {
     const tracker = createCustomTracker({
         section: 'hygiene',

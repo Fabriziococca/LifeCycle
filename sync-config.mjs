@@ -26,6 +26,7 @@ export const CLOUD_SYNC_KEYS = Object.freeze([
     'projectPulseData',
     'projectPulseHistory',
     'projectPulseSubscription',
+    'projectPulseTemplates',
     'alerts_config',
     'finanzasData',
     'vehicle_tracker_data',

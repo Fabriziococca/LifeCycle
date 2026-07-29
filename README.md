@@ -50,7 +50,7 @@ Real-time day counters for contact lenses wear time, solutions, lens cases, Syst
 Smart odometer tracking flagging services for oil changes, alignment, tire rotations, and replacements, shifting colors (green/yellow/red) based on km or days remaining.
 
 ### 5. 💼 Financial Projects (ProjectPulse)
-Track active contracts in USD, manage Workana subscriptions, and display visual deadline warnings as the subscription renewal approaches.
+Track active contracts in USD, manage Workana subscriptions, and display visual deadline warnings as the subscription renewal approaches. Reusable project templates can prefill delivery time, fee, source, plan, and fresh pending tasks without copying a client or any dates.
 
 ### 6. 🩺 Health & Medicine (Salud)
 Track annual/periodical visits for Dentists, Ophthalmologists, Clinical Blood Tests, and generic custom health controls.
@@ -66,6 +66,9 @@ The **Profile → Modules** screen can hide or restore any main module without d
 
 ### 10. 📅 Daily Focus & Quick Tasks
 The **Today** view groups urgent tasks, project deadlines, and overdue trackers without copying their data. Items can be opened in their source module or completed directly when the underlying workflow supports it. Its additional shortcuts are configurable from **Profile → Modules** and open the original Project, Finance, Gym, or Cards workflow instead of creating parallel data. Tasks can also be captured from any module, with **Urgent** as the default priority and non-urgent work kept as an explicit long-term option.
+
+### 11. 🔁 Confirmable Financial Recurrence
+Finance rules remember the usual type, category, amount, currency, cadence, and next due date. Due occurrences appear as review items and only become real income or expense records after the original form is confirmed. Each occurrence is idempotent, and rules can be edited, paused, resumed, or removed without deleting previously confirmed transactions.
 
 ---
 
