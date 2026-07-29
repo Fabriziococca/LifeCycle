@@ -77,6 +77,20 @@
             </button>
         </div>
 
+        <!-- Captura rápida disponible desde cualquier módulo -->
+        <div class="quick-task-wrapper">
+            <button
+                id="global-quick-task-btn"
+                class="quick-task-btn"
+                type="button"
+                aria-label="Crear una tarea rápida"
+                data-tooltip="Nueva tarea rápida (Alt+N)"
+            >
+                <i class="ph ph-plus-circle"></i>
+                <span>Nueva tarea</span>
+            </button>
+        </div>
+
         <!-- Centro de Notificaciones (Tareas Críticas en Rojo) -->
         <div class="notifications-wrapper">
             <button id="notification-bell-btn" class="bell-btn" aria-label="Abrir tareas críticas pendientes" data-tooltip="Tareas críticas pendientes">
@@ -102,7 +116,11 @@
         </header>
 
         <!-- Navegación Principal -->
-        <nav class="main-nav" id="main-nav">
+        <nav
+            class="main-nav"
+            id="main-nav"
+            aria-label="Módulos principales"
+        >
             <button class="nav-btn active" data-section="higiene-section">
                 <i class="ph ph-drop"></i> Higiene
             </button>
@@ -131,6 +149,10 @@
                 <i class="ph ph-check-square"></i> Tareas
             </button>
         </nav>
+        <p id="main-nav-scroll-hint" class="nav-scroll-hint hidden">
+            <i class="ph ph-arrows-horizontal"></i>
+            Deslizá para ver más módulos
+        </p>
 
         <!-- SECCIÓN 1: HIGIENE (Original HygieneTracker) -->
         <section id="higiene-section" class="main-section">
@@ -1607,7 +1629,7 @@
             </button>
             <div class="profile-layout">
                 <!-- Barra lateral (Sidebar) / Navegación superior en móvil -->
-                <aside class="profile-sidebar">
+                <aside class="profile-sidebar" aria-label="Opciones del perfil">
                     <button class="profile-menu-item active" data-tab="cuenta">
                         <i class="ph ph-user"></i>
                         <span>Mi Cuenta</span>
@@ -1637,6 +1659,10 @@
                         <span>Gestor de Alertas</span>
                     </button>
                 </aside>
+                <p id="profile-nav-scroll-hint" class="nav-scroll-hint hidden">
+                    <i class="ph ph-arrows-horizontal"></i>
+                    Deslizá para ver más opciones
+                </p>
 
                 <!-- Contenido principal de las pestañas -->
                 <div class="profile-main-content">
@@ -2417,25 +2443,52 @@
     </div>
 
     <!-- MODAL DE NUEVA TAREA GENERAL -->
-    <div id="tareas-task-modal" class="modal hidden">
-        <div class="modal-content" style="max-width: 450px; width: 90%;">
+    <div
+        id="tareas-task-modal"
+        class="modal task-capture-modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="tareas-task-modal-title"
+        aria-describedby="tareas-task-modal-desc"
+    >
+        <div class="modal-content" style="max-width: 500px; width: 90%;">
             <h3 id="tareas-task-modal-title">Nueva Tarea</h3>
-            <p class="modal-desc">Añadí una tarea al sector seleccionado.</p>
+            <p id="tareas-task-modal-desc" class="modal-desc">Guardala en la carpeta que corresponda.</p>
             <div class="input-group" style="margin-top: 1rem;">
                 <label for="tareas-task-text">Descripción de la Tarea</label>
-                <input type="text" id="tareas-task-text" class="text-input" placeholder="Ej: Comprar jabón blanco" required>
+                <input
+                    type="text"
+                    id="tareas-task-text"
+                    class="text-input"
+                    placeholder="Ej: Comprar jabón blanco"
+                    autocomplete="off"
+                    required
+                >
             </div>
-            <div class="input-group" style="margin-top: 1rem;">
-                <label for="tareas-task-urgency">Nivel de Urgencia</label>
-                <select id="tareas-task-urgency" class="text-input">
-                    <option value="no_urgente">No Urgente</option>
-                    <option value="urgente">Urgente</option>
-                    <option value="muy_urgente">🔥 Muy Urgente</option>
-                </select>
+            <div class="task-capture-options">
+                <div class="input-group">
+                    <label for="tareas-task-category">Guardar en</label>
+                    <select id="tareas-task-category" class="text-input"></select>
+                </div>
+                <div class="input-group">
+                    <label for="tareas-task-urgency">Urgencia</label>
+                    <select id="tareas-task-urgency" class="text-input">
+                        <option value="no_urgente">No urgente</option>
+                        <option value="urgente">Urgente</option>
+                        <option value="muy_urgente">🔥 Muy urgente</option>
+                    </select>
+                </div>
             </div>
+            <p class="task-capture-help">
+                Las tareas de Freelance se agregan desde su proyecto.
+                Presioná Enter para guardar.
+            </p>
+            <p id="tareas-task-error" class="task-capture-error hidden" role="alert"></p>
             <div class="modal-actions" style="margin-top: 1.5rem;">
                 <button id="tareas-task-cancel" class="btn btn-cancel">Cancelar</button>
-                <button id="tareas-task-save" class="btn btn-save">Guardar</button>
+                <button id="tareas-task-save" class="btn btn-save">
+                    <i class="ph ph-check"></i> Guardar tarea
+                </button>
             </div>
         </div>
     </div>

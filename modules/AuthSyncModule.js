@@ -125,6 +125,9 @@ export class AuthSyncModule {
         this.accessGate?.classList.toggle('hidden', isAuthenticated);
         this.appContainer?.classList.toggle('hidden', !isAuthenticated);
         document.body.classList.toggle('access-locked', !isAuthenticated);
+        if (isAuthenticated) {
+            requestAnimationFrame(() => this.app.refreshNavigationHints?.());
+        }
 
         this.accessGateLoading?.classList.toggle('hidden', state !== 'loading');
         this.accessGateForm?.classList.toggle('hidden', state !== 'logged-out');

@@ -745,6 +745,33 @@ body.access-locked {
     display: none; /* Safari/Chrome */
 }
 
+.nav-scroll-hint {
+    width: fit-content;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.35rem;
+    margin: -1.85rem auto 1.65rem;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    line-height: 1.3;
+}
+
+.nav-scroll-hint i {
+    color: #60a5fa;
+    font-size: 0.9rem;
+}
+
+.main-nav.has-horizontal-overflow,
+.profile-sidebar.has-horizontal-overflow {
+    scroll-snap-type: x proximity;
+}
+
+.main-nav.has-horizontal-overflow .nav-btn,
+.profile-sidebar.has-horizontal-overflow .profile-menu-item {
+    scroll-snap-align: center;
+}
+
 .nav-btn {
     flex: 0 0 auto;
     background: transparent;
@@ -1561,6 +1588,41 @@ textarea:focus-visible,
     flex: 1;
 }
 
+.task-capture-options {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+    gap: 1rem;
+    margin-top: 1rem;
+}
+
+.task-capture-options .input-group {
+    margin: 0;
+}
+
+.task-capture-help {
+    margin-top: 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+    line-height: 1.45;
+}
+
+.task-capture-error {
+    margin-top: 0.8rem;
+    padding: 0.65rem 0.75rem;
+    border: 1px solid rgba(248, 113, 113, 0.28);
+    border-radius: 9px;
+    background: rgba(239, 68, 68, 0.09);
+    color: #fecaca;
+    font-size: 0.78rem;
+}
+
+.task-capture-modal .btn-save {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+}
+
 .btn-cancel {
     background: rgba(255, 255, 255, 0.05);
     border: 1px solid var(--surface-border);
@@ -1586,9 +1648,20 @@ textarea:focus-visible,
         border-radius: var(--border-radius-md);
         margin-bottom: 1.5rem;
     }
+    #main-nav-scroll-hint {
+        margin-top: -1rem;
+        margin-bottom: 1.15rem;
+    }
+    #profile-nav-scroll-hint {
+        margin: -1rem auto 0;
+    }
     .nav-btn {
         padding: 0.55rem 0.9rem;
         font-size: 0.85rem;
+    }
+    .task-capture-options {
+        grid-template-columns: minmax(0, 1fr);
+        gap: 0.85rem;
     }
 }
 
@@ -2266,6 +2339,50 @@ select option {
     top: 2rem;
     right: 1.5rem;
     z-index: 100;
+}
+
+.quick-task-wrapper {
+    position: absolute;
+    top: 2rem;
+    right: 5rem;
+    z-index: 100;
+}
+
+.quick-task-btn {
+    height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0 1rem;
+    border: 1px solid rgba(59, 130, 246, 0.38);
+    border-radius: 999px;
+    background: rgba(30, 64, 175, 0.34);
+    color: #dbeafe;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    font-family: inherit;
+    font-size: 0.85rem;
+    font-weight: 700;
+    cursor: pointer;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.quick-task-btn i {
+    font-size: 1.15rem;
+}
+
+.quick-task-btn:hover {
+    color: #ffffff;
+    border-color: rgba(96, 165, 250, 0.8);
+    background: rgba(37, 99, 235, 0.68);
+    transform: translateY(-1px);
+}
+
+.quick-task-btn:focus-visible {
+    outline: 3px solid rgba(96, 165, 250, 0.35);
+    outline-offset: 3px;
 }
 
 .bell-btn {
@@ -3749,6 +3866,42 @@ body.modal-open {
     font-size: 0.8rem;
 }
 
+.app-toast {
+    position: fixed;
+    z-index: 2200;
+    right: 1rem;
+    bottom: 1rem;
+    max-width: min(380px, calc(100vw - 2rem));
+    display: flex;
+    align-items: center;
+    gap: 0.55rem;
+    padding: 0.78rem 0.95rem;
+    border: 1px solid rgba(74, 222, 128, 0.28);
+    border-radius: 11px;
+    background: #10251d;
+    color: #bbf7d0;
+    box-shadow: 0 14px 36px rgba(0, 0, 0, 0.38);
+    font-size: 0.82rem;
+    font-weight: 600;
+}
+
+.app-toast i {
+    flex: 0 0 auto;
+    font-size: 1.15rem;
+}
+
+.app-toast[data-tone="warning"] {
+    border-color: rgba(245, 158, 11, 0.32);
+    background: #2b2010;
+    color: #fde68a;
+}
+
+.app-toast[data-tone="error"] {
+    border-color: rgba(248, 113, 113, 0.32);
+    background: #2b1518;
+    color: #fecaca;
+}
+
 @media (max-width: 768px) {
     .custom-trackers-manager-header {
         align-items: stretch;
@@ -4004,9 +4157,37 @@ body.modal-open {
         top: 1rem;
         right: 1rem;
     }
+    .quick-task-wrapper {
+        top: 1rem;
+        right: 4.75rem;
+    }
+    .quick-task-btn {
+        width: 44px;
+        padding: 0;
+        border-radius: 50%;
+    }
+    .quick-task-btn span {
+        display: none;
+    }
     .notifications-panel {
         right: -10px;
         width: 290px;
+    }
+}
+
+@media (max-width: 420px) {
+    .app-header {
+        margin-top: 3.75rem;
+        margin-bottom: 2rem;
+    }
+    .task-capture-modal .modal-actions {
+        gap: 0.65rem;
+    }
+    .task-capture-modal .modal-actions .btn {
+        gap: 0.3rem;
+        padding: 0.8rem 0.65rem;
+        font-size: 0.85rem;
+        white-space: nowrap;
     }
 }
 

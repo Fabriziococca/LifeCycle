@@ -88,3 +88,30 @@ test('the global tooltip controller is initialized by the application', async ()
     assert.match(tooltipSource, /focusin/);
     assert.match(tooltipSource, /mouseover/);
 });
+
+test('quick task capture is global, categorized and keyboard accessible', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+    const tasksSource = await readFile(
+        path.join(ROOT, 'modules', 'TareasModule.js'),
+        'utf8'
+    );
+
+    assert.match(index, /id="global-quick-task-btn"/);
+    assert.match(index, /id="tareas-task-category"/);
+    assert.match(index, /aria-labelledby="tareas-task-modal-title"/);
+    assert.match(tasksSource, /openTaskCapture\(\{ quick: true \}\)/);
+    assert.match(tasksSource, /event\.altKey/);
+    assert.match(tasksSource, /event\.key\.toLowerCase\(\) !== 'n'/);
+    assert.match(appSource, /showToast\(message/);
+});
+
+test('mobile navigation explains horizontal overflow and reacts after authentication', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+
+    assert.match(index, /id="main-nav-scroll-hint"/);
+    assert.match(index, /id="profile-nav-scroll-hint"/);
+    assert.match(appSource, /new ResizeObserver\(update\)/);
+    assert.match(appSource, /has-horizontal-overflow/);
+});

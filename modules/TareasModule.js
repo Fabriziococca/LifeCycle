@@ -1,4 +1,8 @@
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import {
+    createTaskRecord,
+    getTaskCaptureCategories
+} from '../task-capture-utils.mjs?v=20260729-quick-task';
 
 export class TareasModule {
     constructor(appController) {
@@ -8,6 +12,8 @@ export class TareasModule {
         this.currentCategory = null;
         this.activeProjectId = null;
         this.editingTaskId = null;
+        this.isQuickCapture = false;
+        this.taskCaptureTrigger = null;
 
         this.pinnedProjectIds = [];
         this.removedProjectIds = [];
@@ -72,6 +78,128 @@ export class TareasModule {
         localStorage.setItem('tareas_pinned_project_ids', JSON.stringify(this.pinnedProjectIds));
         localStorage.setItem('tareas_removed_project_ids', JSON.stringify(this.removedProjectIds));
         localStorage.setItem('tareas_pinned_projects', JSON.stringify(this.pinnedProjectsStore));
+    }
+
+    getTaskCaptureElements() {
+        return {
+            modal: document.getElementById('tareas-task-modal'),
+            title: document.getElementById('tareas-task-modal-title'),
+            description: document.getElementById('tareas-task-modal-desc'),
+            input: document.getElementById('tareas-task-text'),
+            category: document.getElementById('tareas-task-category'),
+            urgency: document.getElementById('tareas-task-urgency'),
+            error: document.getElementById('tareas-task-error')
+        };
+    }
+
+    setTaskCaptureError(message = '') {
+        const error = document.getElementById('tareas-task-error');
+        if (!error) return;
+        error.textContent = message;
+        error.classList.toggle('hidden', !message);
+    }
+
+    populateTaskCaptureCategories(preferredCategory = null) {
+        const select = document.getElementById('tareas-task-category');
+        if (!select) return [];
+
+        const categories = getTaskCaptureCategories(this.categories);
+        select.innerHTML = categories.map(category => (
+            `<option value="${escapeHtml(category)}">${escapeHtml(category)}</option>`
+        )).join('');
+
+        const preferred = categories.includes(preferredCategory)
+            ? preferredCategory
+            : (
+                categories.includes(this.currentCategory)
+                    ? this.currentCategory
+                    : categories[0]
+            );
+        if (preferred) select.value = preferred;
+        select.disabled = categories.length === 0;
+        return categories;
+    }
+
+    openTaskCapture({ quick = false, category = null } = {}) {
+        const elements = this.getTaskCaptureElements();
+        if (!elements.modal || !elements.input) return false;
+
+        const categories = this.populateTaskCaptureCategories(category);
+        if (categories.length === 0) {
+            this.app.showToast?.(
+                'Primero creá una carpeta para poder guardar tareas.',
+                { tone: 'warning' }
+            );
+            return false;
+        }
+
+        this.isQuickCapture = quick;
+        this.taskCaptureTrigger = document.activeElement instanceof HTMLElement
+            ? document.activeElement
+            : null;
+        elements.input.value = '';
+        if (elements.urgency) elements.urgency.value = 'no_urgente';
+        if (elements.title) {
+            elements.title.textContent = quick ? 'Nueva tarea rápida' : 'Nueva tarea';
+        }
+        if (elements.description) {
+            elements.description.textContent = quick
+                ? 'Anotala ahora y seguí exactamente donde estabas.'
+                : 'Guardala en la carpeta que corresponda.';
+        }
+        this.setTaskCaptureError();
+        elements.modal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        requestAnimationFrame(() => elements.input.focus());
+        return true;
+    }
+
+    closeTaskCapture({ restoreFocus = true } = {}) {
+        const modal = document.getElementById('tareas-task-modal');
+        modal?.classList.add('hidden');
+        this.setTaskCaptureError();
+        this.isQuickCapture = false;
+
+        if (!document.querySelector('.modal:not(.hidden), .custom-tracker-dialog:not(.hidden)')) {
+            document.body.classList.remove('modal-open');
+        }
+        if (restoreFocus && this.taskCaptureTrigger?.isConnected) {
+            this.taskCaptureTrigger.focus();
+        }
+        this.taskCaptureTrigger = null;
+    }
+
+    saveTaskCapture() {
+        const elements = this.getTaskCaptureElements();
+        const wasQuickCapture = this.isQuickCapture;
+
+        let newTask;
+        try {
+            newTask = createTaskRecord(
+                {
+                    text: elements.input?.value,
+                    category: elements.category?.value,
+                    urgency: elements.urgency?.value
+                },
+                {
+                    categories: this.categories,
+                    existingIds: this.tasks.map(task => task.id)
+                }
+            );
+        } catch (error) {
+            this.setTaskCaptureError(error.message);
+            elements.input?.focus();
+            return false;
+        }
+
+        this.tasks.push(newTask);
+        if (!wasQuickCapture) this.currentCategory = newTask.category;
+        this.saveData();
+        this.closeTaskCapture();
+        this.render();
+        this.app.notificationsCenter?.render();
+        this.app.showToast?.(`Tarea guardada en ${newTask.category}.`);
+        return true;
     }
 
     getFreelanceProjects() {
@@ -399,11 +527,11 @@ export class TareasModule {
 
         // Modal Task
         const btnAddTask = document.getElementById('btn-add-task');
+        const btnQuickTask = document.getElementById('global-quick-task-btn');
         const taskModal = document.getElementById('tareas-task-modal');
         const taskCancel = document.getElementById('tareas-task-cancel');
         const taskSave = document.getElementById('tareas-task-save');
         const taskInput = document.getElementById('tareas-task-text');
-        const urgencyInput = document.getElementById('tareas-task-urgency');
 
         btnAddTask?.addEventListener('click', () => {
             if (!this.currentCategory) {
@@ -414,34 +542,72 @@ export class TareasModule {
                 alert("Para agregar tareas en Freelance, utiliza el panel integrado.");
                 return;
             }
-            if (taskInput) taskInput.value = '';
-            if (urgencyInput) urgencyInput.value = 'no_urgente';
-            taskModal?.classList.remove('hidden');
+            this.openTaskCapture({
+                quick: false,
+                category: this.currentCategory
+            });
         });
 
-        taskCancel?.addEventListener('click', () => {
-            taskModal?.classList.add('hidden');
+        btnQuickTask?.addEventListener('click', () => {
+            this.openTaskCapture({ quick: true });
         });
 
-        taskSave?.addEventListener('click', () => {
-            const text = taskInput?.value.trim();
-            if (!text) return;
-            const urgency = urgencyInput?.value || 'no_urgente';
+        taskCancel?.addEventListener('click', () => this.closeTaskCapture());
+        taskSave?.addEventListener('click', () => this.saveTaskCapture());
+        taskInput?.addEventListener('keydown', (event) => {
+            if (event.key !== 'Enter' || event.isComposing) return;
+            event.preventDefault();
+            this.saveTaskCapture();
+        });
+        taskModal?.addEventListener('click', (event) => {
+            if (event.target === taskModal) this.closeTaskCapture();
+        });
+        taskModal?.addEventListener('keydown', (event) => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.closeTaskCapture();
+            } else if (
+                event.key === 'Enter'
+                && (event.ctrlKey || event.metaKey)
+                && !event.isComposing
+            ) {
+                event.preventDefault();
+                this.saveTaskCapture();
+            }
+        });
 
-            const newTask = {
-                id: Date.now(),
-                text,
-                category: this.currentCategory,
-                urgency,
-                completed: false,
-                createdAt: new Date().toISOString()
-            };
+        document.addEventListener('keydown', (event) => {
+            if (
+                event.defaultPrevented
+                || event.repeat
+                || !event.altKey
+                || event.ctrlKey
+                || event.metaKey
+                || event.shiftKey
+                || event.key.toLowerCase() !== 'n'
+            ) {
+                return;
+            }
 
-            this.tasks.push(newTask);
-            this.saveData();
-            taskModal?.classList.add('hidden');
-            this.render();
-            this.app.notificationsCenter?.render();
+            const target = event.target;
+            if (
+                target instanceof HTMLElement
+                && (
+                    target.matches('input, textarea, select')
+                    || target.isContentEditable
+                )
+            ) {
+                return;
+            }
+            if (
+                document.querySelector('.modal:not(.hidden), .custom-tracker-dialog:not(.hidden)')
+                || document.querySelector('main.container')?.classList.contains('hidden')
+            ) {
+                return;
+            }
+
+            event.preventDefault();
+            this.openTaskCapture({ quick: true });
         });
 
         // Freelance Actions (Fijar / Eliminar Proyecto)

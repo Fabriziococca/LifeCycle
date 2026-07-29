@@ -29,6 +29,9 @@ class AppController {
         window.lifecycle_controller = this;
         this.currentEditType = null;
         this.currentEditId = null;
+        this.toastTimer = null;
+        this.navigationHintRefreshers = [];
+        this.navigationHintObservers = [];
         this.tooltips = new TooltipController(document);
         this.tooltips.init();
 
@@ -189,11 +192,79 @@ class AppController {
             if (!btn) return;
             this.activateSection(btn.dataset.section);
         });
+        this.initScrollableNavigationHint(
+            mainNav,
+            document.getElementById('main-nav-scroll-hint'),
+            'lifecycle_main_nav_hint_seen'
+        );
     }
 
     saveUiState(patch) {
         this.uiState = writeUiState(localStorage, this.uiState, patch);
         return this.uiState;
+    }
+
+    showToast(message, { tone = 'success', duration = 3200 } = {}) {
+        let toast = document.getElementById('app-toast');
+        if (!toast) {
+            toast = document.createElement('div');
+            toast.id = 'app-toast';
+            toast.className = 'app-toast hidden';
+            toast.setAttribute('role', 'status');
+            toast.setAttribute('aria-live', 'polite');
+            toast.innerHTML = '<i aria-hidden="true"></i><span></span>';
+            document.body.appendChild(toast);
+        }
+
+        const toneConfig = {
+            success: { icon: 'ph-check-circle', label: 'Correcto' },
+            warning: { icon: 'ph-warning-circle', label: 'Atención' },
+            error: { icon: 'ph-x-circle', label: 'Error' }
+        };
+        const config = toneConfig[tone] || toneConfig.success;
+        const icon = toast.querySelector('i');
+        const text = toast.querySelector('span');
+        if (icon) icon.className = `ph ${config.icon}`;
+        if (text) text.textContent = String(message ?? '');
+        toast.setAttribute('aria-label', `${config.label}: ${String(message ?? '')}`);
+        toast.dataset.tone = toneConfig[tone] ? tone : 'success';
+
+        clearTimeout(this.toastTimer);
+        toast.classList.remove('hidden');
+        this.toastTimer = setTimeout(() => {
+            toast.classList.add('hidden');
+        }, Math.max(1200, Number(duration) || 3200));
+    }
+
+    initScrollableNavigationHint(container, hint, storageKey) {
+        if (!container || !hint) return;
+
+        const update = () => {
+            const isMobile = window.matchMedia('(max-width: 767px)').matches;
+            const hasOverflow = container.scrollWidth > container.clientWidth + 4;
+            const wasSeen = localStorage.getItem(storageKey) === '1';
+            container.classList.toggle('has-horizontal-overflow', isMobile && hasOverflow);
+            hint.classList.toggle('hidden', !isMobile || !hasOverflow || wasSeen);
+        };
+        const acknowledge = () => {
+            if (Math.abs(container.scrollLeft) < 6) return;
+            localStorage.setItem(storageKey, '1');
+            hint.classList.add('hidden');
+        };
+
+        container.addEventListener('scroll', acknowledge, { passive: true });
+        window.addEventListener('resize', update, { passive: true });
+        if ('ResizeObserver' in window) {
+            const observer = new ResizeObserver(update);
+            observer.observe(container);
+            this.navigationHintObservers.push(observer);
+        }
+        this.navigationHintRefreshers.push(update);
+        requestAnimationFrame(update);
+    }
+
+    refreshNavigationHints() {
+        this.navigationHintRefreshers.forEach(refresh => refresh());
     }
 
     scrollControlIntoView(container, control, smooth = false) {
@@ -282,6 +353,11 @@ class AppController {
             if (!btn) return;
             this.activateProfileTab(btn.dataset.tab, { smooth: true });
         });
+        this.initScrollableNavigationHint(
+            sidebar,
+            document.getElementById('profile-nav-scroll-hint'),
+            'lifecycle_profile_nav_hint_seen'
+        );
     }
 
     activateProfileTab(tabId, { persist = true, render = true, smooth = false } = {}) {
@@ -346,6 +422,7 @@ class AppController {
                         persist: false,
                         render: true
                     });
+                    requestAnimationFrame(() => this.refreshNavigationHints());
                 }
             });
         }
@@ -369,6 +446,7 @@ class AppController {
                     persist: false,
                     render: true
                 });
+                requestAnimationFrame(() => this.refreshNavigationHints());
             });
         }
     }
@@ -549,6 +627,7 @@ class AppController {
         this.alerts = new AlertsModule(this);
         this.notificationsCenter = new NotificationsCenterModule(this);
         this.restoreUiState();
+        requestAnimationFrame(() => this.refreshNavigationHints());
         
         setInterval(() => {
             const activeSection = document.querySelector('.main-section:not(.hidden)');

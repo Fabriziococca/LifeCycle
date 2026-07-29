@@ -35,6 +35,8 @@ La auditoría describe el producto observado al comenzar esta etapa. Durante la 
 - Administrador central agrupado por sección y categoría, con un modo de ordenamiento explícito mediante arrastre o teclado, borrador cancelable y una única persistencia al guardar.
 - Sistema compartido de tooltips para controles compactos, compatibilidad con los `title` históricos y nombres accesibles en los iconos auditados.
 - Convenciones obligatorias de interfaz documentadas en `docs/UX_CONVENTIONS.md` y verificadas parcialmente mediante contratos automáticos.
+- Captura rápida de tareas disponible desde cualquier módulo, con carpeta, urgencia, validación en contexto, confirmación visible, atajo `Alt+N` y reutilización del mismo modelo sincronizado de Tareas.
+- Navegación horizontal que centra el contexto activo y muestra una ayuda móvil descartable cuando existen módulos u opciones de perfil fuera de pantalla.
 - Estados automáticos de seguimiento, instrucciones colapsadas y alertas opcionales integradas con el Gestor de Alertas.
 - Evaluación backend de seguimientos configurables aunque la PWA esté cerrada.
 - Motor repetitivo de tareas muy urgentes comprobado sin horario silencioso y con recuperación ante marcas de tiempo corruptas.
@@ -219,7 +221,7 @@ Una primera versión se considera completa cuando:
 4. Integrarlo primero en Higiene y Cuidado.
 5. Agregar plantillas de insumo para Lentes y control para Salud.
 6. Integrar alertas dinámicas y probar los intervalos de punta a punta.
-7. Abordar centro “Hoy”, captura rápida y navegación móvil.
+7. Abordar centro “Hoy”, captura rápida y navegación móvil. La captura rápida y la orientación móvil ya están implementadas; el centro “Hoy” queda como la siguiente decisión de producto de alcance alto.
 8. Cerrar operación: diagnóstico de dispositivos, auto-deploy de Render, seguridad diferida de Supabase y backup portátil.
 
 ## 9. Información que todavía requiere comprobación operativa

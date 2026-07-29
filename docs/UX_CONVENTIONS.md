@@ -78,7 +78,20 @@ convierte al tooltip visual de LifeCycle. El código nuevo debe preferir
 - No se debe afirmar que una operación se guardó en la nube antes de que el
   mecanismo de persistencia haya sido invocado correctamente.
 
-## 6. Revisión obligatoria
+## 6. Acciones rápidas globales
+
+- Una acción global permanente se justifica solamente si se usa con frecuencia
+  y evita abandonar el contexto actual.
+- Debe reutilizar el mismo modelo de datos y la misma persistencia del módulo
+  original; nunca crea una fuente paralela.
+- El formulario solicita solo la información imprescindible y devuelve el foco
+  al control que lo abrió al cancelar o guardar.
+- Debe cerrarse con `Escape`, permitir un envío claro desde teclado y mostrar
+  los errores dentro del propio formulario.
+- En móvil el texto puede reducirse a un icono únicamente si conserva
+  `aria-label`, tooltip y tamaño táctil suficiente.
+
+## 7. Revisión obligatoria
 
 Antes de entregar un cambio de interfaz:
 
