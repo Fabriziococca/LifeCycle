@@ -66,7 +66,11 @@ export class BackupModule {
                 `No se pudo generar el backup: ${error.message}`,
                 'error'
             );
-            alert(`No se pudo generar el backup: ${error.message}`);
+            void this.app.showMessage({
+                title: 'No se pudo generar el backup',
+                message: error.message,
+                tone: 'danger'
+            });
         }
     }
 
@@ -145,7 +149,14 @@ export class BackupModule {
             const fileText = await file.text();
             const plan = parseAndValidateBackupText(fileText);
 
-            if (!confirm(this.buildConfirmationMessage(plan))) {
+            const confirmed = await this.app.confirmAction({
+                title: 'Restaurar copia de seguridad',
+                message: this.buildConfirmationMessage(plan),
+                tone: 'danger',
+                confirmLabel: 'Restaurar datos',
+                closeOnBackdrop: false
+            });
+            if (!confirmed) {
                 this.setStatus('Importación cancelada. No se modificó ningún dato.', 'neutral');
                 return;
             }
@@ -155,7 +166,11 @@ export class BackupModule {
 
             if (changedKeys.length === 0) {
                 this.setStatus('El backup ya coincide con los datos actuales.', 'success');
-                alert('El backup es válido, pero sus datos ya coinciden con LifeCycle.');
+                await this.app.showMessage({
+                    title: 'No hay cambios para restaurar',
+                    message: 'El backup es válido, pero sus datos ya coinciden con LifeCycle.',
+                    tone: 'info'
+                });
                 return;
             }
 
@@ -166,16 +181,23 @@ export class BackupModule {
 
             if (cloudSynced) {
                 this.setStatus('Backup restaurado y sincronizado correctamente.', 'success');
-                alert(`Backup restaurado correctamente.\n\nSecciones actualizadas:\n${categoryList}`);
+                await this.app.showMessage({
+                    title: 'Backup restaurado',
+                    message: `Los datos se restauraron y sincronizaron correctamente.\n\nSecciones actualizadas:\n${categoryList}`,
+                    tone: 'success'
+                });
             } else {
                 this.setStatus(
                     'Backup restaurado localmente. La sincronización cloud quedó pendiente y se reintentará automáticamente.',
                     'warning'
                 );
-                alert(
-                    `El backup se restauró correctamente, pero la sincronización cloud quedó pendiente.\n\n`
-                    + `LifeCycle volverá a intentarlo automáticamente.\n\nSecciones actualizadas:\n${categoryList}`
-                );
+                await this.app.showMessage({
+                    title: 'Restaurado con sincronización pendiente',
+                    message:
+                        `El backup se restauró correctamente, pero la sincronización cloud quedó pendiente.\n\n`
+                        + `LifeCycle volverá a intentarlo automáticamente.\n\nSecciones actualizadas:\n${categoryList}`,
+                    tone: 'warning'
+                });
             }
 
             location.reload();
@@ -185,7 +207,11 @@ export class BackupModule {
                 ? error.message
                 : 'No se pudo procesar el archivo sin arriesgar tus datos.';
             this.setStatus(message, 'error');
-            alert(`No se importó ningún dato.\n\n${message}`);
+            await this.app.showMessage({
+                title: 'No se importó ningún dato',
+                message,
+                tone: 'danger'
+            });
         } finally {
             if (this.importFile) this.importFile.value = '';
             this.setImportBusy(false);

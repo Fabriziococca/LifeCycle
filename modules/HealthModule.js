@@ -72,13 +72,21 @@ export class HealthModule {
             }
 
             if (!this.isAllowedMedicalFile(file)) {
-                alert('Solo podés adjuntar archivos PDF o imágenes.');
+                void this.controller.showMessage({
+                    title: 'Formato no permitido',
+                    message: 'Solo podés adjuntar archivos PDF o imágenes.',
+                    tone: 'warning'
+                });
                 this.resetAttachedFile();
                 return;
             }
 
             if (file.size <= 0 || file.size > 15 * 1024 * 1024) {
-                alert('El archivo debe pesar menos de 15 MB.');
+                void this.controller.showMessage({
+                    title: 'Archivo demasiado grande',
+                    message: 'El archivo debe pesar menos de 15 MB.',
+                    tone: 'warning'
+                });
                 this.resetAttachedFile();
                 return;
             }
@@ -172,7 +180,11 @@ export class HealthModule {
     async saveBloodTestEntry() {
         const dateVal = this.bloodFormDate?.value;
         if (!dateVal) {
-            alert('Por favor selecciona la fecha del estudio.');
+            await this.controller.showMessage({
+                title: 'Falta la fecha',
+                message: 'Seleccioná la fecha del estudio.',
+                tone: 'warning'
+            });
             return;
         }
 
@@ -180,12 +192,20 @@ export class HealthModule {
         try {
             portalUrl = this.normalizeExternalUrl(this.bloodFormPortal?.value || '');
         } catch (error) {
-            alert(error.message);
+            await this.controller.showMessage({
+                title: 'Enlace inválido',
+                message: error.message,
+                tone: 'warning'
+            });
             return;
         }
 
         if (!this.controller.auth?.user) {
-            alert('Tu sesión no está disponible. Reintentá luego de volver a iniciar sesión.');
+            await this.controller.showMessage({
+                title: 'Sesión no disponible',
+                message: 'Reintentá luego de volver a iniciar sesión.',
+                tone: 'warning'
+            });
             return;
         }
 
@@ -212,7 +232,11 @@ export class HealthModule {
             this.render();
         } catch (error) {
             console.error("Error guardando el análisis de sangre:", error);
-            alert(`No se pudo guardar el estudio: ${error.message}`);
+            await this.controller.showMessage({
+                title: 'No se pudo guardar el estudio',
+                message: error.message,
+                tone: 'danger'
+            });
         } finally {
             this.setBloodFormSaving(false);
         }
@@ -220,16 +244,28 @@ export class HealthModule {
 
     async deleteBloodTest(id) {
         const test = this.bloodTests.find(item => item.id === id);
-        if (!test || !confirm('¿Estás seguro de que querés eliminar este registro y su archivo adjunto?')) {
+        if (!test) {
             return;
         }
+        const confirmed = await this.controller.confirmAction({
+            title: 'Eliminar estudio médico',
+            message: 'Se eliminarán permanentemente el registro y su archivo adjunto. Esta acción no se puede deshacer.',
+            tone: 'danger',
+            confirmLabel: 'Eliminar estudio',
+            closeOnBackdrop: false
+        });
+        if (!confirmed) return;
 
         if (test.storagePath) {
             try {
                 await this.controller.auth.deleteMedicalFile(test.storagePath);
             } catch (error) {
                 console.error('Error eliminando el archivo médico:', error);
-                alert(`No se pudo eliminar el archivo de la nube. El registro se conservará para que puedas reintentar: ${error.message}`);
+                await this.controller.showMessage({
+                    title: 'No se pudo eliminar el archivo',
+                    message: `El registro se conservará para que puedas reintentar.\n\n${error.message}`,
+                    tone: 'danger'
+                });
                 return;
             }
         }
@@ -267,14 +303,20 @@ export class HealthModule {
     }
 
     deleteVisitHistory(key, index) {
-        if (confirm('¿Seguro que quieres borrar este registro de visita?')) {
-            this.medicalData[key].history.splice(index, 1);
-            this.medicalData[key].lastVisit = this.medicalData[key].history.length > 0 
-                ? this.medicalData[key].history[0] 
-                : null;
+        const deletedEntry = this.medicalData[key]?.history?.[index];
+        if (deletedEntry === undefined) return;
+        this.medicalData[key].history.splice(index, 1);
+        this.medicalData[key].lastVisit = this.medicalData[key].history.length > 0
+            ? this.medicalData[key].history[0]
+            : null;
+        this.saveMedicalData();
+        this.render();
+        this.controller.showUndo('Visita eliminada del historial.', () => {
+            this.medicalData[key].history.splice(index, 0, deletedEntry);
+            this.medicalData[key].lastVisit = this.medicalData[key].history[0] || null;
             this.saveMedicalData();
             this.render();
-        }
+        });
     }
 
     render() {
@@ -495,7 +537,11 @@ export class HealthModule {
                 previewWindow.close();
             }
             console.error('Error abriendo el archivo médico privado:', error);
-            alert(`No se pudo abrir el archivo: ${error.message}`);
+            await this.controller.showMessage({
+                title: 'No se pudo abrir el archivo',
+                message: error.message,
+                tone: 'danger'
+            });
         } finally {
             button.disabled = false;
             button.innerHTML = originalContent;

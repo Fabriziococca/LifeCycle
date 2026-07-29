@@ -129,7 +129,7 @@ export class LensModule {
         this.updateUI();
     }
 
-    removeLenses() {
+    async removeLenses() {
         const customEndValue = this.inputCustomEndTime ? this.inputCustomEndTime.value : "";
         let end = new Date();
         
@@ -145,7 +145,13 @@ export class LensModule {
             }
         }
 
-        if (confirm('¿Te sacaste los lentes?')) {
+        const confirmed = await this.app.confirmAction({
+            title: 'Finalizar uso de lentes',
+            message: 'Se guardará la duración de este uso en el historial.',
+            tone: 'warning',
+            confirmLabel: 'Sí, finalizar'
+        });
+        if (confirmed) {
             this.saveToHistory(end);
             localStorage.removeItem('lensesStartTime');
             this.startTime = null;
@@ -332,13 +338,13 @@ export class LensModule {
                         localStorage.setItem('lensDate', today);
                         this.loadDatesAndStock();
                         this.app.auth?.syncToCloud(false).catch(() => {});
-                        alert('Nuevo par en uso. Stock descontado.');
+                        this.app.showToast('Nuevo par en uso. Stock descontado.');
                     } else {
                         const today = getLocalISODate();
                         localStorage.setItem('lensDate', today);
                         this.loadDatesAndStock();
                         this.app.auth?.syncToCloud(false).catch(() => {});
-                        alert('Nuevo par en uso registrado.');
+                        this.app.showToast('Nuevo par en uso registrado.');
                     }
                 } else {
                     const today = getLocalISODate();
@@ -444,13 +450,20 @@ export class LensModule {
 
         this.historyList.querySelectorAll('.btn-delete-entry').forEach(btn => {
             btn.addEventListener('click', (e) => {
-                const index = e.target.closest('button').getAttribute('data-index');
-                if (confirm('¿Borrar este registro del historial?')) {
-                    let history = this.getLensesHistory();
-                    history.splice(index, 1);
-                    localStorage.setItem('lensesHistory', JSON.stringify(history));
+                const index = Number(e.target.closest('button').getAttribute('data-index'));
+                const history = this.getLensesHistory();
+                const deletedEntry = history[index];
+                if (!deletedEntry) return;
+                history.splice(index, 1);
+                localStorage.setItem('lensesHistory', JSON.stringify(history));
+                this.renderHistory();
+                this.app.showUndo('Uso de lentes eliminado del historial.', () => {
+                    const currentHistory = this.getLensesHistory();
+                    currentHistory.splice(index, 0, deletedEntry);
+                    currentHistory.sort((a, b) => new Date(b.date) - new Date(a.date));
+                    localStorage.setItem('lensesHistory', JSON.stringify(currentHistory));
                     this.renderHistory();
-                }
+                });
             });
         });
     }
@@ -501,7 +514,11 @@ export class LensModule {
                     if (!tracker.archived && !tracker.deleted) {
                         this.app.customTrackers.recordTracker(tracker.id);
                     } else {
-                        alert('La tarjeta de lentes de contacto está archivada o fue eliminada.');
+                        void this.app.showMessage({
+                            title: 'Tarjeta no disponible',
+                            message: 'La tarjeta de lentes de contacto está archivada o fue eliminada.',
+                            tone: 'warning'
+                        });
                     }
                     return;
                 }
@@ -512,16 +529,26 @@ export class LensModule {
                     const today = getLocalISODate();
                     localStorage.setItem('lensDate', today);
                     this.loadDatesAndStock();
-                    alert('Nuevo par en uso. Stock descontado.');
+                    this.app.showToast('Nuevo par en uso. Stock descontado.');
                 } else {
-                    alert('El stock ya está en 0.');
+                    void this.app.showMessage({
+                        title: 'Sin stock disponible',
+                        message: 'El stock de lentes ya está en 0.',
+                        tone: 'warning'
+                    });
                 }
             });
         }
 
         if (this.btnClearHistory) {
-            this.btnClearHistory.addEventListener('click', () => {
-                if (confirm('¿Borrar todo el historial de uso de lentes?')) {
+            this.btnClearHistory.addEventListener('click', async () => {
+                const confirmed = await this.app.confirmAction({
+                    title: 'Borrar historial de lentes',
+                    message: 'Se eliminarán permanentemente todos los registros de uso de lentes.',
+                    tone: 'danger',
+                    confirmLabel: 'Borrar historial'
+                });
+                if (confirmed) {
                     localStorage.removeItem('lensesHistory');
                     this.renderHistory();
                 }

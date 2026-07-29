@@ -89,6 +89,30 @@ test('the global tooltip controller is initialized by the application', async ()
     assert.match(tooltipSource, /mouseover/);
 });
 
+test('application feedback never falls back to native browser dialogs', async () => {
+    const moduleFiles = (await readdir(path.join(ROOT, 'modules')))
+        .filter(file => file.endsWith('.js'))
+        .map(file => path.join(ROOT, 'modules', file));
+    const sourceFiles = [path.join(ROOT, 'app.js'), ...moduleFiles];
+    const nativeDialogCalls = [];
+
+    for (const file of sourceFiles) {
+        const source = await readFile(file, 'utf8');
+        for (const match of source.matchAll(/\b(?:alert|confirm)\s*\(/g)) {
+            const line = source.slice(0, match.index).split('\n').length;
+            nativeDialogCalls.push(`${path.relative(ROOT, file)}:${line}`);
+        }
+    }
+
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+    assert.match(appSource, /new FeedbackController\(document\)/);
+    assert.deepEqual(
+        nativeDialogCalls,
+        [],
+        `Diálogos nativos encontrados: ${nativeDialogCalls.join(', ')}`
+    );
+});
+
 test('quick task capture is global, categorized and keyboard accessible', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');

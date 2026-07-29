@@ -157,7 +157,7 @@ export class AlertsModule {
         if (this.app.auth) {
             this.app.auth.syncToCloud(true).catch(() => {});
         } else {
-            alert('¡Configuraciones de alertas guardadas!');
+            this.app.showToast('Configuraciones de alertas guardadas.');
         }
 
         this.renderContent();

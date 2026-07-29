@@ -24,6 +24,7 @@ import {
     parseDateLocal
 } from './utils.js';
 import { TooltipController } from './tooltip-controller.mjs?v=20260729-tooltips';
+import { FeedbackController } from './feedback-controller.mjs?v=20260730-feedback';
 
 class AppController {
     constructor() {
@@ -35,6 +36,8 @@ class AppController {
         this.navigationHintObservers = [];
         this.tooltips = new TooltipController(document);
         this.tooltips.init();
+        this.feedback = new FeedbackController(document);
+        this.feedback.init();
 
         this.modal = document.getElementById('edit-modal');
         this.modalTitle = document.getElementById('modal-title');
@@ -205,7 +208,12 @@ class AppController {
         return this.uiState;
     }
 
-    showToast(message, { tone = 'success', duration = 3200 } = {}) {
+    showToast(message, {
+        tone = 'success',
+        duration = 3200,
+        actionLabel = '',
+        onAction = null
+    } = {}) {
         let toast = document.getElementById('app-toast');
         if (!toast) {
             toast = document.createElement('div');
@@ -213,7 +221,11 @@ class AppController {
             toast.className = 'app-toast hidden';
             toast.setAttribute('role', 'status');
             toast.setAttribute('aria-live', 'polite');
-            toast.innerHTML = '<i aria-hidden="true"></i><span></span>';
+            toast.innerHTML = `
+                <i aria-hidden="true"></i>
+                <span></span>
+                <button type="button" class="app-toast-action hidden"></button>
+            `;
             document.body.appendChild(toast);
         }
 
@@ -225,16 +237,64 @@ class AppController {
         const config = toneConfig[tone] || toneConfig.success;
         const icon = toast.querySelector('i');
         const text = toast.querySelector('span');
+        const actionButton = toast.querySelector('.app-toast-action');
         if (icon) icon.className = `ph ${config.icon}`;
         if (text) text.textContent = String(message ?? '');
         toast.setAttribute('aria-label', `${config.label}: ${String(message ?? '')}`);
+        toast.setAttribute('role', tone === 'error' ? 'alert' : 'status');
         toast.dataset.tone = toneConfig[tone] ? tone : 'success';
 
         clearTimeout(this.toastTimer);
+        if (actionButton) {
+            actionButton.onclick = null;
+            const hasAction = typeof onAction === 'function' && String(actionLabel || '').trim();
+            actionButton.classList.toggle('hidden', !hasAction);
+            actionButton.textContent = hasAction ? String(actionLabel).trim() : '';
+            if (hasAction) {
+                let handled = false;
+                actionButton.onclick = () => {
+                    if (handled) return;
+                    handled = true;
+                    clearTimeout(this.toastTimer);
+                    toast.classList.add('hidden');
+                    Promise.resolve(onAction()).catch(error => {
+                        console.error('No se pudo deshacer la acción:', error);
+                        this.showToast(
+                            'No se pudo deshacer la acción.',
+                            { tone: 'error' }
+                        );
+                    });
+                };
+            }
+        }
         toast.classList.remove('hidden');
         this.toastTimer = setTimeout(() => {
             toast.classList.add('hidden');
+            if (actionButton) actionButton.onclick = null;
         }, Math.max(1200, Number(duration) || 3200));
+    }
+
+    showMessage(message, options = {}) {
+        const source = typeof message === 'object'
+            ? message
+            : { ...options, message };
+        return this.feedback.message(source);
+    }
+
+    confirmAction(message, options = {}) {
+        const source = typeof message === 'object'
+            ? message
+            : { ...options, message };
+        return this.feedback.confirm(source);
+    }
+
+    showUndo(message, onUndo, { duration = 7000, tone = 'warning' } = {}) {
+        this.showToast(message, {
+            tone,
+            duration,
+            actionLabel: 'Deshacer',
+            onAction: onUndo
+        });
     }
 
     initScrollableNavigationHint(container, hint, storageKey) {
@@ -501,13 +561,21 @@ class AppController {
         const now = new Date();
         const selectedDateText = this.modalDate.value;
         if (selectedDateText > getLocalISODate(now)) {
-            alert('La fecha de la última acción no puede estar en el futuro.');
+            void this.showMessage({
+                title: 'Fecha futura',
+                message: 'La fecha de la última acción no puede estar en el futuro.',
+                tone: 'warning'
+            });
             return;
         }
 
         const selectedDate = combineLocalDateWithTime(selectedDateText, now);
         if (!selectedDate) {
-            alert('La fecha seleccionada no es válida.');
+            void this.showMessage({
+                title: 'Fecha inválida',
+                message: 'Revisá la fecha seleccionada e intentá nuevamente.',
+                tone: 'danger'
+            });
             return;
         }
 

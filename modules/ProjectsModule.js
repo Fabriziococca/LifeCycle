@@ -394,10 +394,6 @@ export class ProjectsModule {
             button.addEventListener('click', () => {
                 const template = this.getProjectTemplateById(button.dataset.templateId);
                 if (!template) return;
-                const confirmed = confirm(
-                    `¿Eliminar la plantilla "${template.name}"? Los proyectos creados con ella no se modificarán.`
-                );
-                if (!confirmed) return;
 
                 this.templateRegistry = removeProjectTemplate(
                     this.templateRegistry,
@@ -410,7 +406,16 @@ export class ProjectsModule {
                 this.renderProjectTemplateControls();
                 this.renderProjectTemplatesManager();
                 this.app.auth?.syncToCloud(false).catch(() => {});
-                this.app.showToast?.(`Plantilla ${template.name} eliminada.`);
+                this.app.showUndo(`Plantilla ${template.name} eliminada.`, () => {
+                    this.templateRegistry = upsertProjectTemplate(
+                        this.templateRegistry,
+                        template
+                    );
+                    this.saveTemplateData();
+                    this.renderProjectTemplateControls();
+                    this.renderProjectTemplatesManager();
+                    this.app.auth?.syncToCloud(false).catch(() => {});
+                });
             });
         });
     }
@@ -807,7 +812,11 @@ export class ProjectsModule {
             const net = parseFloat(document.getElementById('proj-pastNet').value) || 0;
 
             if (!client || !project || !date || isNaN(gross) || isNaN(net)) {
-                alert('Por favor completa todos los campos requeridos.');
+                void this.app.showMessage({
+                    title: 'Faltan datos del ingreso',
+                    message: 'Completá todos los campos requeridos antes de guardar.',
+                    tone: 'warning'
+                });
                 return;
             }
 
@@ -895,10 +904,16 @@ export class ProjectsModule {
         }
     }
 
-    requestChanges(id) {
+    async requestChanges(id) {
         const p = this.projects.find(proj => String(proj.id) === String(id));
         if (!p) return;
-        if (confirm(`¿Marcar que el cliente solicitó cambios en "${p.project}"?\n\nEl temporizador de 15 días se pausará hasta que vuelvas a entregar el trabajo.`)) {
+        const confirmed = await this.app.confirmAction({
+            title: 'Registrar solicitud de cambios',
+            message: `El plazo de 15 días de "${p.project}" se pausará hasta que vuelvas a entregar el trabajo.`,
+            tone: 'warning',
+            confirmLabel: 'Registrar cambios'
+        });
+        if (confirmed) {
             p.isDelivered = false;
             p.hasChangesRequested = true;
             p.changesRequestedAt = new Date().toISOString();
@@ -910,10 +925,16 @@ export class ProjectsModule {
         }
     }
 
-    reDeliverWork(id) {
+    async reDeliverWork(id) {
         const p = this.projects.find(proj => String(proj.id) === String(id));
         if (!p) return;
-        if (confirm(`¿Reentregar el trabajo del proyecto "${p.project}"?\n\nSe actualizará la fecha de entrega y reiniciará el plazo de 15 días.`)) {
+        const confirmed = await this.app.confirmAction({
+            title: 'Reentregar trabajo',
+            message: `Se actualizará la fecha de entrega de "${p.project}" y se reiniciará el plazo de 15 días.`,
+            tone: 'warning',
+            confirmLabel: 'Reentregar'
+        });
+        if (confirmed) {
             p.isDelivered = true;
             p.hasChangesRequested = false;
             p.deliveredAt = new Date().toISOString();
@@ -1329,8 +1350,17 @@ export class ProjectsModule {
         });
     }
 
-    deleteActiveProject(id) {
-        if (confirm('¿Seguro que deseas eliminar este proyecto de la lista de activos?')) {
+    async deleteActiveProject(id) {
+        const project = this.projects.find(item => String(item.id) === String(id));
+        if (!project) return;
+        const confirmed = await this.app.confirmAction({
+            title: `Eliminar proyecto "${project.project}"`,
+            message: 'Se eliminarán su información, tareas y seguimiento activo. Esta acción no se puede deshacer.',
+            tone: 'danger',
+            confirmLabel: 'Eliminar proyecto',
+            closeOnBackdrop: false
+        });
+        if (confirmed) {
             const idStr = String(id);
             this.projects = this.projects.filter(p => String(p.id) !== idStr);
             this.saveData();
@@ -1347,7 +1377,11 @@ export class ProjectsModule {
         if (!p) return;
 
         if (p.isArbitration) {
-            alert("No se puede iniciar el temporizador en un proyecto en arbitraje.");
+            void this.app.showMessage({
+                title: 'Temporizador bloqueado',
+                message: 'No se puede iniciar el temporizador mientras el proyecto está en arbitraje.',
+                tone: 'warning'
+            });
             return;
         }
 
@@ -1647,12 +1681,18 @@ export class ProjectsModule {
         });
     }
 
-    deleteHistoryProject(id, filterType) {
+    async deleteHistoryProject(id, filterType) {
         const idStr = String(id);
         const p = this.history.find(proj => String(proj.id) === idStr);
         if (!p) return;
 
-        if (confirm(`¿Desconfirmar el pago del proyecto "${p.project}" de ${p.client}?\n\nEl proyecto se quitará de los ingresos y volverá a la lista de activos.`)) {
+        const confirmed = await this.app.confirmAction({
+            title: 'Desconfirmar pago',
+            message: `"${p.project}" de ${p.client} se quitará de los ingresos y volverá a la lista de proyectos activos.`,
+            tone: 'warning',
+            confirmLabel: 'Desconfirmar pago'
+        });
+        if (confirmed) {
             this.history = this.history.filter(proj => String(proj.id) !== idStr);
             p.deliveredDate = null;
             p.isDelivered = false;

@@ -238,7 +238,11 @@ export class VehicleModule {
         this.btnSaveExtintor?.addEventListener('click', () => {
             const dateVal = this.extintorDateInput?.value;
             if (!dateVal) {
-                alert('Por favor selecciona una fecha de vencimiento.');
+                void this.controller.showMessage({
+                    title: 'Falta la fecha',
+                    message: 'Seleccioná una fecha de vencimiento para el matafuego.',
+                    tone: 'warning'
+                });
                 return;
             }
             this.updateDocDate('extintorDate', dateVal);
@@ -268,7 +272,11 @@ export class VehicleModule {
                 if (inputEl && inputEl.value) {
                     this.updateDocDate(key, inputEl.value);
                 } else {
-                    alert('Por favor selecciona una fecha válida.');
+                    void this.controller.showMessage({
+                        title: 'Fecha inválida',
+                        message: 'Seleccioná una fecha válida antes de guardar.',
+                        tone: 'warning'
+                    });
                 }
             });
         });
@@ -304,12 +312,20 @@ export class VehicleModule {
         const kmVal = parseInt(this.oilFormKm?.value) || 0;
 
         if (!dateVal) {
-            alert('Por favor selecciona la fecha del servicio.');
+            void this.controller.showMessage({
+                title: 'Falta la fecha',
+                message: 'Seleccioná la fecha del servicio.',
+                tone: 'warning'
+            });
             return;
         }
 
         if (kmVal <= 0) {
-            alert('Por favor ingresa un kilometraje válido.');
+            void this.controller.showMessage({
+                title: 'Kilometraje inválido',
+                message: 'Ingresá un kilometraje mayor que cero.',
+                tone: 'warning'
+            });
             return;
         }
 
@@ -369,12 +385,20 @@ export class VehicleModule {
         const posVal = this.replaceFormPos?.value || '4';
 
         if (!dateVal) {
-            alert('Por favor selecciona la fecha del servicio.');
+            void this.controller.showMessage({
+                title: 'Falta la fecha',
+                message: 'Seleccioná la fecha del servicio.',
+                tone: 'warning'
+            });
             return;
         }
 
         if (kmVal <= 0) {
-            alert('Por favor ingresa un kilometraje válido.');
+            void this.controller.showMessage({
+                title: 'Kilometraje inválido',
+                message: 'Ingresá un kilometraje mayor que cero.',
+                tone: 'warning'
+            });
             return;
         }
 
@@ -407,11 +431,18 @@ export class VehicleModule {
     }
 
     deleteMaintenance(id) {
-        if (confirm('¿Estás seguro de que quieres eliminar este registro de servicio?')) {
-            this.maintenanceLog = this.maintenanceLog.filter(m => m.id !== id);
+        const index = this.maintenanceLog.findIndex(entry => entry.id === id);
+        if (index < 0) return;
+        const deletedEntry = this.maintenanceLog[index];
+        this.maintenanceLog.splice(index, 1);
+        this.saveMaintenanceLog();
+        this.render();
+        this.controller.showUndo('Servicio eliminado del historial.', () => {
+            this.maintenanceLog.splice(index, 0, deletedEntry);
+            this.maintenanceLog.sort((a, b) => b.km - a.km || new Date(b.date) - new Date(a.date));
             this.saveMaintenanceLog();
             this.render();
-        }
+        });
     }
 
     formatDate(dateStr) {
@@ -696,15 +727,23 @@ export class VehicleModule {
     }
 
     resolveIssue(id) {
-        if (confirm('¿Marcar esta falla como solucionada?')) {
-            const issue = this.issues.find(i => i.id === id);
-            if (issue) {
-                issue.resolvedAt = getLocalISODate();
-                this.issues = this.issues.filter(i => i.id !== id);
-                this.saveIssues();
-                this.render();
-            }
-        }
+        const index = this.issues.findIndex(issue => issue.id === id);
+        if (index < 0) return;
+        const resolvedIssue = {
+            ...this.issues[index],
+            resolvedAt: getLocalISODate()
+        };
+        this.issues.splice(index, 1);
+        this.saveIssues();
+        this.render();
+        this.controller.showUndo('Falla marcada como solucionada.', () => {
+            this.issues.splice(index, 0, {
+                ...resolvedIssue,
+                resolvedAt: null
+            });
+            this.saveIssues();
+            this.render();
+        });
     }
 
     saveTrackerData() {

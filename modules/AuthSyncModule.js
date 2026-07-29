@@ -222,12 +222,22 @@ export class AuthSyncModule {
     }
 
     async logout() {
-        if (confirm("¿Estás seguro de que deseas cerrar sesión? Volverás a la pantalla de acceso.")) {
+        const confirmed = await this.app.confirmAction({
+            title: 'Cerrar sesión',
+            message: 'Volverás a la pantalla de acceso y tus datos locales de esta sesión se limpiarán.',
+            tone: 'warning',
+            confirmLabel: 'Cerrar sesión'
+        });
+        if (confirmed) {
             this.setLoading(true, "Cerrando sesión...");
             const { error } = await this.supabase.auth.signOut();
             if (error) {
                 console.error('Error cerrando sesión:', error);
-                alert(`No se pudo cerrar la sesión: ${error.message}`);
+                await this.app.showMessage({
+                    title: 'No se pudo cerrar la sesión',
+                    message: error.message,
+                    tone: 'danger'
+                });
                 this.setLoading(false);
                 this.setAccessGateState('authenticated');
                 return;
@@ -382,7 +392,11 @@ export class AuthSyncModule {
             if (!this.user || !this.supabase) return false;
             if (!activeResult) {
                 if (isManual) {
-                    alert('Todavía hay cambios pendientes. LifeCycle volverá a intentar guardarlos automáticamente.');
+                    void this.app.showMessage({
+                        title: 'Cambios pendientes',
+                        message: 'LifeCycle volverá a intentar guardarlos automáticamente.',
+                        tone: 'warning'
+                    });
                 }
                 return false;
             }
@@ -442,7 +456,11 @@ export class AuthSyncModule {
                 }, 15 * 1000);
 
                 if (isManual) {
-                    alert(`No se pudieron guardar los cambios: ${error.message}`);
+                    void this.app.showMessage({
+                        title: 'No se pudieron guardar los cambios',
+                        message: error.message,
+                        tone: 'danger'
+                    });
                 }
                 return false;
             } finally {
@@ -523,9 +541,13 @@ export class AuthSyncModule {
         if (this.pendingSyncKeys.size === 0) {
             if (isManual) {
                 const refreshed = await this.checkAndSyncData({ skipPendingFlush: true });
-                alert(refreshed
-                    ? 'Datos actualizados desde la nube.'
-                    : 'No se pudieron actualizar los datos desde la nube.');
+                await this.app.showMessage({
+                    title: refreshed ? 'Datos actualizados' : 'No se pudieron actualizar los datos',
+                    message: refreshed
+                        ? 'LifeCycle ya tiene la versión más reciente de la nube.'
+                        : 'Revisá tu conexión e intentá nuevamente.',
+                    tone: refreshed ? 'success' : 'danger'
+                });
                 return refreshed;
             }
             return true;
@@ -533,7 +555,7 @@ export class AuthSyncModule {
 
         const saved = await this.flushPendingKeySync(isManual);
         if (saved && isManual) {
-            alert('¡Cambios sincronizados correctamente!');
+            this.app.showToast('Cambios sincronizados correctamente.');
         }
         return saved;
     }
@@ -959,14 +981,22 @@ export class AuthSyncModule {
         const supportIssue = this.getPushSupportIssue();
         if (supportIssue) {
             this.setPushStatus('error', supportIssue);
-            alert(supportIssue);
+            await this.app.showMessage({
+                title: 'Notificaciones no disponibles',
+                message: supportIssue,
+                tone: 'danger'
+            });
             return;
         }
 
         if (Notification.permission === 'denied') {
             const message = this.getPushErrorMessage({ name: 'NotAllowedError' });
             this.setPushStatus('error', message);
-            alert(message);
+            await this.app.showMessage({
+                title: 'Permiso de notificaciones bloqueado',
+                message,
+                tone: 'warning'
+            });
             return;
         }
 
@@ -981,7 +1011,11 @@ export class AuthSyncModule {
                     ? this.getPushErrorMessage({ name: 'NotAllowedError' })
                     : 'No se otorgó permiso para mostrar notificaciones.';
                 this.setPushStatus('error', message);
-                alert(message);
+                await this.app.showMessage({
+                    title: 'No se activaron las notificaciones',
+                    message,
+                    tone: 'warning'
+                });
                 return;
             }
 
@@ -1012,13 +1046,21 @@ export class AuthSyncModule {
 
             // 6. Update UI
             await this.checkPushSubscriptionStatus();
-            alert('¡Notificaciones activadas con éxito en este dispositivo!');
+            await this.app.showMessage({
+                title: 'Notificaciones activadas',
+                message: 'Este dispositivo quedó registrado correctamente.',
+                tone: 'success'
+            });
 
         } catch (e) {
             console.error('Error enabling push notifications:', e);
             const message = this.getPushErrorMessage(e);
             this.setPushStatus('error', message);
-            alert(message);
+            await this.app.showMessage({
+                title: 'No se pudieron activar las notificaciones',
+                message,
+                tone: 'danger'
+            });
         } finally {
             if (this.btnEnablePush) this.btnEnablePush.disabled = false;
         }
@@ -1096,7 +1138,11 @@ export class AuthSyncModule {
             const registration = await this.getPushServiceWorkerRegistration();
             const subscription = await registration.pushManager.getSubscription();
             if (!subscription) {
-                alert('No se encontró una suscripción activa en este dispositivo.');
+                await this.app.showMessage({
+                    title: 'Dispositivo no registrado',
+                    message: 'No se encontró una suscripción activa en este dispositivo.',
+                    tone: 'warning'
+                });
                 return;
             }
 
@@ -1105,7 +1151,11 @@ export class AuthSyncModule {
 
             const { data: { session }, error: sessionError } = await this.supabase.auth.getSession();
             if (sessionError || !session?.access_token) {
-                alert('Tu sesión venció. Volvé a iniciar sesión antes de probar las notificaciones.');
+                await this.app.showMessage({
+                    title: 'La sesión venció',
+                    message: 'Volvé a iniciar sesión antes de probar las notificaciones.',
+                    tone: 'warning'
+                });
                 this.setAccessGateState('logged-out');
                 return;
             }
@@ -1122,17 +1172,29 @@ export class AuthSyncModule {
 
             if (res.ok) {
                 this.setPushStatus('active', 'Prueba enviada correctamente a este dispositivo.');
-                alert('Notificación de prueba enviada. Debería aparecer en este dispositivo.');
+                await this.app.showMessage({
+                    title: 'Prueba enviada',
+                    message: 'La notificación debería aparecer en este dispositivo.',
+                    tone: 'success'
+                });
             } else {
                 const statusText = result.statusCode ? ` (HTTP ${result.statusCode})` : '';
                 this.setPushStatus('error', `${result.error || 'El servicio Push rechazó la prueba.'}${statusText}`);
-                alert(`${result.error || 'Error al enviar la notificación de prueba.'}${statusText}`);
+                await this.app.showMessage({
+                    title: 'La prueba fue rechazada',
+                    message: `${result.error || 'Error al enviar la notificación de prueba.'}${statusText}`,
+                    tone: 'danger'
+                });
             }
         } catch (e) {
             console.error('Error triggering test push:', e);
             const message = this.getPushErrorMessage(e);
             this.setPushStatus('error', message);
-            alert(message);
+            await this.app.showMessage({
+                title: 'No se pudo enviar la prueba',
+                message,
+                tone: 'danger'
+            });
         } finally {
             if (this.btnTestPush) this.btnTestPush.disabled = false;
         }

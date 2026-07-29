@@ -126,20 +126,30 @@ export class HygieneModule {
                 e.stopPropagation();
                 const itemId = btn.dataset.item;
                 const idx = parseInt(btn.dataset.index);
-                if (confirm('¿Borrar este registro del historial?')) {
-                    if (Array.isArray(this.data[itemId])) {
-                        this.data[itemId].splice(idx, 1);
-                        if (this.data[itemId].length === 0) {
-                            this.data[itemId] = null;
-                        }
-                    } else {
+                const previousValue = Array.isArray(this.data[itemId])
+                    ? [...this.data[itemId]]
+                    : this.data[itemId];
+                if (Array.isArray(this.data[itemId])) {
+                    this.data[itemId].splice(idx, 1);
+                    if (this.data[itemId].length === 0) {
                         this.data[itemId] = null;
                     }
+                } else {
+                    this.data[itemId] = null;
+                }
+                this.saveData();
+                this.render();
+                this.app.auth?.syncToCloud(false).catch(() => {});
+                this.app.notificationsCenter?.updateBadge();
+                this.app.showUndo('Registro eliminado del historial.', () => {
+                    this.data[itemId] = Array.isArray(previousValue)
+                        ? [...previousValue]
+                        : previousValue;
                     this.saveData();
                     this.render();
                     this.app.auth?.syncToCloud(false).catch(() => {});
                     this.app.notificationsCenter?.updateBadge();
-                }
+                });
             });
         });
     }

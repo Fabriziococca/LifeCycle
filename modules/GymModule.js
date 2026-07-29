@@ -401,7 +401,11 @@ export class GymModule {
                 const reps = parseInt(document.getElementById('session-reps').value);
 
                 if (!exName || isNaN(weight) || isNaN(reps)) {
-                    alert('Por favor completa ejercicio, peso y repeticiones.');
+                    void this.app.showMessage({
+                        title: 'Faltan datos de la serie',
+                        message: 'Completá ejercicio, peso y repeticiones.',
+                        tone: 'warning'
+                    });
                     return;
                 }
 
@@ -419,9 +423,15 @@ export class GymModule {
         }
 
         if (btnEnd) {
-            btnEnd.addEventListener('click', () => {
+            btnEnd.addEventListener('click', async () => {
                 if (!this.activeSession || Object.keys(this.activeSession.exercises).length === 0) {
-                    if (!confirm('No registraste series. ¿Cerrar sesión igualmente?')) return;
+                    const confirmed = await this.app.confirmAction({
+                        title: 'Cerrar sesión vacía',
+                        message: 'No registraste ninguna serie. La sesión se cerrará sin agregarse al historial.',
+                        tone: 'warning',
+                        confirmLabel: 'Cerrar sesión'
+                    });
+                    if (!confirmed) return;
                 }
 
                 let completedSessionSaved = false;
@@ -451,9 +461,16 @@ export class GymModule {
         }
 
         if (btnDiscard) {
-            btnDiscard.addEventListener('click', () => {
+            btnDiscard.addEventListener('click', async () => {
                 if (!this.activeSession) return;
-                if (!confirm('¿Descartar este entrenamiento activo? No se agregará al historial.')) return;
+                const confirmed = await this.app.confirmAction({
+                    title: 'Descartar entrenamiento',
+                    message: 'El entrenamiento activo no se agregará al historial y sus series se perderán.',
+                    tone: 'danger',
+                    confirmLabel: 'Descartar',
+                    closeOnBackdrop: false
+                });
+                if (!confirmed) return;
 
                 this.activeSession = null;
                 this.persistActiveSession({ syncNow: true });
@@ -574,7 +591,11 @@ export class GymModule {
                 const group = document.getElementById('edit-meal-group').value.trim();
 
                 if (!name) {
-                    alert('Por favor ingresá un nombre para la comida.');
+                    void this.app.showMessage({
+                        title: 'Falta el nombre',
+                        message: 'Ingresá un nombre para la comida.',
+                        tone: 'warning'
+                    });
                     return;
                 }
 
@@ -842,11 +863,17 @@ export class GymModule {
     }
 
     deleteRecord(id) {
-        if (confirm('¿Seguro que querés eliminar esta marca personal?')) {
-            this.records = this.records.filter(r => r.id !== id);
+        const index = this.records.findIndex(record => record.id === id);
+        if (index < 0) return;
+        const deletedRecord = this.records[index];
+        this.records.splice(index, 1);
+        this.saveData('gym_records');
+        this.renderRecords();
+        this.app.showUndo('Marca personal eliminada.', () => {
+            this.records.splice(index, 0, deletedRecord);
             this.saveData('gym_records');
             this.renderRecords();
-        }
+        });
     }
 
     renderRoutine() {
@@ -934,16 +961,21 @@ export class GymModule {
     }
 
     deleteRoutine(id) {
-        if (confirm('¿Seguro que querés quitar este ejercicio de la rutina?')) {
-            const ex = this.routine.find(r => r.id === id);
-            if (ex && ex.linkId) {
-                this.routine = this.routine.filter(r => r.linkId !== ex.linkId);
-            } else {
-                this.routine = this.routine.filter(r => r.id !== id);
-            }
+        const exercise = this.routine.find(item => item.id === id);
+        if (!exercise) return;
+        const previousRoutine = this.routine.map(item => ({ ...item }));
+        if (exercise.linkId) {
+            this.routine = this.routine.filter(item => item.linkId !== exercise.linkId);
+        } else {
+            this.routine = this.routine.filter(item => item.id !== id);
+        }
+        this.saveData('gym_routine');
+        this.renderRoutine();
+        this.app.showUndo('Ejercicio quitado de la rutina.', () => {
+            this.routine = previousRoutine;
             this.saveData('gym_routine');
             this.renderRoutine();
-        }
+        });
     }
 
     renderActiveSessionForm() {
@@ -1009,13 +1041,17 @@ export class GymModule {
     }
 
     removeExerciseFromActiveSession(exName) {
-        if (confirm(`¿Seguro que querés quitar el ejercicio "${exName}" de este entrenamiento?`)) {
-            if (this.activeSession && this.activeSession.exercises[exName]) {
-                delete this.activeSession.exercises[exName];
-                this.persistActiveSession();
-                this.renderActiveSessionForm();
-            }
-        }
+        if (!this.activeSession?.exercises?.[exName]) return;
+        const removedSets = this.activeSession.exercises[exName].map(set => ({ ...set }));
+        delete this.activeSession.exercises[exName];
+        this.persistActiveSession();
+        this.renderActiveSessionForm();
+        this.app.showUndo(`"${exName}" se quitó del entrenamiento.`, () => {
+            if (!this.activeSession) return;
+            this.activeSession.exercises[exName] = removedSets;
+            this.persistActiveSession();
+            this.renderActiveSessionForm();
+        });
     }
 
     renderSessionsLog() {
@@ -1079,11 +1115,17 @@ export class GymModule {
     }
 
     deleteSession(id) {
-        if (confirm('¿Seguro que deseas eliminar permanentemente este entrenamiento del historial?')) {
-            this.sessions = this.sessions.filter(s => s.id !== id);
+        const index = this.sessions.findIndex(session => session.id === id);
+        if (index < 0) return;
+        const deletedSession = this.sessions[index];
+        this.sessions.splice(index, 1);
+        this.saveData('gym_sessions');
+        this.renderSessionsLog();
+        this.app.showUndo('Entrenamiento eliminado del historial.', () => {
+            this.sessions.splice(index, 0, deletedSession);
             this.saveData('gym_sessions');
             this.renderSessionsLog();
-        }
+        });
     }
 
     updateRoutineExercisesList() {
@@ -1306,8 +1348,15 @@ export class GymModule {
         }
     }
 
-    deleteMealGroup(type, groupName) {
-        if (confirm(`¿Seguro que querés eliminar todo el grupo "${groupName}"?`)) {
+    async deleteMealGroup(type, groupName) {
+        const confirmed = await this.app.confirmAction({
+            title: `Eliminar grupo "${groupName}"`,
+            message: 'Se eliminarán permanentemente todas las comidas de este grupo.',
+            tone: 'danger',
+            confirmLabel: 'Eliminar grupo',
+            closeOnBackdrop: false
+        });
+        if (confirmed) {
             if (type === 'general') {
                 this.generalMeals = this.generalMeals.filter(m => (m.group || '') !== groupName);
                 this.saveData('gym_general_meals');
@@ -1321,15 +1370,29 @@ export class GymModule {
     }
 
     deleteMeal(type, id) {
+        const list = type === 'general' ? this.generalMeals : this.meals[type];
+        const index = list.findIndex(meal => meal.id === id);
+        if (index < 0) return;
+        const deletedMeal = list[index];
+        list.splice(index, 1);
         if (type === 'general') {
-            this.generalMeals = this.generalMeals.filter(m => m.id !== id);
             this.saveData('gym_general_meals');
             this.renderGeneralMeals();
         } else {
-            this.meals[type] = this.meals[type].filter(m => m.id !== id);
             this.saveData('gym_meals');
             this.renderNutrition();
         }
+        this.app.showUndo('Comida eliminada.', () => {
+            const currentList = type === 'general' ? this.generalMeals : this.meals[type];
+            currentList.splice(index, 0, deletedMeal);
+            if (type === 'general') {
+                this.saveData('gym_general_meals');
+                this.renderGeneralMeals();
+            } else {
+                this.saveData('gym_meals');
+                this.renderNutrition();
+            }
+        });
     }
 
     renderWeight() {
@@ -1470,11 +1533,17 @@ export class GymModule {
     }
 
     deleteWeight(id) {
-        if (confirm('¿Eliminar esta marca de peso corporal del historial?')) {
-            this.weight = this.weight.filter(w => w.id !== id);
+        const index = this.weight.findIndex(entry => entry.id === id);
+        if (index < 0) return;
+        const deletedEntry = this.weight[index];
+        this.weight.splice(index, 1);
+        this.saveData('gym_weight');
+        this.renderWeight();
+        this.app.showUndo('Registro de peso eliminado.', () => {
+            this.weight.splice(index, 0, deletedEntry);
             this.saveData('gym_weight');
             this.renderWeight();
-        }
+        });
     }
 
     renderSupplements() {
@@ -1562,11 +1631,18 @@ export class GymModule {
     }
 
     deleteVitdTake(id) {
-        if (confirm('¿Eliminar este registro de toma de Vitamina D?')) {
-            this.supplements.vit_d_history = this.supplements.vit_d_history.filter(t => t.id !== id);
+        const history = this.supplements.vit_d_history;
+        const index = history.findIndex(entry => entry.id === id);
+        if (index < 0) return;
+        const deletedEntry = history[index];
+        history.splice(index, 1);
+        this.saveData('gym_supplements');
+        this.renderSupplements();
+        this.app.showUndo('Toma de Vitamina D eliminada.', () => {
+            history.splice(index, 0, deletedEntry);
             this.saveData('gym_supplements');
             this.renderSupplements();
-        }
+        });
     }
 
     renderPainkillers() {
@@ -1730,11 +1806,18 @@ export class GymModule {
     }
 
     deletePainkillerTake(id) {
-        if (confirm('¿Eliminar este registro de toma de analgésico?')) {
-            this.supplements.painkillers_history = this.supplements.painkillers_history.filter(p => p.id !== id);
+        const history = this.supplements.painkillers_history;
+        const index = history.findIndex(entry => entry.id === id);
+        if (index < 0) return;
+        const deletedEntry = history[index];
+        history.splice(index, 1);
+        this.saveData('gym_supplements');
+        this.renderPainkillers();
+        this.app.showUndo('Toma de analgésico eliminada.', () => {
+            history.splice(index, 0, deletedEntry);
             this.saveData('gym_supplements');
             this.renderPainkillers();
-        }
+        });
     }
 
     editMeal(type, id) {
@@ -1784,7 +1867,7 @@ export class GymModule {
         });
 
         this.saveData('gym_meals');
-        alert(`¡"${meal.name}" copiado a Comidas Fijas con éxito!`);
+        this.app.showToast(`"${meal.name}" se copió a Comidas Fijas.`);
         this.renderNutrition();
     }
 

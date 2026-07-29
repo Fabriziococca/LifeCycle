@@ -451,31 +451,54 @@ export class TareasModule {
         if (!p) return;
 
         const fullName = p.client ? `${p.client} - ${p.project}` : p.project;
+        const wasPinned = this.pinnedProjectIds.map(String).includes(idStr);
+        const pinnedSnapshot = this.pinnedProjectsStore.find(
+            project => String(project.id) === idStr
+        );
 
-        if (confirm(`¿Seguro que deseas eliminar el proyecto "${fullName}" de la lista de tareas?\n\n(Esto quitará el proyecto de la sección Tareas pero su historial financiero y registro en la sección Proyectos se mantendrán intactos)`)) {
-            if (!this.removedProjectIds.map(String).includes(idStr)) {
-                this.removedProjectIds.push(idStr);
+        if (!this.removedProjectIds.map(String).includes(idStr)) {
+            this.removedProjectIds.push(idStr);
+        }
+        this.pinnedProjectIds = this.pinnedProjectIds.filter(x => String(x) !== idStr);
+        this.pinnedProjectsStore = this.pinnedProjectsStore.filter(x => String(x.id) !== idStr);
+
+        const inActive = this.app.projects?.projects?.find(x => String(x.id) === idStr);
+        if (inActive) inActive.isPinned = false;
+        const inHist = this.app.projects?.history?.find(x => String(x.id) === idStr);
+        if (inHist) inHist.isPinned = false;
+
+        const remaining = this.getFreelanceProjects();
+        if (remaining.length > 0) {
+            this.activeProjectId = remaining[0].id;
+        } else {
+            this.activeProjectId = null;
+        }
+
+        this.saveData();
+        this.app.projects?.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.render();
+        this.app.showUndo(`"${fullName}" se ocultó de Tareas.`, () => {
+            this.removedProjectIds = this.removedProjectIds.filter(
+                projectId => String(projectId) !== idStr
+            );
+            if (wasPinned && !this.pinnedProjectIds.map(String).includes(idStr)) {
+                this.pinnedProjectIds.push(idStr);
             }
-            this.pinnedProjectIds = this.pinnedProjectIds.filter(x => String(x) !== idStr);
-            this.pinnedProjectsStore = this.pinnedProjectsStore.filter(x => String(x.id) !== idStr);
-
-            const inActive = this.app.projects?.projects?.find(x => String(x.id) === idStr);
-            if (inActive) inActive.isPinned = false;
-            const inHist = this.app.projects?.history?.find(x => String(x.id) === idStr);
-            if (inHist) inHist.isPinned = false;
-
-            const remaining = this.getFreelanceProjects();
-            if (remaining.length > 0) {
-                this.activeProjectId = remaining[0].id;
-            } else {
-                this.activeProjectId = null;
+            if (
+                pinnedSnapshot
+                && !this.pinnedProjectsStore.some(project => String(project.id) === idStr)
+            ) {
+                this.pinnedProjectsStore.push(pinnedSnapshot);
             }
-
+            if (inActive) inActive.isPinned = wasPinned;
+            if (inHist) inHist.isPinned = wasPinned;
+            this.activeProjectId = p.id;
             this.saveData();
             this.app.projects?.saveData();
             this.app.auth?.syncToCloud(false).catch(() => {});
             this.render();
-        }
+        });
     }
 
     setupListeners() {
@@ -499,7 +522,11 @@ export class TareasModule {
             const val = catInput?.value.trim();
             if (!val) return;
             if (this.categories.includes(val)) {
-                alert("Esta carpeta ya existe.");
+                void this.app.showMessage({
+                    title: 'Carpeta duplicada',
+                    message: 'Ya existe una carpeta con ese nombre.',
+                    tone: 'warning'
+                });
                 return;
             }
             this.categories.push(val);
@@ -511,13 +538,24 @@ export class TareasModule {
 
         // Delete Category
         const btnDeleteCategory = document.getElementById('btn-delete-category');
-        btnDeleteCategory?.addEventListener('click', () => {
+        btnDeleteCategory?.addEventListener('click', async () => {
             if (!this.currentCategory) return;
             if (this.currentCategory === 'Freelance') {
-                alert("La carpeta Freelance se maneja automáticamente y no puede ser eliminada.");
+                await this.app.showMessage({
+                    title: 'Carpeta protegida',
+                    message: 'Freelance se administra automáticamente y no puede eliminarse.',
+                    tone: 'warning'
+                });
                 return;
             }
-            if (confirm(`¿Seguro que deseas eliminar la carpeta "${this.currentCategory}"?\nTodas las tareas dentro de esta carpeta se borrarán permanentemente.`)) {
+            const confirmed = await this.app.confirmAction({
+                title: `Eliminar carpeta "${this.currentCategory}"`,
+                message: 'Todas las tareas dentro de esta carpeta se borrarán permanentemente. Esta acción no se puede deshacer.',
+                tone: 'danger',
+                confirmLabel: 'Eliminar carpeta',
+                closeOnBackdrop: false
+            });
+            if (confirmed) {
                 this.tasks = this.tasks.filter(t => t.category !== this.currentCategory);
                 this.categories = this.categories.filter(c => c !== this.currentCategory);
                 this.currentCategory = this.categories.length > 0 ? this.categories[0] : null;
@@ -536,11 +574,19 @@ export class TareasModule {
 
         btnAddTask?.addEventListener('click', () => {
             if (!this.currentCategory) {
-                alert("Primero crea una carpeta.");
+                void this.app.showMessage({
+                    title: 'Falta una carpeta',
+                    message: 'Primero creá una carpeta para guardar la tarea.',
+                    tone: 'warning'
+                });
                 return;
             }
             if (this.currentCategory === 'Freelance') {
-                alert("Para agregar tareas en Freelance, utiliza el panel integrado.");
+                void this.app.showMessage({
+                    title: 'Usá el panel del proyecto',
+                    message: 'Las tareas de Freelance se agregan desde su panel integrado.',
+                    tone: 'info'
+                });
                 return;
             }
             this.openTaskCapture({
@@ -638,14 +684,22 @@ export class TareasModule {
             
             const activeProjId = this.activeProjectId;
             if (!activeProjId) {
-                alert("Por favor selecciona un proyecto primero.");
+                void this.app.showMessage({
+                    title: 'Falta seleccionar el proyecto',
+                    message: 'Seleccioná un proyecto antes de agregar la tarea.',
+                    tone: 'warning'
+                });
                 return;
             }
 
             const projects = this.getFreelanceProjects();
             const p = projects.find(x => String(x.id) === String(activeProjId));
             if (!p) {
-                alert("Proyecto no encontrado.");
+                void this.app.showMessage({
+                    title: 'Proyecto no encontrado',
+                    message: 'Actualizá la vista y volvé a intentarlo.',
+                    tone: 'danger'
+                });
                 return;
             }
 
@@ -691,10 +745,42 @@ export class TareasModule {
     }
 
     deleteTask(id) {
-        this.tasks = this.tasks.filter(x => x.id !== id);
+        const index = this.tasks.findIndex(task => task.id === id);
+        if (index < 0) return;
+        const deletedTask = this.tasks[index];
+        this.tasks.splice(index, 1);
         this.saveData();
         this.render();
         this.app.notificationsCenter?.render();
+        this.app.showUndo('Tarea eliminada.', () => {
+            this.tasks.splice(index, 0, deletedTask);
+            this.saveData();
+            this.render();
+            this.app.notificationsCenter?.render();
+            this.app.auth?.syncToCloud(false).catch(() => {});
+        });
+    }
+
+    deleteFreelanceTask(project, taskId) {
+        const index = project.tasks?.findIndex(task => task.id === taskId) ?? -1;
+        if (index < 0) return;
+        const deletedTask = project.tasks[index];
+        project.tasks.splice(index, 1);
+        this.syncProjectTasksToStores(project.id, project.tasks);
+        this.saveData();
+        this.app.projects?.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.app.notificationsCenter?.updateBadge();
+        this.render();
+        this.app.showUndo('Tarea eliminada.', () => {
+            project.tasks.splice(index, 0, deletedTask);
+            this.syncProjectTasksToStores(project.id, project.tasks);
+            this.saveData();
+            this.app.projects?.saveData();
+            this.app.auth?.syncToCloud(false).catch(() => {});
+            this.app.notificationsCenter?.updateBadge();
+            this.render();
+        });
     }
 
     render() {
@@ -923,15 +1009,7 @@ export class TareasModule {
                             this.render();
                         });
                         row.querySelector('.btn-delete-task').addEventListener('click', () => {
-                            if (confirm('¿Borrar esta tarea?')) {
-                                p.tasks = p.tasks.filter(x => x.id !== t.id);
-                                this.syncProjectTasksToStores(p.id, p.tasks);
-                                this.saveData();
-                                this.app.projects?.saveData();
-                                this.app.auth?.syncToCloud(false).catch(() => {});
-                                this.app.notificationsCenter?.updateBadge();
-                                this.render();
-                            }
+                            this.deleteFreelanceTask(p, t.id);
                         });
                     }
                     activeList.appendChild(row);
@@ -975,15 +1053,7 @@ export class TareasModule {
                         this.render();
                     });
                     row.querySelector('.btn-delete-task').addEventListener('click', () => {
-                        if (confirm('¿Borrar esta tarea?')) {
-                            p.tasks = p.tasks.filter(x => x.id !== t.id);
-                            this.syncProjectTasksToStores(p.id, p.tasks);
-                            this.saveData();
-                            this.app.projects?.saveData();
-                            this.app.auth?.syncToCloud(false).catch(() => {});
-                            this.app.notificationsCenter?.updateBadge();
-                            this.render();
-                        }
+                        this.deleteFreelanceTask(p, t.id);
                     });
                     completedList.appendChild(row);
                 });

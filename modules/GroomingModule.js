@@ -117,13 +117,21 @@ export class GroomingModule {
                 e.stopPropagation();
                 const zone = btn.dataset.zone;
                 const idx = parseInt(btn.dataset.index);
-                if (confirm('¿Borrar este registro del historial?')) {
-                    this.data[zone].splice(idx, 1);
+                const deletedEntry = this.data[zone]?.[idx];
+                if (deletedEntry === undefined) return;
+                this.data[zone].splice(idx, 1);
+                this.saveData();
+                this.render();
+                this.app.auth?.syncToCloud(false).catch(() => {});
+                this.app.notificationsCenter?.updateBadge();
+                this.app.showUndo('Registro eliminado del historial.', () => {
+                    if (!Array.isArray(this.data[zone])) this.data[zone] = [];
+                    this.data[zone].splice(idx, 0, deletedEntry);
                     this.saveData();
                     this.render();
                     this.app.auth?.syncToCloud(false).catch(() => {});
                     this.app.notificationsCenter?.updateBadge();
-                }
+                });
             });
         });
     }

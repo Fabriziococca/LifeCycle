@@ -321,10 +321,6 @@ export class FinanzasModule {
     deleteFinanceRecurringRule(ruleId) {
         const rule = this.getFinanceRecurringRuleById(ruleId);
         if (!rule) return;
-        const confirmed = confirm(
-            `¿Eliminar el recurrente "${rule.name}"? Los movimientos ya registrados se conservarán.`
-        );
-        if (!confirmed) return;
 
         this.data.recurringRules = removeFinanceRecurringRule(
             this.data.recurringRules,
@@ -337,7 +333,16 @@ export class FinanzasModule {
         this.app.auth?.syncToCloud(false).catch(() => {});
         this.renderFinanceRecurringManager();
         this.renderFinanceRecurringDuePanel();
-        this.app.showToast?.(`Movimiento ${rule.name} eliminado.`);
+        this.app.showUndo(`Movimiento recurrente ${rule.name} eliminado.`, () => {
+            this.data.recurringRules = upsertFinanceRecurringRule(
+                this.data.recurringRules,
+                rule
+            );
+            this.saveData();
+            this.app.auth?.syncToCloud(false).catch(() => {});
+            this.renderFinanceRecurringManager();
+            this.renderFinanceRecurringDuePanel();
+        });
     }
 
     renderFinanceRecurringManager() {
@@ -813,7 +818,11 @@ export class FinanzasModule {
         if (currency === 'ARS') {
             const rate = this.app.getValidCachedLemonRate() ?? await this.app.fetchLemonRate();
             if (rate === null) {
-                alert('No se pudo obtener una cotización actual de ARS. El ingreso no fue guardado para evitar una conversión incorrecta.');
+                await this.app.showMessage({
+                    title: 'Cotización no disponible',
+                    message: 'El ingreso no fue guardado para evitar una conversión incorrecta de ARS.',
+                    tone: 'danger'
+                });
                 return;
             }
             amount = amountInput / rate;
@@ -865,12 +874,19 @@ export class FinanzasModule {
     }
 
     deleteEntry(id) {
-        if (confirm('¿Seguro que deseas eliminar este ingreso?')) {
-            this.data.entries = this.data.entries.filter(e => e.id !== id);
+        const index = this.data.entries.findIndex(entry => entry.id === id);
+        if (index < 0) return;
+        const deletedEntry = this.data.entries[index];
+        this.data.entries.splice(index, 1);
+        this.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.render();
+        this.app.showUndo('Ingreso eliminado.', () => {
+            this.data.entries.splice(index, 0, deletedEntry);
             this.saveData();
             this.app.auth?.syncToCloud(false).catch(() => {});
             this.render();
-        }
+        });
     }
 
     async saveExpenseEntry() {
@@ -905,7 +921,11 @@ export class FinanzasModule {
         if (currency === 'ARS') {
             const rate = this.app.getValidCachedLemonRate() ?? await this.app.fetchLemonRate();
             if (rate === null) {
-                alert('No se pudo obtener una cotización actual de ARS. El gasto no fue guardado para evitar una conversión incorrecta.');
+                await this.app.showMessage({
+                    title: 'Cotización no disponible',
+                    message: 'El gasto no fue guardado para evitar una conversión incorrecta de ARS.',
+                    tone: 'danger'
+                });
                 return;
             }
             amount = amountInput / rate;
@@ -940,12 +960,19 @@ export class FinanzasModule {
     }
 
     deleteExpense(id) {
-        if (confirm('¿Seguro que deseas eliminar este gasto?')) {
-            this.data.expenses = this.data.expenses.filter(e => e.id !== id);
+        const index = this.data.expenses.findIndex(expense => expense.id === id);
+        if (index < 0) return;
+        const deletedExpense = this.data.expenses[index];
+        this.data.expenses.splice(index, 1);
+        this.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.render();
+        this.app.showUndo('Gasto eliminado.', () => {
+            this.data.expenses.splice(index, 0, deletedExpense);
             this.saveData();
             this.app.auth?.syncToCloud(false).catch(() => {});
             this.render();
-        }
+        });
     }
 
     getCombinedEntries() {
