@@ -12,6 +12,7 @@ import { TareasModule } from './modules/TareasModule.js';
 import { AlertsModule } from './modules/AlertsModule.js';
 import { NotificationsCenterModule } from './modules/NotificationsCenterModule.js';
 import { CustomTrackersModule } from './modules/CustomTrackersModule.js';
+import { TodayModule } from './modules/TodayModule.js';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260727-cloud-first';
 import {
     readUiState,
@@ -284,7 +285,9 @@ class AppController {
     }
 
     renderSection(sectionId) {
-        if (sectionId === 'cuidado-section') {
+        if (sectionId === 'hoy-section') {
+            this.today?.render();
+        } else if (sectionId === 'cuidado-section') {
             this.grooming?.render();
         } else if (sectionId === 'lenses-section') {
             this.lenses?.updateUI();
@@ -626,13 +629,15 @@ class AppController {
         this.auth = new AuthSyncModule(this);
         this.alerts = new AlertsModule(this);
         this.notificationsCenter = new NotificationsCenterModule(this);
+        this.today = new TodayModule(this);
         this.restoreUiState();
         requestAnimationFrame(() => this.refreshNavigationHints());
         
         setInterval(() => {
             const activeSection = document.querySelector('.main-section:not(.hidden)');
             if (activeSection) {
-                if (activeSection.id === 'higiene-section') this.hygiene.render();
+                if (activeSection.id === 'hoy-section') this.today.render();
+                else if (activeSection.id === 'higiene-section') this.hygiene.render();
                 else if (activeSection.id === 'cuidado-section') this.grooming.render();
                 else if (activeSection.id === 'lenses-section') this.lenses.loadDatesAndStock();
                 else if (activeSection.id === 'salud-section') this.health.render();

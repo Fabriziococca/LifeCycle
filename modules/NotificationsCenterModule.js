@@ -9,6 +9,18 @@ import {
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import { getCustomTrackerState } from '../custom-tracker-utils.mjs?v=20260729-trackers-v2';
 
+const COMPLETABLE_MODULES = new Set([
+    'hygiene',
+    'robot',
+    'grooming',
+    'lenses',
+    'custom_tracker',
+    'vehicle',
+    'workana',
+    'tareas',
+    'projects_tasks'
+]);
+
 export class NotificationsCenterModule {
     constructor(appController) {
         this.app = appController;
@@ -296,7 +308,11 @@ export class NotificationsCenterModule {
                                         id: p.id,
                                         name: `Proyecto: ${p.project}`,
                                         icon: 'ph-briefcase',
-                                        desc: remainingMs <= 0 ? '¡Entrega demorada!' : `Vence pronto. Quedan ${days} días.`
+                                        desc: remainingMs <= 0
+                                            ? '¡Entrega demorada!'
+                                            : `Vence pronto. ${days === 1 ? 'Queda 1 día' : `Quedan ${days} días`}.`,
+                                        overdue: remainingMs <= 0,
+                                        deadline: p.deadline
                                     });
                                 }
                             }
@@ -367,7 +383,9 @@ export class NotificationsCenterModule {
                         id: t.id,
                         name: `${isVeryUrgent ? '🔥 ' : ''}Tarea: ${t.text}`,
                         icon: isVeryUrgent ? 'ph-fire' : 'ph-check-square',
-                        desc: `${isVeryUrgent ? '¡MUY URGENTE!' : 'Urgente'} - Categoría: ${catName}`
+                        desc: `${isVeryUrgent ? '¡MUY URGENTE!' : 'Urgente'} - Categoría: ${catName}`,
+                        urgency: t.urgency,
+                        category: catName
                     });
                 });
             }
@@ -384,7 +402,9 @@ export class NotificationsCenterModule {
                             id: t.id,
                             name: `${isVeryUrgent ? '🔥 ' : ''}Proyecto: ${p.client || p.project}`,
                             icon: isVeryUrgent ? 'ph-fire' : 'ph-list-checks',
-                            desc: `${isVeryUrgent ? '¡MUY URGENTE!' : 'Urgente'} - Tarea: ${t.text}`
+                            desc: `${isVeryUrgent ? '¡MUY URGENTE!' : 'Urgente'} - Tarea: ${t.text}`,
+                            urgency: t.urgency,
+                            projectId: p.id
                         });
                     });
                 }
@@ -393,6 +413,60 @@ export class NotificationsCenterModule {
             console.error("Error in getOverdueItems:", e);
         }
         return items;
+    }
+
+    isItemCompletable(item) {
+        return COMPLETABLE_MODULES.has(item?.module);
+    }
+
+    openItem(item) {
+        if (!item) return false;
+
+        let sectionId = null;
+        if (item.module === 'tareas') {
+            const task = this.app.tareas?.tasks?.find(
+                candidate => String(candidate.id) === String(item.id)
+            );
+            if (task?.category) this.app.tareas.currentCategory = task.category;
+            sectionId = 'tareas-section';
+        } else if (item.module === 'projects_tasks') {
+            this.app.tareas.currentCategory = 'Freelance';
+            if (item.projectId !== undefined && item.projectId !== null) {
+                this.app.tareas.activeProjectId = item.projectId;
+            }
+            sectionId = 'tareas-section';
+        } else if (item.module === 'projects' || item.module === 'workana') {
+            sectionId = 'projects-section';
+        } else if (item.module === 'custom_tracker') {
+            const tracker = this.app.customTrackers?.getTracker(item.id);
+            const sectionMap = {
+                hygiene: 'higiene-section',
+                grooming: 'cuidado-section',
+                lenses: 'lentes-section',
+                health: 'salud-section'
+            };
+            sectionId = sectionMap[tracker?.section] || null;
+        } else {
+            const moduleSections = {
+                hygiene: 'higiene-section',
+                robot: 'higiene-section',
+                grooming: 'cuidado-section',
+                lenses: 'lentes-section',
+                vehicle: 'vehiculo-section',
+                gym: 'gym-section'
+            };
+            sectionId = moduleSections[item.module] || null;
+        }
+
+        if (!sectionId || !this.app.activateSection(sectionId, { smooth: true })) {
+            return false;
+        }
+
+        this.panel?.classList.add('hidden');
+        requestAnimationFrame(() => {
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        });
+        return true;
     }
 
     updateBadge(items = null) {
@@ -411,6 +485,8 @@ export class NotificationsCenterModule {
         if (this.countText) {
             this.countText.innerText = `${count} pendientes`;
         }
+
+        this.app.today?.render(pendingItems);
     }
 
     render() {
@@ -436,6 +512,9 @@ export class NotificationsCenterModule {
             const safeIcon = escapeHtml(item.icon || 'ph-bell');
             const safeName = escapeHtml(item.name || 'Recordatorio');
             const safeDescription = escapeHtml(item.desc || '');
+            const isCompletable = this.isItemCompletable(item);
+            const actionLabel = isCompletable ? 'Listo' : 'Abrir';
+            const actionIcon = isCompletable ? 'ph-check' : 'ph-arrow-right';
             el.innerHTML = `
                 <div class="notification-item-info">
                     <div class="notification-item-title">
@@ -444,21 +523,25 @@ export class NotificationsCenterModule {
                     </div>
                     <div class="notification-item-desc">${safeDescription}</div>
                 </div>
-                <button type="button" class="notification-item-btn" aria-label="Marcar como resuelto: ${safeName}">
-                    <i class="ph ph-check"></i> Listo
+                <button type="button" class="notification-item-btn" aria-label="${isCompletable ? 'Marcar como resuelto' : 'Abrir'}: ${safeName}">
+                    <i class="ph ${actionIcon}"></i> ${actionLabel}
                 </button>
             `;
             
             el.querySelector('.notification-item-btn').addEventListener('click', (e) => {
                 e.stopPropagation();
-                this.completeTask(item.module, item.id);
+                if (isCompletable) {
+                    this.completeTask(item.module, item.id, item);
+                } else {
+                    this.openItem(item);
+                }
             });
             
             this.listContainer.appendChild(el);
         });
     }
 
-    completeTask(module, id) {
+    completeTask(module, id, context = {}) {
         if (navigator.vibrate) navigator.vibrate(50);
         
         if (module === 'hygiene') {
@@ -528,7 +611,10 @@ export class NotificationsCenterModule {
             }
         } else if (module === 'projects_tasks') {
             const freelanceProjs = this.app.tareas?.getFreelanceProjects ? this.app.tareas.getFreelanceProjects() : (this.app.projects?.projects || []);
-            for (const p of freelanceProjs) {
+            const projectCandidates = context.projectId !== undefined && context.projectId !== null
+                ? freelanceProjs.filter(p => String(p.id) === String(context.projectId))
+                : freelanceProjs;
+            for (const p of projectCandidates) {
                 const t = p.tasks?.find(x => String(x.id) === String(id));
                 if (t) {
                     t.completed = true;
@@ -545,7 +631,6 @@ export class NotificationsCenterModule {
         }
         
         // Update badge and list in real-time
-        this.updateBadge();
         this.render();
     }
 }

@@ -1,4 +1,5 @@
 const FREELANCE_CATEGORY = 'Freelance';
+export const DEFAULT_TASK_URGENCY = 'urgente';
 const VALID_URGENCIES = new Set([
     'no_urgente',
     'urgente',
@@ -39,7 +40,7 @@ export function createTaskRecord(
 
     const urgency = VALID_URGENCIES.has(draft?.urgency)
         ? draft.urgency
-        : 'no_urgente';
+        : DEFAULT_TASK_URGENCY;
     const timestamp = Number(now());
     const safeTimestamp = Number.isFinite(timestamp) && timestamp >= 0
         ? Math.trunc(timestamp)

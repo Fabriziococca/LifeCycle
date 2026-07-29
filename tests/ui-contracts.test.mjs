@@ -115,3 +115,40 @@ test('mobile navigation explains horizontal overflow and reacts after authentica
     assert.match(appSource, /new ResizeObserver\(update\)/);
     assert.match(appSource, /has-horizontal-overflow/);
 });
+
+test('Today reuses critical items and links back to their source modules', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+    const todaySource = await readFile(
+        path.join(ROOT, 'modules', 'TodayModule.js'),
+        'utf8'
+    );
+
+    assert.match(index, /data-section="hoy-section"/);
+    assert.match(index, /id="hoy-section"/);
+    assert.match(appSource, /new TodayModule\(this\)/);
+    assert.match(todaySource, /notificationsCenter\?\.getOverdueItems/);
+    assert.match(todaySource, /data-today-action="open"/);
+    assert.match(todaySource, /data-today-action="complete"/);
+});
+
+test('task creation presents urgent work first and keeps non-urgent as long-term', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const generalSelect = index.match(
+        /<select id="tareas-task-urgency"[\s\S]*?<\/select>/
+    )?.[0] || '';
+    const projectSelect = index.match(
+        /<select id="tareas-freelance-new-task-urgency"[\s\S]*?<\/select>/
+    )?.[0] || '';
+
+    [generalSelect, projectSelect].forEach(markup => {
+        assert.ok(markup.indexOf('value="urgente"') >= 0);
+        assert.ok(
+            markup.indexOf('value="urgente"') < markup.indexOf('value="muy_urgente"')
+        );
+        assert.ok(
+            markup.indexOf('value="muy_urgente"') < markup.indexOf('value="no_urgente"')
+        );
+        assert.match(markup, /No urgente \(largo plazo\)/);
+    });
+});

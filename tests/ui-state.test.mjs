@@ -54,6 +54,10 @@ test('UI state accepts only known navigation values', () => {
         normalizeUiState({ profileTab: 'modulos' }).profileTab,
         'modulos'
     );
+    assert.equal(
+        normalizeUiState({ section: 'hoy-section' }).section,
+        'hoy-section'
+    );
 });
 
 test('UI state survives malformed storage without blocking startup', () => {

@@ -36,6 +36,8 @@ La auditoría describe el producto observado al comenzar esta etapa. Durante la 
 - Sistema compartido de tooltips para controles compactos, compatibilidad con los `title` históricos y nombres accesibles en los iconos auditados.
 - Convenciones obligatorias de interfaz documentadas en `docs/UX_CONVENTIONS.md` y verificadas parcialmente mediante contratos automáticos.
 - Captura rápida de tareas disponible desde cualquier módulo, con carpeta, urgencia, validación en contexto, confirmación visible, atajo `Alt+N` y reutilización del mismo modelo sincronizado de Tareas.
+- Prioridad inicial “Urgente” unificada en la captura rápida, el alta normal y las tareas de proyecto; “No urgente” permanece disponible como opción excepcional de largo plazo.
+- Primera versión del centro “Hoy”, con tareas prioritarias, vencimientos de proyectos, seguimientos atrasados, conteos por grupo y acciones para abrir o resolver sin duplicar datos.
 - Navegación horizontal que centra el contexto activo y muestra una ayuda móvil descartable cuando existen módulos u opciones de perfil fuera de pantalla.
 - Estados automáticos de seguimiento, instrucciones colapsadas y alertas opcionales integradas con el Gestor de Alertas.
 - Evaluación backend de seguimientos configurables aunque la PWA esté cerrada.
@@ -221,7 +223,7 @@ Una primera versión se considera completa cuando:
 4. Integrarlo primero en Higiene y Cuidado.
 5. Agregar plantillas de insumo para Lentes y control para Salud.
 6. Integrar alertas dinámicas y probar los intervalos de punta a punta.
-7. Abordar centro “Hoy”, captura rápida y navegación móvil. La captura rápida y la orientación móvil ya están implementadas; el centro “Hoy” queda como la siguiente decisión de producto de alcance alto.
+7. Abordar centro “Hoy”, captura rápida y navegación móvil. Las tres piezas ya cuentan con una primera versión implementada y verificada; las siguientes mejoras deben surgir del uso real.
 8. Cerrar operación: diagnóstico de dispositivos, auto-deploy de Render, seguridad diferida de Supabase y backup portátil.
 
 ## 9. Información que todavía requiere comprobación operativa

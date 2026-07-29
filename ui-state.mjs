@@ -1,12 +1,13 @@
 export const UI_STATE_STORAGE_KEY = 'lifecycle_ui_state_v1';
 
 export const DEFAULT_UI_STATE = Object.freeze({
-    section: 'higiene-section',
+    section: 'hoy-section',
     profileTab: 'cuenta',
     hygieneCategory: 'tecnologia'
 });
 
 const VALID_SECTIONS = new Set([
+    'hoy-section',
     'higiene-section',
     'cuidado-section',
     'lentes-section',

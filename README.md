@@ -64,6 +64,9 @@ Every recurring card in Hygiene, Care, Lenses, and Health uses the same versione
 ### 9. 🧭 Personalized Navigation
 The **Profile → Modules** screen can hide or restore any main module without deleting its information or notifications. At least one module always remains visible, and navigation automatically falls back to an available module when the previous selection is hidden.
 
+### 10. 📅 Daily Focus & Quick Tasks
+The **Today** view groups urgent tasks, project deadlines, and overdue trackers without copying their data. Items can be opened in their source module or completed directly when the underlying workflow supports it. Tasks can also be captured from any module, with **Urgent** as the default priority and non-urgent work kept as an explicit long-term option.
+
 ---
 
 ## ✅ Verification

@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 
 import {
     createTaskRecord,
+    DEFAULT_TASK_URGENCY,
     getTaskCaptureCategories
 } from '../task-capture-utils.mjs';
 
@@ -62,7 +63,7 @@ test('quick capture rejects empty text and unknown folders', () => {
     );
 });
 
-test('quick capture falls back to non-urgent for an unknown urgency', () => {
+test('quick capture defaults to urgent when urgency is missing or unknown', () => {
     const task = createTaskRecord(
         {
             text: 'Comprar jabón',
@@ -75,5 +76,6 @@ test('quick capture falls back to non-urgent for an unknown urgency', () => {
         }
     );
 
-    assert.equal(task.urgency, 'no_urgente');
+    assert.equal(DEFAULT_TASK_URGENCY, 'urgente');
+    assert.equal(task.urgency, DEFAULT_TASK_URGENCY);
 });

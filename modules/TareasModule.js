@@ -1,6 +1,7 @@
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import {
     createTaskRecord,
+    DEFAULT_TASK_URGENCY,
     getTaskCaptureCategories
 } from '../task-capture-utils.mjs?v=20260729-quick-task';
 
@@ -138,7 +139,7 @@ export class TareasModule {
             ? document.activeElement
             : null;
         elements.input.value = '';
-        if (elements.urgency) elements.urgency.value = 'no_urgente';
+        if (elements.urgency) elements.urgency.value = DEFAULT_TASK_URGENCY;
         if (elements.title) {
             elements.title.textContent = quick ? 'Nueva tarea rápida' : 'Nueva tarea';
         }
@@ -653,7 +654,7 @@ export class TareasModule {
                 id: Date.now(),
                 text: text,
                 completed: false,
-                urgency: freelanceUrgency?.value || 'no_urgente'
+                urgency: freelanceUrgency?.value || DEFAULT_TASK_URGENCY
             };
             p.tasks.push(newTask);
 
@@ -665,6 +666,7 @@ export class TareasModule {
             this.app.notificationsCenter?.updateBadge();
             
             if (freelanceInput) freelanceInput.value = '';
+            if (freelanceUrgency) freelanceUrgency.value = DEFAULT_TASK_URGENCY;
             this.render();
         };
 

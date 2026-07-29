@@ -121,7 +121,10 @@
             id="main-nav"
             aria-label="Módulos principales"
         >
-            <button class="nav-btn active" data-section="higiene-section">
+            <button class="nav-btn active" data-section="hoy-section">
+                <i class="ph ph-house-line"></i> Hoy
+            </button>
+            <button class="nav-btn" data-section="higiene-section">
                 <i class="ph ph-drop"></i> Higiene
             </button>
             <button class="nav-btn" data-section="cuidado-section">
@@ -154,8 +157,13 @@
             Deslizá para ver más módulos
         </p>
 
+        <!-- RESUMEN DIARIO -->
+        <section id="hoy-section" class="main-section">
+            <!-- Renderizado dinámicamente por TodayModule -->
+        </section>
+
         <!-- SECCIÓN 1: HIGIENE (Original HygieneTracker) -->
-        <section id="higiene-section" class="main-section">
+        <section id="higiene-section" class="main-section hidden">
             <nav class="tabs-container" id="tabs-container">
                 <button class="tab-btn active" data-category="tecnologia">Tecnología</button>
                 <button class="tab-btn" data-category="dormitorio_bano">Dormitorio & Baño</button>
@@ -1590,9 +1598,9 @@
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <input type="text" id="tareas-freelance-new-task-text" class="text-input" placeholder="Ej: Diseñar base de datos..." style="flex: 1; min-width: 180px;">
                     <select id="tareas-freelance-new-task-urgency" class="text-input" style="width: auto; min-width: 125px; height: 42px;">
-                        <option value="no_urgente">No Urgente</option>
                         <option value="urgente">Urgente</option>
                         <option value="muy_urgente">🔥 Muy Urgente</option>
+                        <option value="no_urgente">No urgente (largo plazo)</option>
                     </select>
                     <button id="tareas-freelance-btn-add-task" class="btn btn-primary" style="margin: 0; padding: 0 15px; width: auto; font-size: 1rem; height: 42px;">+</button>
                 </div>
@@ -2473,9 +2481,9 @@
                 <div class="input-group">
                     <label for="tareas-task-urgency">Urgencia</label>
                     <select id="tareas-task-urgency" class="text-input">
-                        <option value="no_urgente">No urgente</option>
                         <option value="urgente">Urgente</option>
                         <option value="muy_urgente">🔥 Muy urgente</option>
+                        <option value="no_urgente">No urgente (largo plazo)</option>
                     </select>
                 </div>
             </div>
