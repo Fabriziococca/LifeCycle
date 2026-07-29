@@ -98,7 +98,9 @@ test('application feedback never falls back to native browser dialogs', async ()
 
     for (const file of sourceFiles) {
         const source = await readFile(file, 'utf8');
-        for (const match of source.matchAll(/\b(?:alert|confirm)\s*\(/g)) {
+        for (const match of source.matchAll(
+            /(?<![\w.])(?:window\.)?(?:alert|confirm)\s*\(/g
+        )) {
             const line = source.slice(0, match.index).split('\n').length;
             nativeDialogCalls.push(`${path.relative(ROOT, file)}:${line}`);
         }
@@ -255,4 +257,35 @@ test('recurring finances require confirmation and protect each occurrence from d
     assert.match(financeSource, /openFinanceRecurringRegistration/);
     assert.match(financeSource, /hasRecordedFinanceOccurrence/);
     assert.match(financeSource, /recurringOccurrence/);
+});
+
+test('relevant module context is restored instead of resetting after reload', async () => {
+    const financeSource = await readFile(
+        path.join(ROOT, 'modules', 'FinanzasModule.js'),
+        'utf8'
+    );
+    const gymSource = await readFile(
+        path.join(ROOT, 'modules', 'GymModule.js'),
+        'utf8'
+    );
+    const vehicleSource = await readFile(
+        path.join(ROOT, 'modules', 'VehicleModule.js'),
+        'utf8'
+    );
+    const tasksSource = await readFile(
+        path.join(ROOT, 'modules', 'TareasModule.js'),
+        'utf8'
+    );
+    const alertsSource = await readFile(
+        path.join(ROOT, 'modules', 'AlertsModule.js'),
+        'utf8'
+    );
+
+    assert.match(financeSource, /uiState\?\.financeTab/);
+    assert.match(financeSource, /financeMonth/);
+    assert.match(gymSource, /uiState\?\.gymTab/);
+    assert.match(vehicleSource, /uiState\?\.vehicleTab/);
+    assert.match(tasksSource, /uiState\?\.tasksCategory/);
+    assert.match(tasksSource, /tasksProjectId/);
+    assert.match(alertsSource, /uiState\?\.alertsCategory/);
 });

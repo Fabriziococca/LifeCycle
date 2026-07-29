@@ -19,7 +19,7 @@ export class FinanzasModule {
         this.app = appController;
         this.data = this.loadData();
         this.currentProjectId = null;
-        this.activeTab = 'income'; // 'income' o 'expense'
+        this.activeTab = this.app.uiState?.financeTab || 'income';
         this.pendingRecurringContext = null;
         this.editingRecurringRuleId = null;
         this.recurringModalReturnFocus = null;
@@ -28,6 +28,48 @@ export class FinanzasModule {
         this.listContainer = document.getElementById('finanzasList');
 
         this.init();
+    }
+
+    activateFinanceTab(tabId, { persist = true, render = true } = {}) {
+        const nextTab = tabId === 'expense' ? 'expense' : 'income';
+        const tabIncome = document.getElementById('btnFinTabIncome');
+        const tabExpense = document.getElementById('btnFinTabExpense');
+        const isIncome = nextTab === 'income';
+        this.activeTab = nextTab;
+
+        tabIncome?.classList.toggle('active', isIncome);
+        tabExpense?.classList.toggle('active', !isIncome);
+        if (tabIncome) {
+            tabIncome.style.background = isIncome ? 'rgba(255,255,255,0.05)' : 'none';
+            tabIncome.style.color = isIncome ? 'white' : 'var(--text-secondary)';
+            tabIncome.setAttribute('aria-pressed', String(isIncome));
+        }
+        if (tabExpense) {
+            tabExpense.style.background = isIncome ? 'none' : 'rgba(255,255,255,0.05)';
+            tabExpense.style.color = isIncome ? 'var(--text-secondary)' : 'white';
+            tabExpense.setAttribute('aria-pressed', String(!isIncome));
+        }
+
+        document.getElementById('btnOpenFinanzasModal')
+            ?.classList.toggle('hidden', !isIncome);
+        document.getElementById('btnOpenFinanzasExpenseModal')
+            ?.classList.toggle('hidden', isIncome);
+
+        const sectionTitle = document.getElementById('fin-section-title');
+        const listTitle = document.getElementById('fin-list-title');
+        if (sectionTitle) {
+            sectionTitle.innerText = isIncome
+                ? 'Distribución de Ingresos'
+                : 'Distribución de Gastos';
+        }
+        if (listTitle) {
+            listTitle.innerText = isIncome
+                ? 'Transacciones del Mes'
+                : 'Gastos del Mes';
+        }
+
+        if (persist) this.app.saveUiState?.({ financeTab: nextTab });
+        if (render) this.renderBreakdownAndList();
     }
 
     loadData() {
@@ -574,43 +616,11 @@ export class FinanzasModule {
         const tabExpense = document.getElementById('btnFinTabExpense');
 
         tabIncome?.addEventListener('click', () => {
-            this.activeTab = 'income';
-            tabIncome.classList.add('active');
-            tabIncome.style.background = 'rgba(255,255,255,0.05)';
-            tabIncome.style.color = 'white';
-
-            tabExpense?.classList.remove('active');
-            if (tabExpense) {
-                tabExpense.style.background = 'none';
-                tabExpense.style.color = 'var(--text-secondary)';
-            }
-
-            document.getElementById('btnOpenFinanzasModal')?.classList.remove('hidden');
-            document.getElementById('btnOpenFinanzasExpenseModal')?.classList.add('hidden');
-            document.getElementById('fin-section-title').innerText = 'Distribución de Ingresos';
-            document.getElementById('fin-list-title').innerText = 'Transacciones del Mes';
-
-            this.renderBreakdownAndList();
+            this.activateFinanceTab('income');
         });
 
         tabExpense?.addEventListener('click', () => {
-            this.activeTab = 'expense';
-            tabExpense.classList.add('active');
-            tabExpense.style.background = 'rgba(255,255,255,0.05)';
-            tabExpense.style.color = 'white';
-
-            tabIncome?.classList.remove('active');
-            if (tabIncome) {
-                tabIncome.style.background = 'none';
-                tabIncome.style.color = 'var(--text-secondary)';
-            }
-
-            document.getElementById('btnOpenFinanzasModal')?.classList.add('hidden');
-            document.getElementById('btnOpenFinanzasExpenseModal')?.classList.remove('hidden');
-            document.getElementById('fin-section-title').innerText = 'Distribución de Gastos';
-            document.getElementById('fin-list-title').innerText = 'Gastos del Mes';
-
-            this.renderBreakdownAndList();
+            this.activateFinanceTab('expense');
         });
 
         // Modal de Registro de Ingresos
@@ -724,6 +734,7 @@ export class FinanzasModule {
 
         // Selector del mes global
         this.monthSelect?.addEventListener('change', () => {
+            this.app.saveUiState?.({ financeMonth: this.monthSelect.value });
             this.renderBreakdownAndList();
         });
 
@@ -765,6 +776,11 @@ export class FinanzasModule {
 
         expenseYearSelect?.addEventListener('change', () => {
             this.renderExpenseAnnualBreakdown();
+        });
+
+        this.activateFinanceTab(this.activeTab, {
+            persist: false,
+            render: false
         });
     }
 
@@ -1267,7 +1283,9 @@ export class FinanzasModule {
         });
 
         const sortedMonths = Array.from(monthsSet).sort().reverse();
-        const selected = this.monthSelect.value || currMonthStr;
+        const selected = this.monthSelect.value
+            || this.app.uiState?.financeMonth
+            || currMonthStr;
 
         this.monthSelect.innerHTML = sortedMonths.map(m => {
             const [yr, mn] = m.split('-');

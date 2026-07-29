@@ -18,10 +18,15 @@ export class GymModule {
         this.weight = [];
         this.activeSession = null;
         this.collapsedGroups = {};
+        this.activeTab = this.app.uiState?.gymTab || 'records';
 
         window.gym = this;
         this.loadData();
         this.setupListeners();
+        this.activateGymTab(this.activeTab, {
+            persist: false,
+            render: false
+        });
         this.syncActiveSessionUI();
     }
 
@@ -159,6 +164,35 @@ export class GymModule {
         this.updateRoutineExercisesList();
     }
 
+    activateGymTab(tabId, { persist = true, render = true } = {}) {
+        const allowedTabs = new Set([
+            'records',
+            'routine',
+            'sessions',
+            'nutrition',
+            'general-meals'
+        ]);
+        const nextTab = allowedTabs.has(tabId) ? tabId : 'records';
+        const container = document.getElementById('gym-tabs-container');
+        const targetButton = container?.querySelector(
+            `.tab-btn[data-gym-tab="${nextTab}"]`
+        );
+        if (!targetButton) return false;
+
+        container.querySelectorAll('.tab-btn').forEach(button => {
+            const isActive = button === targetButton;
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-pressed', String(isActive));
+        });
+        document.querySelectorAll('.gym-tab-content').forEach(content => {
+            content.classList.toggle('hidden', content.id !== `gym-${nextTab}-content`);
+        });
+        this.activeTab = nextTab;
+        if (persist) this.app.saveUiState?.({ gymTab: nextTab });
+        if (render) this.render();
+        return true;
+    }
+
     setupListeners() {
         // Sub-tabs switching
         const container = document.getElementById('gym-tabs-container');
@@ -166,14 +200,7 @@ export class GymModule {
             container.addEventListener('click', (e) => {
                 const btn = e.target.closest('.tab-btn');
                 if (!btn) return;
-                container.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-
-                const activeTab = btn.dataset.gymTab;
-                document.querySelectorAll('.gym-tab-content').forEach(c => {
-                    c.classList.toggle('hidden', c.id !== `gym-${activeTab}-content`);
-                });
-                this.render();
+                this.activateGymTab(btn.dataset.gymTab);
             });
         }
 
@@ -796,8 +823,7 @@ export class GymModule {
     }
 
     render() {
-        const activeBtn = document.querySelector('#gym-tabs-container .tab-btn.active');
-        const tab = activeBtn ? activeBtn.dataset.gymTab : 'records';
+        const tab = this.activeTab || 'records';
 
         if (tab === 'records') this.renderRecords();
         else if (tab === 'routine') this.renderRoutine();

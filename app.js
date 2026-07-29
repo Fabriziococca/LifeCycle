@@ -17,7 +17,7 @@ import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260729-project-templates'
 import {
     readUiState,
     writeUiState
-} from './ui-state.mjs?v=20260728-ui-state';
+} from './ui-state.mjs?v=20260730-deep-context';
 import {
     combineLocalDateWithTime,
     getLocalISODate,

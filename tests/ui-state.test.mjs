@@ -28,12 +28,26 @@ test('UI state accepts only known navigation values', () => {
         normalizeUiState({
             section: 'projects-section',
             profileTab: 'backup',
-            hygieneCategory: 'cuidado_personal'
+            hygieneCategory: 'cuidado_personal',
+            financeTab: 'expense',
+            financeMonth: '2026-07',
+            gymTab: 'sessions',
+            vehicleTab: 'issues',
+            tasksCategory: 'LifeCycle',
+            tasksProjectId: '12345',
+            alertsCategory: 'otros'
         }),
         {
             section: 'projects-section',
             profileTab: 'backup',
-            hygieneCategory: 'cuidado_personal'
+            hygieneCategory: 'cuidado_personal',
+            financeTab: 'expense',
+            financeMonth: '2026-07',
+            gymTab: 'sessions',
+            vehicleTab: 'issues',
+            tasksCategory: 'LifeCycle',
+            tasksProjectId: '12345',
+            alertsCategory: 'otros'
         }
     );
 
@@ -41,7 +55,14 @@ test('UI state accepts only known navigation values', () => {
         normalizeUiState({
             section: 'unknown',
             profileTab: '__proto__',
-            hygieneCategory: 'invalid'
+            hygieneCategory: 'invalid',
+            financeTab: 'balance',
+            financeMonth: '2026-13',
+            gymTab: 'unknown',
+            vehicleTab: 'unknown',
+            tasksCategory: '__proto__',
+            tasksProjectId: '../../secret',
+            alertsCategory: 'unknown'
         }),
         DEFAULT_UI_STATE
     );
@@ -70,14 +91,28 @@ test('UI state updates one preference without losing the others', () => {
     const current = {
         section: 'finanzas-section',
         profileTab: 'cuenta',
-        hygieneCategory: 'tecnologia'
+        hygieneCategory: 'tecnologia',
+        financeTab: 'expense',
+        financeMonth: '2026-06',
+        gymTab: 'nutrition',
+        vehicleTab: 'docs',
+        tasksCategory: 'Personal',
+        tasksProjectId: '',
+        alertsCategory: 'salud'
     };
 
     const next = writeUiState(storage, current, { profileTab: 'alertas' });
     assert.deepEqual(next, {
         section: 'finanzas-section',
         profileTab: 'alertas',
-        hygieneCategory: 'tecnologia'
+        hygieneCategory: 'tecnologia',
+        financeTab: 'expense',
+        financeMonth: '2026-06',
+        gymTab: 'nutrition',
+        vehicleTab: 'docs',
+        tasksCategory: 'Personal',
+        tasksProjectId: '',
+        alertsCategory: 'salud'
     });
     assert.deepEqual(JSON.parse(storage.rawValue), next);
 });

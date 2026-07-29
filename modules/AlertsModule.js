@@ -5,7 +5,7 @@ export class AlertsModule {
     constructor(appController) {
         this.app = appController;
         this.configs = {};
-        this.activeCategory = 'higiene'; // Categoría inicial por defecto (SIN opción "Todas")
+        this.activeCategory = this.app.uiState?.alertsCategory || 'higiene';
         window.alertsManager = this;
         this.loadData();
     }
@@ -104,6 +104,7 @@ export class AlertsModule {
                 if (tabBtn) {
                     this.saveCurrentCategoryUIState();
                     this.activeCategory = tabBtn.dataset.category;
+                    this.app.saveUiState?.({ alertsCategory: this.activeCategory });
                     this.renderTabs();
                     this.renderContent();
                 }
@@ -174,6 +175,7 @@ export class AlertsModule {
         ));
         if (!availableCategories.includes(this.activeCategory)) {
             this.activeCategory = availableCategories[0] || 'higiene';
+            this.app.saveUiState?.({ alertsCategory: this.activeCategory });
         }
         Object.keys(CATEGORY_NAMES).forEach(cat => {
             const count = definitions.filter(d => d.category === cat).length;

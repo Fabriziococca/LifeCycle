@@ -10,8 +10,8 @@ export class TareasModule {
         this.app = appController;
         this.tasks = [];
         this.categories = [];
-        this.currentCategory = null;
-        this.activeProjectId = null;
+        this.currentCategory = this.app.uiState?.tasksCategory || null;
+        this.activeProjectId = this.app.uiState?.tasksProjectId || null;
         this.editingTaskId = null;
         this.isQuickCapture = false;
         this.taskCaptureTrigger = null;
@@ -79,6 +79,24 @@ export class TareasModule {
         localStorage.setItem('tareas_pinned_project_ids', JSON.stringify(this.pinnedProjectIds));
         localStorage.setItem('tareas_removed_project_ids', JSON.stringify(this.removedProjectIds));
         localStorage.setItem('tareas_pinned_projects', JSON.stringify(this.pinnedProjectsStore));
+    }
+
+    rememberNavigationContext() {
+        const tasksCategory = this.currentCategory || '';
+        const tasksProjectId = this.activeProjectId === null
+            || this.activeProjectId === undefined
+            ? ''
+            : String(this.activeProjectId);
+        if (
+            this.app.uiState?.tasksCategory === tasksCategory
+            && this.app.uiState?.tasksProjectId === tasksProjectId
+        ) {
+            return;
+        }
+        this.app.saveUiState?.({
+            tasksCategory,
+            tasksProjectId
+        });
     }
 
     getTaskCaptureElements() {
@@ -531,6 +549,7 @@ export class TareasModule {
             }
             this.categories.push(val);
             this.currentCategory = val;
+            this.rememberNavigationContext();
             this.saveData();
             catModal?.classList.add('hidden');
             this.render();
@@ -559,6 +578,7 @@ export class TareasModule {
                 this.tasks = this.tasks.filter(t => t.category !== this.currentCategory);
                 this.categories = this.categories.filter(c => c !== this.currentCategory);
                 this.currentCategory = this.categories.length > 0 ? this.categories[0] : null;
+                this.rememberNavigationContext();
                 this.saveData();
                 this.render();
             }
@@ -793,6 +813,10 @@ export class TareasModule {
         const btnDeleteCategory = document.getElementById('btn-delete-category');
 
         if (!tabsContainer || !activeList || !completedList) return;
+        if (this.currentCategory && !this.categories.includes(this.currentCategory)) {
+            this.currentCategory = this.categories[0] || null;
+        }
+        this.rememberNavigationContext();
 
         // Render Tabs
         tabsContainer.innerHTML = '';
@@ -805,6 +829,7 @@ export class TareasModule {
                 btn.innerText = cat;
                 btn.onclick = () => {
                     this.currentCategory = cat;
+                    this.rememberNavigationContext();
                     this.render();
                 };
                 tabsContainer.appendChild(btn);
@@ -840,6 +865,7 @@ export class TareasModule {
                 activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No tienes proyectos activos ni fijados en Tareas. Ve a la sección Proyectos para agregar uno.</p>';
                 completedList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">-</p>';
                 this.activeProjectId = null;
+                this.rememberNavigationContext();
 
                 const projectActions = document.getElementById('tareas-freelance-project-actions');
                 if (projectActions) projectActions.style.display = 'none';
@@ -853,6 +879,7 @@ export class TareasModule {
             if (!this.activeProjectId || !freelanceProjects.some(x => String(x.id) === String(this.activeProjectId))) {
                 this.activeProjectId = freelanceProjects[0].id;
             }
+            this.rememberNavigationContext();
 
             const p = freelanceProjects.find(x => String(x.id) === String(this.activeProjectId));
 
@@ -894,6 +921,7 @@ export class TareasModule {
                     btn.style.whiteSpace = 'nowrap';
                     btn.onclick = () => {
                         this.activeProjectId = proj.id;
+                        this.rememberNavigationContext();
                         this.render();
                     };
                     freelanceTabs.appendChild(btn);

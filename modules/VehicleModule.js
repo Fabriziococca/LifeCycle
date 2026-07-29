@@ -4,6 +4,7 @@ import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 export class VehicleModule {
     constructor(controller) {
         this.controller = controller;
+        this.activeTab = this.controller.uiState?.vehicleTab || 'maint';
         window.vehicle = this;
 
         this.odometerInput = document.getElementById('vehicle-odometer-input');
@@ -124,6 +125,10 @@ export class VehicleModule {
         }
         
         this.init();
+        this.activateVehicleTab(this.activeTab, {
+            persist: false,
+            render: false
+        });
     }
 
     saveOdometer() {
@@ -134,6 +139,30 @@ export class VehicleModule {
         localStorage.setItem('vehicle_maintenance_log', JSON.stringify(this.maintenanceLog));
     }
 
+    activateVehicleTab(tabId, { persist = true, render = true } = {}) {
+        const nextTab = ['maint', 'docs', 'issues'].includes(tabId)
+            ? tabId
+            : 'maint';
+        const tabsContainer = document.getElementById('vehicle-tabs-container');
+        const targetButton = tabsContainer?.querySelector(
+            `.tab-btn[data-vehicle-tab="${nextTab}"]`
+        );
+        if (!targetButton) return false;
+
+        tabsContainer.querySelectorAll('.tab-btn').forEach(button => {
+            const isActive = button === targetButton;
+            button.classList.toggle('active', isActive);
+            button.setAttribute('aria-pressed', String(isActive));
+        });
+        document.querySelectorAll('.vehicle-tab-content').forEach(content => {
+            content.classList.toggle('hidden', content.id !== `vehicle-${nextTab}-content`);
+        });
+        this.activeTab = nextTab;
+        if (persist) this.controller.saveUiState?.({ vehicleTab: nextTab });
+        if (render) this.render();
+        return true;
+    }
+
     init() {
         // Navigation (sub-tabs)
         const tabsContainer = document.getElementById('vehicle-tabs-container');
@@ -141,14 +170,7 @@ export class VehicleModule {
             tabsContainer.addEventListener('click', (e) => {
                 const btn = e.target.closest('.tab-btn');
                 if (!btn) return;
-                tabsContainer.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-                btn.classList.add('active');
-
-                const targetTab = btn.dataset.vehicleTab;
-                document.querySelectorAll('.vehicle-tab-content').forEach(content => {
-                    content.classList.toggle('hidden', content.id !== `vehicle-${targetTab}-content`);
-                });
-                this.render();
+                this.activateVehicleTab(btn.dataset.vehicleTab);
             });
         }
 
@@ -458,8 +480,7 @@ export class VehicleModule {
     }
 
     render() {
-        const activeBtn = document.querySelector('#vehicle-tabs-container .tab-btn.active');
-        const tab = activeBtn ? activeBtn.dataset.vehicleTab : 'maint';
+        const tab = this.activeTab || 'maint';
 
         if (tab === 'maint') {
             this.renderOilCard();
