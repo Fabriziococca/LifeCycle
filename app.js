@@ -22,12 +22,15 @@ import {
     getLocalISODate,
     parseDateLocal
 } from './utils.js';
+import { TooltipController } from './tooltip-controller.mjs?v=20260729-tooltips';
 
 class AppController {
     constructor() {
         window.lifecycle_controller = this;
         this.currentEditType = null;
         this.currentEditId = null;
+        this.tooltips = new TooltipController(document);
+        this.tooltips.init();
 
         this.modal = document.getElementById('edit-modal');
         this.modalTitle = document.getElementById('modal-title');
@@ -235,6 +238,17 @@ class AppController {
 
     activateSection(sectionId, { persist = true, render = true, smooth = false } = {}) {
         const mainNav = document.getElementById('main-nav');
+        const reorderContext = this.customTrackers?.reorderContext;
+        const activeReorderSection = document.querySelector(
+            '.main-section.is-custom-reordering'
+        );
+        if (
+            reorderContext?.scope === 'runtime'
+            && activeReorderSection
+            && activeReorderSection.id !== sectionId
+        ) {
+            this.customTrackers.cancelReorderMode({ silent: true });
+        }
         if (
             this.customTrackers
             && !this.customTrackers.isModuleVisible(sectionId)
@@ -272,6 +286,12 @@ class AppController {
 
     activateProfileTab(tabId, { persist = true, render = true, smooth = false } = {}) {
         const sidebar = document.querySelector('.profile-sidebar');
+        if (
+            this.customTrackers?.reorderContext?.scope === 'manager'
+            && tabId !== 'seguimientos'
+        ) {
+            this.customTrackers.cancelReorderMode({ silent: true });
+        }
         const targetButton = sidebar?.querySelector(`.profile-menu-item[data-tab="${tabId}"]`);
         const targetContent = document.getElementById(`tab-${tabId}`);
         if (!targetButton || !targetContent) return false;
@@ -312,6 +332,9 @@ class AppController {
 
         if (profileBtn) {
             profileBtn.addEventListener('click', () => {
+                if (this.customTrackers?.reorderContext?.scope === 'runtime') {
+                    this.customTrackers.cancelReorderMode({ silent: true });
+                }
                 if (mainNav) mainNav.classList.add('hidden');
                 document.querySelectorAll('.main-section').forEach(sec => {
                     sec.classList.add('hidden');
@@ -329,6 +352,9 @@ class AppController {
 
         if (backBtn) {
             backBtn.addEventListener('click', () => {
+                if (this.customTrackers?.reorderContext?.scope === 'manager') {
+                    this.customTrackers.cancelReorderMode({ silent: true });
+                }
                 if (mainNav) mainNav.classList.remove('hidden');
                 const profileSec = document.getElementById('perfil-section');
                 if (profileSec) profileSec.classList.add('hidden');

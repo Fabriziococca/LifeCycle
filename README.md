@@ -17,7 +17,7 @@ graph TD
     Server -->|Web Push Protocol| Client
 ```
 
-*   **Frontend Client:** HTML5, Vanilla CSS3 (custom glassmorphism style, dark-mode first design), and ES6+ JavaScript.
+*   **Frontend Client:** HTML5, Vanilla CSS3 (custom glassmorphism style, dark-mode first design), ES6+ JavaScript, and a pinned local copy of SortableJS for accessible mouse/touch card ordering.
 *   **Data Persistence:** Cloud-first architecture with **Supabase** as the source of truth. `LocalStorage` is only a runtime cache and is cleared when the session closes.
 *   **Database Cloud Sync:** Authenticated per-key updates avoid replacing unrelated module data, while Realtime and foreground refreshes keep devices aligned.
 *   **Backend Notification Server:** Node.js Express server hosted on **Render**, performing periodic database checks and dispatching secure Web Push Notifications.
@@ -74,4 +74,4 @@ npm test
 node --check server.js
 ```
 
-The repository also runs these checks through GitHub Actions. Product findings are documented in [`docs/AUDITORIA_PRODUCTO_UX_2026-07-28.md`](docs/AUDITORIA_PRODUCTO_UX_2026-07-28.md), and deployment, Push, backup, Render, and Supabase verification steps are documented in [`docs/OPERACION_Y_VERIFICACION.md`](docs/OPERACION_Y_VERIFICACION.md).
+The repository also runs these checks through GitHub Actions. Product findings are documented in [`docs/AUDITORIA_PRODUCTO_UX_2026-07-28.md`](docs/AUDITORIA_PRODUCTO_UX_2026-07-28.md), the mandatory interface rules are in [`docs/UX_CONVENTIONS.md`](docs/UX_CONVENTIONS.md), and deployment, Push, backup, Render, and Supabase verification steps are documented in [`docs/OPERACION_Y_VERIFICACION.md`](docs/OPERACION_Y_VERIFICACION.md).

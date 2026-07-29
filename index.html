@@ -72,14 +72,14 @@
     <main class="container hidden">
         <!-- Botón de Perfil en la Esquina Superior Izquierda -->
         <div class="profile-wrapper">
-            <button id="profile-btn" class="profile-corner-btn" title="Configuración de Perfil">
+            <button id="profile-btn" class="profile-corner-btn" aria-label="Abrir configuración del perfil" data-tooltip="Configuración del perfil">
                 <i class="ph ph-user"></i>
             </button>
         </div>
 
         <!-- Centro de Notificaciones (Tareas Críticas en Rojo) -->
         <div class="notifications-wrapper">
-            <button id="notification-bell-btn" class="bell-btn" title="Tareas Críticas Pendientes">
+            <button id="notification-bell-btn" class="bell-btn" aria-label="Abrir tareas críticas pendientes" data-tooltip="Tareas críticas pendientes">
                 <i class="ph ph-bell"></i>
                 <span id="notification-badge" class="bell-badge" style="display: none;">0</span>
             </button>
@@ -1817,10 +1817,25 @@
                                         Higiene, Cuidado, Lentes y Salud.
                                     </p>
                                 </div>
-                                <button id="btn-new-custom-tracker" type="button" class="btn btn-primary">
-                                    <i class="ph ph-plus"></i>
-                                    Nueva tarjeta
-                                </button>
+                                <div class="custom-trackers-manager-header-actions">
+                                    <button id="btn-order-custom-trackers" type="button" class="btn btn-secondary">
+                                        <i class="ph ph-arrows-down-up"></i>
+                                        Ordenar tarjetas
+                                    </button>
+                                    <button id="btn-new-custom-tracker" type="button" class="btn btn-primary">
+                                        <i class="ph ph-plus"></i>
+                                        Nueva tarjeta
+                                    </button>
+                                    <div id="custom-trackers-order-actions" class="custom-order-actions hidden">
+                                        <button type="button" class="btn btn-secondary" data-custom-order-action="cancel">
+                                            Cancelar
+                                        </button>
+                                        <button type="button" class="btn btn-primary" data-custom-order-action="save">
+                                            <i class="ph ph-floppy-disk"></i>
+                                            Guardar orden
+                                        </button>
+                                    </div>
+                                </div>
                             </div>
                             <div class="custom-trackers-manager-note">
                                 <i class="ph ph-info"></i>
@@ -2146,7 +2161,7 @@
         <div class="modal-content" style="max-width: 1000px; width: 92vw; max-height: 90vh; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <h3 id="fin-year-modal-title" style="margin: 0;">Detalle Anual de Ingresos</h3>
-                <button id="fin-year-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+                <button id="fin-year-modal-close" aria-label="Cerrar detalle anual de ingresos" data-tooltip="Cerrar" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
             </div>
             <p class="modal-desc" style="margin-bottom: 15px;">Desglose mensual de ingresos por categoría del año seleccionado.</p>
             
@@ -2246,7 +2261,7 @@
         <div class="modal-content" style="max-width: 1000px; width: 92vw; max-height: 90vh; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <h3 style="margin: 0; color: var(--status-orange);">Detalle Anual de Gastos</h3>
-                <button id="fin-expense-year-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+                <button id="fin-expense-year-modal-close" aria-label="Cerrar detalle anual de gastos" data-tooltip="Cerrar" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
             </div>
             <p class="modal-desc" style="margin-bottom: 15px;">Desglose mensual de gastos por categoría del año seleccionado.</p>
             
@@ -2294,7 +2309,7 @@
         <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <h3 id="proj-plan-modal-title" style="margin: 0;">Plan de Acción</h3>
-                <button id="proj-plan-modal-close" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+                <button id="proj-plan-modal-close" aria-label="Cerrar planificación de ingresos" data-tooltip="Cerrar" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
             </div>
             <p class="modal-desc" style="margin-bottom: 15px;">Resumen y Plan paso a paso (Fases).</p>
             

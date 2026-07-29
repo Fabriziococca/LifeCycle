@@ -31,6 +31,10 @@ La auditoría describe el producto observado al comenzar esta etapa. Durante la 
 - Neutralización de contenido HTML introducido por el usuario en los módulos auditados.
 - Primera versión del núcleo de tarjetas configurables para Higiene, Cuidado, Lentes y Salud.
 - Creación, edición, orden, historial, cambio de fecha, archivo, deshacer, restauración y borrado permanente.
+- Unificación de las 32 tarjetas preexistentes en el mismo modelo configurable, preservando sus estados e historiales; las cuentas nuevas comienzan sin tarjetas obligatorias.
+- Administrador central agrupado por sección y categoría, con un modo de ordenamiento explícito mediante arrastre o teclado, borrador cancelable y una única persistencia al guardar.
+- Sistema compartido de tooltips para controles compactos, compatibilidad con los `title` históricos y nombres accesibles en los iconos auditados.
+- Convenciones obligatorias de interfaz documentadas en `docs/UX_CONVENTIONS.md` y verificadas parcialmente mediante contratos automáticos.
 - Estados automáticos de seguimiento, instrucciones colapsadas y alertas opcionales integradas con el Gestor de Alertas.
 - Evaluación backend de seguimientos configurables aunque la PWA esté cerrada.
 - Motor repetitivo de tareas muy urgentes comprobado sin horario silencioso y con recuperación ante marcas de tiempo corruptas.

@@ -751,6 +751,9 @@ export class ProjectsModule {
             const btnIcon = p.isArbitration ? '🔒' : (isRunning ? '⏸️' : '▶️');
             const btnBg = p.isArbitration ? 'rgba(255,255,255,0.05)' : (isRunning ? 'var(--status-red)' : 'var(--primary-color)');
             const btnColor = p.isArbitration ? 'var(--text-secondary)' : 'white';
+            const timerButtonLabel = p.isArbitration
+                ? 'Temporizador bloqueado durante el arbitraje'
+                : (isRunning ? 'Pausar temporizador' : 'Iniciar temporizador');
 
             let initialMs = p.timeSpent || 0;
             if (p.timerStart) {
@@ -844,7 +847,7 @@ export class ProjectsModule {
                             <span style="font-size:0.7rem; color:var(--text-secondary);">Valor Hora</span>
                             <strong class="rate-value" style="font-size:0.9rem; color:${rateColor};">${rateText}</strong>
                         </div>
-                        <button class="btn-timer" style="background:${btnBg}; color:${btnColor}; border:none; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1rem; transition: transform 0.1s; flex-shrink:0;">${btnIcon}</button>
+                        <button class="btn-timer" aria-label="${timerButtonLabel}" data-tooltip="${timerButtonLabel}" style="background:${btnBg}; color:${btnColor}; border:none; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1rem; transition: transform 0.1s; flex-shrink:0;">${btnIcon}</button>
                     </div>
                 </div>
 

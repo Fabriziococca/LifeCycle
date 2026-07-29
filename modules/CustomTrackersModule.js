@@ -16,6 +16,7 @@ import {
 } from '../tracker-migration.mjs?v=20260729-trackers-v2';
 import { DateUtils, getLocalISODate } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import Sortable from '../vendor/sortable.complete.esm.js?v=1.15.7';
 
 const STATUS_META = Object.freeze({
     new: { label: 'Sin registros', color: 'var(--text-secondary)' },
@@ -84,15 +85,20 @@ export class CustomTrackersModule {
         this.editingId = null;
         this.lastDialogTrigger = null;
         this.toastTimer = null;
+        this.reorderContext = null;
+        this.sortableInstances = [];
 
         this.managerRoot = document.getElementById('tab-seguimientos');
         this.managerSummary = document.getElementById('custom-trackers-manager-summary');
         this.managerFeedback = document.getElementById('custom-trackers-manager-feedback');
         this.newTrackerButton = document.getElementById('btn-new-custom-tracker');
+        this.orderTrackersButton = document.getElementById('btn-order-custom-trackers');
+        this.managerOrderActions = document.getElementById('custom-trackers-order-actions');
         this.modulesRoot = document.getElementById('tab-modulos');
         this.modulesSummary = document.getElementById('module-visibility-summary');
         this.modulesFeedback = document.getElementById('module-visibility-feedback');
 
+        this.ensureRuntimeOrderControls();
         this.ensureEditorDialog();
         this.setupManagerListeners();
         this.setupModuleListeners();
@@ -177,12 +183,98 @@ export class CustomTrackersModule {
         return `ct_${Date.now().toString(36)}_${randomPart}`.slice(0, 67);
     }
 
+    ensureRuntimeOrderControls() {
+        Object.entries(CUSTOM_TRACKER_SECTIONS).forEach(([sectionKey, section]) => {
+            const root = document.getElementById(section.mainSectionId);
+            if (!root || root.querySelector(`[data-runtime-order-section="${sectionKey}"]`)) {
+                return;
+            }
+
+            const toolbar = document.createElement('div');
+            toolbar.className = 'custom-runtime-order-toolbar';
+            toolbar.dataset.runtimeOrderSection = sectionKey;
+            toolbar.innerHTML = `
+                <div class="custom-runtime-order-default">
+                    <button
+                        type="button"
+                        class="btn btn-secondary custom-runtime-order-enter"
+                        data-custom-order-action="enter-runtime"
+                        data-section="${sectionKey}"
+                    >
+                        <i class="ph ph-arrows-down-up"></i>
+                        Ordenar tarjetas
+                    </button>
+                </div>
+                <div class="custom-runtime-order-active hidden" role="status" aria-live="polite">
+                    <span>
+                        <i class="ph ph-hand-grabbing"></i>
+                        <span>
+                            <strong>Modo de ordenamiento</strong>
+                            <small>Mantené presionada una tarjeta y arrastrala dentro de su categoría.</small>
+                        </span>
+                    </span>
+                    <div class="custom-order-actions">
+                        <button type="button" class="btn btn-secondary" data-custom-order-action="cancel">
+                            Cancelar
+                        </button>
+                        <button type="button" class="btn btn-primary" data-custom-order-action="save">
+                            <i class="ph ph-floppy-disk"></i>
+                            Guardar orden
+                        </button>
+                    </div>
+                </div>
+            `;
+            root.insertBefore(toolbar, root.firstChild);
+        });
+    }
+
+    updateRuntimeOrderControls(sectionKey = null) {
+        Object.entries(CUSTOM_TRACKER_SECTIONS).forEach(([key, section]) => {
+            if (sectionKey && key !== sectionKey) return;
+            const toolbar = document.querySelector(
+                `[data-runtime-order-section="${key}"]`
+            );
+            if (!toolbar) return;
+
+            const isActive = (
+                this.reorderContext?.scope === 'runtime'
+                && this.reorderContext.sectionKey === key
+            );
+            const enterWrap = toolbar.querySelector('.custom-runtime-order-default');
+            const activeWrap = toolbar.querySelector('.custom-runtime-order-active');
+            const enterButton = toolbar.querySelector('[data-custom-order-action="enter-runtime"]');
+            enterWrap?.classList.toggle('hidden', isActive);
+            activeWrap?.classList.toggle('hidden', !isActive);
+            toolbar.classList.toggle('is-active', isActive);
+            if (enterButton) {
+                enterButton.disabled = !this.hasReorderableGroup(
+                    this.getRuntimeTrackers(key)
+                );
+            }
+            document.getElementById(section.mainSectionId)
+                ?.classList.toggle('is-custom-reordering', isActive);
+        });
+    }
+
     setupManagerListeners() {
         this.newTrackerButton?.addEventListener('click', event => {
             this.openEditor('hygiene', null, event.currentTarget);
         });
+        this.orderTrackersButton?.addEventListener('click', () => {
+            this.enterReorderMode('manager');
+        });
 
         this.managerRoot?.addEventListener('click', event => {
+            const orderButton = event.target.closest('[data-custom-order-action]');
+            if (orderButton) {
+                if (orderButton.dataset.customOrderAction === 'save') {
+                    this.saveReorderMode();
+                } else if (orderButton.dataset.customOrderAction === 'cancel') {
+                    this.cancelReorderMode();
+                }
+                return;
+            }
+
             const button = event.target.closest('[data-custom-manager-action]');
             if (!button) return;
 
@@ -208,11 +300,11 @@ export class CustomTrackersModule {
                 this.renderManager();
             } else if (action === 'confirm-delete') {
                 this.deleteTracker(trackerId);
-            } else if (action === 'move-up') {
-                this.moveTracker(trackerId, -1);
-            } else if (action === 'move-down') {
-                this.moveTracker(trackerId, 1);
             }
+        });
+
+        this.managerRoot?.addEventListener('keydown', event => {
+            this.handleReorderKeyboard(event);
         });
     }
 
@@ -298,6 +390,7 @@ export class CustomTrackersModule {
                             data-module-visibility-action="toggle"
                             data-module-id="${moduleId}"
                             aria-label="${visible ? 'Ocultar' : 'Mostrar'} módulo ${escapeHtml(module.label)}"
+                            data-tooltip="${visible ? 'Ocultar módulo' : 'Mostrar módulo'}"
                             aria-pressed="${visible}"
                         >
                             <span aria-hidden="true"></span>
@@ -320,10 +413,29 @@ export class CustomTrackersModule {
 
     setupRuntimeListeners() {
         document.addEventListener('click', event => {
+            const orderButton = event.target.closest(
+                '.custom-runtime-order-toolbar [data-custom-order-action]'
+            );
+            if (orderButton) {
+                const action = orderButton.dataset.customOrderAction;
+                if (action === 'enter-runtime') {
+                    this.enterReorderMode(
+                        'runtime',
+                        orderButton.dataset.section
+                    );
+                } else if (action === 'save') {
+                    this.saveReorderMode();
+                } else if (action === 'cancel') {
+                    this.cancelReorderMode();
+                }
+                return;
+            }
+
             const button = event.target.closest(
                 '.custom-tracker-card [data-custom-runtime-action]'
             );
             if (!button) return;
+            if (this.reorderContext?.scope === 'runtime') return;
 
             const action = button.dataset.customRuntimeAction;
             const trackerId = button.dataset.trackerId;
@@ -376,6 +488,12 @@ export class CustomTrackersModule {
                 );
             }
         });
+
+        document.addEventListener('keydown', event => {
+            if (event.target.closest('.custom-runtime-order-toolbar')) return;
+            if (!event.target.closest('.main-section.is-custom-reordering')) return;
+            this.handleReorderKeyboard(event);
+        });
     }
 
     ensureEditorDialog() {
@@ -395,7 +513,7 @@ export class CustomTrackersModule {
                         <h2 id="custom-tracker-dialog-title">Nueva tarjeta</h2>
                         <p id="custom-tracker-dialog-section">Elegí dónde aparecerá la tarjeta.</p>
                     </div>
-                    <button type="button" class="custom-dialog-close" data-dialog-action="close" aria-label="Cerrar editor de tarjeta">
+                    <button type="button" class="custom-dialog-close" data-dialog-action="close" aria-label="Cerrar editor de tarjeta" data-tooltip="Cerrar">
                         <i class="ph ph-x"></i>
                     </button>
                 </div>
@@ -1080,35 +1198,228 @@ export class CustomTrackersModule {
         this.showManagerFeedback(`${tracker.name} fue borrada definitivamente.`);
     }
 
-    moveTracker(trackerId, direction) {
-        const tracker = this.getTracker(trackerId);
-        if (!tracker || tracker.archived || tracker.deleted) return;
+    getActiveTrackers(sectionKey = null) {
+        return this.registry.trackers.filter(tracker => (
+            !tracker.archived
+            && !tracker.deleted
+            && (!sectionKey || tracker.section === sectionKey)
+        ));
+    }
 
-        const destinationTrackers = this.registry.trackers
-            .filter(item => (
-                item.section === tracker.section
-                && item.subsection === tracker.subsection
-                && !item.archived
-                && !item.deleted
-            ))
-            .sort((a, b) => a.order - b.order);
-        const currentIndex = destinationTrackers.findIndex(item => item.id === trackerId);
-        const targetIndex = currentIndex + direction;
-        if (
-            currentIndex < 0
-            || targetIndex < 0
-            || targetIndex >= destinationTrackers.length
-        ) {
+    getRuntimeTrackers(sectionKey) {
+        let trackers = this.getActiveTrackers(sectionKey);
+        if (sectionKey === 'hygiene') {
+            const currentCategory = this.app.hygiene?.currentCategory
+                || CUSTOM_TRACKER_SECTIONS.hygiene.defaultSubsection;
+            trackers = trackers.filter(tracker => tracker.subsection === currentCategory);
+        }
+        return trackers;
+    }
+
+    hasReorderableGroup(trackers) {
+        const counts = new Map();
+        trackers.forEach(tracker => {
+            const key = `${tracker.section}:${tracker.subsection}`;
+            counts.set(key, (counts.get(key) || 0) + 1);
+        });
+        return Array.from(counts.values()).some(count => count > 1);
+    }
+
+    enterReorderMode(scope, sectionKey = null) {
+        const isManager = scope === 'manager';
+        const section = sectionKey ? CUSTOM_TRACKER_SECTIONS[sectionKey] : null;
+        if (!isManager && !section) return false;
+
+        const trackers = isManager
+            ? this.getActiveTrackers()
+            : this.getRuntimeTrackers(sectionKey);
+        if (!this.hasReorderableGroup(trackers)) {
+            const message = 'Necesitás al menos dos tarjetas en una misma categoría para ordenarlas.';
+            if (isManager) this.showManagerFeedback(message);
+            else this.showRuntimeFeedback(message);
+            return false;
+        }
+
+        if (this.reorderContext) {
+            this.cancelReorderMode({ silent: true });
+        }
+
+        this.reorderContext = {
+            scope,
+            sectionKey: isManager ? null : sectionKey,
+            changed: false
+        };
+        document.body.classList.add('custom-reorder-active');
+
+        if (isManager) {
+            this.renderManager();
+        } else {
+            this.renderSection(sectionKey);
+        }
+        return true;
+    }
+
+    destroySortableInstances() {
+        this.sortableInstances.forEach(instance => instance.destroy());
+        this.sortableInstances = [];
+        document.body.classList.remove('custom-sort-active');
+    }
+
+    initializeSortableLists(root) {
+        this.destroySortableInstances();
+        if (!this.reorderContext || !root) return;
+
+        root.querySelectorAll('[data-reorder-list]').forEach(list => {
+            const items = Array.from(list.children)
+                .filter(element => element.matches('[data-reorder-item]'));
+            if (items.length < 2) return;
+
+            const instance = Sortable.create(list, {
+                animation: 180,
+                draggable: '[data-reorder-item]',
+                filter: 'button:not([data-reorder-keyboard-handle]), a, input, select, textarea, [contenteditable="true"]',
+                preventOnFilter: false,
+                delay: 170,
+                delayOnTouchOnly: true,
+                touchStartThreshold: 5,
+                fallbackTolerance: 4,
+                fallbackOnBody: true,
+                forceFallback: true,
+                scroll: true,
+                bubbleScroll: true,
+                scrollSensitivity: 80,
+                scrollSpeed: 14,
+                ghostClass: 'custom-sort-ghost',
+                chosenClass: 'custom-sort-chosen',
+                dragClass: 'custom-sort-dragging',
+                onStart: event => {
+                    this.app.tooltips?.hide();
+                    document.body.classList.add('custom-sort-active');
+                    event.item?.setAttribute('aria-grabbed', 'true');
+                },
+                onEnd: event => {
+                    document.body.classList.remove('custom-sort-active');
+                    event.item?.setAttribute('aria-grabbed', 'false');
+                    if (event.oldIndex !== event.newIndex && this.reorderContext) {
+                        this.reorderContext.changed = true;
+                    }
+                }
+            });
+            this.sortableInstances.push(instance);
+        });
+    }
+
+    handleReorderKeyboard(event) {
+        if (!this.reorderContext || !['ArrowUp', 'ArrowDown'].includes(event.key)) {
             return;
         }
 
-        const [moved] = destinationTrackers.splice(currentIndex, 1);
-        destinationTrackers.splice(targetIndex, 0, moved);
-        destinationTrackers.forEach((item, index) => {
-            item.order = index;
-            item.updatedAt = new Date().toISOString();
+        const handle = event.target.closest('[data-reorder-keyboard-handle]');
+        const item = handle?.closest('[data-reorder-item]');
+        const list = item?.closest('[data-reorder-list]');
+        if (!handle || !item || !list) return;
+
+        const items = Array.from(list.children)
+            .filter(element => element.matches('[data-reorder-item]'));
+        const currentIndex = items.indexOf(item);
+        const targetIndex = currentIndex + (event.key === 'ArrowUp' ? -1 : 1);
+        if (currentIndex < 0 || targetIndex < 0 || targetIndex >= items.length) {
+            return;
+        }
+
+        event.preventDefault();
+        if (targetIndex < currentIndex) {
+            list.insertBefore(item, items[targetIndex]);
+        } else {
+            list.insertBefore(items[targetIndex], item);
+        }
+        this.reorderContext.changed = true;
+        item.classList.remove('custom-sort-keyboard-moved');
+        requestAnimationFrame(() => {
+            item.classList.add('custom-sort-keyboard-moved');
+            setTimeout(() => item.classList.remove('custom-sort-keyboard-moved'), 240);
         });
-        this.persistRegistry();
+        handle.focus();
+    }
+
+    collectDraftOrders() {
+        if (!this.reorderContext) return new Map();
+        const root = this.reorderContext.scope === 'manager'
+            ? this.managerRoot
+            : document.getElementById(
+                CUSTOM_TRACKER_SECTIONS[this.reorderContext.sectionKey]?.mainSectionId
+            );
+        const updates = new Map();
+
+        root?.querySelectorAll('[data-reorder-list]').forEach(list => {
+            Array.from(list.children)
+                .filter(element => element.matches('[data-reorder-item]'))
+                .forEach((element, order) => {
+                    const tracker = this.getTracker(element.dataset.trackerId);
+                    const expectedGroup = `${tracker?.section || ''}:${tracker?.subsection || ''}`;
+                    if (
+                        tracker
+                        && !tracker.archived
+                        && !tracker.deleted
+                        && expectedGroup === list.dataset.reorderGroup
+                    ) {
+                        updates.set(tracker.id, order);
+                    }
+                });
+        });
+        return updates;
+    }
+
+    finishReorderMode() {
+        const context = this.reorderContext;
+        this.destroySortableInstances();
+        this.reorderContext = null;
+        document.body.classList.remove('custom-reorder-active');
+        Object.values(CUSTOM_TRACKER_SECTIONS).forEach(section => {
+            const root = document.getElementById(section.mainSectionId);
+            root?.classList.remove('is-custom-reordering');
+        });
+        return context;
+    }
+
+    saveReorderMode() {
+        if (!this.reorderContext) return;
+
+        const updates = this.collectDraftOrders();
+        const context = this.finishReorderMode();
+        const timestamp = new Date().toISOString();
+        let changed = false;
+        updates.forEach((order, trackerId) => {
+            const tracker = this.getTracker(trackerId);
+            if (!tracker || tracker.order === order) return;
+            tracker.order = order;
+            tracker.updatedAt = timestamp;
+            changed = true;
+        });
+
+        if (changed) {
+            this.persistRegistry();
+        } else {
+            this.renderAll();
+        }
+
+        const message = changed
+            ? 'El nuevo orden quedó guardado y sincronizado.'
+            : 'El orden no tenía cambios para guardar.';
+        if (context?.scope === 'manager') this.showManagerFeedback(message);
+        else this.showRuntimeFeedback(message);
+    }
+
+    cancelReorderMode({ silent = false } = {}) {
+        if (!this.reorderContext) return false;
+        const context = this.finishReorderMode();
+        this.renderAll();
+        if (!silent) {
+            const message = 'Se descartaron los cambios de orden.';
+            if (context?.scope === 'manager') this.showManagerFeedback(message);
+            else this.showRuntimeFeedback(message);
+        }
+        return true;
     }
 
     getHistoryDeleteKey(trackerId, historyIndex) {
@@ -1186,6 +1497,7 @@ export class CustomTrackersModule {
 
     renderManager() {
         if (!this.managerSummary) return;
+        const isReordering = this.reorderContext?.scope === 'manager';
 
         this.managerSummary.innerHTML = Object.entries(CUSTOM_TRACKER_SECTIONS)
             .map(([sectionKey, section]) => {
@@ -1200,6 +1512,15 @@ export class CustomTrackersModule {
                         || a.order - b.order
                         || a.name.localeCompare(b.name, 'es')
                     ));
+                const activeGroups = Object.entries(section.subsections)
+                    .map(([subsectionKey, subsection]) => ({
+                        key: subsectionKey,
+                        label: subsection.label,
+                        trackers: active.filter(
+                            tracker => tracker.subsection === subsectionKey
+                        )
+                    }))
+                    .filter(group => group.trackers.length > 0);
                 const archived = this.registry.trackers
                     .filter(tracker => (
                         tracker.section === sectionKey
@@ -1224,15 +1545,31 @@ export class CustomTrackersModule {
                                     <small>${activeLabel}${archivedLabel}</small>
                                 </span>
                             </div>
-                            <button type="button" class="custom-manager-add" data-custom-manager-action="new" data-section="${sectionKey}" aria-label="Crear tarjeta en ${escapeHtml(section.label)}">
+                            <button type="button" class="custom-manager-add ${isReordering ? 'hidden' : ''}" data-custom-manager-action="new" data-section="${sectionKey}" aria-label="Crear tarjeta en ${escapeHtml(section.label)}" data-tooltip="Crear tarjeta en ${escapeHtml(section.label)}">
                                 <i class="ph ph-plus"></i>
                             </button>
                         </div>
                         <div class="custom-manager-list">
-                            ${active.length > 0
-                                ? active.map(tracker => (
-                                    this.renderManagerActiveRow(tracker, active)
-                                )).join('')
+                            ${activeGroups.length > 0
+                                ? activeGroups.map(group => `
+                                    <div class="custom-manager-group">
+                                        <div class="custom-manager-group-label">
+                                            <span>${escapeHtml(group.label)}</span>
+                                            <small>${group.trackers.length}</small>
+                                        </div>
+                                        <div
+                                            class="custom-manager-sortable-list"
+                                            ${isReordering ? `data-reorder-list data-reorder-group="${sectionKey}:${group.key}"` : ''}
+                                        >
+                                            ${group.trackers.map(tracker => (
+                                                this.renderManagerActiveRow(
+                                                    tracker,
+                                                    isReordering
+                                                )
+                                            )).join('')}
+                                        </div>
+                                    </div>
+                                `).join('')
                                 : `
                                     <p class="custom-manager-empty">
                                         No hay tarjetas activas en esta sección.
@@ -1252,17 +1589,45 @@ export class CustomTrackersModule {
                 `;
             })
             .join('');
+
+        const managerNote = this.managerRoot.querySelector(
+            '.custom-trackers-manager-note'
+        );
+        const managerNoteIcon = managerNote?.querySelector('i');
+        const managerNoteText = managerNote?.querySelector('span');
+        if (managerNoteIcon) {
+            managerNoteIcon.className = isReordering
+                ? 'ph ph-hand-grabbing'
+                : 'ph ph-info';
+        }
+        if (managerNoteText) {
+            managerNoteText.textContent = isReordering
+                ? 'Mantené presionada una fila y arrastrala dentro de su categoría. También podés enfocar el control de agarre y usar las flechas del teclado.'
+                : 'Cada tarjeta conserva su historial y su comportamiento. Al archivarla desaparece del uso diario, pero podés restaurarla cuando quieras.';
+        }
+        this.managerRoot.classList.toggle('is-custom-reordering', isReordering);
+        this.orderTrackersButton?.classList.toggle('hidden', isReordering);
+        this.newTrackerButton?.classList.toggle('hidden', isReordering);
+        this.managerOrderActions?.classList.toggle('hidden', !isReordering);
+        if (this.orderTrackersButton) {
+            this.orderTrackersButton.disabled = !this.hasReorderableGroup(
+                this.getActiveTrackers()
+            );
+        }
+        if (isReordering) {
+            this.initializeSortableLists(this.managerRoot);
+        }
     }
 
-    renderManagerActiveRow(tracker, sectionTrackers) {
+    renderManagerActiveRow(tracker, isReordering) {
         const subsection = CUSTOM_TRACKER_SECTIONS[tracker.section]
             ?.subsections?.[tracker.subsection];
-        const sameDestination = sectionTrackers.filter(item => (
-            item.subsection === tracker.subsection
-        ));
-        const destinationIndex = sameDestination.findIndex(item => item.id === tracker.id);
         return `
-            <div class="custom-manager-row">
+            <div
+                class="custom-manager-row ${isReordering ? 'is-reorderable' : ''}"
+                data-tracker-id="${tracker.id}"
+                ${isReordering ? 'data-reorder-item aria-grabbed="false"' : ''}
+            >
                 <div class="custom-manager-row-name">
                     <i class="ph ${tracker.icon}"></i>
                     <span>
@@ -1271,18 +1636,24 @@ export class CustomTrackersModule {
                     </span>
                 </div>
                 <div class="custom-manager-row-actions">
-                    <button type="button" data-custom-manager-action="move-up" data-tracker-id="${tracker.id}" ${destinationIndex <= 0 ? 'disabled' : ''} aria-label="Subir ${escapeHtml(tracker.name)}">
-                        <i class="ph ph-arrow-up"></i>
-                    </button>
-                    <button type="button" data-custom-manager-action="move-down" data-tracker-id="${tracker.id}" ${destinationIndex === sameDestination.length - 1 ? 'disabled' : ''} aria-label="Bajar ${escapeHtml(tracker.name)}">
-                        <i class="ph ph-arrow-down"></i>
-                    </button>
-                    <button type="button" data-custom-manager-action="edit" data-tracker-id="${tracker.id}" aria-label="Editar ${escapeHtml(tracker.name)}">
-                        <i class="ph ph-pencil-simple"></i>
-                    </button>
-                    <button type="button" data-custom-manager-action="archive" data-tracker-id="${tracker.id}" aria-label="Archivar ${escapeHtml(tracker.name)}">
-                        <i class="ph ph-archive"></i>
-                    </button>
+                    ${isReordering ? `
+                        <button
+                            type="button"
+                            class="custom-reorder-keyboard-handle"
+                            data-reorder-keyboard-handle
+                            aria-label="Reubicar ${escapeHtml(tracker.name)} con las flechas del teclado"
+                            data-tooltip="Arrastrá la fila o usá las flechas del teclado"
+                        >
+                            <i class="ph ph-dots-six-vertical"></i>
+                        </button>
+                    ` : `
+                        <button type="button" data-custom-manager-action="edit" data-tracker-id="${tracker.id}" aria-label="Editar ${escapeHtml(tracker.name)}" data-tooltip="Editar tarjeta">
+                            <i class="ph ph-pencil-simple"></i>
+                        </button>
+                        <button type="button" data-custom-manager-action="archive" data-tracker-id="${tracker.id}" aria-label="Archivar ${escapeHtml(tracker.name)}" data-tooltip="Archivar tarjeta">
+                            <i class="ph ph-archive"></i>
+                        </button>
+                    `}
                 </div>
             </div>
         `;
@@ -1300,7 +1671,7 @@ export class CustomTrackersModule {
                     </span>
                 </div>
                 <div class="custom-manager-row-actions ${awaitingConfirmation ? 'confirming' : ''}">
-                    <button type="button" data-custom-manager-action="restore" data-tracker-id="${tracker.id}" aria-label="Restaurar ${escapeHtml(tracker.name)}">
+                    <button type="button" data-custom-manager-action="restore" data-tracker-id="${tracker.id}" aria-label="Restaurar ${escapeHtml(tracker.name)}" data-tooltip="Restaurar tarjeta">
                         <i class="ph ph-arrow-counter-clockwise"></i>
                     </button>
                     ${awaitingConfirmation ? `
@@ -1311,7 +1682,7 @@ export class CustomTrackersModule {
                             Borrar
                         </button>
                     ` : `
-                        <button type="button" class="danger" data-custom-manager-action="request-delete" data-tracker-id="${tracker.id}" aria-label="Borrar definitivamente ${escapeHtml(tracker.name)}">
+                        <button type="button" class="danger" data-custom-manager-action="request-delete" data-tracker-id="${tracker.id}" aria-label="Borrar definitivamente ${escapeHtml(tracker.name)}" data-tooltip="Borrar definitivamente">
                             <i class="ph ph-trash"></i>
                         </button>
                     `}
@@ -1336,7 +1707,18 @@ export class CustomTrackersModule {
     renderSection(sectionKey) {
         const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
         if (!section) return;
+        const sectionRoot = document.getElementById(section.mainSectionId);
+        const isReordering = (
+            this.reorderContext?.scope === 'runtime'
+            && this.reorderContext.sectionKey === sectionKey
+        );
         this.clearRuntimeCards(sectionKey);
+        Object.values(section.subsections).forEach(subsection => {
+            const host = document.getElementById(subsection.hostId);
+            host?.classList.remove('custom-runtime-sortable-list');
+            host?.removeAttribute('data-reorder-list');
+            host?.removeAttribute('data-reorder-group');
+        });
 
         let active = this.registry.trackers
             .filter(tracker => (
@@ -1362,6 +1744,11 @@ export class CustomTrackersModule {
             const hostId = section.subsections[subsectionKey]?.hostId;
             const host = hostId ? document.getElementById(hostId) : null;
             if (!host) return;
+            if (isReordering) {
+                host.classList.add('custom-runtime-sortable-list');
+                host.dataset.reorderList = '';
+                host.dataset.reorderGroup = `${sectionKey}:${subsectionKey}`;
+            }
 
             trackers
                 .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'es'))
@@ -1369,6 +1756,12 @@ export class CustomTrackersModule {
                     host.insertAdjacentHTML('beforeend', this.renderTrackerCard(tracker));
                 });
         });
+
+        sectionRoot?.classList.toggle('is-custom-reordering', isReordering);
+        this.updateRuntimeOrderControls(sectionKey);
+        if (isReordering) {
+            this.initializeSortableLists(sectionRoot);
+        }
     }
 
     renderTrackerCard(tracker) {
@@ -1391,9 +1784,19 @@ export class CustomTrackersModule {
         const prediction = tracker.behavior?.prediction === 'beard'
             ? this.getBeardPrediction(history)
             : '';
+        const isReordering = (
+            this.reorderContext?.scope === 'runtime'
+            && this.reorderContext.sectionKey === tracker.section
+        );
 
         return `
-            <article class="custom-tracker-card status-${state.status}" data-tracker-id="${tracker.id}" data-custom-runtime-section="${tracker.section}" style="--custom-status-color: ${status.color};">
+            <article
+                class="custom-tracker-card status-${state.status} ${isReordering ? 'is-reorderable' : ''}"
+                data-tracker-id="${tracker.id}"
+                data-custom-runtime-section="${tracker.section}"
+                ${isReordering ? 'data-reorder-item aria-grabbed="false"' : ''}
+                style="--custom-status-color: ${status.color};"
+            >
                 <div class="custom-tracker-card-header">
                     <div class="custom-tracker-identity">
                         <span class="custom-tracker-icon"><i class="ph ${tracker.icon}"></i></span>
@@ -1402,6 +1805,17 @@ export class CustomTrackersModule {
                             <span class="custom-tracker-status">${status.label}</span>
                         </div>
                     </div>
+                    ${isReordering ? `
+                        <button
+                            type="button"
+                            class="custom-card-reorder-handle"
+                            data-reorder-keyboard-handle
+                            aria-label="Reubicar ${safeName} con las flechas del teclado"
+                            data-tooltip="Arrastrá la tarjeta o usá las flechas del teclado"
+                        >
+                            <i class="ph ph-dots-six-vertical"></i>
+                        </button>
+                    ` : ''}
                 </div>
                 <div class="custom-tracker-metric">
                     <strong>${state.elapsedDays === null ? '--' : state.elapsedDays}</strong>
@@ -1460,7 +1874,7 @@ export class CustomTrackersModule {
                                                 </button>
                                             </span>
                                         ` : `
-                                            <button type="button" data-custom-runtime-action="request-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}" aria-label="Borrar registro de ${safeName}">
+                                            <button type="button" data-custom-runtime-action="request-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}" aria-label="Borrar registro de ${safeName}" data-tooltip="Borrar registro">
                                                 <i class="ph ph-trash"></i>
                                             </button>
                                         `}

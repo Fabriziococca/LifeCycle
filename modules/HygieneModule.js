@@ -486,6 +486,13 @@ export class HygieneModule {
         tabsContainer.addEventListener('click', (e) => {
             const btn = e.target.closest('.tab-btn');
             if (!btn) return;
+            if (
+                btn.dataset.category !== this.currentCategory
+                && this.app.customTrackers?.reorderContext?.scope === 'runtime'
+                && this.app.customTrackers.reorderContext.sectionKey === 'hygiene'
+            ) {
+                this.app.customTrackers.cancelReorderMode();
+            }
             tabsContainer.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
             btn.classList.add('active');
             this.currentCategory = btn.dataset.category;
