@@ -1,5 +1,9 @@
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import { buildTodayOverview } from '../today-utils.mjs?v=20260729-today-v1';
+import {
+    normalizeTodayPreferences,
+    TODAY_QUICK_ACTIONS
+} from '../product-preferences.mjs?v=20260729-product-preferences';
 
 const SOURCE_LABELS = Object.freeze({
     tareas: 'Tareas',
@@ -32,6 +36,14 @@ export class TodayModule {
                 this.app.tareas?.openTaskCapture({ quick: true });
                 return;
             }
+            if (action.dataset.todayAction === 'configure-quick-actions') {
+                this.openQuickActionSettings();
+                return;
+            }
+            if (action.dataset.todayAction === 'quick-action') {
+                this.executeQuickAction(action.dataset.quickActionId);
+                return;
+            }
 
             const index = Number(action.dataset.todayItemIndex);
             const item = Number.isInteger(index) ? this.currentItems[index] : null;
@@ -52,6 +64,95 @@ export class TodayModule {
                 }
             }
         });
+    }
+
+    getQuickActions() {
+        const preferences = normalizeTodayPreferences(
+            this.app.customTrackers?.registry?.todayPreferences
+        );
+        return preferences.quickActions
+            .filter(actionId => {
+                const action = TODAY_QUICK_ACTIONS[actionId];
+                if (!action) return false;
+                return (
+                    !action.moduleId
+                    || this.app.customTrackers?.isModuleVisible(action.moduleId)
+                );
+            })
+            .map(actionId => ({
+                id: actionId,
+                ...TODAY_QUICK_ACTIONS[actionId]
+            }));
+    }
+
+    openQuickActionSettings() {
+        document.getElementById('profile-btn')?.click();
+        this.app.activateProfileTab?.('modulos', { smooth: true });
+        requestAnimationFrame(() => {
+            document.getElementById('today-actions-manager')?.scrollIntoView({
+                behavior: 'smooth',
+                block: 'start'
+            });
+        });
+    }
+
+    activateActionModule(moduleId) {
+        if (!moduleId) return true;
+        if (!this.app.customTrackers?.isModuleVisible(moduleId)) {
+            this.app.showToast?.(
+                'Ese módulo está oculto. Podés recuperarlo desde Perfil → Módulos.',
+                { tone: 'warning' }
+            );
+            return false;
+        }
+        return this.app.activateSection?.(moduleId, { smooth: true }) === true;
+    }
+
+    executeQuickAction(actionId) {
+        const action = TODAY_QUICK_ACTIONS[actionId];
+        if (!action || !this.activateActionModule(action.moduleId)) return false;
+
+        if (actionId === 'new_project') {
+            requestAnimationFrame(() => {
+                const input = document.getElementById('clientName');
+                input?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                input?.focus({ preventScroll: true });
+            });
+            return true;
+        }
+
+        if (actionId === 'add_income') {
+            document.getElementById('btnFinTabIncome')?.click();
+            document.getElementById('btnOpenFinanzasModal')?.click();
+            return true;
+        }
+
+        if (actionId === 'add_expense') {
+            document.getElementById('btnFinTabExpense')?.click();
+            document.getElementById('btnOpenFinanzasExpenseModal')?.click();
+            return true;
+        }
+
+        if (actionId === 'open_gym') {
+            document.querySelector('[data-gym-tab="sessions"]')?.click();
+            requestAnimationFrame(() => {
+                const startButton = document.getElementById('start-session-btn');
+                startButton?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                startButton?.focus({ preventScroll: true });
+            });
+            return true;
+        }
+
+        if (actionId === 'new_tracker') {
+            document.getElementById('profile-btn')?.click();
+            this.app.activateProfileTab?.('seguimientos', { smooth: true });
+            requestAnimationFrame(() => {
+                document.getElementById('btn-new-custom-tracker')?.click();
+            });
+            return true;
+        }
+
+        return false;
     }
 
     getDateLabel() {
@@ -141,6 +242,52 @@ export class TodayModule {
         `;
     }
 
+    renderQuickActions() {
+        const actions = this.getQuickActions();
+        return `
+            <section class="today-quick-panel" aria-labelledby="today-quick-actions-title">
+                <div class="today-quick-heading">
+                    <div>
+                        <span class="today-quick-kicker">A un toque</span>
+                        <h3 id="today-quick-actions-title">Acciones rápidas</h3>
+                    </div>
+                    <button
+                        type="button"
+                        class="today-quick-configure"
+                        data-today-action="configure-quick-actions"
+                    >
+                        <i class="ph ph-sliders-horizontal" aria-hidden="true"></i>
+                        Personalizar
+                    </button>
+                </div>
+                ${actions.length > 0 ? `
+                    <div class="today-quick-grid">
+                        ${actions.map(action => `
+                            <button
+                                type="button"
+                                class="today-quick-card"
+                                data-today-action="quick-action"
+                                data-quick-action-id="${action.id}"
+                            >
+                                <span aria-hidden="true"><i class="ph ${action.icon}"></i></span>
+                                <strong>${escapeHtml(action.label)}</strong>
+                                <small>${escapeHtml(action.description)}</small>
+                            </button>
+                        `).join('')}
+                    </div>
+                ` : `
+                    <button
+                        type="button"
+                        class="today-quick-empty"
+                        data-today-action="configure-quick-actions"
+                    >
+                        Elegí los accesos que querés ver en esta pantalla.
+                    </button>
+                `}
+            </section>
+        `;
+    }
+
     render(items = null) {
         if (!this.root) return;
 
@@ -167,6 +314,8 @@ export class TodayModule {
                     Nueva tarea
                 </button>
             </div>
+
+            ${this.renderQuickActions()}
 
             <div class="today-summary" aria-label="Resumen de pendientes">
                 <article>

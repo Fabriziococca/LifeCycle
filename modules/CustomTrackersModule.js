@@ -1,5 +1,6 @@
 import {
     APP_MODULES,
+    appendCustomTrackerRecords,
     buildCustomAlertDefinitions,
     createCustomTracker,
     CUSTOM_TRACKER_FIELD,
@@ -16,6 +17,10 @@ import {
 } from '../tracker-migration.mjs?v=20260729-trackers-v2';
 import { DateUtils, getLocalISODate } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import {
+    normalizeTodayPreferences,
+    TODAY_QUICK_ACTIONS
+} from '../product-preferences.mjs?v=20260729-product-preferences';
 import Sortable from '../vendor/sortable.complete.esm.js?v=1.15.7';
 
 const STATUS_META = Object.freeze({
@@ -86,6 +91,7 @@ export class CustomTrackersModule {
         this.lastDialogTrigger = null;
         this.toastTimer = null;
         this.reorderContext = null;
+        this.bulkContext = null;
         this.sortableInstances = [];
 
         this.managerRoot = document.getElementById('tab-seguimientos');
@@ -97,6 +103,9 @@ export class CustomTrackersModule {
         this.modulesRoot = document.getElementById('tab-modulos');
         this.modulesSummary = document.getElementById('module-visibility-summary');
         this.modulesFeedback = document.getElementById('module-visibility-feedback');
+        this.todayActionsSummary = document.getElementById('today-actions-summary');
+        this.todayActionsCount = document.getElementById('today-actions-count');
+        this.todayActionsFeedback = document.getElementById('today-actions-feedback');
 
         this.ensureRuntimeOrderControls();
         this.ensureEditorDialog();
@@ -194,7 +203,25 @@ export class CustomTrackersModule {
             toolbar.className = 'custom-runtime-order-toolbar';
             toolbar.dataset.runtimeOrderSection = sectionKey;
             toolbar.innerHTML = `
+                <div class="custom-runtime-overview" data-runtime-overview="${sectionKey}">
+                    <span class="custom-runtime-overview-icon" aria-hidden="true">
+                        <i class="ph ph-calendar-check"></i>
+                    </span>
+                    <span class="custom-runtime-overview-copy">
+                        <strong>Calculando estado…</strong>
+                        <small>Revisando las tarjetas visibles.</small>
+                    </span>
+                </div>
                 <div class="custom-runtime-order-default">
+                    <button
+                        type="button"
+                        class="btn btn-secondary custom-runtime-bulk-enter"
+                        data-custom-bulk-action="enter"
+                        data-section="${sectionKey}"
+                    >
+                        <i class="ph ph-checks"></i>
+                        Registrar varias
+                    </button>
                     <button
                         type="button"
                         class="btn btn-secondary custom-runtime-order-enter"
@@ -204,6 +231,24 @@ export class CustomTrackersModule {
                         <i class="ph ph-arrows-down-up"></i>
                         Ordenar tarjetas
                     </button>
+                </div>
+                <div class="custom-runtime-bulk-active hidden" role="status" aria-live="polite">
+                    <span>
+                        <i class="ph ph-checks"></i>
+                        <span>
+                            <strong>Registro múltiple</strong>
+                            <small data-custom-bulk-status>Seleccioná las tarjetas que acabás de completar.</small>
+                        </span>
+                    </span>
+                    <div class="custom-order-actions">
+                        <button type="button" class="btn btn-secondary" data-custom-bulk-action="cancel">
+                            Cancelar
+                        </button>
+                        <button type="button" class="btn btn-primary" data-custom-bulk-action="record" disabled>
+                            <i class="ph ph-check-circle"></i>
+                            <span data-custom-bulk-record-label>Registrar seleccionadas</span>
+                        </button>
+                    </div>
                 </div>
                 <div class="custom-runtime-order-active hidden" role="status" aria-live="polite">
                     <span>
@@ -240,20 +285,120 @@ export class CustomTrackersModule {
                 this.reorderContext?.scope === 'runtime'
                 && this.reorderContext.sectionKey === key
             );
+            const isBulkActive = this.bulkContext?.sectionKey === key;
             const enterWrap = toolbar.querySelector('.custom-runtime-order-default');
             const activeWrap = toolbar.querySelector('.custom-runtime-order-active');
+            const bulkWrap = toolbar.querySelector('.custom-runtime-bulk-active');
+            const overview = toolbar.querySelector('.custom-runtime-overview');
             const enterButton = toolbar.querySelector('[data-custom-order-action="enter-runtime"]');
-            enterWrap?.classList.toggle('hidden', isActive);
+            const bulkEnterButton = toolbar.querySelector('[data-custom-bulk-action="enter"]');
+            const bulkRecordButton = toolbar.querySelector('[data-custom-bulk-action="record"]');
+            const bulkRecordLabel = toolbar.querySelector('[data-custom-bulk-record-label]');
+            const bulkStatus = toolbar.querySelector('[data-custom-bulk-status]');
+            const selectedCount = isBulkActive
+                ? this.bulkContext.selectedIds.size
+                : 0;
+            enterWrap?.classList.toggle('hidden', isActive || isBulkActive);
             activeWrap?.classList.toggle('hidden', !isActive);
+            bulkWrap?.classList.toggle('hidden', !isBulkActive);
+            overview?.classList.toggle('hidden', isActive || isBulkActive);
             toolbar.classList.toggle('is-active', isActive);
+            toolbar.classList.toggle('is-bulk-active', isBulkActive);
             if (enterButton) {
                 enterButton.disabled = !this.hasReorderableGroup(
                     this.getRuntimeTrackers(key)
                 );
             }
+            if (bulkEnterButton) {
+                bulkEnterButton.disabled = this.getRuntimeTrackers(key).length < 2;
+            }
+            if (bulkRecordButton) {
+                bulkRecordButton.disabled = selectedCount === 0;
+            }
+            if (bulkRecordLabel) {
+                bulkRecordLabel.textContent = selectedCount > 0
+                    ? `Registrar ${selectedCount}`
+                    : 'Registrar seleccionadas';
+            }
+            if (bulkStatus) {
+                bulkStatus.textContent = selectedCount > 0
+                    ? `${selectedCount} ${selectedCount === 1 ? 'tarjeta seleccionada' : 'tarjetas seleccionadas'}.`
+                    : 'Seleccioná las tarjetas que acabás de completar.';
+            }
             document.getElementById(section.mainSectionId)
                 ?.classList.toggle('is-custom-reordering', isActive);
+            document.getElementById(section.mainSectionId)
+                ?.classList.toggle('is-custom-bulk', isBulkActive);
+            this.updateRuntimeOverview(key);
         });
+    }
+
+    updateRuntimeOverview(sectionKey) {
+        const overview = document.querySelector(
+            `[data-runtime-overview="${sectionKey}"]`
+        );
+        if (!overview) return;
+
+        const trackers = this.getRuntimeTrackers(sectionKey);
+        const states = trackers.map(tracker => ({
+            tracker,
+            state: getCustomTrackerState(tracker, this.getHistory(tracker.id))
+        }));
+        const overdue = states.filter(item => item.state.status === 'red');
+        const upcoming = states.filter(item => (
+            item.state.status === 'yellow'
+            || item.state.status === 'orange'
+        ));
+        const notStarted = states.filter(item => item.state.status === 'new');
+        const next = states
+            .filter(item => item.state.nextDate)
+            .sort((left, right) => (
+                Date.parse(left.state.nextDate) - Date.parse(right.state.nextDate)
+            ))[0] || null;
+        const copy = overview.querySelector('.custom-runtime-overview-copy');
+        const icon = overview.querySelector('.custom-runtime-overview-icon i');
+        if (!copy || !icon) return;
+
+        let title = 'Todo al día';
+        let detail = next
+            ? `Próxima: ${next.tracker.name} · ${DateUtils.formatFriendlyDate(next.state.nextDate)}`
+            : `${trackers.length} ${trackers.length === 1 ? 'tarjeta activa' : 'tarjetas activas'}`;
+        let tone = 'clear';
+
+        if (trackers.length === 0) {
+            title = 'Sin tarjetas visibles';
+            detail = 'Podés crear una nueva desde Perfil → Tarjetas.';
+            tone = 'empty';
+        } else if (overdue.length > 0) {
+            title = `${overdue.length} ${overdue.length === 1 ? 'vencida' : 'vencidas'}`;
+            detail = upcoming.length > 0
+                ? `${upcoming.length} próximas · Primero: ${overdue[0].tracker.name}`
+                : `Primero: ${overdue[0].tracker.name}`;
+            tone = 'overdue';
+        } else if (upcoming.length > 0) {
+            title = `${upcoming.length} ${upcoming.length === 1 ? 'próxima' : 'próximas'}`;
+            detail = next
+                ? `Primero: ${next.tracker.name} · ${DateUtils.formatFriendlyDate(next.state.nextDate)}`
+                : 'Revisá las tarjetas destacadas.';
+            tone = 'upcoming';
+        } else if (notStarted.length > 0 && notStarted.length === trackers.length) {
+            title = `${notStarted.length} sin iniciar`;
+            detail = 'El primer registro activa sus fechas.';
+            tone = 'empty';
+        } else if (notStarted.length > 0) {
+            detail = `${detail} · ${notStarted.length} sin iniciar`;
+        }
+
+        overview.dataset.tone = tone;
+        icon.className = tone === 'overdue'
+            ? 'ph ph-warning-circle'
+            : (tone === 'upcoming'
+                ? 'ph ph-clock-countdown'
+                : (tone === 'empty' ? 'ph ph-circle-dashed' : 'ph ph-check-circle'));
+        copy.innerHTML = `
+            <strong>${escapeHtml(title)}</strong>
+            <small>${escapeHtml(detail)}</small>
+        `;
     }
 
     setupManagerListeners() {
@@ -310,6 +455,14 @@ export class CustomTrackersModule {
 
     setupModuleListeners() {
         this.modulesRoot?.addEventListener('click', event => {
+            const quickActionButton = event.target.closest(
+                '[data-today-preference-action="toggle"]'
+            );
+            if (quickActionButton) {
+                this.toggleTodayQuickAction(quickActionButton.dataset.quickActionId);
+                return;
+            }
+
             const button = event.target.closest('[data-module-visibility-action]');
             if (!button) return;
             const moduleId = button.dataset.moduleId;
@@ -399,6 +552,103 @@ export class CustomTrackersModule {
                 `;
             })
             .join('');
+        this.renderTodayActionsManager();
+    }
+
+    getTodayPreferences() {
+        this.registry.todayPreferences = normalizeTodayPreferences(
+            this.registry.todayPreferences
+        );
+        return this.registry.todayPreferences;
+    }
+
+    isTodayQuickActionAvailable(actionId) {
+        const action = TODAY_QUICK_ACTIONS[actionId];
+        if (!action) return false;
+        return !action.moduleId || this.isModuleVisible(action.moduleId);
+    }
+
+    toggleTodayQuickAction(actionId) {
+        if (!TODAY_QUICK_ACTIONS[actionId]) return false;
+
+        const preferences = this.getTodayPreferences();
+        const selected = new Set(preferences.quickActions);
+        const wasSelected = selected.has(actionId);
+        if (wasSelected) selected.delete(actionId);
+        else selected.add(actionId);
+
+        preferences.quickActions = Object.keys(TODAY_QUICK_ACTIONS)
+            .filter(id => selected.has(id));
+        this.registry.todayPreferences = normalizeTodayPreferences(preferences);
+        this.persistRegistry();
+        this.showTodayActionsFeedback(
+            wasSelected
+                ? `${TODAY_QUICK_ACTIONS[actionId].label} se quitó de Hoy.`
+                : `${TODAY_QUICK_ACTIONS[actionId].label} se agregó a Hoy.`
+        );
+        this.app.today?.render();
+        return true;
+    }
+
+    renderTodayActionsManager() {
+        if (!this.todayActionsSummary) return;
+        const selected = new Set(this.getTodayPreferences().quickActions);
+        const availableSelectedCount = Array.from(selected)
+            .filter(actionId => this.isTodayQuickActionAvailable(actionId))
+            .length;
+
+        if (this.todayActionsCount) {
+            this.todayActionsCount.textContent = (
+                `${availableSelectedCount} ${availableSelectedCount === 1 ? 'visible' : 'visibles'}`
+            );
+        }
+
+        this.todayActionsSummary.innerHTML = Object.entries(TODAY_QUICK_ACTIONS)
+            .map(([actionId, action]) => {
+                const active = selected.has(actionId);
+                const available = this.isTodayQuickActionAvailable(actionId);
+                const moduleLabel = action.moduleId
+                    ? APP_MODULES[action.moduleId]?.label
+                    : null;
+                const statusText = available
+                    ? (active ? 'Visible en Hoy' : 'Disponible')
+                    : `${moduleLabel || 'Módulo'} está oculto`;
+
+                return `
+                    <article class="today-action-preference ${active ? 'is-active' : ''} ${available ? '' : 'is-unavailable'}">
+                        <span class="today-action-preference-icon">
+                            <i class="ph ${action.icon}"></i>
+                        </span>
+                        <span class="today-action-preference-copy">
+                            <strong>${escapeHtml(action.label)}</strong>
+                            <small>${escapeHtml(statusText)}</small>
+                            <span>${escapeHtml(action.description)}</span>
+                        </span>
+                        <button
+                            type="button"
+                            class="module-visibility-toggle ${active ? 'active' : ''}"
+                            data-today-preference-action="toggle"
+                            data-quick-action-id="${actionId}"
+                            aria-label="${active ? 'Quitar' : 'Agregar'} acceso ${escapeHtml(action.label)} ${active ? 'de' : 'a'} Hoy"
+                            data-tooltip="${active ? 'Quitar de Hoy' : 'Agregar a Hoy'}"
+                            aria-pressed="${active}"
+                        >
+                            <span aria-hidden="true"></span>
+                        </button>
+                    </article>
+                `;
+            })
+            .join('');
+    }
+
+    showTodayActionsFeedback(message) {
+        if (!this.todayActionsFeedback) return;
+        this.todayActionsFeedback.textContent = message;
+        this.todayActionsFeedback.classList.remove('hidden');
+        clearTimeout(this.todayActionsFeedbackTimer);
+        this.todayActionsFeedbackTimer = setTimeout(() => {
+            this.todayActionsFeedback?.classList.add('hidden');
+        }, 3600);
     }
 
     showModulesFeedback(message) {
@@ -413,6 +663,21 @@ export class CustomTrackersModule {
 
     setupRuntimeListeners() {
         document.addEventListener('click', event => {
+            const bulkButton = event.target.closest(
+                '.custom-runtime-order-toolbar [data-custom-bulk-action]'
+            );
+            if (bulkButton) {
+                const action = bulkButton.dataset.customBulkAction;
+                if (action === 'enter') {
+                    this.enterBulkMode(bulkButton.dataset.section);
+                } else if (action === 'record') {
+                    this.commitBulkMode();
+                } else if (action === 'cancel') {
+                    this.cancelBulkMode();
+                }
+                return;
+            }
+
             const orderButton = event.target.closest(
                 '.custom-runtime-order-toolbar [data-custom-order-action]'
             );
@@ -431,6 +696,17 @@ export class CustomTrackersModule {
                 return;
             }
 
+            const bulkCard = event.target.closest(
+                '.custom-tracker-card.is-bulk-selectable[data-tracker-id]'
+            );
+            if (
+                bulkCard
+                && this.bulkContext?.sectionKey === bulkCard.dataset.customRuntimeSection
+            ) {
+                this.toggleBulkSelection(bulkCard.dataset.trackerId);
+                return;
+            }
+
             const button = event.target.closest(
                 '.custom-tracker-card [data-custom-runtime-action]'
             );
@@ -442,7 +718,11 @@ export class CustomTrackersModule {
             const tracker = this.getTracker(trackerId);
             if (!tracker) return;
 
-            if (action === 'record') {
+            if (action === 'toggle-bulk') {
+                this.toggleBulkSelection(trackerId);
+            } else if (this.bulkContext?.sectionKey === tracker.section) {
+                return;
+            } else if (action === 'record') {
                 this.recordTracker(trackerId);
             } else if (action === 'toggle-history') {
                 if (this.openHistoryIds.has(trackerId)) this.openHistoryIds.delete(trackerId);
@@ -509,7 +789,7 @@ export class CustomTrackersModule {
             <div class="custom-tracker-dialog-card">
                 <div class="custom-tracker-dialog-header">
                     <div>
-                        <span class="custom-trackers-eyebrow">Seguimiento configurable</span>
+                        <span class="custom-trackers-eyebrow">Tarjeta configurable</span>
                         <h2 id="custom-tracker-dialog-title">Nueva tarjeta</h2>
                         <p id="custom-tracker-dialog-section">Elegí dónde aparecerá la tarjeta.</p>
                     </div>
@@ -1012,27 +1292,48 @@ export class CustomTrackersModule {
     }
 
     recordTracker(trackerId, when = new Date()) {
-        const tracker = this.getTracker(trackerId);
-        if (!tracker || tracker.archived || tracker.deleted) return;
+        return this.recordTrackers([trackerId], when);
+    }
 
+    recordTrackers(trackerIds, when = new Date()) {
         const date = when instanceof Date ? when : new Date(when);
-        if (Number.isNaN(date.getTime())) return;
+        if (Number.isNaN(date.getTime())) return false;
 
-        const history = this.getHistory(trackerId);
-        history.unshift(date.toISOString());
-        this.registry.histories[trackerId] = [...new Set(history)]
-            .sort((a, b) => Date.parse(b) - Date.parse(a))
-            .slice(0, 1000);
-        if (tracker.behavior?.decrementStock && tracker.behavior?.stockKey === 'lensStock') {
-            const stock = Math.max(0, Number.parseInt(localStorage.getItem('lensStock'), 10) || 0);
-            if (stock > 0) {
-                localStorage.setItem('lensStock', String(stock - 1));
+        const result = appendCustomTrackerRecords(
+            this.registry,
+            trackerIds,
+            date
+        );
+        if (result.recordedIds.length === 0) return false;
+
+        this.registry = result.registry;
+        const trackers = result.recordedIds
+            .map(trackerId => this.getTracker(trackerId))
+            .filter(Boolean);
+        trackers.forEach(tracker => {
+            if (
+                tracker.behavior?.decrementStock
+                && tracker.behavior?.stockKey === 'lensStock'
+            ) {
+                const stock = Math.max(
+                    0,
+                    Number.parseInt(localStorage.getItem('lensStock'), 10) || 0
+                );
+                if (stock > 0) {
+                    localStorage.setItem('lensStock', String(stock - 1));
+                }
             }
-        }
-        this.mirrorLegacyTracker(tracker);
+            this.mirrorLegacyTracker(tracker);
+        });
+
         this.persistRegistry();
-        if (navigator.vibrate) navigator.vibrate(40);
-        this.showRuntimeFeedback(`${tracker.name}: registro guardado.`);
+        if (navigator.vibrate) navigator.vibrate(trackers.length > 1 ? [40, 35, 40] : 40);
+        this.showRuntimeFeedback(
+            trackers.length === 1
+                ? `${trackers[0].name}: registro guardado.`
+                : `${trackers.length} tarjetas registradas al mismo tiempo.`
+        );
+        return true;
     }
 
     updateLatestDate(trackerId, dateValue) {
@@ -1225,6 +1526,106 @@ export class CustomTrackersModule {
         return Array.from(counts.values()).some(count => count > 1);
     }
 
+    enterBulkMode(sectionKey) {
+        if (!CUSTOM_TRACKER_SECTIONS[sectionKey]) return false;
+        const trackers = this.getRuntimeTrackers(sectionKey);
+        if (trackers.length < 2) {
+            this.showRuntimeFeedback(
+                'Necesitás al menos dos tarjetas visibles para usar el registro múltiple.'
+            );
+            return false;
+        }
+
+        if (this.reorderContext) {
+            this.cancelReorderMode({ silent: true });
+        }
+        if (this.bulkContext) {
+            this.cancelBulkMode({ silent: true });
+        }
+
+        this.bulkContext = {
+            sectionKey,
+            selectedIds: new Set()
+        };
+        document.body.classList.add('custom-bulk-active');
+        this.renderSection(sectionKey);
+        return true;
+    }
+
+    toggleBulkSelection(trackerId) {
+        if (!this.bulkContext) return false;
+        const tracker = this.getTracker(trackerId);
+        const visibleIds = new Set(
+            this.getRuntimeTrackers(this.bulkContext.sectionKey)
+                .map(item => item.id)
+        );
+        if (
+            !tracker
+            || tracker.section !== this.bulkContext.sectionKey
+            || !visibleIds.has(trackerId)
+        ) {
+            return false;
+        }
+
+        if (this.bulkContext.selectedIds.has(trackerId)) {
+            this.bulkContext.selectedIds.delete(trackerId);
+        } else {
+            this.bulkContext.selectedIds.add(trackerId);
+        }
+        const selected = this.bulkContext.selectedIds.has(trackerId);
+        const card = document.querySelector(
+            `.custom-tracker-card.is-bulk-selectable[data-tracker-id="${trackerId}"]`
+        );
+        const toggle = card?.querySelector(
+            '[data-custom-runtime-action="toggle-bulk"]'
+        );
+        card?.classList.toggle('is-bulk-selected', selected);
+        if (toggle) {
+            toggle.setAttribute(
+                'aria-label',
+                `${selected ? 'Quitar' : 'Seleccionar'} ${tracker.name} del registro múltiple`
+            );
+            toggle.dataset.tooltip = selected
+                ? 'Quitar selección'
+                : 'Seleccionar tarjeta';
+            toggle.setAttribute('aria-pressed', String(selected));
+            const icon = toggle.querySelector('i');
+            if (icon) icon.className = `ph ${selected ? 'ph-check' : 'ph-circle'}`;
+            toggle.focus({ preventScroll: true });
+        }
+        this.updateRuntimeOrderControls(this.bulkContext.sectionKey);
+        return true;
+    }
+
+    finishBulkMode() {
+        if (!this.bulkContext) return null;
+        const context = this.bulkContext;
+        this.bulkContext = null;
+        document.body.classList.remove('custom-bulk-active');
+        document.getElementById(
+            CUSTOM_TRACKER_SECTIONS[context.sectionKey]?.mainSectionId
+        )?.classList.remove('is-custom-bulk');
+        return context;
+    }
+
+    commitBulkMode() {
+        if (!this.bulkContext || this.bulkContext.selectedIds.size === 0) {
+            return false;
+        }
+        const context = this.finishBulkMode();
+        return this.recordTrackers(Array.from(context.selectedIds));
+    }
+
+    cancelBulkMode({ silent = false } = {}) {
+        if (!this.bulkContext) return false;
+        const context = this.finishBulkMode();
+        this.renderSection(context.sectionKey);
+        if (!silent) {
+            this.showRuntimeFeedback('Se canceló el registro múltiple.');
+        }
+        return true;
+    }
+
     enterReorderMode(scope, sectionKey = null) {
         const isManager = scope === 'manager';
         const section = sectionKey ? CUSTOM_TRACKER_SECTIONS[sectionKey] : null;
@@ -1242,6 +1643,9 @@ export class CustomTrackersModule {
 
         if (this.reorderContext) {
             this.cancelReorderMode({ silent: true });
+        }
+        if (this.bulkContext) {
+            this.cancelBulkMode({ silent: true });
         }
 
         this.reorderContext = {
@@ -1712,6 +2116,7 @@ export class CustomTrackersModule {
             this.reorderContext?.scope === 'runtime'
             && this.reorderContext.sectionKey === sectionKey
         );
+        const isBulkSelecting = this.bulkContext?.sectionKey === sectionKey;
         this.clearRuntimeCards(sectionKey);
         Object.values(section.subsections).forEach(subsection => {
             const host = document.getElementById(subsection.hostId);
@@ -1758,6 +2163,7 @@ export class CustomTrackersModule {
         });
 
         sectionRoot?.classList.toggle('is-custom-reordering', isReordering);
+        sectionRoot?.classList.toggle('is-custom-bulk', isBulkSelecting);
         this.updateRuntimeOrderControls(sectionKey);
         if (isReordering) {
             this.initializeSortableLists(sectionRoot);
@@ -1788,10 +2194,13 @@ export class CustomTrackersModule {
             this.reorderContext?.scope === 'runtime'
             && this.reorderContext.sectionKey === tracker.section
         );
+        const isBulkSelecting = this.bulkContext?.sectionKey === tracker.section;
+        const isBulkSelected = isBulkSelecting
+            && this.bulkContext.selectedIds.has(tracker.id);
 
         return `
             <article
-                class="custom-tracker-card status-${state.status} ${isReordering ? 'is-reorderable' : ''}"
+                class="custom-tracker-card status-${state.status} ${isReordering ? 'is-reorderable' : ''} ${isBulkSelecting ? 'is-bulk-selectable' : ''} ${isBulkSelected ? 'is-bulk-selected' : ''}"
                 data-tracker-id="${tracker.id}"
                 data-custom-runtime-section="${tracker.section}"
                 ${isReordering ? 'data-reorder-item aria-grabbed="false"' : ''}
@@ -1815,7 +2224,19 @@ export class CustomTrackersModule {
                         >
                             <i class="ph ph-dots-six-vertical"></i>
                         </button>
-                    ` : ''}
+                    ` : (isBulkSelecting ? `
+                        <button
+                            type="button"
+                            class="custom-card-bulk-toggle"
+                            data-custom-runtime-action="toggle-bulk"
+                            data-tracker-id="${tracker.id}"
+                            aria-label="${isBulkSelected ? 'Quitar' : 'Seleccionar'} ${safeName} del registro múltiple"
+                            data-tooltip="${isBulkSelected ? 'Quitar selección' : 'Seleccionar tarjeta'}"
+                            aria-pressed="${isBulkSelected}"
+                        >
+                            <i class="ph ${isBulkSelected ? 'ph-check' : 'ph-circle'}"></i>
+                        </button>
+                    ` : '')}
                 </div>
                 <div class="custom-tracker-metric">
                     <strong>${state.elapsedDays === null ? '--' : state.elapsedDays}</strong>

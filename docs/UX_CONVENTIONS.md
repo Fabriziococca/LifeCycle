@@ -91,7 +91,31 @@ convierte al tooltip visual de LifeCycle. El código nuevo debe preferir
 - En móvil el texto puede reducirse a un icono únicamente si conserva
   `aria-label`, tooltip y tamaño táctil suficiente.
 
-## 7. Revisión obligatoria
+## 7. Registro múltiple
+
+- El registro múltiple debe comenzar desde un único botón visible y entrar en
+  un modo claramente diferenciado.
+- La selección no modifica datos; recién el botón final aplica una misma marca
+  de tiempo a todas las tarjetas elegidas.
+- Solo se pueden seleccionar tarjetas activas y visibles en la sección o
+  categoría actual.
+- Cambiar de módulo, abrir el perfil o cambiar la categoría cancela el modo sin
+  guardar.
+- La confirmación final debe indicar cuántas tarjetas se registraron.
+
+## 8. Personalización de baja frecuencia
+
+- Una preferencia que se configura ocasionalmente no debe ocupar espacio
+  permanente en el flujo diario. Se centraliza en el perfil.
+- La pantalla cotidiana puede ofrecer un enlace breve como `Personalizar`, pero
+  no debe duplicar el editor completo.
+- Los accesos rápidos reutilizan el flujo y la persistencia del módulo de
+  origen. Nunca crean versiones paralelas de proyectos, gastos, ingresos,
+  sesiones o tarjetas.
+- Si el módulo de origen está oculto, su acceso rápido también se oculta sin
+  borrar la preferencia.
+
+## 9. Revisión obligatoria
 
 Antes de entregar un cambio de interfaz:
 

@@ -38,6 +38,10 @@ La auditoría describe el producto observado al comenzar esta etapa. Durante la 
 - Captura rápida de tareas disponible desde cualquier módulo, con carpeta, urgencia, validación en contexto, confirmación visible, atajo `Alt+N` y reutilización del mismo modelo sincronizado de Tareas.
 - Prioridad inicial “Urgente” unificada en la captura rápida, el alta normal y las tareas de proyecto; “No urgente” permanece disponible como opción excepcional de largo plazo.
 - Primera versión del centro “Hoy”, con tareas prioritarias, vencimientos de proyectos, seguimientos atrasados, conteos por grupo y acciones para abrir o resolver sin duplicar datos.
+- Accesos rápidos configurables en “Hoy” para crear proyectos, registrar ingresos o gastos, iniciar un entrenamiento y crear tarjetas; se administran desde Perfil → Módulos y viajan con la sincronización existente.
+- Resumen contextual por sección de tarjetas, con cantidad vencida o próxima y el siguiente elemento relevante sin necesidad de recorrer toda la grilla.
+- Modo “Registrar varias” para aplicar una misma fecha a varias tarjetas visibles mediante una sola confirmación; cancelar el modo no modifica ningún historial.
+- Nombre visible “Tarjetas” en el perfil, manteniendo los identificadores internos históricos para no romper preferencias ni enlaces existentes.
 - Navegación horizontal que centra el contexto activo y muestra una ayuda móvil descartable cuando existen módulos u opciones de perfil fuera de pantalla.
 - Estados automáticos de seguimiento, instrucciones colapsadas y alertas opcionales integradas con el Gestor de Alertas.
 - Evaluación backend de seguimientos configurables aunque la PWA esté cerrada.
@@ -60,11 +64,11 @@ LifeCycle ya tiene una base de producto útil y coherente. Sus mejores decisione
 - Las sesiones activas de gimnasio pueden recuperarse.
 - Los estados visuales permiten detectar rápidamente qué requiere atención.
 
-La mayor limitación actual no es la falta de módulos sino la rigidez del modelo: gran parte de Higiene, Cuidado, Lentes, Salud y Vehículo está definida en código. Esto obliga a modificar y desplegar la aplicación cuando aparece un seguimiento nuevo.
+La principal rigidez detectada al comenzar la auditoría estaba en Higiene, Cuidado, Lentes y Salud. Ese bloqueo quedó resuelto al migrar sus tarjetas al modelo configurable común. Vehículo conserva flujos especializados definidos en código porque combinan kilometraje, fechas, documentación y fallas; no conviene mezclarlos todavía con una tarjeta recurrente genérica.
 
-El segundo problema es la densidad visual. Varias pantallas muestran demasiadas instrucciones, tarjetas o campos al mismo tiempo. La información es valiosa, pero compite con las acciones frecuentes.
+La limitación de producto con mejor oportunidad de ahorro restante es la repetición de estructuras en Proyectos y movimientos periódicos en Finanzas. Antes de ampliar esos modelos se debe validar, a partir del uso real, qué datos conviene convertir en plantilla o regla recurrente.
 
-El tercer problema es la fragmentación: cada módulo desarrolló sus propios patrones de formulario, confirmación, historial, edición y notificación. Funciona, pero aumenta la carga mental y el costo de mantenimiento.
+También persiste cierta fragmentación: cada módulo desarrolló sus propios patrones de formulario, confirmación, historial, edición y notificación. Funciona, pero aumenta la carga mental y el costo de mantenimiento. La unificación de diálogos y mensajes es una mejora transversal, no una razón para reescribir los modelos de dominio.
 
 ## 3. Auditoría de funcionalidad y mejoras
 
@@ -196,7 +200,7 @@ El sistema de tarjetas configurables tiene un impacto superior, pero no aparece 
 - No conviene convertir todos los módulos especializados en un único constructor sin tipos. Lentes, controles médicos y mantenimientos del vehículo poseen datos diferentes.
 - Sí conviene compartir un núcleo de seguimiento recurrente: identidad, orden, archivo, historial, intervalo, estado, instrucciones y alerta.
 - Sobre ese núcleo deben existir plantillas por dominio que agreguen campos propios, por ejemplo stock para insumos o frecuencia mensual para controles médicos.
-- Los elementos actuales deben conservarse como definiciones del sistema y admitir personalización no destructiva. Los datos históricos no se reemplazan.
+- Las tarjetas preexistentes se convierten al mismo formato configurable que las nuevas, conservando identidad, historial, estados y comportamientos especializados; una cuenta nueva puede comenzar vacía.
 - Archivar debe ser la operación normal; borrar permanentemente debe quedar como acción avanzada.
 - La configuración de alertas debe pertenecer a la misma tarjeta y reflejarse en el Gestor de Alertas, no duplicarse.
 
@@ -208,7 +212,7 @@ Una primera versión se considera completa cuando:
 2. Se puede definir nombre, acción principal, intervalo e instrucciones opcionales; los niveles visuales se calculan automáticamente para no sobrecargar el formulario.
 3. Se puede registrar una acción y ver, editar o borrar entradas de su historial.
 4. Se puede editar, archivar, restaurar y ordenar la tarjeta.
-5. Las tarjetas del sistema existentes mantienen sus datos y comportamiento.
+5. Las tarjetas preexistentes mantienen sus datos y comportamiento después de convertirse al modelo configurable.
 6. La configuración y los historiales se sincronizan con Supabase.
 7. El backup exporta e importa las nuevas definiciones.
 8. Una alerta opcional se configura desde la tarjeta y aparece en el Gestor de Alertas.
@@ -223,10 +227,25 @@ Una primera versión se considera completa cuando:
 4. Integrarlo primero en Higiene y Cuidado.
 5. Agregar plantillas de insumo para Lentes y control para Salud.
 6. Integrar alertas dinámicas y probar los intervalos de punta a punta.
-7. Abordar centro “Hoy”, captura rápida y navegación móvil. Las tres piezas ya cuentan con una primera versión implementada y verificada; las siguientes mejoras deben surgir del uso real.
-8. Cerrar operación: diagnóstico de dispositivos, auto-deploy de Render, seguridad diferida de Supabase y backup portátil.
+7. Abordar centro “Hoy”, captura rápida y navegación móvil. Las tres piezas ya cuentan con una primera versión; “Hoy” también permite elegir accesos rápidos y las tarjetas admiten registro múltiple.
+8. Validar en producción estas mejoras con datos reales antes de aumentar la cantidad de accesos o automatizaciones.
+9. Cerrar operación: diagnóstico de dispositivos, auto-deploy de Render, seguridad diferida de Supabase y backup portátil.
 
-## 9. Información que todavía requiere comprobación operativa
+## 9. Mapa de rigideces restantes
+
+No toda constante de código es una limitación de producto. Los límites de seguridad, estados internos y tipos especializados deben seguir controlados por código. Las rigideces que sí afectan al uso quedan priorizadas así:
+
+| Área | Situación actual | Decisión |
+| --- | --- | --- |
+| Proyectos | Crear trabajos similares puede exigir repetir etapas y tareas. | Próxima candidata: plantillas reutilizables, después de identificar qué campos realmente se repiten. |
+| Finanzas | Los movimientos periódicos todavía se cargan manualmente y varias categorías de ingresos son fijas. | Próxima candidata: reglas recurrentes confirmables y categorías reutilizables, sin generar transacciones silenciosamente. |
+| Confirmaciones y errores | Conviven diálogos nativos del navegador con avisos propios de LifeCycle. | Mejora transversal posterior: diálogo compartido, mensajes en contexto y deshacer cuando la operación sea recuperable. |
+| Gimnasio | Rutinas y ejercicios son editables, pero una sesión activa comparte pantalla con herramientas secundarias. | Mejorar el modo entrenamiento centrado; no hace falta un nuevo constructor de rutinas. |
+| Vehículo | Los tipos y umbrales de mantenimiento principales están especializados en código. | Mantener por ahora. Volverlos configurables solo cuando aparezca un caso real que no pueda representarse sin despliegue. |
+| Módulos nuevos | Los módulos principales son fijos, aunque se pueden ocultar sin perder datos. | Fuera del alcance personal actual. Un constructor de módulos pertenece a una futura etapa comercial y no debe sobrecargar el producto de hoy. |
+| Búsqueda global | Todavía no existe un buscador transversal. | Prioridad media: gana valor cuando crezca la cantidad de tarjetas, tareas y proyectos. |
+
+## 10. Información que todavía requiere comprobación operativa
 
 Estas cuestiones no impiden avanzar con el código, pero no pueden declararse verificadas solo con una simulación:
 

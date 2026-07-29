@@ -132,6 +132,49 @@ test('Today reuses critical items and links back to their source modules', async
     assert.match(todaySource, /data-today-action="complete"/);
 });
 
+test('Today exposes synchronized configurable shortcuts', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const todaySource = await readFile(
+        path.join(ROOT, 'modules', 'TodayModule.js'),
+        'utf8'
+    );
+    const trackerSource = await readFile(
+        path.join(ROOT, 'modules', 'CustomTrackersModule.js'),
+        'utf8'
+    );
+
+    assert.match(index, /id="today-actions-manager"/);
+    assert.match(index, /id="today-actions-summary"/);
+    assert.match(todaySource, /data-today-action="quick-action"/);
+    assert.match(todaySource, /data-today-action="configure-quick-actions"/);
+    assert.match(trackerSource, /todayPreferences/);
+    assert.match(trackerSource, /data-today-preference-action="toggle"/);
+});
+
+test('recurring cards provide one explicit multi-register mode', async () => {
+    const source = await readFile(
+        path.join(ROOT, 'modules', 'CustomTrackersModule.js'),
+        'utf8'
+    );
+
+    assert.match(source, /data-custom-bulk-action="enter"/);
+    assert.match(source, /data-custom-bulk-action="record"/);
+    assert.match(source, /data-custom-runtime-action="toggle-bulk"/);
+    assert.match(source, /\.custom-tracker-card\.is-bulk-selectable/);
+    assert.match(source, /recordTrackers\(trackerIds/);
+    assert.match(source, /custom-runtime-overview/);
+});
+
+test('the profile names the configurable-card manager in plain language', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const profileButton = index.match(
+        /<button class="profile-menu-item" data-tab="seguimientos">[\s\S]*?<\/button>/
+    )?.[0] || '';
+
+    assert.match(profileButton, />Tarjetas</);
+    assert.match(index, /<h2>Tus tarjetas<\/h2>/);
+});
+
 test('task creation presents urgent work first and keeps non-urgent as long-term', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const generalSelect = index.match(

@@ -324,6 +324,12 @@ class AppController {
             this.customTrackers.cancelReorderMode({ silent: true });
         }
         if (
+            this.customTrackers?.bulkContext
+            && document.querySelector('.main-section.is-custom-bulk')?.id !== sectionId
+        ) {
+            this.customTrackers.cancelBulkMode({ silent: true });
+        }
+        if (
             this.customTrackers
             && !this.customTrackers.isModuleVisible(sectionId)
         ) {
@@ -413,6 +419,9 @@ class AppController {
             profileBtn.addEventListener('click', () => {
                 if (this.customTrackers?.reorderContext?.scope === 'runtime') {
                     this.customTrackers.cancelReorderMode({ silent: true });
+                }
+                if (this.customTrackers?.bulkContext) {
+                    this.customTrackers.cancelBulkMode({ silent: true });
                 }
                 if (mainNav) mainNav.classList.add('hidden');
                 document.querySelectorAll('.main-section').forEach(sec => {

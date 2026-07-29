@@ -493,6 +493,12 @@ export class HygieneModule {
             ) {
                 this.app.customTrackers.cancelReorderMode();
             }
+            if (
+                btn.dataset.category !== this.currentCategory
+                && this.app.customTrackers?.bulkContext?.sectionKey === 'hygiene'
+            ) {
+                this.app.customTrackers.cancelBulkMode({ silent: true });
+            }
             tabsContainer.querySelectorAll('.tab-btn').forEach(t => t.classList.remove('active'));
             btn.classList.add('active');
             this.currentCategory = btn.dataset.category;

@@ -1,3 +1,8 @@
+import {
+    createDefaultTodayPreferences,
+    normalizeTodayPreferences
+} from './product-preferences.mjs';
+
 export const CUSTOM_TRACKER_FIELD = '__trackers_v2';
 export const LEGACY_CUSTOM_TRACKER_FIELD = '__custom_trackers_v1';
 export const CUSTOM_TRACKER_SCHEMA_VERSION = 2;
@@ -683,6 +688,7 @@ export function createEmptyCustomTrackerRegistry() {
         trackers: [],
         histories: {},
         modulePreferences: createDefaultModulePreferences(),
+        todayPreferences: createDefaultTodayPreferences(),
         migration: null
     };
 }
@@ -772,12 +778,49 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
         trackers,
         histories,
         modulePreferences: normalizeModulePreferences(value.modulePreferences, { strict }),
+        todayPreferences: normalizeTodayPreferences(value.todayPreferences, { strict }),
         migration: normalizeMigrationMeta(value.migration)
     };
 }
 
 export function validateCustomTrackerRegistry(value) {
     return normalizeCustomTrackerRegistry(value, { strict: true });
+}
+
+export function appendCustomTrackerRecords(
+    registryValue,
+    trackerIds,
+    when = new Date()
+) {
+    const date = when instanceof Date ? new Date(when) : new Date(when);
+    assert(!Number.isNaN(date.getTime()), 'La fecha del registro no es válida.');
+
+    const registry = normalizeCustomTrackerRegistry(registryValue);
+    const requestedIds = Array.isArray(trackerIds)
+        ? [...new Set(trackerIds.filter(id => typeof id === 'string'))]
+        : [];
+    const trackerById = new Map(
+        registry.trackers.map(tracker => [tracker.id, tracker])
+    );
+    const timestamp = date.toISOString();
+    const recordedIds = [];
+
+    requestedIds.forEach(trackerId => {
+        const tracker = trackerById.get(trackerId);
+        if (!tracker || tracker.archived || tracker.deleted) return;
+
+        registry.histories[trackerId] = normalizeHistory(
+            [timestamp, ...(registry.histories[trackerId] || [])],
+            { trackerId }
+        );
+        recordedIds.push(trackerId);
+    });
+
+    return {
+        registry,
+        recordedIds,
+        timestamp
+    };
 }
 
 export function createCustomTracker(input, {

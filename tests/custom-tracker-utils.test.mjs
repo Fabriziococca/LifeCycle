@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
+    appendCustomTrackerRecords,
     buildCustomAlertDefinitions,
     createCustomTracker,
     createEmptyCustomTrackerRegistry,
@@ -203,4 +204,82 @@ test('module visibility defaults to visible and preserves explicit hidden module
 
     assert.equal(registry.modulePreferences['higiene-section'].visible, false);
     assert.equal(registry.modulePreferences['projects-section'].visible, true);
+});
+
+test('tracker registry keeps synchronized Today quick-action preferences', () => {
+    const registry = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        todayPreferences: {
+            quickActions: ['add_expense', 'new_tracker']
+        }
+    });
+
+    assert.deepEqual(registry.todayPreferences.quickActions, [
+        'add_expense',
+        'new_tracker'
+    ]);
+});
+
+test('multiple tracker records are applied atomically to active unique cards', () => {
+    const active = createTracker({ id: 'ct_active_001' });
+    const second = createTracker({
+        id: 'ct_active_002',
+        name: 'Lavar almohadas',
+        order: 1
+    });
+    const archived = {
+        ...createTracker({
+            id: 'ct_archived_002',
+            name: 'Tarjeta archivada',
+            order: 2
+        }),
+        archived: true
+    };
+    const registry = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        trackers: [active, second, archived],
+        histories: {
+            [active.id]: ['2026-07-20T12:00:00.000Z'],
+            [second.id]: [],
+            [archived.id]: []
+        },
+        todayPreferences: {
+            quickActions: ['add_expense', 'new_tracker']
+        }
+    });
+
+    const result = appendCustomTrackerRecords(
+        registry,
+        [active.id, active.id, second.id, archived.id, 'ct_missing_001'],
+        new Date('2026-07-29T15:00:00.000Z')
+    );
+
+    assert.deepEqual(result.recordedIds, [active.id, second.id]);
+    assert.deepEqual(result.registry.histories[active.id], [
+        '2026-07-29T15:00:00.000Z',
+        '2026-07-20T12:00:00.000Z'
+    ]);
+    assert.deepEqual(result.registry.histories[second.id], [
+        '2026-07-29T15:00:00.000Z'
+    ]);
+    assert.deepEqual(result.registry.histories[archived.id], []);
+    assert.deepEqual(result.registry.todayPreferences.quickActions, [
+        'add_expense',
+        'new_tracker'
+    ]);
+});
+
+test('multiple tracker records reject invalid dates without mutating the source', () => {
+    const tracker = createTracker({ id: 'ct_immutable_001' });
+    const registry = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        trackers: [tracker],
+        histories: { [tracker.id]: [] }
+    });
+
+    assert.throws(
+        () => appendCustomTrackerRecords(registry, [tracker.id], 'fecha-invalida'),
+        /fecha del registro/
+    );
+    assert.deepEqual(registry.histories[tracker.id], []);
 });

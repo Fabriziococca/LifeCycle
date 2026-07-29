@@ -1656,7 +1656,7 @@
                     </button>
                     <button class="profile-menu-item" data-tab="seguimientos">
                         <i class="ph ph-stack"></i>
-                        <span>Seguimientos</span>
+                        <span>Tarjetas</span>
                     </button>
                     <button class="profile-menu-item" data-tab="modulos">
                         <i class="ph ph-squares-four"></i>
@@ -1839,13 +1839,13 @@
                         </div>
                     </div>
 
-                    <!-- Pestaña 5: Seguimientos configurables -->
+                    <!-- Pestaña 5: Tarjetas configurables -->
                     <div class="profile-tab-content hidden" id="tab-seguimientos">
                         <div class="custom-trackers-manager">
                             <div class="custom-trackers-manager-header">
                                 <div>
                                     <span class="custom-trackers-eyebrow">Personalización</span>
-                                    <h2>Tus seguimientos</h2>
+                                    <h2>Tus tarjetas</h2>
                                     <p>
                                         Administrá desde un solo lugar todas las tarjetas de
                                         Higiene, Cuidado, Lentes y Salud.
@@ -1906,6 +1906,29 @@
                             </div>
                             <div id="module-visibility-summary"></div>
                             <p id="module-visibility-feedback" class="module-visibility-feedback hidden" role="status" aria-live="polite"></p>
+
+                            <section id="today-actions-manager" class="today-actions-manager" aria-labelledby="today-actions-title">
+                                <div class="today-actions-manager-heading">
+                                    <div>
+                                        <span class="custom-trackers-eyebrow">Inicio personalizado</span>
+                                        <h3 id="today-actions-title">Accesos rápidos de Hoy</h3>
+                                        <p>
+                                            Elegí qué atajos querés tener a mano. Se guardan en
+                                            tu cuenta y no modifican los datos de ningún módulo.
+                                        </p>
+                                    </div>
+                                    <span id="today-actions-count" class="today-actions-count"></span>
+                                </div>
+                                <div class="custom-trackers-manager-note">
+                                    <i class="ph ph-cursor-click"></i>
+                                    <span>
+                                        “Nueva tarea” siempre permanece disponible en el
+                                        encabezado. Estos accesos son adicionales.
+                                    </span>
+                                </div>
+                                <div id="today-actions-summary"></div>
+                                <p id="today-actions-feedback" class="module-visibility-feedback hidden" role="status" aria-live="polite"></p>
+                            </section>
                         </div>
                     </div>
 
