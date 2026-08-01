@@ -15,6 +15,10 @@ import {
     createCustomTracker,
     CUSTOM_TRACKER_FIELD
 } from '../custom-tracker-utils.mjs';
+import {
+    createVehicleCard,
+    VEHICLE_CATALOG_FIELD
+} from '../vehicle-catalog-utils.mjs';
 
 const readFixture = fileName => readFileSync(
     new URL(`./fixtures/${fileName}`, import.meta.url),
@@ -340,5 +344,41 @@ test('backup validates configurable tracker definitions and histories', () => {
     assert.throws(
         () => normalizeBackupStorageEntry('hygiene_tracker_data', validData),
         /tarjetas configurables/
+    );
+});
+
+test('backup validates the configurable vehicle catalog without rejecting legacy dates', () => {
+    const card = createVehicleCard({
+        name: 'Correa auxiliar',
+        type: 'maintenance',
+        section: 'maintenance',
+        intervalKm: 30000,
+        warningKm: 2000
+    }, { id: 'vc_belt' });
+    const validData = {
+        refrigeranteDate: '2026-07-28',
+        [VEHICLE_CATALOG_FIELD]: {
+            version: 1,
+            cards: [card],
+            records: {
+                [card.id]: [{
+                    id: 'record_1',
+                    date: '2026-07-28',
+                    km: 45000,
+                    details: {}
+                }]
+            }
+        }
+    };
+
+    assert.doesNotThrow(() => normalizeBackupStorageEntry(
+        'vehicle_tracker_data',
+        validData
+    ));
+
+    validData[VEHICLE_CATALOG_FIELD].cards[0].id = '__proto__';
+    assert.throws(
+        () => normalizeBackupStorageEntry('vehicle_tracker_data', validData),
+        /vehículo inválida/
     );
 });

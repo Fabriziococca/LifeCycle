@@ -1,5 +1,6 @@
 import { DateUtils, getLocalISODate } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { VehicleCatalogModule } from './VehicleCatalogModule.js?v=20260801-vehicle-catalog';
 
 export class VehicleModule {
     constructor(controller) {
@@ -115,6 +116,8 @@ export class VehicleModule {
             escobillasDate: ""
         }, this.trackerData);
 
+        this.cards = new VehicleCatalogModule(this);
+
         // Load issues checklist
         try {
             const rawIssues = localStorage.getItem('vehicle_issues');
@@ -133,10 +136,49 @@ export class VehicleModule {
 
     saveOdometer() {
         localStorage.setItem('vehicle_odometer', this.odometer.toString());
+        this.controller.triggerDataSync?.('vehicle_odometer');
     }
 
     saveMaintenanceLog() {
         localStorage.setItem('vehicle_maintenance_log', JSON.stringify(this.maintenanceLog));
+        this.controller.triggerDataSync?.('vehicle_maintenance_log');
+    }
+
+    getAlertDefinitions() {
+        return this.cards?.getAlertDefinitions?.() || [];
+    }
+
+    getManagedAlertKeys() {
+        return this.cards?.getManagedAlertKeys?.() || new Set();
+    }
+
+    migrateAlertConfigs(configs) {
+        return this.cards?.migrateAlertConfigs?.(configs) || configs;
+    }
+
+    reloadDataFromStorage() {
+        this.odometer = Number(localStorage.getItem('vehicle_odometer')) || 0;
+        try {
+            this.maintenanceLog = JSON.parse(
+                localStorage.getItem('vehicle_maintenance_log') || '[]'
+            );
+            this.trackerData = JSON.parse(
+                localStorage.getItem('vehicle_tracker_data') || '{}'
+            );
+            this.issues = JSON.parse(
+                localStorage.getItem('vehicle_issues') || '[]'
+            );
+        } catch (error) {
+            console.error('No se pudieron recargar los datos de Vehículo:', error);
+        }
+        if (!Array.isArray(this.maintenanceLog)) this.maintenanceLog = [];
+        if (!this.trackerData || typeof this.trackerData !== 'object' || Array.isArray(this.trackerData)) {
+            this.trackerData = {};
+        }
+        if (!Array.isArray(this.issues)) this.issues = [];
+        this.cards?.reload?.();
+        if (this.odometerInput) this.odometerInput.value = String(this.odometer);
+        this.render();
     }
 
     activateVehicleTab(tabId, { persist = true, render = true } = {}) {
@@ -379,6 +421,7 @@ export class VehicleModule {
         }
 
         this.saveMaintenanceLog();
+        this.cards?.mirrorLegacyRecord?.('oil', entry);
         this.clearOilForm();
         this.render();
     }
@@ -398,6 +441,8 @@ export class VehicleModule {
         this.maintenanceLog.push(entry);
         this.maintenanceLog.sort((a, b) => b.km - a.km || new Date(b.date) - new Date(a.date));
         this.saveMaintenanceLog();
+        const legacyId = type === 'Alineación & Balanceo' ? 'align' : 'rot';
+        this.cards?.mirrorLegacyRecord?.(legacyId, entry);
         this.render();
     }
 
@@ -448,6 +493,7 @@ export class VehicleModule {
         }
 
         this.saveMaintenanceLog();
+        this.cards?.mirrorLegacyRecord?.('replace', entry);
         this.clearReplaceForm();
         this.render();
     }
@@ -458,11 +504,19 @@ export class VehicleModule {
         const deletedEntry = this.maintenanceLog[index];
         this.maintenanceLog.splice(index, 1);
         this.saveMaintenanceLog();
+        this.cards?.removeMirroredRecord?.(id);
         this.render();
         this.controller.showUndo('Servicio eliminado del historial.', () => {
             this.maintenanceLog.splice(index, 0, deletedEntry);
             this.maintenanceLog.sort((a, b) => b.km - a.km || new Date(b.date) - new Date(a.date));
             this.saveMaintenanceLog();
+            const legacyMap = {
+                'Aceite y Filtros': 'oil',
+                'Alineación & Balanceo': 'align',
+                'Rotación de Neumáticos': 'rot',
+                'Reemplazo de Neumáticos': 'replace'
+            };
+            this.cards?.mirrorLegacyRecord?.(legacyMap[deletedEntry.type], deletedEntry);
             this.render();
         });
     }
@@ -493,6 +547,8 @@ export class VehicleModule {
             this.renderIssues();
         }
 
+        this.cards?.renderRuntime?.();
+
         this.controller.notificationsCenter?.updateBadge();
     }
 
@@ -500,12 +556,10 @@ export class VehicleModule {
         const elCard = document.getElementById('vehicle-fluids-card');
         if (!elCard) return;
 
-        // Get limits from rulesConfig
-        const fRules = this.controller.auth?.config?.rulesConfig?.vehicle?.fluids || {
-            refrigerante: { days: 90 },
-            sapito: { days: 45 },
-            extintor: { days_until_expiry: 30 }
-        };
+        const coolantCard = this.cards?.getLegacyCard?.('refrigerante');
+        const washerCard = this.cards?.getLegacyCard?.('sapito');
+        const wipersCard = this.cards?.getLegacyCard?.('escobillas');
+        const extinguisherCard = this.cards?.getLegacyCard?.('extintor');
 
         // Refrigerante
         const refDate = this.trackerData.refrigeranteDate;
@@ -516,7 +570,8 @@ export class VehicleModule {
         }
         if (this.refrigeranteBadge) {
             this.refrigeranteBadge.className = 'badge';
-            const limit = fRules.refrigerante.days;
+            const limit = coolantCard?.intervalDays || 90;
+            const warningDays = coolantCard?.warningDays || 15;
             if (refDays === null) {
                 this.refrigeranteBadge.innerText = 'N/A';
                 this.refrigeranteBadge.classList.add('gray');
@@ -525,7 +580,7 @@ export class VehicleModule {
                 this.refrigeranteBadge.innerText = 'REVISAR';
                 this.refrigeranteBadge.classList.add('red');
                 if (cardRef) cardRef.style.borderLeftColor = 'var(--status-red)';
-            } else if (refDays >= limit * 0.83) {
+            } else if (refDays >= limit - warningDays) {
                 this.refrigeranteBadge.innerText = 'PRONTO';
                 this.refrigeranteBadge.classList.add('orange');
                 if (cardRef) cardRef.style.borderLeftColor = 'var(--status-orange)';
@@ -545,7 +600,8 @@ export class VehicleModule {
         }
         if (this.sapitoBadge) {
             this.sapitoBadge.className = 'badge';
-            const limit = fRules.sapito.days;
+            const limit = washerCard?.intervalDays || 45;
+            const warningDays = washerCard?.warningDays || 10;
             if (sapDays === null) {
                 this.sapitoBadge.innerText = 'N/A';
                 this.sapitoBadge.classList.add('gray');
@@ -554,7 +610,7 @@ export class VehicleModule {
                 this.sapitoBadge.innerText = 'REVISAR';
                 this.sapitoBadge.classList.add('red');
                 if (cardSap) cardSap.style.borderLeftColor = 'var(--status-red)';
-            } else if (sapDays >= limit * 0.77) {
+            } else if (sapDays >= limit - warningDays) {
                 this.sapitoBadge.innerText = 'PRONTO';
                 this.sapitoBadge.classList.add('orange');
                 if (cardSap) cardSap.style.borderLeftColor = 'var(--status-orange)';
@@ -574,23 +630,20 @@ export class VehicleModule {
         }
         if (this.escobillasBadge) {
             this.escobillasBadge.className = 'badge';
-            const limits = fRules.escobillas || { days_yellow: 180, days_orange: 240, days_red: 300 };
+            const limit = wipersCard?.intervalDays || 240;
+            const warningDays = wipersCard?.warningDays || 60;
             if (escDays === null) {
                 this.escobillasBadge.innerText = 'N/A';
                 this.escobillasBadge.classList.add('gray');
                 if (cardEsc) cardEsc.style.borderLeftColor = 'var(--surface-border)';
-            } else if (escDays >= limits.days_red) {
+            } else if (escDays >= limit) {
                 this.escobillasBadge.innerText = 'CAMBIAR YA';
                 this.escobillasBadge.classList.add('red');
                 if (cardEsc) cardEsc.style.borderLeftColor = 'var(--status-red)';
-            } else if (escDays >= limits.days_orange) {
+            } else if (escDays >= limit - warningDays) {
                 this.escobillasBadge.innerText = 'RECOMENDADO';
                 this.escobillasBadge.classList.add('orange');
                 if (cardEsc) cardEsc.style.borderLeftColor = 'var(--status-orange)';
-            } else if (escDays >= limits.days_yellow) {
-                this.escobillasBadge.innerText = 'ATENCIÓN';
-                this.escobillasBadge.classList.add('yellow');
-                if (cardEsc) cardEsc.style.borderLeftColor = 'var(--status-yellow)';
             } else {
                 this.escobillasBadge.innerText = 'OK';
                 this.escobillasBadge.classList.add('green');
@@ -606,7 +659,7 @@ export class VehicleModule {
             this.extintorExpDate.innerText = extDate ? this.formatDate(extDate) : 'No registrado';
         }
         if (this.extintorRemaining) {
-            const limit = fRules.extintor.days_until_expiry;
+            const limit = extinguisherCard?.warningDays || 30;
             if (extRemaining === null) {
                 this.extintorRemaining.innerText = '--';
                 this.extintorRemaining.style.color = 'var(--text-secondary)';
@@ -632,16 +685,19 @@ export class VehicleModule {
 
     renderDocs() {
         const docs = [
-            { key: 'dniExpDate', dateEl: this.docDniDate, daysEl: this.docDniDays, inputEl: this.docDniInput, label: 'DNI', cardId: 'doc-card-dni' },
-            { key: 'licenseExpDate', dateEl: this.docLicenseDate, daysEl: this.docLicenseDays, inputEl: this.docLicenseInput, label: 'Registro de Conducir', cardId: 'doc-card-license' },
-            { key: 'insuranceExpDate', dateEl: this.docInsuranceDate, daysEl: this.docInsuranceDays, inputEl: this.docInsuranceInput, label: 'Seguro', cardId: 'doc-card-insurance' },
-            { key: 'vtvExpDate', dateEl: this.docVtvDate, daysEl: this.docVtvDays, inputEl: this.docVtvInput, label: 'VTV', cardId: 'doc-card-vtv' }
+            { legacyId: 'dni', key: 'dniExpDate', dateEl: this.docDniDate, daysEl: this.docDniDays, inputEl: this.docDniInput, label: 'DNI', cardId: 'doc-card-dni' },
+            { legacyId: 'license', key: 'licenseExpDate', dateEl: this.docLicenseDate, daysEl: this.docLicenseDays, inputEl: this.docLicenseInput, label: 'Registro de Conducir', cardId: 'doc-card-license' },
+            { legacyId: 'insurance', key: 'insuranceExpDate', dateEl: this.docInsuranceDate, daysEl: this.docInsuranceDays, inputEl: this.docInsuranceInput, label: 'Seguro', cardId: 'doc-card-insurance' },
+            { legacyId: 'vtv', key: 'vtvExpDate', dateEl: this.docVtvDate, daysEl: this.docVtvDays, inputEl: this.docVtvInput, label: 'VTV', cardId: 'doc-card-vtv' }
         ];
 
         docs.forEach(d => {
-            const expDate = this.trackerData[d.key];
+            const catalogCard = this.cards?.getLegacyCard?.(d.legacyId);
+            const expDate = this.cards?.getLastRecord?.(catalogCard?.id)?.date
+                || this.trackerData[d.key];
             const remaining = expDate ? this.calculateDaysUntil(expDate) : null;
             const cardEl = document.getElementById(d.cardId);
+            const warningDays = catalogCard?.warningDays || (d.legacyId === 'insurance' ? 7 : 30);
 
             if (d.dateEl) {
                 d.dateEl.innerText = expDate ? this.formatDate(expDate) : 'No registrado';
@@ -659,12 +715,8 @@ export class VehicleModule {
                     d.daysEl.innerText = `⚠️ VENCIDO (hace ${Math.abs(remaining)} días). Renovar urgente.`;
                     d.daysEl.style.color = 'var(--status-red)';
                     if (cardEl) cardEl.style.borderLeftColor = 'var(--status-red)';
-                } else if (remaining <= 30) {
+                } else if (remaining <= warningDays) {
                     d.daysEl.innerText = `⚠️ Vence en ${remaining} días. Recordar renovar.`;
-                    d.daysEl.style.color = 'var(--status-red)';
-                    if (cardEl) cardEl.style.borderLeftColor = 'var(--status-red)';
-                } else if (remaining <= 90) {
-                    d.daysEl.innerText = `Vence en ${remaining} días.`;
                     d.daysEl.style.color = 'var(--status-orange)';
                     if (cardEl) cardEl.style.borderLeftColor = 'var(--status-orange)';
                 } else {
@@ -724,12 +776,40 @@ export class VehicleModule {
 
     updateFluidCheck(key) {
         this.trackerData[key] = getLocalISODate();
+        const legacyMap = {
+            refrigeranteDate: 'refrigerante',
+            sapitoDate: 'sapito',
+            escobillasDate: 'escobillas'
+        };
+        const legacyId = legacyMap[key];
+        if (legacyId) {
+            this.cards?.mirrorLegacyRecord?.(legacyId, {
+                id: `vcr_${legacyId}_${Date.now().toString(36)}`,
+                date: this.trackerData[key],
+                details: {}
+            });
+        }
         this.saveTrackerData();
         this.render();
     }
 
     updateDocDate(key, value) {
         this.trackerData[key] = value;
+        const legacyMap = {
+            extintorDate: 'extintor',
+            dniExpDate: 'dni',
+            licenseExpDate: 'license',
+            insuranceExpDate: 'insurance',
+            vtvExpDate: 'vtv'
+        };
+        const legacyId = legacyMap[key];
+        if (legacyId) {
+            this.cards?.mirrorLegacyRecord?.(legacyId, {
+                id: `vcr_${legacyId}_${Date.now().toString(36)}`,
+                date: value,
+                details: {}
+            });
+        }
         this.saveTrackerData();
         this.render();
     }
@@ -778,11 +858,17 @@ export class VehicleModule {
     }
 
     renderOilCard() {
-        const lastOil = this.maintenanceLog.find(m => m.type === 'Aceite y Filtros');
+        const catalogCard = this.cards?.getLegacyCard?.('oil');
+        const lastOil = this.cards?.getLastRecord?.(catalogCard?.id)
+            || this.maintenanceLog.find(m => m.type === 'Aceite y Filtros');
         const elCard = document.getElementById('vehicle-oil-card');
         
-        // Get limits from rulesConfig
-        const vRules = this.controller.auth?.config?.rulesConfig?.vehicle?.oil || { km: 10000, days: 365 };
+        const vRules = {
+            km: catalogCard?.intervalKm || 10000,
+            days: catalogCard?.intervalDays || 365,
+            warningKm: catalogCard?.warningKm || 1000,
+            warningDays: catalogCard?.warningDays || 30
+        };
 
         if (lastOil) {
             const nextKm = lastOil.km + vRules.km;
@@ -793,7 +879,7 @@ export class VehicleModule {
             let colorVar = 'var(--status-green)';
             if ((this.odometer > 0 && remainingKm <= 0) || remainingDays <= 0) {
                 colorVar = 'var(--status-red)';
-            } else if ((this.odometer > 0 && remainingKm <= 1000) || remainingDays <= 30) {
+            } else if ((this.odometer > 0 && remainingKm <= vRules.warningKm) || remainingDays <= vRules.warningDays) {
                 colorVar = 'var(--status-orange)';
             }
 
@@ -804,12 +890,12 @@ export class VehicleModule {
                 if (remainingDays <= 0) {
                     this.oilRemainingTime.innerText = 'Vencido';
                     if (this.oilRemainingTimeLabel) {
-                        this.oilRemainingTimeLabel.innerText = `hace ${Math.abs(remainingDays)} días (1 año máx.)`;
+                        this.oilRemainingTimeLabel.innerText = `hace ${Math.abs(remainingDays)} días (${vRules.days} días máx.)`;
                     }
                 } else {
                     this.oilRemainingTime.innerText = `${remainingDays}`;
                     if (this.oilRemainingTimeLabel) {
-                        this.oilRemainingTimeLabel.innerText = `días restantes (1 año máx.)`;
+                        this.oilRemainingTimeLabel.innerText = `días restantes (${vRules.days} días máx.)`;
                     }
                 }
             }
@@ -851,34 +937,40 @@ export class VehicleModule {
     }
 
     renderTiresCard() {
-        const lastAlign = this.maintenanceLog.find(m => m.type === 'Alineación & Balanceo');
-        const lastRot = this.maintenanceLog.find(m => m.type === 'Rotación de Neumáticos');
-        const lastReplace = this.maintenanceLog.find(m => m.type === 'Reemplazo de Neumáticos');
+        const alignCard = this.cards?.getLegacyCard?.('align');
+        const rotationCard = this.cards?.getLegacyCard?.('rot');
+        const replaceCard = this.cards?.getLegacyCard?.('replace');
+        const lastAlign = this.cards?.getLastRecord?.(alignCard?.id)
+            || this.maintenanceLog.find(m => m.type === 'Alineación & Balanceo');
+        const lastRot = this.cards?.getLastRecord?.(rotationCard?.id)
+            || this.maintenanceLog.find(m => m.type === 'Rotación de Neumáticos');
+        const lastReplace = this.cards?.getLastRecord?.(replaceCard?.id)
+            || this.maintenanceLog.find(m => m.type === 'Reemplazo de Neumáticos');
 
         let worstColor = 'var(--status-green)';
         let hasAnyRecord = false;
 
         // Get limits from rulesConfig
-        const vRules = this.controller.auth?.config?.rulesConfig?.vehicle || {
-            align: { km: 10000 },
-            rot: { km: 10000 },
-            replace: { km: 60000 }
+        const vRules = {
+            align: { km: alignCard?.intervalKm || 10000, warningKm: alignCard?.warningKm || 1000 },
+            rot: { km: rotationCard?.intervalKm || 10000, warningKm: rotationCard?.warningKm || 1000 },
+            replace: { km: replaceCard?.intervalKm || 60000, warningKm: replaceCard?.warningKm || 1000 }
         };
 
-        const checkStatus = (lastRecord, limit) => {
+        const checkStatus = (lastRecord, limit, warningKm) => {
             if (!lastRecord) return;
             hasAnyRecord = true;
             const remaining = (lastRecord.km + limit) - this.odometer;
             if (remaining <= 0) {
                 worstColor = 'var(--status-red)';
-            } else if (remaining <= 1000 && worstColor !== 'var(--status-red)') {
+            } else if (remaining <= warningKm && worstColor !== 'var(--status-red)') {
                 worstColor = 'var(--status-orange)';
             }
         };
 
-        checkStatus(lastAlign, vRules.align.km);
-        checkStatus(lastRot, vRules.rot.km);
-        checkStatus(lastReplace, vRules.replace.km);
+        checkStatus(lastAlign, vRules.align.km, vRules.align.warningKm);
+        checkStatus(lastRot, vRules.rot.km, vRules.rot.warningKm);
+        checkStatus(lastReplace, vRules.replace.km, vRules.replace.warningKm);
 
         const elTiresCard = document.getElementById('vehicle-tires-card');
         if (elTiresCard) {

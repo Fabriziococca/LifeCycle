@@ -191,86 +191,7 @@ export class NotificationsCenterModule {
 
             // 4. VEHÍCULO
             if (this.app.vehicle) {
-                const odo = this.app.vehicle.odometer;
-                const log = this.app.vehicle.maintenanceLog || [];
-
-                // Aceite y Filtros
-                const lastOil = log.find(m => m.type === 'Aceite y Filtros');
-                if (lastOil) {
-                    const remKm = (lastOil.km + 10000) - odo;
-                    const days = this.app.vehicle.calculateDaysElapsed(lastOil.date);
-                    const remDays = 365 - (days || 0);
-                    if (remKm <= 0 || remDays <= 0) {
-                        items.push({
-                            module: 'vehicle',
-                            id: 'oil',
-                            name: 'Aceite y Filtros',
-                            icon: 'ph-car',
-                            desc: remKm <= 0 ? 'Vencido por kilometraje.' : 'Plazo anual vencido.'
-                        });
-                    }
-                }
-
-                // Alineación y Balanceo
-                const lastAlign = log.find(m => m.type === 'Alineación & Balanceo');
-                if (lastAlign) {
-                    const remKm = (lastAlign.km + 10000) - odo;
-                    if (remKm <= 0) {
-                        items.push({
-                            module: 'vehicle',
-                            id: 'align',
-                            name: 'Alineación & Balanceo',
-                            icon: 'ph-car',
-                            desc: 'Vencido por kilometraje.'
-                        });
-                    }
-                }
-
-                // Rotación de Neumáticos
-                const lastRot = log.find(m => m.type === 'Rotación de Neumáticos');
-                if (lastRot) {
-                    const remKm = (lastRot.km + 10000) - odo;
-                    if (remKm <= 0) {
-                        items.push({
-                            module: 'vehicle',
-                            id: 'rot',
-                            name: 'Rotación de Neumáticos',
-                            icon: 'ph-car',
-                            desc: 'Vencido por kilometraje.'
-                        });
-                    }
-                }
-
-                // Reemplazo de Neumáticos
-                const lastRep = log.find(m => m.type === 'Reemplazo de Neumáticos');
-                if (lastRep) {
-                    const remKm = (lastRep.km + 60000) - odo;
-                    if (remKm <= 0) {
-                        items.push({
-                            module: 'vehicle',
-                            id: 'replace',
-                            name: 'Reemplazo de Neumáticos',
-                            icon: 'ph-car',
-                            desc: 'Vencido por kilometraje.'
-                        });
-                    }
-                }
-
-                // Escobillas limpiaparabrisas (alerta desde 240 días / 8 meses)
-                const escDate = this.app.vehicle.trackerData?.escobillasDate;
-                if (escDate) {
-                    const escDays = this.app.vehicle.calculateDaysElapsed(escDate);
-                    if (escDays !== null && escDays >= 240) {
-                        const isRed = escDays >= 300;
-                        items.push({
-                            module: 'vehicle',
-                            id: 'escobillas',
-                            name: 'Escobillas Limpiaparabrisas',
-                            icon: 'ph-arrows-left-right',
-                            desc: isRed ? `¡Cambiar ya! Pasaron ${escDays} días (~${Math.floor(escDays / 30)} meses).` : `Cambio recomendado. Pasaron ${escDays} días (${Math.floor(escDays / 30)} meses).`
-                        });
-                    }
-                }
+                items.push(...(this.app.vehicle.cards?.getOverdueItems?.(now) || []));
             }
 
             // 5. WORKANA SUBSCRIPTION
@@ -417,7 +338,7 @@ export class NotificationsCenterModule {
     }
 
     isItemCompletable(item) {
-        return COMPLETABLE_MODULES.has(item?.module);
+        return item?.completable !== false && COMPLETABLE_MODULES.has(item?.module);
     }
 
     openItem(item) {
@@ -457,6 +378,13 @@ export class NotificationsCenterModule {
                 gym: 'gym-section'
             };
             sectionId = moduleSections[item.module] || null;
+        }
+
+        if (item.module === 'vehicle' && item.vehicleTab) {
+            this.app.vehicle?.activateVehicleTab?.(item.vehicleTab, {
+                persist: true,
+                render: true
+            });
         }
 
         if (!sectionId || !this.app.activateSection(sectionId, { smooth: true })) {
@@ -558,7 +486,9 @@ export class NotificationsCenterModule {
         } else if (module === 'custom_tracker') {
             this.app.customTrackers?.recordTracker(id);
         } else if (module === 'vehicle') {
-            if (id === 'oil') {
+            if (this.app.vehicle.cards?.getCard?.(id)) {
+                this.app.vehicle.cards.completeCard(id);
+            } else if (id === 'oil') {
                 const dateVal = getLocalISODate();
                 const kmVal = this.app.vehicle.odometer;
                 const entry = {

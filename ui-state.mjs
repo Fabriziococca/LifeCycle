@@ -66,7 +66,8 @@ const VALID_TRACKER_MANAGER_FILTERS = new Set([
     'hygiene',
     'grooming',
     'lenses',
-    'health'
+    'health',
+    'vehicle'
 ]);
 const UNSAFE_DYNAMIC_VALUES = new Set(['__proto__', 'prototype', 'constructor']);
 

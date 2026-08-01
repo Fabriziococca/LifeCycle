@@ -8,6 +8,16 @@ const SERVER_MANAGED_USER_DATA_KEYS = new Set([
 const CUSTOM_TRACKER_FIELD = '__trackers_v2';
 const LEGACY_CUSTOM_TRACKER_FIELD = '__custom_trackers_v1';
 const CUSTOM_ALERT_PREFIX = 'custom_tracker:';
+const VEHICLE_CATALOG_FIELD = 'vehicleCatalog';
+const VEHICLE_ALERT_PREFIX = 'vehicle_card:';
+const DEPRECATED_VEHICLE_ALERT_KEYS = new Set([
+    'vehicle_oil',
+    'vehicle_align',
+    'vehicle_rot',
+    'vehicle_replace',
+    'vehicle_docs_check',
+    'vehicle_fluids_check'
+]);
 
 function parseJsonValue(value, fallback) {
     if (value === null || value === undefined || value === '') return fallback;
@@ -241,6 +251,134 @@ function buildVehicleMaintenanceNotification(
     };
 }
 
+function getVehicleCatalog(trackerData = {}) {
+    const catalog = trackerData?.[VEHICLE_CATALOG_FIELD];
+    if (!catalog || typeof catalog !== 'object' || Array.isArray(catalog)) return null;
+    if (!Array.isArray(catalog.cards)) return null;
+    if (!catalog.records || typeof catalog.records !== 'object' || Array.isArray(catalog.records)) {
+        return null;
+    }
+    return catalog;
+}
+
+function getVehicleCardAlertKey(card) {
+    if (
+        typeof card?.alertKey === 'string'
+        && /^[a-z0-9:_-]{3,120}$/.test(card.alertKey)
+    ) {
+        return card.alertKey;
+    }
+    return typeof card?.id === 'string'
+        ? `${VEHICLE_ALERT_PREFIX}${card.id}`
+        : '';
+}
+
+function ensureVehicleCatalogAlertConfigs(alertsConfig, trackerData = {}) {
+    const catalog = getVehicleCatalog(trackerData);
+    if (!catalog || !alertsConfig || typeof alertsConfig !== 'object') return false;
+    let changed = false;
+    catalog.cards.forEach(card => {
+        if (!card || card.deleted || card.archived || typeof card.id !== 'string') return;
+        const key = getVehicleCardAlertKey(card);
+        if (!key || alertsConfig[key]) return;
+        const legacyConfig = typeof card.legacyAlertGroup === 'string'
+            ? alertsConfig[card.legacyAlertGroup]
+            : null;
+        const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(card.alert?.time || '')
+            ? card.alert.time
+            : (card.section === 'documents' ? '09:00' : '23:00');
+        alertsConfig[key] = {
+            enabled: legacyConfig?.enabled ?? (card.alert?.enabled === true),
+            time: legacyConfig?.time || time,
+            days: Array.isArray(legacyConfig?.days) ? legacyConfig.days : []
+        };
+        changed = true;
+    });
+    return changed;
+}
+
+function getLatestVehicleRecord(card, records) {
+    const values = Array.isArray(records) ? records.filter(Boolean) : [];
+    return [...values].sort((a, b) => {
+        if (card.type === 'maintenance') {
+            return (Number(b.km) || 0) - (Number(a.km) || 0)
+                || String(b.date || '').localeCompare(String(a.date || ''));
+        }
+        return String(b.date || '').localeCompare(String(a.date || ''));
+    })[0] || null;
+}
+
+function buildVehicleCatalogNotification(
+    alertKey,
+    trackerData = {},
+    currentOdo = 0,
+    getDaysElapsed,
+    getDaysUntil
+) {
+    const catalog = getVehicleCatalog(trackerData);
+    if (!catalog) return null;
+    const cardId = typeof alertKey === 'string' && alertKey.startsWith(VEHICLE_ALERT_PREFIX)
+        ? alertKey.slice(VEHICLE_ALERT_PREFIX.length)
+        : null;
+    const card = catalog.cards.find(item => (
+        getVehicleCardAlertKey(item) === alertKey
+        || (cardId && item?.id === cardId)
+    ));
+    if (!card && DEPRECATED_VEHICLE_ALERT_KEYS.has(alertKey)) {
+        return { handled: true, shouldNotify: false };
+    }
+    if (!card) return null;
+    if (card.archived || card.deleted) {
+        return { handled: true, shouldNotify: false };
+    }
+    const record = getLatestVehicleRecord(card, catalog.records[card.id]);
+    const name = typeof card.name === 'string'
+        ? card.name.replace(/\s+/g, ' ').trim().slice(0, 80)
+        : '';
+    if (!record?.date || !name) {
+        return { handled: true, shouldNotify: false };
+    }
+
+    if (card.type === 'document') {
+        if (typeof getDaysUntil !== 'function') return null;
+        const daysUntil = getDaysUntil(record.date);
+        const warningDays = Number.parseInt(card.warningDays, 10) || 30;
+        if (!Number.isFinite(daysUntil) || daysUntil > warningDays) {
+            return { handled: true, shouldNotify: false };
+        }
+        const status = formatExpiryStatus(name, daysUntil);
+        return {
+            handled: true,
+            shouldNotify: Boolean(status),
+            title: `🚗 ${name}`,
+            body: status || ''
+        };
+    }
+
+    if (typeof getDaysElapsed !== 'function') return null;
+    const intervalDays = Number.parseInt(card.intervalDays, 10) || null;
+    const elapsedDays = getDaysElapsed(record.date);
+    const dueByDays = intervalDays && Number.isFinite(elapsedDays)
+        ? elapsedDays >= intervalDays
+        : false;
+    const intervalKm = Number.parseInt(card.intervalKm, 10) || null;
+    const dueByKm = card.type === 'maintenance' && intervalKm
+        ? (Number(record.km) || 0) + intervalKm - (Number(currentOdo) || 0) <= 0
+        : false;
+    if (!dueByDays && !dueByKm) {
+        return { handled: true, shouldNotify: false };
+    }
+    const reasons = [];
+    if (dueByKm) reasons.push('alcanzó el kilometraje configurado');
+    if (dueByDays) reasons.push(`pasaron ${elapsedDays} días`);
+    return {
+        handled: true,
+        shouldNotify: true,
+        title: `🚗 ${name}`,
+        body: `${name} requiere atención: ${reasons.join(' y ')}.`
+    };
+}
+
 function getCustomTrackerRegistry(hygieneData = {}) {
     const registry = hygieneData?.[CUSTOM_TRACKER_FIELD]
         || hygieneData?.[LEGACY_CUSTOM_TRACKER_FIELD];
@@ -368,7 +506,9 @@ module.exports = {
     buildCustomTrackerNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
+    buildVehicleCatalogNotification,
     ensureCustomTrackerAlertConfigs,
+    ensureVehicleCatalogAlertConfigs,
     formatExpiryStatus,
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,

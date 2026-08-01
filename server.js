@@ -8,9 +8,11 @@ const sharedRules = require('./shared_rules.json');
 const {
     assertServerManagedUserDataPatch,
     buildCustomTrackerNotification,
+    buildVehicleCatalogNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
     ensureCustomTrackerAlertConfigs,
+    ensureVehicleCatalogAlertConfigs,
     formatExpiryStatus,
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
@@ -874,6 +876,10 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 alertsConfig,
                 parseJsonValue(data.hygiene_tracker_data, {})
             );
+            ensureVehicleCatalogAlertConfigs(
+                alertsConfig,
+                parseJsonValue(data.vehicle_tracker_data, {})
+            );
 
             // Inicializar log de envíos diarios si no existe
             if (!data.alerts_sent_log) {
@@ -971,15 +977,29 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     const healthData = parseJSONField(data.health_medical_data, {});
                     const dentista = healthData.dentista || {};
                     const maintenanceLog = parseJSONField(data.vehicle_maintenance_log, []);
+                    const vehicleTrackerData = parseJSONField(data.vehicle_tracker_data, {});
                     const currentOdo = Number(data.vehicle_odometer) || 0;
                     const gymSupplements = parseJSONField(data.gym_supplements, {});
 
-                    const customTrackerNotification = buildCustomTrackerNotification(
+                    const vehicleCatalogNotification = buildVehicleCatalogNotification(
                         key,
-                        hygieneData,
-                        getDaysElapsed
+                        vehicleTrackerData,
+                        currentOdo,
+                        getDaysElapsed,
+                        getDaysUntil
                     );
-                    if (customTrackerNotification?.handled) {
+                    const customTrackerNotification = vehicleCatalogNotification?.handled
+                        ? null
+                        : buildCustomTrackerNotification(
+                            key,
+                            hygieneData,
+                            getDaysElapsed
+                        );
+                    if (vehicleCatalogNotification?.handled) {
+                        shouldNotify = vehicleCatalogNotification.shouldNotify === true;
+                        title = vehicleCatalogNotification.title;
+                        body = vehicleCatalogNotification.body;
+                    } else if (customTrackerNotification?.handled) {
                         shouldNotify = customTrackerNotification.shouldNotify === true;
                         title = customTrackerNotification.title;
                         body = customTrackerNotification.body;
@@ -1262,7 +1282,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             }
                             break;
                         case 'vehicle_docs_check':
-                            const tracker = data.vehicle_tracker_data || {};
+                            const tracker = vehicleTrackerData;
                             const documentReminder = buildVehicleDocumentNotification(tracker, getDaysUntil);
                             if (documentReminder) {
                                 shouldNotify = true;
@@ -1271,7 +1291,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             }
                             break;
                         case 'vehicle_fluids_check':
-                            const trk = data.vehicle_tracker_data || {};
+                            const trk = vehicleTrackerData;
                             const maintenanceReminder = buildVehicleMaintenanceNotification(
                                 trk,
                                 sharedRules,

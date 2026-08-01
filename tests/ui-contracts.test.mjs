@@ -348,3 +348,28 @@ test('relevant module context is restored instead of resetting after reload', as
     assert.match(tasksSource, /tasksProjectId/);
     assert.match(alertsSource, /uiState\?\.alertsCategory/);
 });
+
+test('vehicle cards are configurable without losing legacy data paths', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const vehicleSource = await readFile(
+        path.join(ROOT, 'modules', 'VehicleModule.js'),
+        'utf8'
+    );
+    const catalogSource = await readFile(
+        path.join(ROOT, 'modules', 'VehicleCatalogModule.js'),
+        'utf8'
+    );
+    const trackerManagerSource = await readFile(
+        path.join(ROOT, 'modules', 'CustomTrackersModule.js'),
+        'utf8'
+    );
+    const serverSource = await readFile(path.join(ROOT, 'server.js'), 'utf8');
+
+    assert.match(index, /id="vehicle-custom-maintenance-cards"/);
+    assert.match(index, /id="vehicle-custom-document-cards"/);
+    assert.match(vehicleSource, /new VehicleCatalogModule\(this\)/);
+    assert.match(catalogSource, /migrateVehicleCatalog/);
+    assert.match(catalogSource, /syncCardAlertConfig/);
+    assert.match(trackerManagerSource, /data-tracker-category-filter="vehicle"/);
+    assert.match(serverSource, /buildVehicleCatalogNotification/);
+});

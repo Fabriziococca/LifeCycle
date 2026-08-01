@@ -6587,3 +6587,110 @@ body.modal-open {
     background: rgba(245, 158, 11, 0.08);
     color: #fcd34d;
 }
+
+/* Catálogo configurable de Vehículo */
+.vehicle-custom-card-host {
+    margin-top: 1rem;
+}
+
+.vehicle-dynamic-card {
+    min-width: 0;
+}
+
+.vehicle-dynamic-card[data-tone="red"] {
+    border-color: rgba(239, 68, 68, 0.62);
+}
+
+.vehicle-dynamic-card[data-tone="orange"] {
+    border-color: rgba(245, 158, 11, 0.58);
+}
+
+.vehicle-dynamic-card[data-tone="green"] {
+    border-color: rgba(16, 185, 129, 0.45);
+}
+
+.vehicle-dynamic-card .card-header {
+    align-items: center;
+    gap: 0.7rem;
+}
+
+.vehicle-dynamic-card-title {
+    min-width: 0;
+    flex: 1;
+}
+
+.vehicle-dynamic-card-title h3,
+.vehicle-dynamic-card-title span {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.vehicle-dynamic-card-title h3 {
+    margin: 0;
+    color: var(--text-primary);
+    font-size: 1rem;
+}
+
+.vehicle-dynamic-card-title span {
+    margin-top: 0.1rem;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+}
+
+.vehicle-dynamic-card-body {
+    display: flex;
+    flex-direction: column;
+    gap: 0.9rem;
+}
+
+.vehicle-dynamic-card-state {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.vehicle-dynamic-card-state strong {
+    color: var(--text-primary);
+}
+
+.vehicle-dynamic-card-state small {
+    color: var(--text-secondary);
+    line-height: 1.45;
+}
+
+.vehicle-dynamic-document-action {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0.6rem;
+    align-items: center;
+}
+
+.vehicle-dynamic-document-action .date-input,
+.vehicle-dynamic-document-action .btn {
+    width: 100%;
+    min-width: 0;
+    margin: 0;
+}
+
+.vehicle-record-dialog-card {
+    width: min(520px, 100%);
+}
+
+@media (max-width: 560px) {
+    .vehicle-dynamic-card .card-header {
+        align-items: flex-start;
+        flex-wrap: wrap;
+    }
+
+    .vehicle-dynamic-card .badge {
+        margin-left: 46px;
+    }
+
+    .vehicle-dynamic-document-action {
+        grid-template-columns: 1fr;
+    }
+}

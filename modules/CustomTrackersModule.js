@@ -407,6 +407,8 @@ export class CustomTrackersModule {
             this.openEditor('hygiene', null, event.currentTarget);
         });
         this.orderTrackersButton?.addEventListener('click', () => {
+            this.activeCategoryFilter = 'all';
+            this.app.saveUiState?.({ trackerManagerFilter: 'all' });
             this.enterReorderMode('manager');
         });
 
@@ -423,11 +425,16 @@ export class CustomTrackersModule {
 
             const filterButton = event.target.closest('[data-tracker-category-filter]');
             if (filterButton) {
+                if (this.reorderContext?.scope === 'manager') return;
                 this.activeCategoryFilter = filterButton.dataset.trackerCategoryFilter || 'all';
                 this.app.saveUiState?.({
                     trackerManagerFilter: this.activeCategoryFilter
                 });
                 this.renderManager();
+                return;
+            }
+
+            if (this.app.vehicle?.cards?.handleManagerClick?.(event)) {
                 return;
             }
 
@@ -1915,12 +1922,17 @@ export class CustomTrackersModule {
         const isReordering = this.reorderContext?.scope === 'manager';
         if (!this.activeCategoryFilter) this.activeCategoryFilter = 'all';
 
-        const totalActiveAll = this.registry.trackers.filter(t => !t.archived && !t.deleted).length;
+        const vehicleCards = this.app.vehicle?.cards?.getCards?.({
+            includeArchived: false
+        }) || [];
+        const totalActiveAll = this.registry.trackers.filter(t => !t.archived && !t.deleted).length
+            + vehicleCards.length;
         const filterBarHtml = `
             <div class="tracker-category-filter-bar" role="group" aria-label="Filtrar tarjetas por sección">
                 <button type="button"
                         class="tracker-category-tab ${this.activeCategoryFilter === 'all' ? 'active' : ''}"
                         data-tracker-category-filter="all"
+                        ${isReordering ? 'disabled' : ''}
                         aria-pressed="${this.activeCategoryFilter === 'all' ? 'true' : 'false'}">
                     <i class="ph ph-squares-four"></i>
                     <span>Todas</span>
@@ -1933,6 +1945,7 @@ export class CustomTrackersModule {
                         <button type="button"
                                 class="tracker-category-tab ${isActive ? 'active' : ''}"
                                 data-tracker-category-filter="${sectionKey}"
+                                ${isReordering ? 'disabled' : ''}
                                 aria-pressed="${isActive ? 'true' : 'false'}">
                             <i class="ph ${section.defaultIcon}"></i>
                             <span>${escapeHtml(section.label)}</span>
@@ -1940,6 +1953,15 @@ export class CustomTrackersModule {
                         </button>
                     `;
                 }).join('')}
+                <button type="button"
+                        class="tracker-category-tab ${this.activeCategoryFilter === 'vehicle' ? 'active' : ''}"
+                        data-tracker-category-filter="vehicle"
+                        ${isReordering ? 'disabled' : ''}
+                        aria-pressed="${this.activeCategoryFilter === 'vehicle' ? 'true' : 'false'}">
+                    <i class="ph ph-car"></i>
+                    <span>Vehículo</span>
+                    <span class="count-pill">${vehicleCards.length}</span>
+                </button>
             </div>
         `;
 
@@ -2037,7 +2059,11 @@ export class CustomTrackersModule {
                 `;
             });
 
-        this.managerSummary.innerHTML = filterBarHtml + sectionsHtml.join('');
+        const vehicleHtml = !isReordering
+            && (this.activeCategoryFilter === 'all' || this.activeCategoryFilter === 'vehicle')
+            ? (this.app.vehicle?.cards?.renderManagerSection?.() || '')
+            : '';
+        this.managerSummary.innerHTML = filterBarHtml + sectionsHtml.join('') + vehicleHtml;
 
         const managerNote = this.managerRoot.querySelector(
             '.custom-trackers-manager-note'

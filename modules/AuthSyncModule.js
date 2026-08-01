@@ -604,13 +604,7 @@ export class AuthSyncModule {
                 }
                 if (this.app.vehicle) {
                     try {
-                        this.app.vehicle.odometer = Number(localStorage.getItem('vehicle_odometer')) || 0;
-                        const rawLog = localStorage.getItem('vehicle_maintenance_log');
-                        this.app.vehicle.maintenanceLog = rawLog ? JSON.parse(rawLog) : [];
-                        const rawTracker = localStorage.getItem('vehicle_tracker_data');
-                        this.app.vehicle.trackerData = rawTracker ? JSON.parse(rawTracker) : {};
-                        const rawIssues = localStorage.getItem('vehicle_issues');
-                        this.app.vehicle.issues = rawIssues ? JSON.parse(rawIssues) : [];
+                        this.app.vehicle.reloadDataFromStorage();
                     } catch (e) { console.error("Error parsing vehicle log in sync:", e); }
                 }
                 if (this.app.gym) {

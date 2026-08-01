@@ -481,7 +481,7 @@
                         </div>
                         <div class="card-body">
                             <!-- Alineación & Balanceo -->
-                            <div style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
+                            <div id="vehicle-align-item" style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
                                 <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Alineación & Balanceo</h4>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
                                     <span>Último: <strong id="align-last">Nunca</strong></span>
@@ -491,7 +491,7 @@
                             </div>
 
                             <!-- Rotación -->
-                            <div style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
+                            <div id="vehicle-rotation-item" style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
                                 <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Rotación de Neumáticos</h4>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
                                     <span>Última: <strong id="rot-last">Nunca</strong></span>
@@ -501,7 +501,7 @@
                             </div>
 
                             <!-- Reemplazo -->
-                            <div style="margin-bottom: 1rem;">
+                            <div id="vehicle-replace-item" style="margin-bottom: 1rem;">
                                 <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Reemplazo de Ruedas</h4>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
                                     <span>Último: <strong id="replace-last">Nunca</strong></span>
@@ -608,11 +608,12 @@
                         </div>
                     </div>
                 </div>
+                <div id="vehicle-custom-maintenance-cards" class="lenses-dashboard vehicle-custom-card-host hidden"></div>
             </div>
 
             <!-- CONTENIDO 2: DOCUMENTACIÓN -->
             <div id="vehicle-docs-content" class="vehicle-tab-content hidden">
-                <div class="card" style="max-width: 700px; margin: 0 auto;">
+                <div id="vehicle-docs-card" class="card" style="max-width: 700px; margin: 0 auto;">
                     <div class="card-header">
                         <div class="icon-container">
                             <i class="ph ph-file-text"></i>
@@ -693,6 +694,7 @@
                         </div>
                     </div>
                 </div>
+                <div id="vehicle-custom-document-cards" class="lenses-dashboard vehicle-custom-card-host hidden"></div>
             </div>
 
             <!-- CONTENIDO 3: FALLAS Y PENDIENTES -->
@@ -1894,7 +1896,7 @@
                                     <h2>Tus tarjetas</h2>
                                     <p>
                                         Administrá desde un solo lugar todas las tarjetas de
-                                        Higiene, Cuidado, Lentes y Salud.
+                                        Higiene, Cuidado, Lentes, Salud y Vehículo.
                                     </p>
                                 </div>
                                 <div class="custom-trackers-manager-header-actions">

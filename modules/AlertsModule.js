@@ -12,11 +12,17 @@ export class AlertsModule {
 
     getDefinitions() {
         const trackerDefinitions = this.app.customTrackers?.getAlertDefinitions?.() || [];
-        const trackerKeys = this.app.customTrackers?.getManagedAlertKeys?.()
-            || new Set(trackerDefinitions.map(definition => definition.key));
+        const vehicleDefinitions = this.app.vehicle?.getAlertDefinitions?.() || [];
+        const managedKeys = new Set([
+            ...(this.app.customTrackers?.getManagedAlertKeys?.()
+                || trackerDefinitions.map(definition => definition.key)),
+            ...(this.app.vehicle?.getManagedAlertKeys?.()
+                || vehicleDefinitions.map(definition => definition.key))
+        ]);
         return [
-            ...ALERT_DEFINITIONS.filter(definition => !trackerKeys.has(definition.key)),
-            ...trackerDefinitions
+            ...ALERT_DEFINITIONS.filter(definition => !managedKeys.has(definition.key)),
+            ...trackerDefinitions,
+            ...vehicleDefinitions
         ];
     }
 
@@ -36,7 +42,10 @@ export class AlertsModule {
 
             const localVal = localStorage.getItem('alerts_config');
             if (localVal) {
-                const storedConfigs = JSON.parse(localVal);
+                const parsedConfigs = JSON.parse(localVal);
+                const storedConfigs = this.app.vehicle?.migrateAlertConfigs?.(
+                    parsedConfigs
+                ) || parsedConfigs;
                 this.configs = { ...storedConfigs };
                 Object.keys(defaultConfigs).forEach(key => {
                     const storedConfig = storedConfigs[key] && typeof storedConfigs[key] === 'object'

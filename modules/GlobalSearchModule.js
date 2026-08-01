@@ -149,6 +149,7 @@ export class GlobalSearchModule {
     buildIndex() {
         return [
             ...this.getTrackerItems(),
+            ...this.getVehicleItems(),
             ...this.getTaskItems(),
             ...this.getProjectItems()
         ];
@@ -230,6 +231,26 @@ export class GlobalSearchModule {
             }
         }
         return [...regularTasks, ...freelanceTasks];
+    }
+
+    getVehicleItems() {
+        return (this.app.vehicle?.cards?.getCards?.() || []).map(card => ({
+            id: uniqueSearchId('tracker', 'vehicle', card.id),
+            kind: 'tracker',
+            title: card.name,
+            subtitle: `Vehículo · ${card.section === 'documents' ? 'Documentación' : 'Mantenimiento'}${card.archived ? ' · Archivada' : ''}`,
+            keywords: [
+                'vehículo',
+                card.type,
+                card.actionLabel,
+                card.archived ? 'archivada' : 'activa'
+            ],
+            target: {
+                vehicleCardId: card.id,
+                vehicleTab: card.section === 'documents' ? 'docs' : 'maint',
+                archived: card.archived === true
+            }
+        }));
     }
 
     getProjectItems() {
@@ -380,6 +401,24 @@ export class GlobalSearchModule {
     }
 
     openTracker(target) {
+        if (target.vehicleCardId) {
+            if (target.archived) {
+                if (this.app.customTrackers) {
+                    this.app.customTrackers.activeCategoryFilter = 'vehicle';
+                }
+                this.app.saveUiState?.({ trackerManagerFilter: 'vehicle' });
+                this.app.openProfileTab?.('seguimientos');
+                this.deferHighlight('vehicleCardId', target.vehicleCardId);
+                return;
+            }
+            this.app.vehicle?.activateVehicleTab?.(target.vehicleTab, {
+                persist: true,
+                render: false
+            });
+            this.app.activateSection?.('vehiculo-section', { render: true });
+            this.deferHighlight('vehicleCardId', target.vehicleCardId);
+            return;
+        }
         if (target.archived) {
             this.app.openProfileTab?.('seguimientos');
             this.deferHighlight('trackerId', target.trackerId);

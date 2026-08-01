@@ -4,6 +4,10 @@ import {
     LEGACY_CUSTOM_TRACKER_FIELD,
     validateCustomTrackerRegistry
 } from './custom-tracker-utils.mjs';
+import {
+    validateVehicleCatalog,
+    VEHICLE_CATALOG_FIELD
+} from './vehicle-catalog-utils.mjs';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs';
 
 export const BACKUP_APP_NAME = 'LifeCycle';
@@ -565,7 +569,11 @@ function validateBackupDataShape(key, value) {
             break;
         case 'vehicle_tracker_data':
             Object.entries(value).forEach(([field, fieldValue]) => {
-                assertText(fieldValue, `${key}.${field}`, { optional: true });
+                if (field === VEHICLE_CATALOG_FIELD) {
+                    validateVehicleCatalog(fieldValue);
+                } else {
+                    assertText(fieldValue, `${key}.${field}`, { optional: true });
+                }
             });
             break;
         case 'vehicle_issues':

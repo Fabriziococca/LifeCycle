@@ -6,9 +6,11 @@ const assert = require('node:assert/strict');
 const {
     assertServerManagedUserDataPatch,
     buildCustomTrackerNotification,
+    buildVehicleCatalogNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
     ensureCustomTrackerAlertConfigs,
+    ensureVehicleCatalogAlertConfigs,
     formatExpiryStatus,
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
@@ -242,6 +244,117 @@ test('vehicle maintenance reminders do not overwrite one another', () => {
     assert.match(reminder.body, /Líquido limpiavidrios: 87 días/);
     assert.match(reminder.body, /matafuegos venció hace 17 días/);
     assert.doesNotMatch(reminder.body, /Escobillas/);
+});
+
+test('vehicle catalog creates individual alert configs while preserving legacy choices', () => {
+    const alertsConfig = {
+        vehicle_fluids_check: {
+            enabled: false,
+            time: '08:30',
+            days: []
+        }
+    };
+    const trackerData = {
+        vehicleCatalog: {
+            cards: [{
+                id: 'vc_coolant',
+                name: 'Refrigerante',
+                type: 'check',
+                section: 'maintenance',
+                intervalDays: 90,
+                alertKey: 'vehicle_card:vc_coolant',
+                legacyAlertGroup: 'vehicle_fluids_check',
+                alert: { enabled: true, time: '09:00' }
+            }],
+            records: { vc_coolant: [] }
+        }
+    };
+
+    assert.equal(ensureVehicleCatalogAlertConfigs(alertsConfig, trackerData), true);
+    assert.deepEqual(alertsConfig['vehicle_card:vc_coolant'], {
+        enabled: false,
+        time: '08:30',
+        days: []
+    });
+});
+
+test('vehicle catalog notifications respect card type, archive and deprecated groups', () => {
+    const trackerData = {
+        vehicleCatalog: {
+            cards: [
+                {
+                    id: 'vc_belt',
+                    name: 'Correa auxiliar',
+                    type: 'maintenance',
+                    intervalKm: 30000,
+                    alertKey: 'vehicle_card:vc_belt',
+                    alert: { enabled: true, time: '23:00' }
+                },
+                {
+                    id: 'vc_vtv',
+                    name: 'VTV',
+                    type: 'document',
+                    warningDays: 30,
+                    alertKey: 'vehicle_card:vc_vtv',
+                    alert: { enabled: true, time: '09:00' }
+                }
+            ],
+            records: {
+                vc_belt: [{ id: 'r1', date: '2026-01-01', km: 10000 }],
+                vc_vtv: [{ id: 'r2', date: '2026-08-20' }]
+            }
+        }
+    };
+    const elapsed = () => 212;
+    const until = value => value === '2026-08-20' ? 19 : null;
+
+    assert.equal(buildVehicleCatalogNotification(
+        'vehicle_card:vc_belt',
+        trackerData,
+        40500,
+        elapsed,
+        until
+    ).shouldNotify, true);
+    assert.equal(buildVehicleCatalogNotification(
+        'vehicle_card:vc_vtv',
+        trackerData,
+        40500,
+        elapsed,
+        until
+    ).shouldNotify, true);
+    assert.deepEqual(buildVehicleCatalogNotification(
+        'vehicle_docs_check',
+        trackerData,
+        40500,
+        elapsed,
+        until
+    ), { handled: true, shouldNotify: false });
+
+    trackerData.vehicleCatalog.cards[0].archived = true;
+    assert.equal(buildVehicleCatalogNotification(
+        'vehicle_card:vc_belt',
+        trackerData,
+        40500,
+        elapsed,
+        until
+    ).shouldNotify, false);
+});
+
+test('a removed legacy vehicle card cannot reactivate its old static alert', () => {
+    const trackerData = {
+        vehicleCatalog: {
+            cards: [],
+            records: {}
+        }
+    };
+
+    assert.deepEqual(buildVehicleCatalogNotification(
+        'vehicle_oil',
+        trackerData,
+        50000,
+        () => 500,
+        () => 0
+    ), { handled: true, shouldNotify: false });
 });
 
 test('custom tracker alert defaults are recovered from the synced registry', () => {
