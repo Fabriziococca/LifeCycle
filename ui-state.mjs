@@ -10,7 +10,8 @@ export const DEFAULT_UI_STATE = Object.freeze({
     vehicleTab: 'maint',
     tasksCategory: '',
     tasksProjectId: '',
-    alertsCategory: 'higiene'
+    alertsCategory: 'higiene',
+    trackerManagerFilter: 'all'
 });
 
 const VALID_SECTIONS = new Set([
@@ -59,6 +60,13 @@ const VALID_ALERT_CATEGORIES = new Set([
     'vehiculo',
     'gym',
     'otros'
+]);
+const VALID_TRACKER_MANAGER_FILTERS = new Set([
+    'all',
+    'hygiene',
+    'grooming',
+    'lenses',
+    'health'
 ]);
 const UNSAFE_DYNAMIC_VALUES = new Set(['__proto__', 'prototype', 'constructor']);
 
@@ -116,7 +124,12 @@ export function normalizeUiState(value) {
         tasksProjectId: normalizeTaskProjectId(candidate.tasksProjectId),
         alertsCategory: VALID_ALERT_CATEGORIES.has(candidate.alertsCategory)
             ? candidate.alertsCategory
-            : DEFAULT_UI_STATE.alertsCategory
+            : DEFAULT_UI_STATE.alertsCategory,
+        trackerManagerFilter: VALID_TRACKER_MANAGER_FILTERS.has(
+            candidate.trackerManagerFilter
+        )
+            ? candidate.trackerManagerFilter
+            : DEFAULT_UI_STATE.trackerManagerFilter
     };
 }
 

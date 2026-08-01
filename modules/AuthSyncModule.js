@@ -1096,21 +1096,38 @@ export class AuthSyncModule {
             const subscription = await registration.pushManager.getSubscription();
             
             if (subscription) {
-                const subscriptionJSON = subscription.toJSON();
-                const registrationState = await this.persistPushSubscription(subscriptionJSON);
-                const registeredDevices = Number(registrationState?.registeredDevices);
+                let registeredDevices = null;
+                let registrationVerified = false;
+                try {
+                    const subscriptionJSON = subscription.toJSON();
+                    const registrationState = await this.persistPushSubscription(subscriptionJSON);
+                    registeredDevices = Number(registrationState?.registeredDevices);
+                    registrationVerified = true;
+                } catch (syncError) {
+                    console.warn('[Push] No se pudo verificar la suscripción con el servidor:', syncError);
+                }
 
                 if (this.btnEnablePush) {
-                    this.btnEnablePush.innerText = '🔔 Notificaciones Activas en este Dispositivo';
-                    this.btnEnablePush.style.borderColor = 'var(--status-green)';
-                    this.btnEnablePush.style.color = 'var(--status-green)';
+                    this.btnEnablePush.innerText = registrationVerified
+                        ? '🔔 Notificaciones Activas en este Dispositivo'
+                        : '🔔 Suscripción local activa';
+                    this.btnEnablePush.style.borderColor = registrationVerified
+                        ? 'var(--status-green)'
+                        : 'var(--status-yellow)';
+                    this.btnEnablePush.style.color = registrationVerified
+                        ? 'var(--status-green)'
+                        : 'var(--status-yellow)';
                 }
                 this.btnTestPush?.classList.remove('hidden');
                 this.setPushStatus(
-                    'active',
-                    Number.isInteger(registeredDevices) && registeredDevices > 0
-                        ? `Este dispositivo está listo. Dispositivos registrados: ${registeredDevices}.`
-                        : 'Este dispositivo está registrado y listo para recibir avisos.'
+                    registrationVerified ? 'active' : 'warning',
+                    registrationVerified
+                        ? (
+                            Number.isInteger(registeredDevices) && registeredDevices > 0
+                                ? `Este dispositivo está listo. Dispositivos registrados: ${registeredDevices}.`
+                                : 'Este dispositivo está registrado y listo para recibir avisos.'
+                        )
+                        : 'El navegador conserva la suscripción, pero no se pudo confirmar el registro con el servidor. Podés reintentar con el botón o enviar una prueba.'
                 );
             } else {
                 if (this.btnEnablePush) {

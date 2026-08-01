@@ -1223,8 +1223,8 @@ export class ProjectsModule {
             card.style.borderColor = colorVar;
 
             card.innerHTML = `
-                <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 0.75rem; gap: 12px;">
-                    <div style="min-width: 0; flex: 1;">
+                <div class="project-card-header" style="margin-bottom: 0.75rem;">
+                    <div class="project-card-info">
                         <h3 class="project-client" style="color:white; font-size:1.2rem; margin:0; display:flex; align-items:center; flex-wrap:wrap; gap: 6px;">
                             ${safeClient} ${badgeSpan} ${sourceBadge}
                         </h3>
@@ -1237,7 +1237,7 @@ export class ProjectsModule {
                             </span>
                         </div>
                     </div>
-                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 6px; flex-shrink: 0;">
+                    <div class="countdown-badge-wrapper">
                         <div class="countdown-badge" style="background: rgba(0,0,0,0.3); border: 1.5px solid ${colorVar}; color: ${colorVar}; padding: 6px 12px; border-radius: 12px; font-weight: 800; font-size: 1.1rem; font-variant-numeric: tabular-nums; box-shadow: 0 0 10px ${colorVar}30; white-space: nowrap;">
                             ${safeCountdownText}
                         </div>

@@ -62,6 +62,7 @@ export class TooltipController {
         this.root.addEventListener('focusin', this.handleFocusIn);
         this.root.addEventListener('focusout', this.handleFocusOut);
         this.root.addEventListener('pointerdown', this.hide, true);
+        this.root.addEventListener('click', this.hide, true);
         this.root.addEventListener('keydown', this.handleKeyDown);
         window.addEventListener('scroll', this.hide, true);
         window.addEventListener('resize', this.hide);
@@ -76,6 +77,7 @@ export class TooltipController {
         this.root.removeEventListener('focusin', this.handleFocusIn);
         this.root.removeEventListener('focusout', this.handleFocusOut);
         this.root.removeEventListener('pointerdown', this.hide, true);
+        this.root.removeEventListener('click', this.hide, true);
         this.root.removeEventListener('keydown', this.handleKeyDown);
         window.removeEventListener('scroll', this.hide, true);
         window.removeEventListener('resize', this.hide);

@@ -38,6 +38,7 @@ export class NotificationsCenterModule {
         
         this.bellBtn.addEventListener('click', (e) => {
             e.stopPropagation();
+            this.app?.tooltips?.hide();
             this.panel.classList.toggle('hidden');
             if (!this.panel.classList.contains('hidden')) {
                 this.render();

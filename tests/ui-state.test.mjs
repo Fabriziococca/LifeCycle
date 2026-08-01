@@ -35,7 +35,8 @@ test('UI state accepts only known navigation values', () => {
             vehicleTab: 'issues',
             tasksCategory: 'LifeCycle',
             tasksProjectId: '12345',
-            alertsCategory: 'otros'
+            alertsCategory: 'otros',
+            trackerManagerFilter: 'grooming'
         }),
         {
             section: 'projects-section',
@@ -47,7 +48,8 @@ test('UI state accepts only known navigation values', () => {
             vehicleTab: 'issues',
             tasksCategory: 'LifeCycle',
             tasksProjectId: '12345',
-            alertsCategory: 'otros'
+            alertsCategory: 'otros',
+            trackerManagerFilter: 'grooming'
         }
     );
 
@@ -98,7 +100,8 @@ test('UI state updates one preference without losing the others', () => {
         vehicleTab: 'docs',
         tasksCategory: 'Personal',
         tasksProjectId: '',
-        alertsCategory: 'salud'
+        alertsCategory: 'salud',
+        trackerManagerFilter: 'health'
     };
 
     const next = writeUiState(storage, current, { profileTab: 'alertas' });
@@ -112,7 +115,8 @@ test('UI state updates one preference without losing the others', () => {
         vehicleTab: 'docs',
         tasksCategory: 'Personal',
         tasksProjectId: '',
-        alertsCategory: 'salud'
+        alertsCategory: 'salud',
+        trackerManagerFilter: 'health'
     });
     assert.deepEqual(JSON.parse(storage.rawValue), next);
 });

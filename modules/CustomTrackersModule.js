@@ -93,6 +93,7 @@ export class CustomTrackersModule {
         this.reorderContext = null;
         this.bulkContext = null;
         this.sortableInstances = [];
+        this.activeCategoryFilter = this.app.uiState?.trackerManagerFilter || 'all';
 
         this.managerRoot = document.getElementById('tab-seguimientos');
         this.managerSummary = document.getElementById('custom-trackers-manager-summary');
@@ -417,6 +418,16 @@ export class CustomTrackersModule {
                 } else if (orderButton.dataset.customOrderAction === 'cancel') {
                     this.cancelReorderMode();
                 }
+                return;
+            }
+
+            const filterButton = event.target.closest('[data-tracker-category-filter]');
+            if (filterButton) {
+                this.activeCategoryFilter = filterButton.dataset.trackerCategoryFilter || 'all';
+                this.app.saveUiState?.({
+                    trackerManagerFilter: this.activeCategoryFilter
+                });
+                this.renderManager();
                 return;
             }
 
@@ -1902,8 +1913,41 @@ export class CustomTrackersModule {
     renderManager() {
         if (!this.managerSummary) return;
         const isReordering = this.reorderContext?.scope === 'manager';
+        if (!this.activeCategoryFilter) this.activeCategoryFilter = 'all';
 
-        this.managerSummary.innerHTML = Object.entries(CUSTOM_TRACKER_SECTIONS)
+        const totalActiveAll = this.registry.trackers.filter(t => !t.archived && !t.deleted).length;
+        const filterBarHtml = `
+            <div class="tracker-category-filter-bar" role="group" aria-label="Filtrar tarjetas por sección">
+                <button type="button"
+                        class="tracker-category-tab ${this.activeCategoryFilter === 'all' ? 'active' : ''}"
+                        data-tracker-category-filter="all"
+                        aria-pressed="${this.activeCategoryFilter === 'all' ? 'true' : 'false'}">
+                    <i class="ph ph-squares-four"></i>
+                    <span>Todas</span>
+                    <span class="count-pill">${totalActiveAll}</span>
+                </button>
+                ${Object.entries(CUSTOM_TRACKER_SECTIONS).map(([sectionKey, section]) => {
+                    const activeCount = this.registry.trackers.filter(t => t.section === sectionKey && !t.archived && !t.deleted).length;
+                    const isActive = this.activeCategoryFilter === sectionKey;
+                    return `
+                        <button type="button"
+                                class="tracker-category-tab ${isActive ? 'active' : ''}"
+                                data-tracker-category-filter="${sectionKey}"
+                                aria-pressed="${isActive ? 'true' : 'false'}">
+                            <i class="ph ${section.defaultIcon}"></i>
+                            <span>${escapeHtml(section.label)}</span>
+                            <span class="count-pill">${activeCount}</span>
+                        </button>
+                    `;
+                }).join('')}
+            </div>
+        `;
+
+        const visibleSections = Object.entries(CUSTOM_TRACKER_SECTIONS).filter(([sectionKey]) => {
+            return this.activeCategoryFilter === 'all' || this.activeCategoryFilter === sectionKey;
+        });
+
+        const sectionsHtml = visibleSections
             .map(([sectionKey, section]) => {
                 const active = this.registry.trackers
                     .filter(tracker => (
@@ -1991,8 +2035,9 @@ export class CustomTrackersModule {
                         </div>
                     </section>
                 `;
-            })
-            .join('');
+            });
+
+        this.managerSummary.innerHTML = filterBarHtml + sectionsHtml.join('');
 
         const managerNote = this.managerRoot.querySelector(
             '.custom-trackers-manager-note'

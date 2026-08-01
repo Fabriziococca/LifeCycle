@@ -222,6 +222,44 @@ test('the profile names the configurable-card manager in plain language', async 
     assert.match(index, /<h2>Tus tarjetas<\/h2>/);
 });
 
+test('profile identity remains intact and long email addresses can wrap', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+    const accountCard = index.match(
+        /<div id="auth-logged-in"[\s\S]*?<div class="card-body">/
+    )?.[0] || '';
+
+    assert.match(accountCard, /id="profile-email"/);
+    assert.match(accountCard, /id="sync-status-badge"/);
+    assert.match(styles, /#profile-email[\s\S]*overflow-wrap:\s*anywhere/);
+});
+
+test('tracker manager filters sections and remembers the selected filter', async () => {
+    const source = await readFile(
+        path.join(ROOT, 'modules', 'CustomTrackersModule.js'),
+        'utf8'
+    );
+    const stateSource = await readFile(path.join(ROOT, 'ui-state.mjs'), 'utf8');
+
+    assert.match(source, /data-tracker-category-filter="all"/);
+    assert.match(source, /trackerManagerFilter/);
+    assert.match(source, /aria-pressed=/);
+    assert.match(stateSource, /trackerManagerFilter:\s*'all'/);
+});
+
+test('project cards stack their header and keep destructive action separate on mobile', async () => {
+    const projectsSource = await readFile(
+        path.join(ROOT, 'modules', 'ProjectsModule.js'),
+        'utf8'
+    );
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+
+    assert.match(projectsSource, /class="project-card-header"/);
+    assert.match(projectsSource, /class="countdown-badge-wrapper"/);
+    assert.match(styles, /@media \(max-width: 600px\)[\s\S]*\.project-card-header[\s\S]*flex-direction:\s*column/);
+    assert.match(styles, /grid-template-columns:\s*minmax\(0, 1fr\) auto/);
+});
+
 test('task creation presents urgent work first and keeps non-urgent as long-term', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const generalSelect = index.match(
