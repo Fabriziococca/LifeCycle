@@ -23,6 +23,9 @@
     --status-red: #ef4444; /* Red 500 */
     --status-red-glow: rgba(239, 68, 68, 0.2);
 
+    --status-purple: #a855f7; /* Purple 500 */
+    --status-purple-glow: rgba(168, 85, 247, 0.2);
+
     /* Fonts & Typography */
     --font-family: 'Inter', sans-serif;
     
@@ -6950,6 +6953,31 @@ body.modal-open {
     padding: 2px 6px;
     border-radius: 10px;
     font-size: 0.75rem;
+}
+
+/* Botones / Píldoras de Detalle en Finanzas y Proyectos */
+.detail-pill-btn {
+    background: rgba(59, 130, 246, 0.12) !important;
+    border: 1px solid rgba(59, 130, 246, 0.3) !important;
+    color: #60a5fa !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    padding: 3px 10px !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    transition: all 0.2s ease !important;
+    text-decoration: none !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+}
+
+.detail-pill-btn:hover {
+    background: rgba(59, 130, 246, 0.25) !important;
+    border-color: rgba(59, 130, 246, 0.5) !important;
+    color: #93c5fd !important;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 8px rgba(59, 130, 246, 0.2);
 }
 
 .push-status.warning {

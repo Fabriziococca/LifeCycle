@@ -1303,6 +1303,7 @@
             </div>
         </section>
 
+            
         <!-- SECCIÓN: PROYECTOS (ProjectPulse) -->
         <section id="projects-section" class="main-section hidden">
             <!-- Dashboard Financiero -->
@@ -1314,21 +1315,21 @@
                 <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--status-green);">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Mes</span>
-                        <button id="btnOpenMonthDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Detalle</button>
+                        <button id="btnOpenMonthDetails" class="detail-pill-btn">Detalle</button>
                     </div>
                     <div id="monthUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--status-green); margin-top: 5px;">USD 0.00</div>
                 </div>
                 <div class="card" style="margin:0; padding: 15px; border: 1px solid white;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Año</span>
-                        <button id="btnOpenYearDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Detalle</button>
+                        <button id="btnOpenYearDetails" class="detail-pill-btn">Detalle</button>
                     </div>
                     <div id="yearUSD" style="font-size: 1.4rem; font-weight: bold; color: white; margin-top: 5px;">USD 0.00</div>
                 </div>
                 <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--status-orange);">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Histórico</span>
-                        <button id="btnOpenHistory" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.75rem; cursor:pointer; padding:0;">Mensual</button>
+                        <button id="btnOpenHistory" class="detail-pill-btn">Mensual</button>
                     </div>
                     <div id="totalUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--status-yellow); margin-top: 5px;">USD 0.00</div>
                 </div>
@@ -1481,15 +1482,26 @@
                             </div>
                         </div>
 
-                            <div class="form-row">
-                                <div class="input-group">
-                                    <label for="projectSourceSelect">Origen del Cliente</label>
-                                    <select id="projectSourceSelect" class="text-input">
-                                        <option value="workana">Workana</option>
-                                        <option value="external">Externo (LinkedIn, WhatsApp, etc.)</option>
-                                    </select>
-                                </div>
+                            
+                        <div class="form-row">
+                            <div class="input-group half">
+                                <label for="projectClientSourceSelect">🎯 Origen del Cliente</label>
+                                <select id="projectClientSourceSelect" class="text-input">
+                                    <option value="workana">Workana</option>
+                                    <option value="linkedin">LinkedIn</option>
+                                    <option value="direct">Contacto Directo / Recomendación</option>
+                                    <option value="social">Redes Sociales / Web</option>
+                                    <option value="other">Otro</option>
+                                </select>
                             </div>
+                            <div class="input-group half">
+                                <label for="projectSourceSelect">💼 Vía de Trabajo / Cobro</label>
+                                <select id="projectSourceSelect" class="text-input">
+                                    <option value="workana">Workana</option>
+                                    <option value="external">Directo / Por afuera</option>
+                                </select>
+                            </div>
+                        </div>
 
                         <div id="customFeeContainer" class="input-group hidden" style="margin-bottom: 1rem;">
                             <label for="customWorkanaFee">Comisión Workana Manual (%)</label>
@@ -1529,14 +1541,14 @@
                 <div class="card" style="margin:0; padding: 12px 15px; border: 1px solid white;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size: 0.75rem; color: var(--text-secondary);">Ingresos del Año</span>
-                        <button id="btnOpenFinYearDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.7rem; cursor:pointer; padding:0;">Detalle</button>
+                        <button id="btnOpenFinYearDetails" class="detail-pill-btn">Detalle</button>
                     </div>
                     <div id="fin-year-income" style="font-size: 1.25rem; font-weight: bold; color: white; margin-top: 5px;">USD 0.00</div>
                 </div>
                 <div class="card" style="margin:0; padding: 12px 15px; border: 1px solid white;">
                     <div style="display:flex; justify-content:space-between; align-items:center;">
                         <span style="font-size: 0.75rem; color: var(--text-secondary);">Gastos del Año</span>
-                        <button id="btnOpenFinExpenseYearDetails" style="background:none; border:none; color:var(--primary-color); text-decoration:underline; font-size:0.7rem; cursor:pointer; padding:0;">Detalle</button>
+                        <button id="btnOpenFinExpenseYearDetails" class="detail-pill-btn">Detalle</button>
                     </div>
                     <div id="fin-year-expense" style="font-size: 1.25rem; font-weight: bold; color: white; margin-top: 5px;">USD 0.00</div>
                 </div>
@@ -1617,6 +1629,7 @@
                 <h2 class="section-title" style="margin:0;">Lista de Tareas</h2>
                 <div style="display:flex; gap:10px;">
                     <button id="btn-add-category" class="btn btn-secondary" style="margin:0; font-size:0.85rem;"><i class="ph ph-folder-plus"></i> Nueva Carpeta</button>
+                    <button id="btn-tasks-settings" class="btn btn-secondary" style="margin:0; font-size:0.85rem; padding: 0 12px; display:inline-flex; align-items:center; justify-content:center;" data-tooltip="Preferencias de Tareas" aria-label="Preferencias de Tareas"><i class="ph ph-gear"></i></button>
                     <button id="btn-add-task" class="btn btn-primary" style="margin:0; font-size:0.85rem;"><i class="ph ph-plus-circle"></i> Nueva Tarea</button>
                 </div>
             </div>
@@ -1711,6 +1724,11 @@
                         <i class="ph ph-squares-four"></i>
                         <span>Módulos</span>
                     </button>
+                    
+                    <button class="profile-menu-item" data-tab="preferencias">
+                        <i class="ph ph-sliders"></i>
+                        <span>Preferencias</span>
+                    </button>
                     <button class="profile-menu-item" data-tab="alertas">
                         <i class="ph ph-bell-ringing"></i>
                         <span>Gestor de Alertas</span>
@@ -1723,6 +1741,32 @@
 
                 <!-- Contenido principal de las pestañas -->
                 <div class="profile-main-content">
+                    
+                    <!-- Pestaña: Preferencias -->
+                    <div class="profile-tab-content" id="tab-preferencias">
+                        <div class="card">
+                            <div class="card-header">
+                                <div class="icon-container">
+                                    <i class="ph ph-sliders"></i>
+                                </div>
+                                <h3>Preferencias de la Aplicación</h3>
+                            </div>
+                            <div class="card-body">
+                                <div style="display:flex; justify-content:space-between; align-items:center; gap: 1rem; padding: 0.75rem 0;">
+                                    <div>
+                                        <h4 style="margin: 0; font-size: 0.95rem; color: white;">Limpiar tareas completadas tras 24 hs</h4>
+                                        <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">
+                                            Elimina automáticamente de la lista las tareas completadas que tengan más de 24 horas de antigüedad.
+                                        </p>
+                                    </div>
+                                    <label class="switch" style="flex-shrink: 0;">
+                                        <input type="checkbox" id="pref-auto-clean-tasks">
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
                     <!-- Pestaña 1: Cuenta -->
                     <div class="profile-tab-content active" id="tab-cuenta">
                         <!-- Cargando Estado de Auth -->

@@ -62,6 +62,7 @@ export class TareasModule {
 
             const pinnedProjs = localStorage.getItem('tareas_pinned_projects');
             this.pinnedProjectsStore = pinnedProjs ? JSON.parse(pinnedProjs) : [];
+            this.cleanExpiredCompletedTasks();
         } catch (e) {
             console.error("Error loading Tareas data:", e);
             this.tasks = [];
@@ -527,6 +528,26 @@ export class TareasModule {
         const catSave = document.getElementById('tareas-cat-save');
         const catInput = document.getElementById('tareas-new-cat-name');
 
+        const btnTasksSettings = document.getElementById('btn-tasks-settings');
+        btnTasksSettings?.addEventListener('click', () => {
+            if (this.app.navigation) {
+                this.app.navigation.switchTab('perfil');
+                this.app.auth?.switchProfileTab?.('preferencias');
+            }
+        });
+
+        const prefCleanToggle = document.getElementById('pref-auto-clean-tasks');
+        if (prefCleanToggle) {
+            prefCleanToggle.checked = localStorage.getItem('auto_clean_completed_tasks_24h') === 'true';
+            prefCleanToggle.addEventListener('change', (e) => {
+                localStorage.setItem('auto_clean_completed_tasks_24h', String(e.target.checked));
+                if (e.target.checked) {
+                    this.cleanExpiredCompletedTasks();
+                    this.render();
+                }
+            });
+        }
+
         btnAddCategory?.addEventListener('click', () => {
             if (catInput) catInput.value = '';
             catModal?.classList.remove('hidden');
@@ -754,10 +775,39 @@ export class TareasModule {
 
     }
 
+    cleanExpiredCompletedTasks() {
+        const isAutoCleanEnabled = localStorage.getItem('auto_clean_completed_tasks_24h') === 'true';
+        if (!isAutoCleanEnabled) return;
+
+        const now = Date.now();
+        const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+
+        const initialLength = this.tasks.length;
+        this.tasks = this.tasks.filter(t => {
+            if (!t.completed) return true;
+            const completedTime = t.completedAt || t.completed_at || t.updatedAt;
+            if (!completedTime) {
+                t.completedAt = now;
+                return true;
+            }
+            const age = now - new Date(completedTime).getTime();
+            return age < TWENTY_FOUR_HOURS;
+        });
+
+        if (this.tasks.length !== initialLength) {
+            this.saveData();
+        }
+    }
+
     toggleTask(id) {
         const t = this.tasks.find(x => x.id === id);
         if (t) {
             t.completed = !t.completed;
+            if (t.completed) {
+                t.completedAt = Date.now();
+            } else {
+                delete t.completedAt;
+            }
             this.saveData();
             this.render();
             this.app.notificationsCenter?.render();

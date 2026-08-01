@@ -580,6 +580,7 @@ export class ProjectsModule {
                 const feeType = document.getElementById('workanaFeeSelect').value;
                 const customPct = parseFloat(document.getElementById('customWorkanaFee').value) || 0;
                 const source = document.getElementById('projectSourceSelect')?.value || 'workana';
+                const clientSource = document.getElementById('projectClientSourceSelect')?.value || source;
                 const isDel = false;
                 const isRec = false;
 
@@ -662,7 +663,11 @@ export class ProjectsModule {
             }
 
             // Presupuesto extra
-            if (extraBudget > 0) {
+            const editClientSourceSelect = document.getElementById('proj-edit-clientSource');
+        if (editClientSourceSelect) p.clientSource = editClientSourceSelect.value;
+        const editSourceSelect = document.getElementById('proj-edit-source');
+        if (editSourceSelect) p.source = editSourceSelect.value;
+        if (extraBudget > 0) {
                 p.budgetGross = (p.budgetGross || 0) + extraBudget;
                 p.budgetNet = this.calculateNet(p.budgetGross, p.feeType, p.manualPercent, p.isDelegated, p.isReceived);
             }
@@ -1226,7 +1231,7 @@ export class ProjectsModule {
                 <div class="project-card-header" style="margin-bottom: 0.75rem;">
                     <div class="project-card-info">
                         <h3 class="project-client" style="color:white; font-size:1.2rem; margin:0; display:flex; align-items:center; flex-wrap:wrap; gap: 6px;">
-                            ${safeClient} ${badgeSpan} ${sourceBadge}
+                            ${safeClient} ${badgeSpan} ${clientSourceBadge} ${sourceBadge}
                         </h3>
                         <p class="project-name" style="color:var(--text-secondary); font-size:0.88rem; margin: 3px 0 8px 0; font-weight: 500;">${safeProjectName}</p>
                         <div>
@@ -1452,6 +1457,10 @@ export class ProjectsModule {
                 deadlineStr = `${year}-${month}-${day}T${hours}:${minutes}`;
             }
             document.getElementById('proj-edit-deadline').value = deadlineStr;
+            const editClientSourceSelect = document.getElementById('proj-edit-clientSource');
+            if (editClientSourceSelect) editClientSourceSelect.value = p.clientSource || p.source || 'workana';
+            const editSourceSelect = document.getElementById('proj-edit-source');
+            if (editSourceSelect) editSourceSelect.value = p.source || 'workana';
             document.getElementById('proj-extraBudget').value = 0;
             
             // Calcular horas y minutos acumulados actuales
