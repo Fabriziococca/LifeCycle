@@ -77,48 +77,49 @@
             </button>
         </div>
 
-        <!-- Captura rápida disponible desde cualquier módulo -->
-        <div class="quick-task-wrapper">
-            <button
-                id="global-quick-task-btn"
-                class="quick-task-btn"
-                type="button"
-                aria-label="Crear una tarea rápida"
-                data-tooltip="Nueva tarea rápida (Alt+N)"
-            >
-                <i class="ph ph-plus-circle"></i>
-                <span>Nueva tarea</span>
-            </button>
-        </div>
+        <div class="header-actions" aria-label="Acciones rápidas">
+            <!-- Captura rápida disponible desde cualquier módulo -->
+            <div class="quick-task-wrapper">
+                <button
+                    id="global-quick-task-btn"
+                    class="quick-task-btn"
+                    type="button"
+                    aria-label="Crear una tarea rápida"
+                    data-tooltip="Nueva tarea rápida (Alt+N)"
+                >
+                    <i class="ph ph-plus-circle"></i>
+                    <span>Nueva tarea</span>
+                </button>
+            </div>
 
-        <!-- Búsqueda local de tarjetas, tareas y proyectos -->
-        <div class="global-search-wrapper">
-            <button
-                id="global-search-btn"
-                class="global-search-btn"
-                type="button"
-                aria-label="Buscar en LifeCycle"
-                data-tooltip="Buscar en LifeCycle (Ctrl+K)"
-            >
-                <i class="ph ph-magnifying-glass"></i>
-                <span>Buscar</span>
-                <kbd>Ctrl K</kbd>
-            </button>
-        </div>
+            <!-- Búsqueda local de tarjetas, tareas y proyectos -->
+            <div class="global-search-wrapper">
+                <button
+                    id="global-search-btn"
+                    class="global-search-btn"
+                    type="button"
+                    aria-label="Buscar en LifeCycle"
+                    data-tooltip="Buscar en LifeCycle (Ctrl+K)"
+                >
+                    <i class="ph ph-magnifying-glass"></i>
+                    <span>Buscar</span>
+                </button>
+            </div>
 
-        <!-- Centro de Notificaciones (Tareas Críticas en Rojo) -->
-        <div class="notifications-wrapper">
-            <button id="notification-bell-btn" class="bell-btn" aria-label="Abrir tareas críticas pendientes" data-tooltip="Tareas críticas pendientes">
-                <i class="ph ph-bell"></i>
-                <span id="notification-badge" class="bell-badge" style="display: none;">0</span>
-            </button>
-            <div id="notification-dropdown-panel" class="notifications-panel hidden">
-                <div class="notifications-header">
-                    <h4>Tareas Críticas</h4>
-                    <span id="notification-dropdown-count" class="count-badge">0 pendientes</span>
-                </div>
-                <div id="notification-list" class="notifications-list">
-                    <!-- Dinámico -->
+            <!-- Centro de Notificaciones (Tareas Críticas en Rojo) -->
+            <div class="notifications-wrapper">
+                <button id="notification-bell-btn" class="bell-btn" aria-label="Abrir tareas críticas pendientes" data-tooltip="Tareas críticas pendientes">
+                    <i class="ph ph-bell"></i>
+                    <span id="notification-badge" class="bell-badge" style="display: none;">0</span>
+                </button>
+                <div id="notification-dropdown-panel" class="notifications-panel hidden">
+                    <div class="notifications-header">
+                        <h4>Tareas Críticas</h4>
+                        <span id="notification-dropdown-count" class="count-badge">0 pendientes</span>
+                    </div>
+                    <div id="notification-list" class="notifications-list">
+                        <!-- Dinámico -->
+                    </div>
                 </div>
             </div>
         </div>
@@ -1815,8 +1816,10 @@
                                 <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 0.5rem;">
                                     <button id="btn-enable-push" class="btn btn-secondary" style="width: 100%;"><i class="ph ph-bell-simple-ringing"></i> Activar Notificaciones en este Dispositivo</button>
                                     <button id="btn-test-push" class="btn btn-secondary hidden" style="width: 100%; border-color: rgba(59, 130, 246, 0.2); color: #60a5fa;"><i class="ph ph-paper-plane-tilt"></i> Enviar Notificación de Prueba (5s delay)</button>
+                                    <button id="btn-diagnose-push" class="btn btn-secondary" style="width: 100%;"><i class="ph ph-stethoscope"></i> Diagnosticar este dispositivo</button>
                                     <p id="push-status-message" class="push-status inactive" role="status" aria-live="polite">Comprobando el estado de este dispositivo...</p>
                                     <p id="push-engine-status" class="push-engine-status" role="status">Comprobando el motor de notificaciones...</p>
+                                    <div id="push-diagnostics-results" class="push-diagnostics-results hidden" aria-live="polite"></div>
                                 </div>
                             </div>
                         </div>
@@ -1863,6 +1866,7 @@
                                         <option value="accepted">Aceptados por Push</option>
                                         <option value="failed">Fallidos</option>
                                         <option value="expired">Endpoints vencidos</option>
+                                        <option value="no_devices">Sin dispositivos</option>
                                     </select>
                                 </div>
                                 <p id="push-history-note" class="push-manager-note">“Aceptada” confirma que el servicio Push recibió el envío; los navegadores no confirman si fue visto.</p>

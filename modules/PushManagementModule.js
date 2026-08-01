@@ -41,6 +41,8 @@ export class PushManagementModule {
         this.historyRefresh = document.getElementById('push-history-refresh');
         this.historyFilter = document.getElementById('push-history-filter');
         this.healthStatus = document.getElementById('push-engine-status');
+        this.diagnosticsButton = document.getElementById('btn-diagnose-push');
+        this.diagnosticsResults = document.getElementById('push-diagnostics-results');
         this.devices = [];
         this.history = [];
         this.currentFingerprint = '';
@@ -55,8 +57,14 @@ export class PushManagementModule {
         this.devicesRefresh?.addEventListener('click', () => this.loadDevices());
         this.historyRefresh?.addEventListener('click', () => this.loadHistory());
         this.historyFilter?.addEventListener('change', () => this.loadHistory());
+        this.diagnosticsButton?.addEventListener('click', () => {
+            this.runDiagnostics().catch(error => this.showError(error));
+        });
         this.devicesList?.addEventListener('click', event => {
             this.handleDeviceAction(event).catch(error => this.showError(error));
+        });
+        this.historyList?.addEventListener('click', event => {
+            this.handleHistoryAction(event).catch(error => this.showError(error));
         });
     }
 
@@ -140,6 +148,158 @@ export class PushManagementModule {
         });
     }
 
+    renderDiagnostics(steps) {
+        if (!this.diagnosticsResults) return;
+        const icons = {
+            success: 'ph-check-circle',
+            warning: 'ph-warning-circle',
+            danger: 'ph-x-circle',
+            neutral: 'ph-minus-circle'
+        };
+        this.diagnosticsResults.innerHTML = `
+            <div class="push-diagnostics-heading">
+                <strong>Diagnóstico de este dispositivo</strong>
+                <small>La prueba no cambia configuraciones del navegador.</small>
+            </div>
+            <ol class="push-diagnostics-list">
+                ${steps.map(step => `
+                    <li class="${escapeHtml(step.state)}">
+                        <i class="ph ${icons[step.state] || icons.neutral}"></i>
+                        <span><strong>${escapeHtml(step.label)}</strong><small>${escapeHtml(step.detail)}</small></span>
+                    </li>
+                `).join('')}
+            </ol>
+        `;
+        this.diagnosticsResults.classList.remove('hidden');
+    }
+
+    async runDiagnostics() {
+        if (this.busy || !this.auth.user) return;
+        this.busy = true;
+        if (this.diagnosticsButton) {
+            this.diagnosticsButton.disabled = true;
+            this.diagnosticsButton.innerHTML = '<i class="ph ph-spinner-gap ph-spin"></i> Diagnosticando...';
+        }
+        const steps = [];
+        const addStep = (label, state, detail) => {
+            steps.push({ label, state, detail });
+            this.renderDiagnostics(steps);
+        };
+
+        try {
+            const metadata = await this.getDeviceMetadata();
+            addStep(
+                'Conexión segura',
+                window.isSecureContext ? 'success' : 'danger',
+                window.isSecureContext ? 'HTTPS está activo.' : 'Web Push requiere HTTPS.'
+            );
+
+            const apiSupported = 'Notification' in window
+                && 'serviceWorker' in navigator
+                && 'PushManager' in window;
+            addStep(
+                'Compatibilidad del navegador',
+                apiSupported ? 'success' : 'danger',
+                apiSupported
+                    ? `${metadata.browser} en ${metadata.platform} admite Web Push.`
+                    : 'Falta una API necesaria de notificaciones, Service Worker o Push.'
+            );
+
+            const permission = window.Notification?.permission || 'unsupported';
+            addStep(
+                'Permiso de notificaciones',
+                permission === 'granted' ? 'success' : (permission === 'denied' ? 'danger' : 'warning'),
+                permission === 'granted'
+                    ? 'El permiso está concedido.'
+                    : (permission === 'denied'
+                        ? 'Está bloqueado desde el navegador o Windows.'
+                        : 'Todavía no fue concedido; usá “Activar notificaciones”.')
+            );
+
+            let registration = null;
+            if (apiSupported) {
+                try {
+                    registration = await this.auth.getPushServiceWorkerRegistration(6000);
+                    addStep('Service Worker', 'success', 'El componente en segundo plano está activo.');
+                } catch (error) {
+                    addStep('Service Worker', 'danger', error.message || 'No quedó activo.');
+                }
+            } else {
+                addStep('Service Worker', 'neutral', 'No se puede comprobar en este navegador.');
+            }
+
+            const subscription = await registration?.pushManager?.getSubscription?.() || null;
+            addStep(
+                'Suscripción local',
+                subscription ? 'success' : 'warning',
+                subscription
+                    ? 'El navegador conserva una suscripción Push.'
+                    : 'Este navegador todavía no generó una suscripción.'
+            );
+
+            let registrationState = null;
+            if (subscription) {
+                try {
+                    registrationState = await this.checkCurrentRegistration(subscription.toJSON());
+                    addStep(
+                        'Registro en LifeCycle',
+                        registrationState.registered ? 'success' : 'warning',
+                        registrationState.registered
+                            ? `El backend reconoce este dispositivo (${registrationState.registeredDevices} registrado(s)).`
+                            : 'La suscripción existe localmente, pero falta registrarla en LifeCycle.'
+                    );
+                } catch (error) {
+                    addStep('Registro en LifeCycle', 'danger', error.message);
+                }
+            } else {
+                addStep('Registro en LifeCycle', 'neutral', 'Pendiente de crear la suscripción local.');
+            }
+
+            try {
+                const response = await fetch('/api/health', { cache: 'no-store' });
+                const health = await response.json();
+                const configured = response.ok && health.notifications?.configured === true;
+                addStep(
+                    'Backend y credenciales Push',
+                    configured ? 'success' : 'danger',
+                    configured
+                        ? 'Render, Supabase y VAPID están configurados.'
+                        : 'El backend informa una configuración incompleta.'
+                );
+            } catch {
+                addStep('Backend y credenciales Push', 'danger', 'No se pudo consultar el estado de Render.');
+            }
+
+            if (registrationState?.registered && registrationState.device?.id) {
+                try {
+                    await this.request(
+                        `/api/push/devices/${encodeURIComponent(registrationState.device.id)}/test`,
+                        { method: 'POST', timeoutMs: 20000 }
+                    );
+                    addStep(
+                        'Prueba real',
+                        'success',
+                        'El proveedor Push aceptó el envío. Si apareció, confirmalo en el historial.'
+                    );
+                    await Promise.all([this.loadDevices(), this.loadHistory()]);
+                } catch (error) {
+                    const braveHint = metadata.browser === 'Brave'
+                        ? ' Revisá “Usar servicios de Google para mensajería push” en Brave.'
+                        : '';
+                    addStep('Prueba real', 'danger', `${error.message}${braveHint}`);
+                }
+            } else {
+                addStep('Prueba real', 'neutral', 'Se habilitará cuando este dispositivo esté registrado.');
+            }
+        } finally {
+            this.busy = false;
+            if (this.diagnosticsButton) {
+                this.diagnosticsButton.disabled = false;
+                this.diagnosticsButton.innerHTML = '<i class="ph ph-stethoscope"></i> Diagnosticar este dispositivo';
+            }
+        }
+    }
+
     async refreshAll() {
         if (!this.auth.user || !this.auth.supabase) {
             this.clear();
@@ -159,6 +319,8 @@ export class PushManagementModule {
         this.metadataAvailable = true;
         this.editingDeviceId = null;
         this.pendingDeleteId = null;
+        this.diagnosticsResults?.classList.add('hidden');
+        if (this.diagnosticsResults) this.diagnosticsResults.innerHTML = '';
         if (this.devicesList) this.devicesList.innerHTML = '<p class="push-manager-empty">Iniciá sesión para ver tus dispositivos.</p>';
         if (this.historyList) this.historyList.innerHTML = '<p class="push-manager-empty">Iniciá sesión para ver el historial.</p>';
     }
@@ -358,14 +520,18 @@ export class PushManagementModule {
         const statusMeta = {
             accepted: { label: 'Aceptada por Push', icon: 'ph-check-circle', className: 'success' },
             failed: { label: 'Falló', icon: 'ph-warning-circle', className: 'danger' },
-            expired: { label: 'Endpoint vencido', icon: 'ph-x-circle', className: 'danger' }
+            expired: { label: 'Endpoint vencido', icon: 'ph-x-circle', className: 'danger' },
+            no_devices: { label: 'Sin dispositivos', icon: 'ph-device-mobile-slash', className: 'warning' }
         };
         this.historyList.innerHTML = this.history.map(entry => {
             const meta = statusMeta[entry.status] || statusMeta.failed;
-            const device = entry.device_name || `Dispositivo ${String(entry.endpoint_fingerprint || '').slice(0, 6)}`;
+            const device = entry.status === 'no_devices'
+                ? 'Cuenta sin dispositivos registrados'
+                : (entry.device_name || `Dispositivo ${String(entry.endpoint_fingerprint || '').slice(0, 6)}`);
             const detail = entry.status === 'accepted'
                 ? entry.body
                 : (entry.error_message || entry.body || 'El proveedor rechazó el envío.');
+            const confirmed = Boolean(entry.confirmed_at);
             return `
                 <article class="push-history-row">
                     <span class="push-history-status ${meta.className}"><i class="ph ${meta.icon}"></i></span>
@@ -373,11 +539,40 @@ export class PushManagementModule {
                         <strong>${escapeHtml(entry.title || entry.alert_key || 'Notificación')}</strong>
                         <small>${escapeHtml(detail || '')}</small>
                         <small>${escapeHtml(device)} · ${escapeHtml(formatDateTime(entry.attempted_at))}</small>
+                        ${confirmed ? `<small class="push-history-confirmed"><i class="ph ph-eye"></i> Confirmada por vos · ${escapeHtml(formatDateTime(entry.confirmed_at))}</small>` : ''}
                     </span>
-                    <span class="push-history-badge ${meta.className}">${escapeHtml(meta.label)}</span>
+                    <span class="push-history-side">
+                        <span class="push-history-badge ${meta.className}">${escapeHtml(meta.label)}</span>
+                        ${entry.status === 'accepted' && !confirmed ? `
+                            <button
+                                type="button"
+                                class="push-history-confirm"
+                                data-push-history-action="confirm-seen"
+                                data-history-id="${escapeHtml(String(entry.id))}"
+                            ><i class="ph ph-eye"></i> La vi</button>
+                        ` : ''}
+                    </span>
                 </article>
             `;
         }).join('');
+    }
+
+    async handleHistoryAction(event) {
+        const button = event.target.closest('[data-push-history-action="confirm-seen"]');
+        if (!button || this.busy) return;
+        const historyId = button.dataset.historyId;
+        if (!historyId) return;
+        this.busy = true;
+        button.disabled = true;
+        try {
+            await this.request(`/api/push/history/${encodeURIComponent(historyId)}/confirm`, {
+                method: 'POST'
+            });
+            await this.loadHistory();
+            this.app.showToast?.('Notificación confirmada como vista.');
+        } finally {
+            this.busy = false;
+        }
     }
 
     async loadHealth() {

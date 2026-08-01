@@ -4,7 +4,7 @@ const crypto = require('node:crypto');
 
 const DEVICE_NAME_MAX = 80;
 const DEVICE_META_MAX = 160;
-const HISTORY_STATUSES = new Set(['accepted', 'failed', 'expired']);
+const HISTORY_STATUSES = new Set(['accepted', 'failed', 'expired', 'no_devices']);
 
 function cleanText(value, maxLength) {
     return typeof value === 'string'
@@ -131,7 +131,8 @@ function isMissingPushManagementSchema(error) {
         || message.includes('notification_delivery_log')
         || message.includes('device_name')
         || message.includes('last_seen_at')
-        || message.includes('endpoint_fingerprint');
+        || message.includes('endpoint_fingerprint')
+        || message.includes('confirmed_at');
 }
 
 module.exports = {

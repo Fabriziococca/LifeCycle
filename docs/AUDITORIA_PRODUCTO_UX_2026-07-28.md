@@ -48,6 +48,11 @@ La auditoría describe el producto observado al comenzar esta etapa. Durante la 
 - Motor repetitivo de tareas muy urgentes comprobado sin horario silencioso y con recuperación ante marcas de tiempo corruptas.
 - Registro Push canalizado por el backend autenticado, conteo de dispositivos y estado operativo del planificador.
 - Validación automática en GitHub Actions y eliminación de la vulnerabilidad npm reportada.
+- Diálogos, errores, confirmaciones y acciones destructivas con componentes propios de LifeCycle; no quedan `alert()` ni `confirm()` nativos en la interfaz.
+- Persistencia ampliada del contexto interno de Finanzas, Gimnasio, Vehículo, Tareas, Alertas y filtros relevantes.
+- Buscador global local de tarjetas, tareas, proyectos y elementos configurables, con navegación directa y atajo de teclado sin ocupar espacio visual en el encabezado.
+- Catálogo configurable de Vehículo para mantenimiento, controles periódicos y documentos, preservando fechas, kilómetros, alertas e historiales heredados.
+- Administración, diagnóstico guiado e historial Push por dispositivo, incluida confirmación manual de recepción, ausencia de dispositivos y retención de 90 días.
 
 Estas implementaciones no alteran las calificaciones históricas de la sección 5.3; esas notas representan la línea de base observada antes de aplicar la tanda.
 
@@ -64,9 +69,9 @@ LifeCycle ya tiene una base de producto útil y coherente. Sus mejores decisione
 - Las sesiones activas de gimnasio pueden recuperarse.
 - Los estados visuales permiten detectar rápidamente qué requiere atención.
 
-La principal rigidez detectada al comenzar la auditoría estaba en Higiene, Cuidado, Lentes y Salud. Ese bloqueo quedó resuelto al migrar sus tarjetas al modelo configurable común. Vehículo conserva flujos especializados definidos en código porque combinan kilometraje, fechas, documentación y fallas; no conviene mezclarlos todavía con una tarjeta recurrente genérica.
+La principal rigidez detectada al comenzar la auditoría estaba en Higiene, Cuidado, Lentes, Salud y Vehículo. Ese bloqueo quedó resuelto con catálogos configurables por dominio: el núcleo recurrente común cubre las primeras cuatro secciones y Vehículo conserva tipos explícitos para kilometraje, controles y documentos sin hardcodear cada tarjeta.
 
-La repetición de estructuras en Proyectos y de movimientos periódicos en Finanzas también quedó resuelta: los proyectos admiten plantillas reutilizables sin copiar cliente ni fechas, y Finanzas ofrece reglas recurrentes que siempre requieren confirmación antes de registrar una transacción. Las oportunidades transversales con mayor impacto restante son unificar diálogos y mensajes, y concentrar la experiencia de una sesión activa de Gimnasio.
+La repetición de estructuras en Proyectos y de movimientos periódicos en Finanzas también quedó resuelta: los proyectos admiten plantillas reutilizables sin copiar cliente ni fechas, y Finanzas ofrece reglas recurrentes que siempre requieren confirmación antes de registrar una transacción. La oportunidad de producto importante que permanece deliberadamente pospuesta es concentrar la experiencia de una sesión activa de Gimnasio; no es necesaria para cerrar esta tanda operativa.
 
 También persiste cierta fragmentación: cada módulo desarrolló sus propios patrones de formulario, confirmación, historial, edición y notificación. Funciona, pero aumenta la carga mental y el costo de mantenimiento. La unificación de diálogos y mensajes es una mejora transversal, no una razón para reescribir los modelos de dominio.
 
@@ -239,11 +244,11 @@ No toda constante de código es una limitación de producto. Los límites de seg
 | --- | --- | --- |
 | Proyectos | Crear trabajos similares exigía repetir plazo, comisión, plan y tareas. | Resuelto con plantillas reutilizables que nunca copian cliente ni fechas y dejan el presupuesto como dato optativo. |
 | Finanzas | Los movimientos periódicos exigían repetir la misma carga manual. | Resuelto con reglas recurrentes confirmables e idempotentes; nunca generan transacciones silenciosamente. Las categorías de ingresos continúan acotadas al modelo actual. |
-| Confirmaciones y errores | Conviven diálogos nativos del navegador con avisos propios de LifeCycle. | Mejora transversal posterior: diálogo compartido, mensajes en contexto y deshacer cuando la operación sea recuperable. |
+| Confirmaciones y errores | Existían diálogos nativos del navegador junto con avisos propios. | Resuelto con diálogo compartido, mensajes en contexto y deshacer cuando la operación es recuperable. |
 | Gimnasio | Rutinas y ejercicios son editables, pero una sesión activa comparte pantalla con herramientas secundarias. | Mejorar el modo entrenamiento centrado; no hace falta un nuevo constructor de rutinas. |
-| Vehículo | Los tipos y umbrales de mantenimiento principales están especializados en código. | Mantener por ahora. Volverlos configurables solo cuando aparezca un caso real que no pueda representarse sin despliegue. |
+| Vehículo | Cada tarjeta estaba especializada en código. | Resuelto con un catálogo configurable tipado; odómetro y fallas conservan sus flujos especializados. |
 | Módulos nuevos | Los módulos principales son fijos, aunque se pueden ocultar sin perder datos. | Fuera del alcance personal actual. Un constructor de módulos pertenece a una futura etapa comercial y no debe sobrecargar el producto de hoy. |
-| Búsqueda global | Todavía no existe un buscador transversal. | Prioridad media: gana valor cuando crezca la cantidad de tarjetas, tareas y proyectos. |
+| Búsqueda global | No existía un buscador transversal. | Resuelto con búsqueda local agrupada y navegación directa. |
 
 ## 10. Información que todavía requiere comprobación operativa
 
@@ -254,5 +259,5 @@ Estas cuestiones no impiden avanzar con el código, pero no pueden declararse ve
 - Cumplimiento real de varios ciclos consecutivos de una tarea muy urgente.
 - Estado del permiso de notificaciones y políticas del navegador concreto del usuario.
 - Configuración de Auto-Deploy e integración GitHub dentro de la cuenta de Render.
-- Protección de contraseñas filtradas y RLS adicional del snapshot privado en Supabase.
+- Protección de contraseñas filtradas: opcional futura porque requiere un plan pago; el registro público permanece cerrado. El snapshot privado ya tiene RLS obligatorio y sin permisos de cliente.
 - Restauración portátil de adjuntos después de implementar el paquete completo.

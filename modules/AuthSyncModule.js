@@ -9,7 +9,7 @@ import {
     areStoredValuesEqual,
     buildCloudPatch
 } from '../sync-utils.mjs';
-import { PushManagementModule } from './PushManagementModule.js?v=20260801-push-management';
+import { PushManagementModule } from './PushManagementModule.js?v=20260801-push-diagnostics';
 
 export class AuthSyncModule {
     constructor(appController) {

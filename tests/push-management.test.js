@@ -64,6 +64,7 @@ test('public devices never expose subscriptions or user agents', () => {
 
 test('history filters and payloads are bounded', () => {
     assert.equal(normalizeHistoryStatus('failed'), 'failed');
+    assert.equal(normalizeHistoryStatus('no_devices'), 'no_devices');
     assert.equal(normalizeHistoryStatus('unknown'), '');
     assert.equal(normalizeHistoryLimit('999'), 100);
     assert.deepEqual(parsePushPayload(JSON.stringify({

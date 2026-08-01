@@ -13,7 +13,7 @@ test('the latest client sync migration allows every cloud-owned key', async () =
         ROOT,
         'supabase',
         'migrations',
-        '20260801100000_harden_private_snapshots_and_sync_schema.sql'
+        '20260801062115_harden_private_snapshots_and_sync_schema.sql'
     ), 'utf8');
 
     for (const key of CLOUD_SYNC_KEYS) {
@@ -28,12 +28,26 @@ test('private safety snapshots enforce RLS without client grants', async () => {
         ROOT,
         'supabase',
         'migrations',
-        '20260801100000_harden_private_snapshots_and_sync_schema.sql'
+        '20260801062115_harden_private_snapshots_and_sync_schema.sql'
     ), 'utf8');
 
     assert.match(migration, /user_data_snapshots enable row level security/i);
     assert.match(migration, /user_data_snapshots force row level security/i);
     assert.match(migration, /revoke all on table private\.user_data_snapshots from public, anon, authenticated/i);
+});
+
+test('notification history distinguishes provider acceptance, missing devices and manual confirmation', async () => {
+    const migration = await readFile(path.join(
+        ROOT,
+        'supabase',
+        'migrations',
+        '20260801193348_complete_push_diagnostics_and_retention.sql'
+    ), 'utf8');
+
+    assert.match(migration, /endpoint_fingerprint drop not null/i);
+    assert.match(migration, /confirmed_at timestamptz/i);
+    assert.match(migration, /'no_devices'/);
+    assert.match(migration, /notification_delivery_log_retention_idx/i);
 });
 
 test('the production verification script is read-only and checks every new contract', async () => {
@@ -53,6 +67,7 @@ test('the production verification script is read-only and checks every new contr
         'notification_history_rls',
         'private_snapshot_rls',
         'notification_history_client_privileges',
+        'notification_history_semantics',
         'project_templates_sync_allowlist'
     ]) {
         assert.match(verification, new RegExp(`'${checkName}'`));

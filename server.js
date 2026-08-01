@@ -108,12 +108,16 @@ const notificationRuntimeState = {
 };
 const transientDeliveryState = {
     daily: new Map(),
-    interval: new Map()
+    interval: new Map(),
+    missingDevices: new Map()
 };
 let pushMetadataSchemaAvailable = null;
 let notificationHistorySchemaAvailable = null;
 const reportedOptionalSchemaWarnings = new Set();
 const PUSH_PROVIDER_TIMEOUT_MS = 12000;
+const NOTIFICATION_HISTORY_RETENTION_DAYS = 90;
+const NOTIFICATION_HISTORY_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+let lastNotificationHistoryCleanupAt = 0;
 
 function setBoundedDeliveryState(map, key, value, maxEntries = 1000) {
     if (map.has(key)) map.delete(key);
@@ -146,6 +150,13 @@ function rememberIntervalDelivery(userId, reminderKey, timestamp) {
         timestamp,
         200
     );
+}
+
+function shouldRecordMissingDevices(userId, alertKey, dateStr) {
+    const key = `${userId}:${alertKey}`;
+    if (transientDeliveryState.missingDevices.get(key) === dateStr) return false;
+    setBoundedDeliveryState(transientDeliveryState.missingDevices, key, dateStr, 1000);
+    return true;
 }
 
 // Configurar Web Push VAPID de forma segura (sin hardcodear en Git)
@@ -417,7 +428,7 @@ async function recordPushDelivery({
         subscription_row_id: subscriptionItem?.activeRowId
             ? String(subscriptionItem.activeRowId)
             : null,
-        endpoint_fingerprint: endpointFingerprint(subscriptionItem?.subscription?.endpoint),
+        endpoint_fingerprint: endpointFingerprint(subscriptionItem?.subscription?.endpoint) || null,
         device_name: String(subscriptionItem?.deviceName || '').slice(0, 80) || null,
         status,
         provider_status: Number.isInteger(Number(providerStatus))
@@ -426,7 +437,7 @@ async function recordPushDelivery({
         error_message: String(errorMessage || '').slice(0, 500) || null,
         attempted_at: attemptedAt
     };
-    if (!row.endpoint_fingerprint) return;
+    if (!row.endpoint_fingerprint && status !== 'no_devices') return;
 
     const { error } = await supabase
         .from('notification_delivery_log')
@@ -446,6 +457,37 @@ async function recordPushDelivery({
     console.error('[Push] No se pudo guardar el historial de envío:', error.message);
 }
 
+async function cleanupNotificationHistory(now = Date.now()) {
+    if (!supabase || notificationHistorySchemaAvailable === false) return 0;
+    if (now - lastNotificationHistoryCleanupAt < NOTIFICATION_HISTORY_CLEANUP_INTERVAL_MS) {
+        return 0;
+    }
+    lastNotificationHistoryCleanupAt = now;
+    const cutoff = new Date(
+        now - (NOTIFICATION_HISTORY_RETENTION_DAYS * 24 * 60 * 60 * 1000)
+    ).toISOString();
+    const { data, error } = await supabase
+        .from('notification_delivery_log')
+        .delete()
+        .lt('attempted_at', cutoff)
+        .select('id');
+    if (!error) {
+        notificationHistorySchemaAvailable = true;
+        const removed = data?.length || 0;
+        if (removed > 0) {
+            console.log(`[Push] Se eliminaron ${removed} eventos de historial con más de ${NOTIFICATION_HISTORY_RETENTION_DAYS} días.`);
+        }
+        return removed;
+    }
+    if (isMissingPushManagementSchema(error)) {
+        notificationHistorySchemaAvailable = false;
+        return 0;
+    }
+    lastNotificationHistoryCleanupAt = 0;
+    console.error('[Push] No se pudo aplicar la retención del historial:', error.message);
+    return 0;
+}
+
 async function sendPushToSubscriptions({
     userId,
     subscriptions,
@@ -458,6 +500,35 @@ async function sendPushToSubscriptions({
     let failureCount = 0;
     let staleCount = 0;
     let lastFailureStatus = null;
+
+    if (!Array.isArray(subscriptions) || subscriptions.length === 0) {
+        const attemptedAt = new Date().toISOString();
+        const missingDevicesRecorded = shouldRecordMissingDevices(
+            userId,
+            alertKey || context || 'notification',
+            getArgentinaTime().dateStr
+        );
+        if (missingDevicesRecorded) {
+            await recordPushDelivery({
+                userId,
+                alertKey,
+                context,
+                payload,
+                subscriptionItem: null,
+                status: 'no_devices',
+                errorMessage: 'La cuenta no tenía dispositivos Push registrados.',
+                attemptedAt
+            });
+        }
+        console.warn(`[Push] No se envió '${context}' para usuario ${userId}: no hay dispositivos registrados.`);
+        return {
+            successCount,
+            failureCount,
+            staleCount,
+            lastFailureStatus,
+            missingDevicesRecorded
+        };
+    }
 
     for (const item of subscriptions || []) {
         const attemptedAt = new Date().toISOString();
@@ -939,7 +1010,7 @@ app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
     try {
         let query = supabase
             .from('notification_delivery_log')
-            .select('id, alert_key, context, title, body, endpoint_fingerprint, device_name, status, provider_status, error_message, attempted_at')
+            .select('id, alert_key, context, title, body, endpoint_fingerprint, device_name, status, provider_status, error_message, attempted_at, confirmed_at')
             .eq('user_id', req.authenticatedUser.id)
             .order('attempted_at', { ascending: false })
             .limit(limit);
@@ -955,6 +1026,42 @@ app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
         }
         console.error('[Push] No se pudo cargar el historial:', error);
         res.status(500).json({ error: 'No se pudo cargar el historial de notificaciones.' });
+    }
+});
+
+app.post('/api/push/history/:id/confirm', requireSupabaseUser, async (req, res) => {
+    const historyId = String(req.params.id || '').trim();
+    if (!/^\d+$/.test(historyId)) {
+        return res.status(400).json({ error: 'El evento de notificación no es válido.' });
+    }
+    if (notificationHistorySchemaAvailable === false) {
+        return res.status(503).json({ error: 'El historial de notificaciones no está disponible.' });
+    }
+    try {
+        const confirmedAt = new Date().toISOString();
+        const { data, error } = await supabase
+            .from('notification_delivery_log')
+            .update({ confirmed_at: confirmedAt })
+            .eq('id', historyId)
+            .eq('user_id', req.authenticatedUser.id)
+            .eq('status', 'accepted')
+            .select('id, confirmed_at')
+            .maybeSingle();
+        if (error) throw error;
+        if (!data) {
+            return res.status(404).json({
+                error: 'El evento no existe o no corresponde a un envío aceptado.'
+            });
+        }
+        notificationHistorySchemaAvailable = true;
+        res.json({ success: true, id: String(data.id), confirmedAt: data.confirmed_at });
+    } catch (error) {
+        if (isMissingPushManagementSchema(error)) {
+            notificationHistorySchemaAvailable = false;
+            return res.status(503).json({ error: 'Falta aplicar la ampliación del historial.' });
+        }
+        console.error('[Push] No se pudo confirmar la recepción manual:', error);
+        res.status(500).json({ error: 'No se pudo confirmar que viste la notificación.' });
     }
 });
 
@@ -1235,6 +1342,10 @@ async function runScheduledAlertChecks({
             }
         }
 
+        await cleanupNotificationHistory().catch(error => {
+            console.error('[Push] Falló la limpieza programada del historial:', error);
+        });
+
         notificationRuntimeState.engines = engineResults;
         notificationRuntimeState.lastDurationMs = Date.now() - startedAt;
 
@@ -1293,16 +1404,14 @@ async function checkAndSendAllAlerts(forceAll = false) {
         console.log(`[Notification Engine] Tick: checking configured notifications (forceAll: ${forceAll}). Time in Argentina: ${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}, Day: ${dayOfWeek}, Date: ${dateStr}. Subscriptions found: ${subs ? subs.length : 0}`);
 
         if (!usersData || usersData.length === 0) return;
-        if (!subs || subs.length === 0) return;
 
         // Agrupar por usuario y endpoint. Se conserva la fila más reciente de cada dispositivo.
-        const subsByUser = groupSubscriptionsByUser(subs);
+        const subsByUser = groupSubscriptionsByUser(subs || []);
         await cleanupDuplicateSubscriptions(subsByUser);
 
         for (const userRow of usersData) {
             const userId = userRow.user_id;
             const userSubs = subsByUser[userId] || [];
-            if (userSubs.length === 0) continue;
 
             const rawData = userRow.data || {};
             // Parsear campos si vienen en formato string JSON
@@ -2109,9 +2218,8 @@ async function checkAndSendRobotReminders(forceAll = false) {
         console.log(`[Robot Reminder Engine] Tick: checking robot status. Subscriptions found: ${subs ? subs.length : 0}`);
         
         if (!usersData || usersData.length === 0) return;
-        if (!subs || subs.length === 0) return;
         
-        const subsByUser = groupSubscriptionsByUser(subs);
+        const subsByUser = groupSubscriptionsByUser(subs || []);
         
         const now = new Date();
         
@@ -2148,31 +2256,29 @@ async function checkAndSendRobotReminders(forceAll = false) {
                         console.log(`[Robot Reminder] Enviando alerta a usuario ${userId} (sucio desde hace ${elapsedHours} hs, intervalo ${intervalHours}hs)`);
 
                         const userSubs = subsByUser[userId] || [];
-                        if (userSubs.length > 0) {
-                            const payload = JSON.stringify({
-                                title: '🤖 Robot Aspiradora',
-                                body: `El robot lleva sucio ${elapsedHours}hs. Recordá lavarlo.`,
-                                url: '/'
-                            });
+                        const payload = JSON.stringify({
+                            title: '🤖 Robot Aspiradora',
+                            body: `El robot lleva sucio ${elapsedHours}hs. Recordá lavarlo.`,
+                            url: '/'
+                        });
 
-                            const result = await sendPushToSubscriptions({
-                                userId,
-                                subscriptions: userSubs,
-                                payload,
-                                context: 'robot aspiradora',
-                                alertKey: 'robot',
-                                delayMs: 250
-                            });
+                        const result = await sendPushToSubscriptions({
+                            userId,
+                            subscriptions: userSubs,
+                            payload,
+                            context: 'robot aspiradora',
+                            alertKey: 'robot',
+                            delayMs: 250
+                        });
 
-                            if (!forceAll && result.successCount > 0) {
-                                rememberIntervalDelivery(userId, 'robot', now.toISOString());
-                                try {
-                                    await mergeServerUserDataKeys(userId, {
-                                        robot_last_notified_at: now.toISOString()
-                                    });
-                                } catch (updateErr) {
-                                    console.error(`[Robot Reminder] Error al actualizar base de datos para usuario ${userId}:`, updateErr);
-                                }
+                        if (!forceAll && result.successCount > 0) {
+                            rememberIntervalDelivery(userId, 'robot', now.toISOString());
+                            try {
+                                await mergeServerUserDataKeys(userId, {
+                                    robot_last_notified_at: now.toISOString()
+                                });
+                            } catch (updateErr) {
+                                console.error(`[Robot Reminder] Error al actualizar base de datos para usuario ${userId}:`, updateErr);
                             }
                         }
                     }
@@ -2198,37 +2304,35 @@ async function checkAndSendRobotReminders(forceAll = false) {
                         force: forceAll
                     })) {
                         const userSubs = subsByUser[userId] || [];
-                        if (userSubs.length > 0) {
-                            const taskNames = pendingVeryUrgent.slice(0, 2).map(t => t.text).join(', ');
-                            const countText = pendingVeryUrgent.length > 2 ? ` (+${pendingVeryUrgent.length - 2} más)` : '';
-                            const payload = JSON.stringify({
-                                title: `🔥 ${pendingVeryUrgent.length} Tarea(s) Muy Urgente(s)`,
-                                body: `${taskNames}${countText}. Recordá realizarla(s).`,
-                                url: '/'
-                            });
+                        const taskNames = pendingVeryUrgent.slice(0, 2).map(t => t.text).join(', ');
+                        const countText = pendingVeryUrgent.length > 2 ? ` (+${pendingVeryUrgent.length - 2} más)` : '';
+                        const payload = JSON.stringify({
+                            title: `🔥 ${pendingVeryUrgent.length} Tarea(s) Muy Urgente(s)`,
+                            body: `${taskNames}${countText}. Recordá realizarla(s).`,
+                            url: '/'
+                        });
 
-                            const result = await sendPushToSubscriptions({
+                        const result = await sendPushToSubscriptions({
+                            userId,
+                            subscriptions: userSubs,
+                            payload,
+                            context: 'tareas muy urgentes',
+                            alertKey: 'very_urgent_tasks',
+                            delayMs: 250
+                        });
+
+                        if (!forceAll && result.successCount > 0) {
+                            rememberIntervalDelivery(
                                 userId,
-                                subscriptions: userSubs,
-                                payload,
-                                context: 'tareas muy urgentes',
-                                alertKey: 'very_urgent_tasks',
-                                delayMs: 250
-                            });
-
-                            if (!forceAll && result.successCount > 0) {
-                                rememberIntervalDelivery(
-                                    userId,
-                                    'very_urgent_tasks',
-                                    now.toISOString()
-                                );
-                                try {
-                                    await mergeServerUserDataKeys(userId, {
-                                        very_urgent_last_notified_at: now.toISOString()
-                                    });
-                                } catch (updateError) {
-                                    console.error(`[Very Urgent] No se pudo guardar el último envío para usuario ${userId}:`, updateError.message);
-                                }
+                                'very_urgent_tasks',
+                                now.toISOString()
+                            );
+                            try {
+                                await mergeServerUserDataKeys(userId, {
+                                    very_urgent_last_notified_at: now.toISOString()
+                                });
+                            } catch (updateError) {
+                                console.error(`[Very Urgent] No se pudo guardar el último envío para usuario ${userId}:`, updateError.message);
                             }
                         }
                     }

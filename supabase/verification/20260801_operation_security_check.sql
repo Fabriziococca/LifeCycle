@@ -54,6 +54,34 @@ select
     ) as passed;
 
 select
+    'notification_history_semantics' as check_name,
+    exists (
+        select 1
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'notification_delivery_log'
+          and column_name = 'confirmed_at'
+    )
+    and exists (
+        select 1
+        from information_schema.columns
+        where table_schema = 'public'
+          and table_name = 'notification_delivery_log'
+          and column_name = 'endpoint_fingerprint'
+          and is_nullable = 'YES'
+    )
+    and exists (
+        select 1
+        from pg_catalog.pg_constraint as constraints
+        join pg_catalog.pg_class as classes on classes.oid = constraints.conrelid
+        join pg_catalog.pg_namespace as namespaces on namespaces.oid = classes.relnamespace
+        where namespaces.nspname = 'public'
+          and classes.relname = 'notification_delivery_log'
+          and constraints.contype = 'c'
+          and pg_get_constraintdef(constraints.oid) like '%no_devices%'
+    ) as passed;
+
+select
     'project_templates_sync_allowlist' as check_name,
     position(
         '''projectPulseTemplates'''

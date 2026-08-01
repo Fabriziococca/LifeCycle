@@ -141,6 +141,7 @@ test('global search is local, keyboard accessible and routes to source modules',
     );
 
     assert.match(index, /id="global-search-btn"/);
+    assert.match(index, /class="header-actions"/);
     assert.match(index, /id="global-search-modal"/);
     assert.match(index, /id="global-search-input"/);
     assert.match(index, /role="listbox"/);
@@ -151,6 +152,8 @@ test('global search is local, keyboard accessible and routes to source modules',
     assert.match(searchSource, /activateSection\?\.\('tareas-section'/);
     assert.match(searchSource, /renderMonthlyHistory\?\.\('all'\)/);
     assert.doesNotMatch(searchSource, /finanzas|attachments|medicalData/);
+    const launcher = index.match(/<button[^>]+id="global-search-btn"[\s\S]*?<\/button>/)?.[0] || '';
+    assert.doesNotMatch(launcher, /<kbd>/);
 });
 
 test('mobile navigation explains horizontal overflow and reacts after authentication', async () => {
@@ -386,20 +389,25 @@ test('push management distinguishes devices, provider acceptance and failures', 
     );
     const serverSource = await readFile(path.join(ROOT, 'server.js'), 'utf8');
     const migration = await readFile(
-        path.join(ROOT, 'supabase', 'migrations', '20260801090000_push_management_and_history.sql'),
+        path.join(ROOT, 'supabase', 'migrations', '20260801062050_push_management_and_history.sql'),
         'utf8'
     );
 
     assert.match(index, /id="push-devices-list"/);
     assert.match(index, /id="push-history-list"/);
+    assert.match(index, /id="btn-diagnose-push"/);
+    assert.match(index, /id="push-diagnostics-results"/);
     assert.match(index, /Aceptada.*servicio Push/s);
     assert.match(authSource, /PushManagementModule/);
     assert.match(managerSource, /\/api\/push\/devices/);
     assert.match(managerSource, /data-push-device-action="test"/);
+    assert.match(managerSource, /data-push-history-action="confirm-seen"/);
     assert.match(managerSource, /\/api\/push\/history/);
     assert.match(serverSource, /app\.post\('\/api\/push\/status'/);
     assert.match(serverSource, /app\.post\('\/api\/push\/devices\/:id\/test'/);
     assert.match(serverSource, /notification_delivery_log/);
+    assert.match(serverSource, /cleanupNotificationHistory/);
+    assert.match(serverSource, /\/api\/push\/history\/:id\/confirm/);
     assert.match(migration, /enable row level security/);
     assert.match(migration, /revoke all.*authenticated/s);
 });
