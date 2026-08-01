@@ -80,6 +80,7 @@ test('groupSubscriptionsByUser keeps the newest row for each endpoint', () => {
             id: 'new-phone',
             user_id: 'user-1',
             created_at: '2026-07-21T10:00:00Z',
+            device_name: 'Celular principal',
             subscription: { endpoint: 'https://push.example/phone', keys: { auth: 'new' } }
         }
     ]);
@@ -89,6 +90,7 @@ test('groupSubscriptionsByUser keeps the newest row for each endpoint', () => {
     const phone = groups['user-1'].find(item => item.endpoint.endsWith('/phone'));
     assert.equal(phone.activeRowId, 'new-phone');
     assert.equal(phone.subscription.keys.auth, 'new');
+    assert.equal(phone.deviceName, 'Celular principal');
     assert.deepEqual(phone.duplicateRowIds, ['old-phone']);
     assert.deepEqual(getDuplicateSubscriptionRowIds(groups), ['old-phone']);
 });

@@ -9,6 +9,7 @@ import {
     areStoredValuesEqual,
     buildCloudPatch
 } from '../sync-utils.mjs';
+import { PushManagementModule } from './PushManagementModule.js?v=20260801-push-management';
 
 export class AuthSyncModule {
     constructor(appController) {
@@ -59,6 +60,7 @@ export class AuthSyncModule {
         this.syncRetryTimer = null;
         this.realtimeRefreshTimer = null;
         this.pushSyncPromise = null;
+        this.pushManagement = new PushManagementModule(this);
         this.setupAccessGateListeners();
         this.init();
     }
@@ -275,6 +277,9 @@ export class AuthSyncModule {
             this.checkPushSubscriptionStatus().catch(error => {
                 console.error('[Push] No se pudo comprobar el estado del dispositivo:', error);
             });
+            this.pushManagement.refreshAll().catch(error => {
+                console.error('[Push] No se pudo cargar la administración de notificaciones:', error);
+            });
         } else {
             // Logged out
             this.clearLocalUserData();
@@ -282,6 +287,7 @@ export class AuthSyncModule {
             if (this.authLoggedOut) this.authLoggedOut.classList.remove('hidden');
             if (this.profileEmail) this.profileEmail.innerText = '';
             if (this.pushNotificationsCard) this.pushNotificationsCard.classList.add('hidden');
+            this.pushManagement.clear();
 
             // Unsubscribe from channels
             if (this.realtimeChannel) {
@@ -858,6 +864,7 @@ export class AuthSyncModule {
                 throw new Error('La sesión venció. Volvé a iniciar sesión para registrar este dispositivo.');
             }
 
+            const device = await this.pushManagement.getDeviceMetadata();
             let lastError;
             for (let attempt = 0; attempt < 2; attempt++) {
                 const controller = new AbortController();
@@ -870,7 +877,7 @@ export class AuthSyncModule {
                             'Content-Type': 'application/json',
                             'Authorization': `Bearer ${session.access_token}`
                         },
-                        body: JSON.stringify({ subscription: subscriptionJSON }),
+                        body: JSON.stringify({ subscription: subscriptionJSON, device }),
                         signal: controller.signal
                     });
                     const result = await response.json().catch(() => ({}));
@@ -1040,6 +1047,7 @@ export class AuthSyncModule {
 
             // 6. Update UI
             await this.checkPushSubscriptionStatus();
+            await this.pushManagement.refreshAll();
             await this.app.showMessage({
                 title: 'Notificaciones activadas',
                 message: 'Este dispositivo quedó registrado correctamente.',
@@ -1092,11 +1100,13 @@ export class AuthSyncModule {
             if (subscription) {
                 let registeredDevices = null;
                 let registrationVerified = false;
+                let registrationKnown = false;
                 try {
                     const subscriptionJSON = subscription.toJSON();
-                    const registrationState = await this.persistPushSubscription(subscriptionJSON);
+                    const registrationState = await this.pushManagement.checkCurrentRegistration(subscriptionJSON);
                     registeredDevices = Number(registrationState?.registeredDevices);
-                    registrationVerified = true;
+                    registrationVerified = registrationState?.registered === true;
+                    registrationKnown = true;
                 } catch (syncError) {
                     console.warn('[Push] No se pudo verificar la suscripción con el servidor:', syncError);
                 }
@@ -1104,7 +1114,9 @@ export class AuthSyncModule {
                 if (this.btnEnablePush) {
                     this.btnEnablePush.innerText = registrationVerified
                         ? '🔔 Notificaciones Activas en este Dispositivo'
-                        : '🔔 Suscripción local activa';
+                        : (registrationKnown
+                            ? '🔔 Registrar este dispositivo'
+                            : '🔔 Reintentar comprobación');
                     this.btnEnablePush.style.borderColor = registrationVerified
                         ? 'var(--status-green)'
                         : 'var(--status-yellow)';
@@ -1112,7 +1124,7 @@ export class AuthSyncModule {
                         ? 'var(--status-green)'
                         : 'var(--status-yellow)';
                 }
-                this.btnTestPush?.classList.remove('hidden');
+                this.btnTestPush?.classList.toggle('hidden', !registrationVerified);
                 this.setPushStatus(
                     registrationVerified ? 'active' : 'warning',
                     registrationVerified
@@ -1121,7 +1133,9 @@ export class AuthSyncModule {
                                 ? `Este dispositivo está listo. Dispositivos registrados: ${registeredDevices}.`
                                 : 'Este dispositivo está registrado y listo para recibir avisos.'
                         )
-                        : 'El navegador conserva la suscripción, pero no se pudo confirmar el registro con el servidor. Podés reintentar con el botón o enviar una prueba.'
+                        : (registrationKnown
+                            ? 'El navegador conserva una suscripción local, pero este dispositivo no figura activo en LifeCycle. Presioná el botón para registrarlo nuevamente.'
+                            : 'El navegador conserva una suscripción local, pero no se pudo consultar al servidor. Podés reintentar sin perder la configuración del dispositivo.')
                 );
             } else {
                 if (this.btnEnablePush) {
@@ -1183,6 +1197,7 @@ export class AuthSyncModule {
 
             if (res.ok) {
                 this.setPushStatus('active', 'Prueba enviada correctamente a este dispositivo.');
+                await this.pushManagement.refreshAll();
                 await this.app.showMessage({
                     title: 'Prueba enviada',
                     message: 'La notificación debería aparecer en este dispositivo.',
@@ -1224,5 +1239,9 @@ export class AuthSyncModule {
             outputArray[i] = rawData.charCodeAt(i);
         }
         return outputArray;
+    }
+
+    refreshPushManagement() {
+        return this.pushManagement.refreshAll();
     }
 }

@@ -373,3 +373,33 @@ test('vehicle cards are configurable without losing legacy data paths', async ()
     assert.match(trackerManagerSource, /data-tracker-category-filter="vehicle"/);
     assert.match(serverSource, /buildVehicleCatalogNotification/);
 });
+
+test('push management distinguishes devices, provider acceptance and failures', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const authSource = await readFile(
+        path.join(ROOT, 'modules', 'AuthSyncModule.js'),
+        'utf8'
+    );
+    const managerSource = await readFile(
+        path.join(ROOT, 'modules', 'PushManagementModule.js'),
+        'utf8'
+    );
+    const serverSource = await readFile(path.join(ROOT, 'server.js'), 'utf8');
+    const migration = await readFile(
+        path.join(ROOT, 'supabase', 'migrations', '20260801090000_push_management_and_history.sql'),
+        'utf8'
+    );
+
+    assert.match(index, /id="push-devices-list"/);
+    assert.match(index, /id="push-history-list"/);
+    assert.match(index, /Aceptada.*servicio Push/s);
+    assert.match(authSource, /PushManagementModule/);
+    assert.match(managerSource, /\/api\/push\/devices/);
+    assert.match(managerSource, /data-push-device-action="test"/);
+    assert.match(managerSource, /\/api\/push\/history/);
+    assert.match(serverSource, /app\.post\('\/api\/push\/status'/);
+    assert.match(serverSource, /app\.post\('\/api\/push\/devices\/:id\/test'/);
+    assert.match(serverSource, /notification_delivery_log/);
+    assert.match(migration, /enable row level security/);
+    assert.match(migration, /revoke all.*authenticated/s);
+});

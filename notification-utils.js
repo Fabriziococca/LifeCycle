@@ -107,6 +107,7 @@ function groupSubscriptionsByUser(rows = []) {
                 subscription: row.subscription,
                 activeRowId: rowId,
                 activeCreatedAt: createdAt,
+                deviceName: row.device_name || null,
                 rowIds: [rowId],
                 duplicateRowIds: []
             });
@@ -120,6 +121,7 @@ function groupSubscriptionsByUser(rows = []) {
             existing.subscription = row.subscription;
             existing.activeRowId = rowId;
             existing.activeCreatedAt = createdAt;
+            existing.deviceName = row.device_name || null;
         } else {
             existing.duplicateRowIds.push(rowId);
         }

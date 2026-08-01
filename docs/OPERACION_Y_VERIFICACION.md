@@ -52,6 +52,24 @@ En cada celular o computadora:
 6. Si el permiso está bloqueado, habilitarlo desde la configuración del sitio y desde el sistema operativo.
 7. En Brave, habilitar el servicio de mensajería Push de Google si el navegador lo solicita.
 
+### Administración e historial por dispositivo
+
+La pantalla Perfil > Notificaciones permite:
+
+- identificar y renombrar cada celular o computadora;
+- enviar una prueba a un dispositivo específico;
+- revocar un endpoint sin desactivar los demás;
+- ver la última actividad y si el último intento fue aceptado o rechazado;
+- filtrar los últimos intentos por aceptados, fallidos o endpoints vencidos.
+
+“Aceptada por Push” significa que el proveedor Web Push recibió correctamente el mensaje. La API del navegador no confirma de forma fiable que la persona haya visto la notificación, por lo que LifeCycle no presenta ese estado como “leída” ni “entregada al usuario”.
+
+Estas funciones requieren aplicar en Supabase la migración:
+
+`supabase/migrations/20260801090000_push_management_and_history.sql`
+
+El código es retrocompatible: antes de aplicar la migración, los avisos siguen enviándose, pero no se pueden renombrar dispositivos ni guardar el historial. Después de ejecutar la migración, se debe reiniciar o volver a desplegar el servicio de Render para que vuelva a detectar el esquema ampliado.
+
 ## Backups
 
 El backup JSON versionado conserva todos los datos estructurados sincronizados, incluidas definiciones, historiales y referencias de adjuntos. La restauración valida el archivo completo antes de escribir y revierte todos los cambios si una escritura falla.

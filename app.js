@@ -454,6 +454,11 @@ class AppController {
         if (render && tabId === 'alertas') this.alerts?.render();
         if (render && tabId === 'seguimientos') this.customTrackers?.renderManager();
         if (render && tabId === 'modulos') this.customTrackers?.renderModulesManager();
+        if (render && tabId === 'notificaciones') {
+            this.auth?.refreshPushManagement?.().catch(error => {
+                console.error('[Push] No se pudo actualizar el panel:', error);
+            });
+        }
         return true;
     }
 

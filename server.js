@@ -29,6 +29,16 @@ const {
     isValidPushSubscription,
     safeEqualStrings
 } = require('./security-utils');
+const {
+    endpointFingerprint,
+    isMissingPushManagementSchema,
+    normalizeDeviceMetadata,
+    normalizeHistoryLimit,
+    normalizeHistoryStatus,
+    parsePushPayload,
+    preserveDeviceName,
+    toPublicPushDevice
+} = require('./push-management');
 
 // Búfer en memoria para depuración de logs en Render
 const logBuffer = [];
@@ -100,6 +110,10 @@ const transientDeliveryState = {
     daily: new Map(),
     interval: new Map()
 };
+let pushMetadataSchemaAvailable = null;
+let notificationHistorySchemaAvailable = null;
+const reportedOptionalSchemaWarnings = new Set();
+const PUSH_PROVIDER_TIMEOUT_MS = 12000;
 
 function setBoundedDeliveryState(map, key, value, maxEntries = 1000) {
     if (map.has(key)) map.delete(key);
@@ -298,27 +312,197 @@ async function cleanupDuplicateSubscriptions(subscriptionGroups) {
     return deleteSubscriptionRows(duplicateIds, 'duplicadas');
 }
 
+function reportOptionalSchemaWarning(key, message) {
+    if (reportedOptionalSchemaWarnings.has(key)) return;
+    reportedOptionalSchemaWarnings.add(key);
+    console.warn(message);
+}
+
+async function updatePushDeviceDeliveryState(rowIds, status, attemptedAt) {
+    if (!supabase || pushMetadataSchemaAvailable === false) return;
+    const uniqueIds = [...new Set((rowIds || []).filter(Boolean))];
+    if (uniqueIds.length === 0) return;
+
+    if (status === 'accepted') {
+        const { error } = await supabase
+            .from('push_subscriptions')
+            .update({
+                last_success_at: attemptedAt,
+                last_seen_at: attemptedAt,
+                consecutive_failures: 0
+            })
+            .in('id', uniqueIds);
+
+        if (!error) {
+            pushMetadataSchemaAvailable = true;
+            return;
+        }
+        if (isMissingPushManagementSchema(error)) {
+            pushMetadataSchemaAvailable = false;
+            reportOptionalSchemaWarning(
+                'push-metadata',
+                '[Push] La migración de administración de dispositivos todavía no está aplicada; los envíos continúan sin métricas por dispositivo.'
+            );
+            return;
+        }
+        console.error('[Push] No se pudo actualizar el estado del dispositivo:', error.message);
+        return;
+    }
+
+    const current = await supabase
+        .from('push_subscriptions')
+        .select('id, consecutive_failures')
+        .in('id', uniqueIds);
+    if (current.error) {
+        if (isMissingPushManagementSchema(current.error)) {
+            pushMetadataSchemaAvailable = false;
+            reportOptionalSchemaWarning(
+                'push-metadata',
+                '[Push] La migración de administración de dispositivos todavía no está aplicada; los envíos continúan sin métricas por dispositivo.'
+            );
+            return;
+        }
+        console.error('[Push] No se pudo leer el estado del dispositivo:', current.error.message);
+        return;
+    }
+
+    const results = await Promise.all((current.data || []).map(row => (
+        supabase
+            .from('push_subscriptions')
+            .update({
+                last_failure_at: attemptedAt,
+                consecutive_failures: Math.max(
+                    0,
+                    Number.parseInt(row.consecutive_failures, 10) || 0
+                ) + 1
+            })
+            .eq('id', row.id)
+    )));
+    const error = results.find(result => result.error)?.error || null;
+
+    if (!error) {
+        pushMetadataSchemaAvailable = true;
+        return;
+    }
+    if (isMissingPushManagementSchema(error)) {
+        pushMetadataSchemaAvailable = false;
+        reportOptionalSchemaWarning(
+            'push-metadata',
+            '[Push] La migración de administración de dispositivos todavía no está aplicada; los envíos continúan sin métricas por dispositivo.'
+        );
+        return;
+    }
+    console.error('[Push] No se pudo actualizar el estado del dispositivo:', error.message);
+}
+
+async function recordPushDelivery({
+    userId,
+    alertKey,
+    context,
+    payload,
+    subscriptionItem,
+    status,
+    providerStatus = null,
+    errorMessage = null,
+    attemptedAt
+}) {
+    if (!supabase || notificationHistorySchemaAvailable === false) return;
+    const parsedPayload = parsePushPayload(payload);
+    const row = {
+        user_id: userId,
+        alert_key: String(alertKey || context || 'notification').slice(0, 160),
+        context: String(context || '').slice(0, 240) || null,
+        title: parsedPayload.title || null,
+        body: parsedPayload.body || null,
+        subscription_row_id: subscriptionItem?.activeRowId
+            ? String(subscriptionItem.activeRowId)
+            : null,
+        endpoint_fingerprint: endpointFingerprint(subscriptionItem?.subscription?.endpoint),
+        device_name: String(subscriptionItem?.deviceName || '').slice(0, 80) || null,
+        status,
+        provider_status: Number.isInteger(Number(providerStatus))
+            ? Number(providerStatus)
+            : null,
+        error_message: String(errorMessage || '').slice(0, 500) || null,
+        attempted_at: attemptedAt
+    };
+    if (!row.endpoint_fingerprint) return;
+
+    const { error } = await supabase
+        .from('notification_delivery_log')
+        .insert(row);
+    if (!error) {
+        notificationHistorySchemaAvailable = true;
+        return;
+    }
+    if (isMissingPushManagementSchema(error)) {
+        notificationHistorySchemaAvailable = false;
+        reportOptionalSchemaWarning(
+            'notification-history',
+            '[Push] La tabla de historial todavía no existe; los avisos se siguen enviando, pero aún no se registran en el historial.'
+        );
+        return;
+    }
+    console.error('[Push] No se pudo guardar el historial de envío:', error.message);
+}
+
 async function sendPushToSubscriptions({
     userId,
     subscriptions,
     payload,
     context,
+    alertKey = context,
     delayMs = 0
 }) {
     let successCount = 0;
     let failureCount = 0;
     let staleCount = 0;
+    let lastFailureStatus = null;
 
     for (const item of subscriptions || []) {
+        const attemptedAt = new Date().toISOString();
         try {
-            await webpush.sendNotification(item.subscription, payload);
+            await webpush.sendNotification(item.subscription, payload, {
+                timeout: PUSH_PROVIDER_TIMEOUT_MS
+            });
             successCount++;
+            await Promise.all([
+                updatePushDeviceDeliveryState(item.rowIds, 'accepted', attemptedAt),
+                recordPushDelivery({
+                    userId,
+                    alertKey,
+                    context,
+                    payload,
+                    subscriptionItem: item,
+                    status: 'accepted',
+                    attemptedAt
+                })
+            ]);
         } catch (error) {
             failureCount++;
             const statusCode = error?.statusCode || error?.status || 'sin estado';
+            lastFailureStatus = Number.isFinite(Number(statusCode))
+                ? Number(statusCode)
+                : null;
+            const expired = isExpiredPushError(error);
             console.error(`[Push] Falló '${context}' para usuario ${userId} (HTTP ${statusCode}):`, error?.message || error);
 
-            if (isExpiredPushError(error)) {
+            await Promise.all([
+                updatePushDeviceDeliveryState(item.rowIds, 'failed', attemptedAt),
+                recordPushDelivery({
+                    userId,
+                    alertKey,
+                    context,
+                    payload,
+                    subscriptionItem: item,
+                    status: expired ? 'expired' : 'failed',
+                    providerStatus: statusCode,
+                    errorMessage: error?.message || String(error),
+                    attemptedAt
+                })
+            ]);
+
+            if (expired) {
                 staleCount += await deleteSubscriptionRows(item.rowIds, `endpoint vencido HTTP ${statusCode}`);
             }
         }
@@ -329,7 +513,7 @@ async function sendPushToSubscriptions({
     }
 
     console.log(`[Push] Resultado '${context}' para usuario ${userId}: ${successCount} enviados, ${failureCount} fallidos, ${staleCount} filas vencidas eliminadas.`);
-    return { successCount, failureCount, staleCount };
+    return { successCount, failureCount, staleCount, lastFailureStatus };
 }
 
 // Rate Limiter integrado y liviano (sin dependencias npm)
@@ -447,23 +631,62 @@ async function requireSupabaseUser(req, res, next) {
 }
 
 async function getSubscriptionRowsForUser(userId) {
-    const { data, error } = await supabase
+    const baseSelect = 'id, subscription, created_at';
+    const metadataSelect = `${baseSelect}, device_name, platform, browser, user_agent, endpoint_fingerprint, last_seen_at, last_success_at, last_failure_at, consecutive_failures`;
+    const preferredSelect = pushMetadataSchemaAvailable === false
+        ? baseSelect
+        : metadataSelect;
+    let result = await supabase
         .from('push_subscriptions')
-        .select('id, subscription, created_at')
+        .select(preferredSelect)
         .eq('user_id', userId);
 
-    if (error) throw error;
-    return data || [];
+    if (result.error && preferredSelect === metadataSelect && isMissingPushManagementSchema(result.error)) {
+        pushMetadataSchemaAvailable = false;
+        reportOptionalSchemaWarning(
+            'push-metadata',
+            '[Push] La migración de administración de dispositivos todavía no está aplicada; se usa el esquema compatible.'
+        );
+        result = await supabase
+            .from('push_subscriptions')
+            .select(baseSelect)
+            .eq('user_id', userId);
+    } else if (!result.error && preferredSelect === metadataSelect) {
+        pushMetadataSchemaAvailable = true;
+    }
+
+    if (result.error) throw result.error;
+    return result.data || [];
+}
+
+function deduplicateSubscriptionRows(rows = []) {
+    const byEndpoint = new Map();
+    [...rows]
+        .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0))
+        .forEach(row => {
+            const endpoint = row?.subscription?.endpoint;
+            if (endpoint && !byEndpoint.has(endpoint)) byEndpoint.set(endpoint, row);
+        });
+    return [...byEndpoint.values()];
 }
 
 // Endpoint autenticado para registrar o reparar una suscripción Push.
 app.post('/api/subscribe', requireSupabaseUser, async (req, res) => {
-    const { subscription } = req.body;
+    const { subscription } = req.body || {};
     if (!isValidPushSubscription(subscription)) {
         return res.status(400).json({ error: 'La suscripción Push no es válida.' });
     }
 
     const userId = req.authenticatedUser.id;
+    const device = normalizeDeviceMetadata(req.body?.device, req.headers['user-agent']);
+    const metadata = {
+        device_name: device.name,
+        platform: device.platform,
+        browser: device.browser,
+        user_agent: device.userAgent,
+        endpoint_fingerprint: endpointFingerprint(subscription.endpoint),
+        last_seen_at: new Date().toISOString()
+    };
 
     try {
         const rows = await getSubscriptionRowsForUser(userId);
@@ -472,17 +695,39 @@ app.post('/api/subscribe', requireSupabaseUser, async (req, res) => {
             .sort((a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0));
 
         if (matchingRows.length === 0) {
-            const { error } = await supabase
+            let { error } = await supabase
                 .from('push_subscriptions')
-                .insert({ user_id: userId, subscription });
+                .insert({
+                    user_id: userId,
+                    subscription,
+                    ...(pushMetadataSchemaAvailable === false ? {} : metadata)
+                });
+            if (error && isMissingPushManagementSchema(error)) {
+                pushMetadataSchemaAvailable = false;
+                ({ error } = await supabase
+                    .from('push_subscriptions')
+                    .insert({ user_id: userId, subscription }));
+            }
             if (error) throw error;
         } else {
             const [rowToKeep, ...duplicates] = matchingRows;
-            const { error: updateError } = await supabase
+            const persistedMetadata = preserveDeviceName(metadata, rowToKeep);
+            let { error: updateError } = await supabase
                 .from('push_subscriptions')
-                .update({ subscription })
+                .update({
+                    subscription,
+                    ...(pushMetadataSchemaAvailable === false ? {} : persistedMetadata)
+                })
                 .eq('id', rowToKeep.id)
                 .eq('user_id', userId);
+            if (updateError && isMissingPushManagementSchema(updateError)) {
+                pushMetadataSchemaAvailable = false;
+                ({ error: updateError } = await supabase
+                    .from('push_subscriptions')
+                    .update({ subscription })
+                    .eq('id', rowToKeep.id)
+                    .eq('user_id', userId));
+            }
             if (updateError) throw updateError;
 
             if (duplicates.length > 0) {
@@ -502,16 +747,219 @@ app.post('/api/subscribe', requireSupabaseUser, async (req, res) => {
             subscription.endpoint
         ]).size;
 
-        res.json({ success: true, registeredDevices });
+        res.json({
+            success: true,
+            registeredDevices,
+            metadataAvailable: pushMetadataSchemaAvailable !== false
+        });
     } catch (error) {
         console.error('[Push] Error guardando suscripción autenticada:', error);
         res.status(500).json({ error: 'No se pudo guardar la suscripción Push.' });
     }
 });
 
+// Passive verification never creates a row, so revoking a remote device remains durable.
+app.post('/api/push/status', requireSupabaseUser, async (req, res) => {
+    const { subscription } = req.body || {};
+    if (!isValidPushSubscription(subscription)) {
+        return res.status(400).json({ error: 'La suscripción Push no es válida.' });
+    }
+    try {
+        const rows = await getSubscriptionRowsForUser(req.authenticatedUser.id);
+        const devices = deduplicateSubscriptionRows(rows);
+        let current = devices.find(row => row.subscription?.endpoint === subscription.endpoint);
+        if (current && pushMetadataSchemaAvailable !== false) {
+            const device = normalizeDeviceMetadata(req.body?.device, req.headers['user-agent']);
+            const metadata = preserveDeviceName({
+                device_name: device.name,
+                platform: device.platform,
+                browser: device.browser,
+                user_agent: device.userAgent,
+                endpoint_fingerprint: endpointFingerprint(subscription.endpoint),
+                last_seen_at: new Date().toISOString()
+            }, current);
+            const { error } = await supabase
+                .from('push_subscriptions')
+                .update(metadata)
+                .eq('id', current.id)
+                .eq('user_id', req.authenticatedUser.id);
+            if (error && isMissingPushManagementSchema(error)) {
+                pushMetadataSchemaAvailable = false;
+            } else if (error) {
+                console.warn('[Push] No se pudo actualizar la identidad del dispositivo:', error.message);
+            } else {
+                pushMetadataSchemaAvailable = true;
+                current = { ...current, ...metadata };
+            }
+        }
+        res.json({
+            success: true,
+            registered: Boolean(current),
+            registeredDevices: devices.length,
+            device: current ? toPublicPushDevice(current) : null,
+            metadataAvailable: pushMetadataSchemaAvailable !== false
+        });
+    } catch (error) {
+        console.error('[Push] No se pudo comprobar el dispositivo:', error);
+        res.status(500).json({ error: 'No se pudo comprobar el registro del dispositivo.' });
+    }
+});
+
+app.get('/api/push/devices', requireSupabaseUser, async (req, res) => {
+    try {
+        const rows = await getSubscriptionRowsForUser(req.authenticatedUser.id);
+        const devices = deduplicateSubscriptionRows(rows)
+            .map(toPublicPushDevice)
+            .sort((a, b) => (
+                (Date.parse(b.activityAt || '') || 0)
+                - (Date.parse(a.activityAt || '') || 0)
+            ));
+        res.json({
+            success: true,
+            devices,
+            metadataAvailable: pushMetadataSchemaAvailable !== false
+        });
+    } catch (error) {
+        console.error('[Push] No se pudieron listar los dispositivos:', error);
+        res.status(500).json({ error: 'No se pudieron cargar los dispositivos registrados.' });
+    }
+});
+
+app.post('/api/push/devices/:id/test', requireSupabaseUser, async (req, res) => {
+    const rowId = String(req.params.id || '').trim();
+    if (!rowId || rowId.length > 128) {
+        return res.status(400).json({ error: 'El dispositivo no es válido.' });
+    }
+    try {
+        const rows = await getSubscriptionRowsForUser(req.authenticatedUser.id);
+        const target = rows.find(row => String(row.id) === rowId);
+        if (!target) return res.status(404).json({ error: 'El dispositivo no existe.' });
+        const matchingRows = rows.filter(
+            row => row.subscription?.endpoint === target.subscription?.endpoint
+        );
+        const device = toPublicPushDevice(target);
+        const payload = JSON.stringify({
+            title: `🔔 Prueba para ${device.name}`,
+            body: 'LifeCycle confirmó que el servicio Push aceptó esta prueba.',
+            url: '/'
+        });
+        const result = await sendPushToSubscriptions({
+            userId: req.authenticatedUser.id,
+            subscriptions: [{
+                subscription: target.subscription,
+                activeRowId: target.id,
+                rowIds: matchingRows.map(row => row.id),
+                deviceName: device.name
+            }],
+            payload,
+            context: `prueba del dispositivo ${target.id}`,
+            alertKey: 'test_push_device'
+        });
+        if (result.successCount > 0) {
+            return res.json({
+                success: true,
+                message: 'El servicio Push aceptó la prueba.'
+            });
+        }
+        res.status(502).json({
+            error: 'El servicio Push rechazó la prueba para este dispositivo.',
+            statusCode: result.lastFailureStatus
+        });
+    } catch (error) {
+        console.error('[Push] No se pudo probar el dispositivo:', error);
+        res.status(500).json({ error: 'No se pudo enviar la prueba al dispositivo.' });
+    }
+});
+
+app.patch('/api/push/devices/:id', requireSupabaseUser, async (req, res) => {
+    const rowId = String(req.params.id || '').trim();
+    const rawName = String(req.body?.name || '').replace(/\s+/g, ' ').trim();
+    if (!rowId || rowId.length > 128 || !rawName || rawName.length > 80) {
+        return res.status(400).json({ error: 'El nombre del dispositivo no es válido.' });
+    }
+    if (pushMetadataSchemaAvailable === false) {
+        return res.status(503).json({ error: 'La migración de dispositivos todavía no está aplicada.' });
+    }
+    try {
+        const { data, error } = await supabase
+            .from('push_subscriptions')
+            .update({ device_name: rawName, last_seen_at: new Date().toISOString() })
+            .eq('id', rowId)
+            .eq('user_id', req.authenticatedUser.id)
+            .select('id, subscription, created_at, device_name, platform, browser, user_agent, endpoint_fingerprint, last_seen_at, last_success_at, last_failure_at, consecutive_failures')
+            .maybeSingle();
+        if (error) {
+            if (isMissingPushManagementSchema(error)) pushMetadataSchemaAvailable = false;
+            throw error;
+        }
+        if (!data) return res.status(404).json({ error: 'El dispositivo no existe.' });
+        pushMetadataSchemaAvailable = true;
+        res.json({ success: true, device: toPublicPushDevice(data) });
+    } catch (error) {
+        console.error('[Push] No se pudo renombrar el dispositivo:', error);
+        res.status(isMissingPushManagementSchema(error) ? 503 : 500).json({
+            error: isMissingPushManagementSchema(error)
+                ? 'La migración de dispositivos todavía no está aplicada.'
+                : 'No se pudo renombrar el dispositivo.'
+        });
+    }
+});
+
+app.delete('/api/push/devices/:id', requireSupabaseUser, async (req, res) => {
+    const rowId = String(req.params.id || '').trim();
+    if (!rowId || rowId.length > 128) {
+        return res.status(400).json({ error: 'El dispositivo no es válido.' });
+    }
+    try {
+        const rows = await getSubscriptionRowsForUser(req.authenticatedUser.id);
+        const target = rows.find(row => String(row.id) === rowId);
+        if (!target) return res.status(404).json({ error: 'El dispositivo no existe.' });
+        const matchingIds = rows
+            .filter(row => row.subscription?.endpoint === target.subscription?.endpoint)
+            .map(row => row.id);
+        const removed = await deleteSubscriptionRows(matchingIds, 'revocadas por el usuario');
+        if (removed === 0) throw new Error('No se eliminó ninguna suscripción.');
+        res.json({
+            success: true,
+            endpointFingerprint: endpointFingerprint(target.subscription?.endpoint)
+        });
+    } catch (error) {
+        console.error('[Push] No se pudo revocar el dispositivo:', error);
+        res.status(500).json({ error: 'No se pudo revocar el dispositivo.' });
+    }
+});
+
+app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
+    if (notificationHistorySchemaAvailable === false) {
+        return res.json({ success: true, available: false, entries: [] });
+    }
+    const status = normalizeHistoryStatus(req.query.status);
+    const limit = normalizeHistoryLimit(req.query.limit, 50);
+    try {
+        let query = supabase
+            .from('notification_delivery_log')
+            .select('id, alert_key, context, title, body, endpoint_fingerprint, device_name, status, provider_status, error_message, attempted_at')
+            .eq('user_id', req.authenticatedUser.id)
+            .order('attempted_at', { ascending: false })
+            .limit(limit);
+        if (status) query = query.eq('status', status);
+        const { data, error } = await query;
+        if (error) throw error;
+        notificationHistorySchemaAvailable = true;
+        res.json({ success: true, available: true, entries: data || [] });
+    } catch (error) {
+        if (isMissingPushManagementSchema(error)) {
+            notificationHistorySchemaAvailable = false;
+            return res.json({ success: true, available: false, entries: [] });
+        }
+        console.error('[Push] No se pudo cargar el historial:', error);
+        res.status(500).json({ error: 'No se pudo cargar el historial de notificaciones.' });
+    }
+});
+
 // Endpoint para probar notificaciones push de inmediato (5 segundos de delay)
 app.post('/api/test-push', requireSupabaseUser, async (req, res) => {
-    const { subscription } = req.body;
+    const { subscription } = req.body || {};
     if (!isValidPushSubscription(subscription)) {
         return res.status(400).json({ error: 'La suscripción Push no es válida.' });
     }
@@ -531,30 +979,35 @@ app.post('/api/test-push', requireSupabaseUser, async (req, res) => {
 
     await new Promise(resolve => setTimeout(resolve, 5000));
 
-    try {
-        await webpush.sendNotification(subscription, JSON.stringify({
-            title: '🔔 LifeCycle Test',
-            body: '¡Excelente! Las notificaciones push en segundo plano están funcionando correctamente.',
-            url: '/'
-        }));
+    const latestRow = [...matchingRows].sort(
+        (a, b) => new Date(b.created_at || 0) - new Date(a.created_at || 0)
+    )[0];
+    const payload = JSON.stringify({
+        title: '🔔 LifeCycle Test',
+        body: '¡Excelente! Las notificaciones push en segundo plano están funcionando correctamente.',
+        url: '/'
+    });
+    const result = await sendPushToSubscriptions({
+        userId: req.authenticatedUser.id,
+        subscriptions: [{
+            subscription,
+            activeRowId: latestRow.id,
+            rowIds: matchingRows.map(row => row.id),
+            deviceName: latestRow.device_name || null
+        }],
+        payload,
+        context: 'prueba manual desde el dispositivo',
+        alertKey: 'test_push'
+    });
+
+    if (result.successCount > 0) {
         console.log('Test push sent successfully.');
-        res.json({ success: true, message: 'Notificación de prueba enviada.' });
-    } catch (error) {
-        const statusCode = error?.statusCode || error?.status || null;
-        console.error('Error sending test push:', error);
-
-        if (isExpiredPushError(error)) {
-            await deleteSubscriptionRows(
-                matchingRows.map(row => row.id),
-                `prueba Push vencida HTTP ${statusCode}`
-            );
-        }
-
-        res.status(502).json({
-            error: 'El servicio Push rechazó la notificación de prueba.',
-            statusCode
-        });
+        return res.json({ success: true, message: 'Notificación de prueba enviada.' });
     }
+    res.status(502).json({
+        error: 'El servicio Push rechazó la notificación de prueba.',
+        statusCode: result.lastFailureStatus
+    });
 });
 
 // Middleware de autenticación para endpoints administrativos
@@ -675,7 +1128,8 @@ app.get('/api/test-robot-reminder', checkAdminToken, async (req, res) => {
                     userId: userRow.user_id,
                     subscriptions: userSubs,
                     payload,
-                    context: 'prueba de robot'
+                    context: 'prueba de robot',
+                    alertKey: 'admin_test_robot'
                 });
                 sentCount += result.successCount;
             }
@@ -1432,6 +1886,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                                     subscriptions: userSubs,
                                                     payload,
                                                     context: `proyecto ${p.id}`,
+                                                    alertKey: logKey,
                                                     delayMs: 250
                                                 });
 
@@ -1541,6 +1996,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                             subscriptions: userSubs,
                                             payload,
                                             context: `tarea urgente ${item.id}`,
+                                            alertKey: itemLogKey,
                                             delayMs: 250
                                         });
 
@@ -1570,6 +2026,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             subscriptions: userSubs,
                             payload,
                             context: key,
+                            alertKey: key,
                             delayMs: 250
                         });
 
@@ -1702,6 +2159,7 @@ async function checkAndSendRobotReminders(forceAll = false) {
                                 subscriptions: userSubs,
                                 payload,
                                 context: 'robot aspiradora',
+                                alertKey: 'robot',
                                 delayMs: 250
                             });
 
@@ -1753,6 +2211,7 @@ async function checkAndSendRobotReminders(forceAll = false) {
                                 subscriptions: userSubs,
                                 payload,
                                 context: 'tareas muy urgentes',
+                                alertKey: 'very_urgent_tasks',
                                 delayMs: 250
                             });
 

@@ -1816,6 +1816,58 @@
                                     <button id="btn-enable-push" class="btn btn-secondary" style="width: 100%;"><i class="ph ph-bell-simple-ringing"></i> Activar Notificaciones en este Dispositivo</button>
                                     <button id="btn-test-push" class="btn btn-secondary hidden" style="width: 100%; border-color: rgba(59, 130, 246, 0.2); color: #60a5fa;"><i class="ph ph-paper-plane-tilt"></i> Enviar Notificación de Prueba (5s delay)</button>
                                     <p id="push-status-message" class="push-status inactive" role="status" aria-live="polite">Comprobando el estado de este dispositivo...</p>
+                                    <p id="push-engine-status" class="push-engine-status" role="status">Comprobando el motor de notificaciones...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="push-devices-card" class="card push-manager-card">
+                            <div class="card-header push-manager-header">
+                                <div class="push-manager-heading">
+                                    <div class="icon-container"><i class="ph ph-devices"></i></div>
+                                    <div>
+                                        <h3>Dispositivos registrados</h3>
+                                        <p>Administrá cada celular o computadora por separado.</p>
+                                    </div>
+                                </div>
+                                <button id="push-devices-refresh" type="button" class="push-manager-refresh" aria-label="Actualizar dispositivos" data-tooltip="Actualizar dispositivos">
+                                    <i class="ph ph-arrows-clockwise"></i>
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <p id="push-devices-note" class="push-manager-note">Revocar un equipo detiene sus avisos sin afectar los demás dispositivos.</p>
+                                <div id="push-devices-list" class="push-devices-list" aria-live="polite">
+                                    <p class="push-manager-empty">Cargando dispositivos...</p>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div id="push-history-card" class="card push-manager-card">
+                            <div class="card-header push-manager-header">
+                                <div class="push-manager-heading">
+                                    <div class="icon-container"><i class="ph ph-clock-counter-clockwise"></i></div>
+                                    <div>
+                                        <h3>Historial de notificaciones</h3>
+                                        <p>Últimos intentos realizados por el backend.</p>
+                                    </div>
+                                </div>
+                                <button id="push-history-refresh" type="button" class="push-manager-refresh" aria-label="Actualizar historial" data-tooltip="Actualizar historial">
+                                    <i class="ph ph-arrows-clockwise"></i>
+                                </button>
+                            </div>
+                            <div class="card-body">
+                                <div class="push-history-toolbar">
+                                    <label for="push-history-filter">Mostrar</label>
+                                    <select id="push-history-filter" class="time-input">
+                                        <option value="">Todos los intentos</option>
+                                        <option value="accepted">Aceptados por Push</option>
+                                        <option value="failed">Fallidos</option>
+                                        <option value="expired">Endpoints vencidos</option>
+                                    </select>
+                                </div>
+                                <p id="push-history-note" class="push-manager-note">“Aceptada” confirma que el servicio Push recibió el envío; los navegadores no confirman si fue visto.</p>
+                                <div id="push-history-list" class="push-history-list" aria-live="polite">
+                                    <p class="push-manager-empty">Cargando historial...</p>
                                 </div>
                             </div>
                         </div>
