@@ -49,6 +49,10 @@ test('health exposes commit and non-sensitive notification state', async () => {
     assert.equal(result.notifications.configured, false);
     assert.equal(Object.hasOwn(result.notifications, 'lastSuccessAt'), true);
     assert.equal(JSON.stringify(result).includes('PRIVATE_KEY'), false);
+    assert.equal(
+        response.headers.get('strict-transport-security'),
+        'max-age=31536000; includeSubDomains'
+    );
 });
 
 test('notification diagnostics require the admin token', async () => {

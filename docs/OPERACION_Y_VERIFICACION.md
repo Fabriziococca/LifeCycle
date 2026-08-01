@@ -70,6 +70,12 @@ Estas funciones requieren aplicar en Supabase la migración:
 
 El código es retrocompatible: antes de aplicar la migración, los avisos siguen enviándose, pero no se pueden renombrar dispositivos ni guardar el historial. Después de ejecutar la migración, se debe reiniciar o volver a desplegar el servicio de Render para que vuelva a detectar el esquema ampliado.
 
+La migración siguiente también debe ejecutarse para mantener la base alineada con el cliente y cerrar una defensa pendiente:
+
+`supabase/migrations/20260801100000_harden_private_snapshots_and_sync_schema.sql`
+
+Esta segunda migración agrega `projectPulseTemplates` a la lista de claves que el RPC autenticado puede sincronizar y activa/impone RLS sobre el snapshot privado de seguridad. No concede acceso nuevo a `anon` ni a `authenticated`.
+
 ## Backups
 
 El backup JSON versionado conserva todos los datos estructurados sincronizados, incluidas definiciones, historiales y referencias de adjuntos. La restauración valida el archivo completo antes de escribir y revierte todos los cambios si una escritura falla.
@@ -86,6 +92,8 @@ Ambas modalidades son útiles y no deberían sustituirse entre sí.
 
 El repositorio local apunta a `Fabriziococca/LifeCycle`, mientras que las capturas de Render todavía muestran `Fabriziococca/HygieneTracker`. Los logs también indican que Render intenta clonar sin acceso a la integración del repositorio. Esto es consistente con una conexión antigua o permisos perdidos después de un cambio de nombre.
 
+El runtime queda acotado a Node 24.x LTS tanto en `package.json` como en GitHub Actions. Esto evita que Render vuelva a seleccionar automáticamente una versión Current de otro major (como ocurrió con Node 26) y mantiene producción y CI sobre la misma línea soportada.
+
 Al terminar la tanda de código:
 
 1. En Render > Settings, revisar el repositorio y las credenciales Git.
@@ -97,14 +105,16 @@ Al terminar la tanda de código:
 
 El workflow de GitHub incluido ejecuta instalación exacta, pruebas y verificación sintáctica antes de considerar válida una revisión.
 
-## Supabase pendiente de decisión manual
+## Supabase pendiente de acción manual
 
-Estas dos defensas siguen aplazadas y no bloquean el código actual:
+Quedan estas acciones de panel o producción:
 
 - Protección contra contraseñas filtradas: impide usar una contraseña conocida en filtraciones públicas.
-- RLS sobre el snapshot privado de seguridad: agrega una barrera de base de datos aunque el esquema ya sea privado y no tenga permisos para `anon` ni `authenticated`.
+- Ejecutar, en orden, las migraciones `20260801090000_push_management_and_history.sql` y `20260801100000_harden_private_snapshots_and_sync_schema.sql`.
+- Ejecutar luego `supabase/verification/20260801_operation_security_check.sql`: cada fila debe devolver `passed = true` y la primera no debe listar columnas faltantes.
+- Volver a desplegar Render después de las migraciones para que el proceso descarte el fallback de compatibilidad y detecte las nuevas tablas/columnas.
 
-Antes de cambiar cualquiera de ellas conviene confirmar la configuración real desde el panel de Supabase y conservar un snapshot.
+La protección contra contraseñas filtradas se activa desde Auth en el panel; no existe una configuración equivalente segura dentro de este repositorio.
 
 ## Criterio de cierre en producción
 

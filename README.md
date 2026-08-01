@@ -47,7 +47,7 @@ Custom counters for personal care logs (beard shaves, haircuts, axillary groomin
 Real-time day counters for contact lenses wear time, solutions, lens cases, Systane drops, and microfiber cloth usage, with automated low-stock safety threshold warnings.
 
 ### 4. 🚗 Vehicle Maintenance Log
-Smart odometer tracking flagging services for oil changes, alignment, tire rotations, and replacements, shifting colors (green/yellow/red) based on km or days remaining.
+Track odometer-based maintenance, periodic checks, and document expirations through a configurable catalog. Existing personal records migrate in place, while a fresh account can create only the vehicle cards it actually needs.
 
 ### 5. 💼 Financial Projects (ProjectPulse)
 Track active contracts in USD, manage Workana subscriptions, and display visual deadline warnings as the subscription renewal approaches. Reusable project templates can prefill delivery time, fee, source, plan, and fresh pending tasks without copying a client or any dates.
@@ -56,7 +56,7 @@ Track active contracts in USD, manage Workana subscriptions, and display visual 
 Track annual/periodical visits for Dentists, Ophthalmologists, Clinical Blood Tests, and generic custom health controls.
 
 ### 7. 🔔 Centralized Notifications Panel
-Float notification center displaying overdue items across all sections, permitting immediate checklist completion (`✓ Listo`) from any screen. Supports custom background push notification schedules.
+Float notification center displaying overdue items across all sections, permitting immediate checklist completion (`✓ Listo`) from any screen. Background Push includes per-device registration, rename/revocation, targeted tests, engine health, expired-endpoint cleanup, and a private delivery-attempt history that distinguishes provider acceptance from actual user visibility.
 
 ### 8. ⚙️ Unified Configurable Trackers
 Every recurring card in Hygiene, Care, Lenses, and Health uses the same versioned model and is managed from **Profile → Cards**. Existing personal cards are migrated in place with their histories, thresholds, alert settings, and specialized behavior preserved; a fresh account starts with no predefined cards. The centralized manager supports create, edit, reorder, archive, restore, and protected permanent deletion. Each runtime card supports a user-defined action, a daily or monthly cadence that restarts only after a recorded action, automatic visual states, optional instructions, history correction, an optional daily backend Push alert while overdue, and a multi-select mode for recording several completed cards at once. Specialized timers, inventory, and medical attachments remain owned by their dedicated modules.
@@ -73,6 +73,8 @@ Finance rules remember the usual type, category, amount, currency, cadence, and 
 ---
 
 ## ✅ Verification
+
+For local development, copy `.env.example` to `.env` and fill it with the values from the private Supabase/Render configuration. `.env` is ignored by Git; `SUPABASE_SERVICE_ROLE_KEY`, `VAPID_PRIVATE_KEY`, and `ADMIN_TOKEN` must remain backend-only.
 
 ```bash
 npm ci
