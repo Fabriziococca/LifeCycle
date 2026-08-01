@@ -54,6 +54,14 @@ select
     ) as passed;
 
 select
+    'push_subscription_service_update' as check_name,
+    has_table_privilege(
+        'service_role',
+        'public.push_subscriptions',
+        'update'
+    ) as passed;
+
+select
     'notification_history_semantics' as check_name,
     exists (
         select 1

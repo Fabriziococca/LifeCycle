@@ -75,7 +75,11 @@ El diagnóstico completo, la confirmación humana, el estado sin dispositivos y 
 
 `supabase/migrations/20260801193348_complete_push_diagnostics_and_retention.sql`
 
-Ambas migraciones ya están aplicadas en producción. El código mantiene un fallback de compatibilidad para que una diferencia temporal de esquema nunca detenga el envío de avisos.
+El permiso de backend necesario para actualizar el último resultado de cada dispositivo está registrado en:
+
+`supabase/migrations/20260801201540_grant_push_subscription_updates.sql`
+
+Las tres migraciones ya están aplicadas en producción. El código mantiene un fallback de compatibilidad para que una diferencia temporal de esquema nunca detenga el envío de avisos.
 
 La migración siguiente mantiene la base alineada con el cliente y cierra una defensa adicional:
 
@@ -119,7 +123,8 @@ Las migraciones de dispositivos Push, historial, endurecimiento del snapshot pri
 - `20260801062050_push_management_and_history.sql`;
 - `20260801062115_harden_private_snapshots_and_sync_schema.sql`;
 - `20260801062403_optimize_authenticated_rls_policies.sql`;
-- `20260801193348_complete_push_diagnostics_and_retention.sql`.
+- `20260801193348_complete_push_diagnostics_and_retention.sql`;
+- `20260801201540_grant_push_subscription_updates.sql`.
 
 Después de cualquier ampliación del historial se debe ejecutar nuevamente `supabase/verification/20260801_operation_security_check.sql`: cada fila debe devolver `passed = true` y la primera no debe listar columnas faltantes. La última ampliación fue comprobada también mediante consulta directa y los asesores de seguridad y rendimiento.
 

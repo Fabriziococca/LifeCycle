@@ -35,6 +35,7 @@ const {
     normalizeDeviceMetadata,
     normalizeHistoryLimit,
     normalizeHistoryStatus,
+    normalizeProviderStatus,
     parsePushPayload,
     preserveDeviceName,
     toPublicPushDevice
@@ -431,9 +432,7 @@ async function recordPushDelivery({
         endpoint_fingerprint: endpointFingerprint(subscriptionItem?.subscription?.endpoint) || null,
         device_name: String(subscriptionItem?.deviceName || '').slice(0, 80) || null,
         status,
-        provider_status: Number.isInteger(Number(providerStatus))
-            ? Number(providerStatus)
-            : null,
+        provider_status: normalizeProviderStatus(providerStatus),
         error_message: String(errorMessage || '').slice(0, 500) || null,
         attempted_at: attemptedAt
     };

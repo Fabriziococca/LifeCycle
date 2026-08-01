@@ -124,6 +124,14 @@ function normalizeHistoryLimit(value, fallback = 50) {
         : fallback;
 }
 
+function normalizeProviderStatus(value) {
+    if (value === null || value === undefined || value === '') return null;
+    const parsed = Number(value);
+    return Number.isInteger(parsed) && parsed >= 100 && parsed <= 599
+        ? parsed
+        : null;
+}
+
 function isMissingPushManagementSchema(error) {
     const code = String(error?.code || '');
     const message = String(error?.message || '').toLowerCase();
@@ -143,6 +151,7 @@ module.exports = {
     normalizeDeviceMetadata,
     normalizeHistoryLimit,
     normalizeHistoryStatus,
+    normalizeProviderStatus,
     parsePushPayload,
     preserveDeviceName,
     toPublicPushDevice

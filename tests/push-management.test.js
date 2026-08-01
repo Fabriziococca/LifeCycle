@@ -9,6 +9,7 @@ const {
     normalizeDeviceMetadata,
     normalizeHistoryLimit,
     normalizeHistoryStatus,
+    normalizeProviderStatus,
     parsePushPayload,
     preserveDeviceName,
     toPublicPushDevice
@@ -71,6 +72,15 @@ test('history filters and payloads are bounded', () => {
         title: '  Aviso   importante ',
         body: 'Detalle'
     })), { title: 'Aviso importante', body: 'Detalle' });
+});
+
+test('provider status keeps real HTTP codes and leaves accepted sends empty', () => {
+    assert.equal(normalizeProviderStatus(null), null);
+    assert.equal(normalizeProviderStatus(''), null);
+    assert.equal(normalizeProviderStatus('sin estado'), null);
+    assert.equal(normalizeProviderStatus(0), null);
+    assert.equal(normalizeProviderStatus(201), 201);
+    assert.equal(normalizeProviderStatus('410'), 410);
 });
 
 test('missing migration errors are recognized without hiding unrelated failures', () => {
