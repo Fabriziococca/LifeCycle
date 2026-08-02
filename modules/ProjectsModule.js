@@ -9,6 +9,19 @@ import {
 } from '../project-template-utils.mjs?v=20260729-project-templates';
 
 export class ProjectsModule {
+    
+    setupModalListeners() {
+        document.getElementById('proj-partial-cancel')?.addEventListener('click', () => {
+            document.getElementById('projects-partial-release-modal')?.classList.add('hidden');
+        });
+        document.getElementById('proj-partial-save')?.addEventListener('click', () => {
+            this.confirmPartialRelease();
+        });
+        document.getElementById('proj-details-close')?.addEventListener('click', () => {
+            document.getElementById('projects-details-modal')?.classList.add('hidden');
+        });
+    }
+
     constructor(appController) {
         this.app = appController;
         this.projects = [];
@@ -20,6 +33,7 @@ export class ProjectsModule {
         this.FIXED_FEE = 0.0732; // Costo operativo retiro PayPal/Lemon (7.32%)
 
         window.projects = this;
+        this.setupModalListeners();
         this.loadData();
         this.setupListeners();
         this.startTimersLoop();
@@ -886,6 +900,194 @@ export class ProjectsModule {
 
     }
 
+    
+    openPartialReleaseModal(id) {
+        const project = this.projects.find(p => String(p.id) === String(id));
+        if (!project) return;
+        this.selectedPartialProjectId = id;
+
+        const totalNet = Number(project.budgetNet || 0);
+        let sumPartialNet = 0;
+        if (Array.isArray(project.partialReleases)) {
+            project.partialReleases.forEach(r => { sumPartialNet += Number(r.netAmount || 0); });
+        }
+        const pendingNet = Math.max(0, totalNet - sumPartialNet);
+
+        const modal = document.getElementById('projects-partial-release-modal');
+        if (!modal) return;
+
+        document.getElementById('proj-partial-desc').innerText = `Proyecto: ${project.client} - ${project.project}`;
+        document.getElementById('proj-partial-total-net').innerText = this.app.formatCurrency(totalNet);
+        document.getElementById('proj-partial-pending-net').innerText = this.app.formatCurrency(pendingNet);
+
+        const pctInput = document.getElementById('proj-partial-pct');
+        if (pctInput) pctInput.value = 50;
+
+        this.updatePartialReleasePreview(project, pendingNet);
+
+        // Bind preset buttons
+        modal.querySelectorAll('.btn-pct-preset').forEach(btn => {
+            btn.onclick = () => {
+                const pct = Number(btn.getAttribute('data-pct'));
+                if (pctInput) pctInput.value = pct;
+                this.updatePartialReleasePreview(project, pendingNet);
+            };
+        });
+
+        if (pctInput) {
+            pctInput.oninput = () => this.updatePartialReleasePreview(project, pendingNet);
+        }
+
+        modal.classList.remove('hidden');
+    }
+
+    updatePartialReleasePreview(project, pendingNet) {
+        const pctInput = document.getElementById('proj-partial-pct');
+        const pct = Math.max(1, Math.min(100, Number(pctInput?.value || 50)));
+        const releaseNet = (pendingNet * pct) / 100;
+        const totalNet = Number(project.budgetNet || 0);
+        const totalGross = Number(project.budgetGross || 0);
+        const releaseGross = totalNet > 0 ? (releaseNet * (totalGross / totalNet)) : releaseNet;
+
+        const previewNet = document.getElementById('proj-partial-preview-net');
+        const previewGross = document.getElementById('proj-partial-preview-gross');
+        if (previewNet) previewNet.innerText = this.app.formatCurrency(releaseNet);
+        if (previewGross) previewGross.innerText = `(Bruto: ${this.app.formatCurrency(releaseGross)})`;
+    }
+
+    confirmPartialRelease() {
+        const id = this.selectedPartialProjectId;
+        const project = this.projects.find(p => String(p.id) === String(id));
+        if (!project) return;
+
+        const totalNet = Number(project.budgetNet || 0);
+        const totalGross = Number(project.budgetGross || 0);
+        let sumPartialNet = 0;
+        if (Array.isArray(project.partialReleases)) {
+            project.partialReleases.forEach(r => { sumPartialNet += Number(r.netAmount || 0); });
+        }
+        const pendingNet = Math.max(0, totalNet - sumPartialNet);
+
+        const pctInput = document.getElementById('proj-partial-pct');
+        const pct = Math.max(1, Math.min(100, Number(pctInput?.value || 50)));
+        const releaseNet = (pendingNet * pct) / 100;
+        const releaseGross = totalNet > 0 ? (releaseNet * (totalGross / totalNet)) : releaseNet;
+
+        if (!Array.isArray(project.partialReleases)) project.partialReleases = [];
+
+        const now = new Date();
+        const year = now.getFullYear();
+        const month = String(now.getMonth() + 1).padStart(2, '0');
+        const day = String(now.getDate()).padStart(2, '0');
+        const dateStr = `${year}-${month}-${day}`;
+
+        project.partialReleases.push({
+            id: Date.now(),
+            date: dateStr,
+            percent: pct,
+            grossAmount: releaseGross,
+            netAmount: releaseNet
+        });
+
+        this.saveData();
+        document.getElementById('projects-partial-release-modal')?.classList.add('hidden');
+        if (this.app.finanzas) this.app.finanzas.render();
+        this.render();
+        this.app.showFeedback(`💰 Liberación parcial de ${this.app.formatCurrency(releaseNet)} registrada exitosamente.`, 'success');
+    }
+
+    openDetailsModal(id) {
+        const p = this.projects.find(item => String(item.id) === String(id)) || this.history.find(item => String(item.id) === String(id));
+        if (!p) return;
+
+        const modal = document.getElementById('projects-details-modal');
+        if (!modal) return;
+
+        document.getElementById('proj-details-title').innerText = `${p.client} - ${p.project}`;
+        document.getElementById('proj-details-subtitle').innerText = 'Detalles completos, tiempos y origen del proyecto';
+
+        const now = new Date();
+        let initialMs = p.timeSpent || 0;
+        if (p.timerStart) {
+            initialMs += (now - new Date(p.timerStart));
+        }
+        const initialSecs = Math.floor(initialMs / 1000);
+        const h = Math.floor(initialSecs / 3600);
+        const m = Math.floor((initialSecs % 3600) / 60);
+        const s = initialSecs % 60;
+        const formattedTime = `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
+
+        let rateText = '--/h';
+        const totalHours = initialMs / (3600 * 1000);
+        if (totalHours > 0) {
+            const rate = (p.budgetNet || 0) / totalHours;
+            rateText = `${this.app.formatCurrency(rate)}/h`;
+        }
+
+        const clientSourceLabels = {
+            workana: '🎯 Workana',
+            linkedin: '🎯 LinkedIn',
+            direct: '🎯 Contacto Directo / Recomendación',
+            social: '🎯 Redes Sociales / Web',
+            other: '🎯 Otro'
+        };
+        const sourceLabels = {
+            workana: '💼 Workana (Plataforma)',
+            external: '💼 Directo / Por afuera'
+        };
+
+        const clientSourceText = clientSourceLabels[p.clientSource || (p.source === 'external' ? 'direct' : 'workana')] || p.clientSource;
+        const sourceText = sourceLabels[p.source || 'workana'] || p.source;
+
+        let partialsHTML = '';
+        if (Array.isArray(p.partialReleases) && p.partialReleases.length > 0) {
+            partialsHTML = `
+                <div style="background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); padding: 10px; border-radius: 8px;">
+                    <strong style="color: var(--status-green); font-size: 0.85rem; display: block; margin-bottom: 6px;">Historial de Liberaciones Parciales:</strong>
+                    ${p.partialReleases.map(r => `
+                        <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 3px;">
+                            <span>${r.date} (${r.percent}%):</span>
+                            <strong style="color: white;">${this.app.formatCurrency(r.netAmount)}</strong>
+                        </div>
+                    `).join('')}
+                </div>`;
+        }
+
+        const body = document.getElementById('proj-details-body');
+        if (body) {
+            body.innerHTML = `
+                <div style="display: flex; flex-direction: column; gap: 8px; font-size: 0.88rem;">
+                    <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;">
+                        <span style="color:var(--text-secondary);">Origen del Cliente:</span>
+                        <strong>${clientSourceText}</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;">
+                        <span style="color:var(--text-secondary);">Vía de Trabajo / Cobro:</span>
+                        <strong>${sourceText}</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;">
+                        <span style="color:var(--text-secondary);">Tiempo Dedicado:</span>
+                        <strong>${formattedTime}</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;">
+                        <span style="color:var(--text-secondary);">Valor Hora Estimado:</span>
+                        <strong>${rateText}</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;">
+                        <span style="color:var(--text-secondary);">Fecha de Aceptación:</span>
+                        <strong>${this.formatDate(p.accepted)}</strong>
+                    </div>
+                    <div style="display:flex; justify-content:space-between; border-bottom: 1px solid var(--surface-border); padding-bottom: 6px;">
+                        <span style="color:var(--text-secondary);">Fecha Límite:</span>
+                        <strong>${this.formatDate(p.deadline)}</strong>
+                    </div>
+                    ${partialsHTML}
+                </div>`;
+        }
+
+        modal.classList.remove('hidden');
+    }
+
     openStatusNoteModal(id) {
         this.editingStatusNoteProjectId = id;
         const p = this.projects.find(proj => String(proj.id) === String(id));
@@ -1028,10 +1230,14 @@ export class ProjectsModule {
         list.innerHTML = '';
         activeCount.innerText = this.projects.length;
 
-        // Calcular Finanzas del Dashboard
+        // 1. Calcular Finanzas del Dashboard con Liberaciones Parciales
         let activeNetSum = 0;
         this.projects.forEach(p => {
-            activeNetSum += Number(p.budgetNet || 0);
+            let sumPartials = 0;
+            if (Array.isArray(p.partialReleases)) {
+                p.partialReleases.forEach(r => { sumPartials += Number(r.netAmount || 0); });
+            }
+            activeNetSum += Math.max(0, Number(p.budgetNet || 0) - sumPartials);
         });
         document.getElementById('activeUSD').innerText = this.app.formatCurrency(activeNetSum);
 
@@ -1043,16 +1249,60 @@ export class ProjectsModule {
         let yearNetSum = 0;
         let totalNetSum = 0;
 
+        // Liberaciones parciales de proyectos activos
+        this.projects.forEach(p => {
+            if (Array.isArray(p.partialReleases)) {
+                p.partialReleases.forEach(r => {
+                    const netVal = Number(r.netAmount || 0);
+                    totalNetSum += netVal;
+                    if (r.date) {
+                        const del = parseDateLocal(r.date);
+                        if (del && del.getFullYear() === currYear) {
+                            yearNetSum += netVal;
+                            if (del.getMonth() === currMonth) monthNetSum += netVal;
+                        }
+                    }
+                });
+            }
+        });
+
+        // Historial de proyectos
         this.history.forEach(p => {
-            const netVal = Number(p.budgetNet || 0);
-            totalNetSum += netVal;
-            const dateStr = p.deliveredDate || p.deliveredAt;
-            if (dateStr) {
-                const del = parseDateLocal(dateStr);
-                if (del && del.getFullYear() === currYear) {
-                    yearNetSum += netVal;
-                    if (del.getMonth() === currMonth) {
-                        monthNetSum += netVal;
+            if (Array.isArray(p.partialReleases) && p.partialReleases.length > 0) {
+                let sumPartials = 0;
+                p.partialReleases.forEach(r => {
+                    const netVal = Number(r.netAmount || 0);
+                    sumPartials += netVal;
+                    totalNetSum += netVal;
+                    if (r.date) {
+                        const del = parseDateLocal(r.date);
+                        if (del && del.getFullYear() === currYear) {
+                            yearNetSum += netVal;
+                            if (del.getMonth() === currMonth) monthNetSum += netVal;
+                        }
+                    }
+                });
+                const finalRem = Math.max(0, Number(p.budgetNet || 0) - sumPartials);
+                if (finalRem > 0) {
+                    totalNetSum += finalRem;
+                    const dateStr = p.deliveredDate || p.deliveredAt;
+                    if (dateStr) {
+                        const del = parseDateLocal(dateStr);
+                        if (del && del.getFullYear() === currYear) {
+                            yearNetSum += finalRem;
+                            if (del.getMonth() === currMonth) monthNetSum += finalRem;
+                        }
+                    }
+                }
+            } else {
+                const netVal = Number(p.budgetNet || 0);
+                totalNetSum += netVal;
+                const dateStr = p.deliveredDate || p.deliveredAt;
+                if (dateStr) {
+                    const del = parseDateLocal(dateStr);
+                    if (del && del.getFullYear() === currYear) {
+                        yearNetSum += netVal;
+                        if (del.getMonth() === currMonth) monthNetSum += netVal;
                     }
                 }
             }
@@ -1067,6 +1317,7 @@ export class ProjectsModule {
             return;
         }
 
+        // 2. Renderizado de Tarjetas Ultra-Compactas
         this.projects.forEach(p => {
             const deadline = new Date(p.deadline);
             let remainingMs = deadline - now;
@@ -1077,27 +1328,15 @@ export class ProjectsModule {
 
             let colorVar = "var(--status-green)";
             let countdownText = "";
-            let leftDateLabel = "Aceptado:";
-            let leftDateVal = this.formatDate(p.accepted);
-            let rightDateLabel = `Límite (${p.days}d):`;
-            let rightDateVal = this.formatDate(p.deadline);
 
             if (p.isArbitration) {
                 progress = 100;
                 colorVar = "var(--status-red)";
-                countdownText = "⚠️ EN ARBITRAJE";
-                leftDateLabel = "Entró en Disputa:";
-                leftDateVal = this.formatDate(p.deliveredAt || p.accepted);
-                rightDateLabel = "Estado:";
-                rightDateVal = "FONDOS CONGELADOS";
+                countdownText = "⚠️ ARBITRAJE";
             } else if (p.hasChangesRequested) {
                 progress = 100;
                 colorVar = "var(--status-orange)";
-                countdownText = "⚠️ EN SOLICITUD DE CAMBIOS (PAUSADO)";
-                leftDateLabel = "Aceptado:";
-                leftDateVal = this.formatDate(p.accepted);
-                rightDateLabel = "Solicitud Cambios:";
-                rightDateVal = this.formatDate(p.changesRequestedAt || now);
+                countdownText = "⚠️ CAMBIOS";
             } else if (p.isDelivered) {
                 if (!p.deliveredAt) p.deliveredAt = now.toISOString();
                 const del = new Date(p.deliveredAt);
@@ -1106,11 +1345,7 @@ export class ProjectsModule {
                 if (isOver300) {
                     progress = 100;
                     colorVar = "#3b82f6";
-                    countdownText = "🔒 ESPERANDO LIBERACIÓN MANUAL DEL CLIENTE";
-                    leftDateLabel = "Entregado:";
-                    leftDateVal = this.formatDate(p.deliveredAt);
-                    rightDateLabel = "Liberación:";
-                    rightDateVal = "Manual (> $300 USD)";
+                    countdownText = "🔒 MANUAL (> $300)";
                 } else {
                     const releaseDate = new Date(del.getTime() + 15 * 24 * 60 * 60 * 1000);
                     const relRemainingMs = releaseDate - now;
@@ -1118,11 +1353,6 @@ export class ProjectsModule {
 
                     progress = ((relTotalMs - relRemainingMs) / relTotalMs) * 100;
                     progress = Math.max(0, Math.min(100, progress));
-
-                    leftDateLabel = "Entregado:";
-                    leftDateVal = this.formatDate(p.deliveredAt);
-                    rightDateLabel = "Liberación (15d):";
-                    rightDateVal = this.formatDate(releaseDate);
 
                     if (relRemainingMs <= 0) {
                         countdownText = "LISTO PARA LIBERAR";
@@ -1155,57 +1385,18 @@ export class ProjectsModule {
                 }
             }
 
-            let badgeSpan = '';
-            if (p.isDelegated) {
-                badgeSpan = '<span class="badge" style="background:var(--status-yellow); color:#000; font-size:0.7rem; margin-left:8px; vertical-align:middle; padding:3px 8px;">Delegado (30%)</span>';
-            } else if (p.isReceived) {
-                badgeSpan = '<span class="badge" style="background:var(--status-green); color:#fff; font-size:0.7rem; margin-left:8px; vertical-align:middle; padding:3px 8px;">Fabro (70%)</span>';
+            // Cálculos de liberaciones parciales existentes
+            let sumPartialNet = 0;
+            let sumPartialGross = 0;
+            let partialPctTotal = 0;
+            if (Array.isArray(p.partialReleases) && p.partialReleases.length > 0) {
+                p.partialReleases.forEach(r => {
+                    sumPartialNet += Number(r.netAmount || 0);
+                    sumPartialGross += Number(r.grossAmount || 0);
+                    partialPctTotal += Number(r.percent || 0);
+                });
             }
-
-            const clientSourceVal = p.clientSource || (p.source === 'external' ? 'direct' : 'workana');
-            const clientSourceLabels = {
-                workana: '🎯 Origen: Workana',
-                linkedin: '🎯 Origen: LinkedIn',
-                direct: '🎯 Origen: Directo',
-                social: '🎯 Origen: Redes',
-                other: '🎯 Origen: Otro'
-            };
-            const sourceLabels = {
-                workana: '💼 Vía: Workana',
-                external: '💼 Vía: Directo'
-            };
-            const clientSourceBadge = `<span class="badge" style="background:rgba(59, 130, 246, 0.12); color:#60a5fa; border:1px solid rgba(59, 130, 246, 0.25); font-size:0.7rem; margin-left:6px; vertical-align:middle; padding:3px 8px;">${escapeHtml(clientSourceLabels[clientSourceVal] || '🎯 Origen: ' + clientSourceVal)}</span>`;
-            const sourceBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-secondary); border: 1px solid var(--surface-border); font-size:0.7rem; margin-left:6px; vertical-align:middle; padding:3px 8px;">${escapeHtml(sourceLabels[p.source] || '💼 Vía: ' + (p.source || 'Workana'))}</span>`;
-
-            const isRunning = p.timerStart !== null;
-            const btnIcon = p.isArbitration ? '🔒' : (isRunning ? '⏸️' : '▶️');
-            const btnBg = p.isArbitration ? 'rgba(255,255,255,0.05)' : (isRunning ? 'var(--status-red)' : 'var(--primary-color)');
-            const btnColor = p.isArbitration ? 'var(--text-secondary)' : 'white';
-            const timerButtonLabel = p.isArbitration
-                ? 'Temporizador bloqueado durante el arbitraje'
-                : (isRunning ? 'Pausar temporizador' : 'Iniciar temporizador');
-
-            let initialMs = p.timeSpent || 0;
-            if (p.timerStart) {
-                initialMs += (now - new Date(p.timerStart));
-            }
-            const initialSecs = Math.floor(initialMs / 1000);
-            const h = Math.floor(initialSecs / 3600);
-            const m = Math.floor((initialSecs % 3600) / 60);
-            const s = initialSecs % 60;
-            const formattedTime = `${h}h ${String(m).padStart(2, '0')}m ${String(s).padStart(2, '0')}s`;
-
-            let rateText = '--/h';
-            let rateColor = 'var(--text-secondary)';
-            const totalHours = initialMs / (3600 * 1000);
-            if (totalHours > 0) {
-                const rate = (p.budgetNet || 0) / totalHours;
-                rateText = `${this.app.formatCurrency(rate)}/h`;
-                if (rate >= 25) rateColor = 'var(--status-green)';
-                else if (rate >= 20) rateColor = 'var(--primary-color)';
-                else if (rate >= 10) rateColor = 'var(--status-yellow)';
-                else rateColor = 'var(--status-red)';
-            }
+            const pendingNet = Math.max(0, Number(p.budgetNet || 0) - sumPartialNet);
 
             const safeClient = escapeHtml(p.client || '');
             const safeProjectName = escapeHtml(p.project || '');
@@ -1213,21 +1404,15 @@ export class ProjectsModule {
                 p.statusNote || '+ Asignar estado (ej: Esperando credenciales)'
             );
             const safeCountdownText = escapeHtml(countdownText);
-            const safeLeftDateLabel = escapeHtml(leftDateLabel);
-            const safeLeftDateValue = escapeHtml(leftDateVal);
-            const safeRightDateLabel = escapeHtml(rightDateLabel);
-            const safeRightDateValue = escapeHtml(rightDateVal);
-            const feeDescription = p.feeType === 'direct'
-                ? 'Sin comisiones'
-                : (
-                    p.feeType === 'paypal_direct'
-                        ? 'PayPal Direct'
-                        : (
-                            p.feeType === 'custom'
-                                ? `Workana ${p.manualPercent}%`
-                                : `Workana ${p.feeType || 20}%`
-                        )
-                );
+
+            let partialReleaseHTML = '';
+            if (sumPartialNet > 0) {
+                partialReleaseHTML = `
+                    <div class="partial-release-badge">
+                        <span style="color: var(--status-green); font-weight: 600;">💰 Liberado: ${this.app.formatCurrency(sumPartialNet)} (${partialPctTotal}%)</span>
+                        <span style="color: var(--status-yellow); font-size: 0.8rem;">Pendiente: ${this.app.formatCurrency(pendingNet)}</span>
+                    </div>`;
+            }
 
             const card = document.createElement('div');
             card.className = 'card';
@@ -1236,98 +1421,113 @@ export class ProjectsModule {
             card.style.borderColor = colorVar;
 
             card.innerHTML = `
-                <div class="project-card-header" style="margin-bottom: 0.75rem;">
-                    <div class="project-card-info">
-                        <h3 class="project-client" style="color:white; font-size:1.2rem; margin:0; display:flex; align-items:center; flex-wrap:wrap; gap: 6px;">
-                            ${safeClient} ${badgeSpan} ${clientSourceBadge} ${sourceBadge}
+                <div class="project-card-header" style="margin-bottom: 0.5rem; display:flex; justify-content:space-between; align-items:flex-start;">
+                    <div class="project-card-info" style="min-width:0; flex:1;">
+                        <h3 class="project-client" style="color:white; font-size:1.15rem; margin:0; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                            ${safeClient}
                         </h3>
-                        <p class="project-name" style="color:var(--text-secondary); font-size:0.88rem; margin: 3px 0 8px 0; font-weight: 500;">${safeProjectName}</p>
-                        <div>
-                            <span class="project-status-pill ${!p.statusNote ? 'empty-status' : ''}" title="Haz clic para cambiar el estado de seguimiento" style="display: inline-flex; align-items: center; gap: 6px; padding: 5px 12px; border-radius: 20px; font-size: 0.82rem; font-weight: 600; cursor: pointer;">
-                                <i class="ph ph-push-pin"></i> 
-                                <span class="status-note-text">${safeStatusNote}</span>
-                                <i class="ph ph-pencil-simple" style="font-size: 0.8rem; opacity: 0.7;"></i>
-                            </span>
-                        </div>
+                        <p class="project-name" style="color:var(--text-secondary); font-size:0.85rem; margin: 2px 0 6px 0; font-weight: 500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeProjectName}</p>
                     </div>
-                    <div class="countdown-badge-wrapper">
-                        <div class="countdown-badge" style="background: rgba(0,0,0,0.3); border: 1.5px solid ${colorVar}; color: ${colorVar}; padding: 6px 12px; border-radius: 12px; font-weight: 800; font-size: 1.1rem; font-variant-numeric: tabular-nums; box-shadow: 0 0 10px ${colorVar}30; white-space: nowrap;">
+                    <div class="countdown-badge-wrapper" style="flex-shrink:0; margin-left:10px;">
+                        <div class="countdown-badge" style="background: rgba(0,0,0,0.3); border: 1.5px solid ${colorVar}; color: ${colorVar}; padding: 4px 10px; border-radius: 10px; font-weight: 800; font-size: 0.95rem; font-variant-numeric: tabular-nums;">
                             ${safeCountdownText}
                         </div>
-                        <button type="button" class="btn-history-delete" title="Eliminar proyecto" aria-label="Eliminar proyecto ${safeProjectName}" style="background: none; border: none; color: rgba(255,255,255,0.4); cursor: pointer; padding: 2px; font-size: 1.1rem; transition: color 0.2s;"><i class="ph ph-trash"></i></button>
                     </div>
                 </div>
 
-                <div class="pulse-bar" style="margin-bottom: 0.75rem;">
+                <div class="pulse-bar" style="margin-bottom: 0.6rem;">
                     <div class="pulse-progress" style="width:${progress}%; background:${colorVar}"></div>
                 </div>
 
-                <div class="finance-block" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid var(--surface-border); padding: 8px 12px; border-radius: 8px; margin-bottom: 0.75rem;">
-                    <span class="gross-amount" style="font-size: 0.8rem; color: var(--text-secondary);">Bruto: ${this.app.formatCurrency(p.budgetGross || 0)} (${escapeHtml(feeDescription)})</span>
-                    <strong class="net-amount" style="font-size: 0.95rem; color: var(--status-green);">Neto: ${this.app.formatCurrency(p.budgetNet || 0)}</strong>
+                <div style="margin-bottom: 0.6rem;">
+                    <span class="project-status-pill ${!p.statusNote ? 'empty-status' : ''}" title="Haz clic para cambiar el estado de seguimiento" style="display: inline-flex; align-items: center; gap: 6px; padding: 4px 10px; border-radius: 16px; font-size: 0.8rem; font-weight: 600; cursor: pointer; width: 100%; box-sizing: border-box;">
+                        <i class="ph ph-push-pin"></i> 
+                        <span class="status-note-text" style="white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeStatusNote}</span>
+                    </span>
                 </div>
 
-                <div class="timer-block" style="display:flex; align-items:center; justify-content:space-between; background:rgba(0,0,0,0.25); border:1px solid var(--surface-border); border-radius:8px; padding:8px 12px; margin-bottom:0.75rem; gap:10px;">
-                    <div style="display:flex; flex-direction:column; gap:2px; min-width:0;">
-                        <span style="font-size:0.7rem; color:var(--text-secondary); text-transform:uppercase; letter-spacing:0.5px;">Tiempo dedicado</span>
-                        <strong class="timer-display" style="font-size:1.05rem; color:white; font-variant-numeric: tabular-nums;">${formattedTime}</strong>
-                    </div>
-                    <div style="display:flex; align-items:center; gap:8px;">
-                        <div style="display:flex; flex-direction:column; align-items:flex-end; gap:2px; min-width:0;">
-                            <span style="font-size:0.7rem; color:var(--text-secondary);">Valor Hora</span>
-                            <strong class="rate-value" style="font-size:0.9rem; color:${rateColor};">${rateText}</strong>
-                        </div>
-                        <button class="btn-timer" aria-label="${timerButtonLabel}" data-tooltip="${timerButtonLabel}" style="background:${btnBg}; color:${btnColor}; border:none; width:36px; height:36px; border-radius:50%; display:flex; align-items:center; justify-content:center; cursor:pointer; font-size:1rem; transition: transform 0.1s; flex-shrink:0;">${btnIcon}</button>
-                    </div>
+                ${partialReleaseHTML}
+
+                <div class="finance-block" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid var(--surface-border); padding: 6px 10px; border-radius: 8px; margin-bottom: 0.6rem;">
+                    <span class="gross-amount" style="font-size: 0.78rem; color: var(--text-secondary);">Bruto: ${this.app.formatCurrency(p.budgetGross || 0)}</span>
+                    <strong class="net-amount" style="font-size: 0.9rem; color: var(--status-green);">Neto Pendiente: ${this.app.formatCurrency(pendingNet)}</strong>
                 </div>
 
-                <div class="project-dates" style="margin-bottom: 0.75rem;">
-                    <div class="date-block">
-                        <span>${safeLeftDateLabel}</span>
-                        <strong>${safeLeftDateValue}</strong>
-                    </div>
-                    <div class="date-block" style="text-align: right;">
-                        <span>${safeRightDateLabel}</span>
-                        <strong>${safeRightDateValue}</strong>
-                    </div>
-                </div>
-                
-                <div class="project-actions-compact" style="display: flex; gap: 8px; margin-top: 10px; align-items: center; justify-content: flex-end;">
-                    <button class="btn btn-secondary btn-plan" style="margin: 0; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px;" data-tooltip="Plan del Proyecto" aria-label="Plan del Proyecto">
-                        <i class="ph ph-clipboard-text" style="font-size: 1.1rem;"></i>
-                        <span>Plan</span>
+                <div class="project-actions-compact-row">
+                    <button class="btn btn-secondary btn-plan project-btn-icon" data-tooltip="Plan del Proyecto" aria-label="Plan del Proyecto">
+                        <i class="ph ph-clipboard-text"></i>
                     </button>
-                    <button class="btn btn-secondary btn-manage" style="margin:0; padding: 0 12px; height: 38px; display: inline-flex; align-items: center; justify-content: center;" data-tooltip="Gestionar Proyecto (Editar / Fases)" aria-label="Gestionar Proyecto"><i class="ph ph-gear" style="font-size: 1.1rem;"></i></button>
+                    <button class="btn btn-secondary btn-manage project-btn-icon" data-tooltip="Gestionar Proyecto (Editar / Fases)" aria-label="Gestionar Proyecto">
+                        <i class="ph ph-gear"></i>
+                    </button>
                     ${p.isArbitration ? `
-                        <button class="btn btn-primary btn-resolve" style="margin:0; background: var(--status-red); color: white; padding: 0 14px; height: 38px; display: inline-flex; align-items: center; justify-content: center;" data-tooltip="Resolver Arbitraje" aria-label="Resolver Arbitraje"><i class="ph ph-scales" style="font-size: 1.1rem;"></i></button>
+                        <button class="btn btn-primary btn-resolve" style="margin:0; background: var(--status-red); color: white; padding: 0 14px; height: 38px; font-size: 0.85rem;" data-tooltip="Resolver Arbitraje" aria-label="Resolver Arbitraje"><i class="ph ph-scales"></i> Resolver</button>
                     ` : (p.hasChangesRequested ? `
-                        <button class="btn btn-primary btn-redeliver" style="margin:0; background: var(--status-green); color: white; padding: 0 14px; height: 38px; display: inline-flex; align-items: center; justify-content: center;" data-tooltip="Reentregar Trabajo" aria-label="Reentregar Trabajo"><i class="ph ph-arrow-clockwise" style="font-size: 1.1rem;"></i></button>
+                        <button class="btn btn-primary btn-redeliver" style="margin:0; background: var(--status-green); color: white; padding: 0 14px; height: 38px; font-size: 0.85rem;" data-tooltip="Reentregar Trabajo" aria-label="Reentregar Trabajo"><i class="ph ph-arrow-clockwise"></i> Reentregar</button>
                     ` : (!p.isDelivered ? `
-                        <button class="btn btn-primary btn-deliver" style="margin:0; background: var(--status-green); color: white; padding: 0 16px; height: 38px; display: inline-flex; align-items: center; gap: 6px;" data-tooltip="Marcar como Entregado" aria-label="Marcar como Entregado"><i class="ph ph-check" style="font-size: 1.1rem;"></i> <span>Entregado</span></button>
+                        <button class="btn btn-primary btn-deliver" style="margin:0; background: var(--status-green); color: white; padding: 0 14px; height: 38px; font-size: 0.85rem; display: inline-flex; align-items: center; gap: 4px;" data-tooltip="Marcar como Entregado" aria-label="Marcar como Entregado"><i class="ph ph-check"></i> Entregado</button>
                     ` : `
-                        <button class="btn btn-primary btn-confirm" style="margin:0; background: var(--status-green); color: white; padding: 0 14px; height: 38px; display: inline-flex; align-items: center; justify-content: center;" data-tooltip="Confirmar Pago y Finalizar" aria-label="Confirmar Pago"><i class="ph ph-coins" style="font-size: 1.1rem;"></i></button>
-                        <button class="btn btn-secondary btn-request-changes" style="margin:0; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24; padding: 0 12px; height: 38px; display: inline-flex; align-items: center; justify-content: center;" data-tooltip="Marcar Solicitud de Cambios del Cliente" aria-label="Solicitó Cambios"><i class="ph ph-warning-diamond" style="font-size: 1.1rem;"></i></button>
+                        <button class="btn btn-primary btn-confirm" style="margin:0; background: var(--status-green); color: white; padding: 0 14px; height: 38px; font-size: 0.85rem;" data-tooltip="Confirmar Pago y Finalizar" aria-label="Confirmar Pago"><i class="ph ph-coins"></i> Confirmar Pago</button>
                     `)) }
+
+                    <div class="dropdown-menu-container">
+                        <button class="btn btn-secondary btn-options project-btn-icon" data-tooltip="Más opciones" aria-label="Más opciones">
+                            <i class="ph ph-dots-three-vertical"></i>
+                        </button>
+                        <div class="dropdown-menu-content hidden">
+                            <button class="dropdown-menu-item btn-partial-release">
+                                <i class="ph ph-hand-coins" style="color: var(--status-green);"></i> Liberar Parcialmente
+                            </button>
+                            <button class="dropdown-menu-item btn-show-details">
+                                <i class="ph ph-info" style="color: var(--primary-color);"></i> Ver Detalles & Tiempos
+                            </button>
+                            <button class="dropdown-menu-item btn-history-delete" style="color: var(--status-red);">
+                                <i class="ph ph-trash"></i> Eliminar Proyecto
+                            </button>
+                        </div>
+                    </div>
                 </div>
             `;
+
+            // Event Listeners
             card.querySelector('.project-status-pill')?.addEventListener('click', () => {
                 this.openStatusNoteModal(p.id);
             });
-            card.querySelector('.btn-history-delete').addEventListener('click', () => {
-                this.deleteActiveProject(p.id);
-            });
-            card.querySelector('.btn-timer').addEventListener('click', (e) => {
-                this.toggleTimer(p.id, e);
-            });
-            card.querySelector('.btn-plan').addEventListener('click', () => {
+            card.querySelector('.btn-plan')?.addEventListener('click', () => {
                 this.openPlanModal(p.id);
             });
-            card.querySelector('.btn-manage').addEventListener('click', () => {
+            card.querySelector('.btn-manage')?.addEventListener('click', () => {
                 this.openEditModal(p.id);
             });
 
+            // Toggle Dropdown Menu
+            const btnOptions = card.querySelector('.btn-options');
+            const dropdownContent = card.querySelector('.dropdown-menu-content');
+            if (btnOptions && dropdownContent) {
+                btnOptions.addEventListener('click', (e) => {
+                    e.stopPropagation();
+                    dropdownContent.classList.toggle('hidden');
+                });
+            }
+
+            card.querySelector('.btn-partial-release')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdownContent?.classList.add('hidden');
+                this.openPartialReleaseModal(p.id);
+            });
+            card.querySelector('.btn-show-details')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdownContent?.classList.add('hidden');
+                this.openDetailsModal(p.id);
+            });
+            card.querySelector('.btn-history-delete')?.addEventListener('click', (e) => {
+                e.stopPropagation();
+                dropdownContent?.classList.add('hidden');
+                this.deleteActiveProject(p.id);
+            });
+
             if (p.isArbitration) {
-                card.querySelector('.btn-resolve').addEventListener('click', () => {
+                card.querySelector('.btn-resolve')?.addEventListener('click', () => {
                     this.openResolveArbitrationModal(p.id);
                 });
             } else if (p.hasChangesRequested) {
@@ -1342,13 +1542,15 @@ export class ProjectsModule {
                 card.querySelector('.btn-confirm')?.addEventListener('click', () => {
                     this.confirmPayment(p.id);
                 });
-                card.querySelector('.btn-request-changes')?.addEventListener('click', () => {
-                    this.requestChanges(p.id);
-                });
             }
 
             list.appendChild(card);
         });
+
+        // Close dropdowns on outside click
+        document.addEventListener('click', () => {
+            document.querySelectorAll('.dropdown-menu-content').forEach(el => el.classList.add('hidden'));
+        }, { once: true });
     }
 
     async deleteActiveProject(id) {

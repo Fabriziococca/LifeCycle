@@ -995,17 +995,64 @@ export class FinanzasModule {
     getCombinedEntries() {
         const list = [...(this.data.entries || [])];
 
+        // 1. Process Partial Releases from Active Projects
+        const activeProjects = this.app.projects?.projects || [];
+        activeProjects.forEach(p => {
+            if (Array.isArray(p.partialReleases) && p.partialReleases.length > 0) {
+                p.partialReleases.forEach((rel, idx) => {
+                    list.push({
+                        id: `proj-partial-active-${p.id}-${rel.id || idx}`,
+                        category: 'freelance',
+                        source: p.source || 'workana',
+                        date: rel.date || getLocalISODate(),
+                        amount: Number(rel.netAmount || 0),
+                        description: `[Parcial ${rel.percent}%] ${p.client} - ${p.project}`
+                    });
+                });
+            }
+        });
+
+        // 2. Process History Projects (Final amounts & partial releases)
         const projHistory = this.app.projects?.history || [];
         projHistory.forEach(p => {
-            const dateVal = p.deliveredDate || (p.deliveredAt ? p.deliveredAt.split('T')[0] : getLocalISODate());
-            list.push({
-                id: `proj-${p.id}`,
-                category: 'freelance',
-                source: p.source || 'workana',
-                date: dateVal,
-                amount: Number(p.budgetNet || 0),
-                description: `${p.client} - ${p.project}`
-            });
+            const hasPartials = Array.isArray(p.partialReleases) && p.partialReleases.length > 0;
+            if (hasPartials) {
+                let sumPartialNet = 0;
+                p.partialReleases.forEach((rel, idx) => {
+                    const partialNet = Number(rel.netAmount || 0);
+                    sumPartialNet += partialNet;
+                    list.push({
+                        id: `proj-partial-hist-${p.id}-${rel.id || idx}`,
+                        category: 'freelance',
+                        source: p.source || 'workana',
+                        date: rel.date || getLocalISODate(),
+                        amount: partialNet,
+                        description: `[Parcial ${rel.percent}%] ${p.client} - ${p.project}`
+                    });
+                });
+                const finalRemainingNet = Math.max(0, Number(p.budgetNet || 0) - sumPartialNet);
+                if (finalRemainingNet > 0) {
+                    const dateVal = p.deliveredDate || (p.deliveredAt ? p.deliveredAt.split('T')[0] : getLocalISODate());
+                    list.push({
+                        id: `proj-final-${p.id}`,
+                        category: 'freelance',
+                        source: p.source || 'workana',
+                        date: dateVal,
+                        amount: finalRemainingNet,
+                        description: `[Final] ${p.client} - ${p.project}`
+                    });
+                }
+            } else {
+                const dateVal = p.deliveredDate || (p.deliveredAt ? p.deliveredAt.split('T')[0] : getLocalISODate());
+                list.push({
+                    id: `proj-${p.id}`,
+                    category: 'freelance',
+                    source: p.source || 'workana',
+                    date: dateVal,
+                    amount: Number(p.budgetNet || 0),
+                    description: `${p.client} - ${p.project}`
+                });
+            }
         });
 
         return list;

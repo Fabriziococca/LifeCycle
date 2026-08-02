@@ -2362,6 +2362,63 @@
     </div>
 
     <!-- MODALS ESPECÍFICOS DE PROYECTOS -->
+
+    <!-- MODAL DE LIBERACIÓN PARCIAL DE FONDOS -->
+    <div id="projects-partial-release-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 480px; width: 92%;">
+            <h3>💰 Liberación Parcial de Fondos</h3>
+            <p id="proj-partial-desc" class="modal-desc" style="margin-bottom: 1.25rem;">Liberá una parte del presupuesto neto de un proyecto en curso sin finalizarlo.</p>
+
+            <div class="finance-block" style="background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); padding: 10px 14px; border-radius: 8px; margin-bottom: 1.25rem;">
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px;">
+                    <span>Presupuesto Neto Total:</span>
+                    <strong id="proj-partial-total-net" style="color: white;">$0.00 USD</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary);">
+                    <span>Saldo Pendiente Actual:</span>
+                    <strong id="proj-partial-pending-net" style="color: var(--status-yellow);">--</strong>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label style="font-size:0.85rem; display:block; margin-bottom:6px; font-weight:600;">Porcentaje o Monto a Liberar (%)</label>
+                <input type="number" id="proj-partial-pct" class="number-input" min="1" max="100" step="1" value="50">
+            </div>
+
+            <!-- Botones de selección rápida -->
+            <div style="display:flex; gap:6px; margin-top: 0.75rem; flex-wrap:wrap;">
+                <button type="button" class="btn btn-secondary btn-pct-preset" data-pct="25" style="margin:0; padding:6px 10px; font-size:0.75rem; flex:1;">25%</button>
+                <button type="button" class="btn btn-secondary btn-pct-preset" data-pct="30" style="margin:0; padding:6px 10px; font-size:0.75rem; flex:1;">30%</button>
+                <button type="button" class="btn btn-secondary btn-pct-preset" data-pct="50" style="margin:0; padding:6px 10px; font-size:0.75rem; flex:1;">50%</button>
+                <button type="button" class="btn btn-secondary btn-pct-preset" data-pct="70" style="margin:0; padding:6px 10px; font-size:0.75rem; flex:1;">70%</button>
+            </div>
+
+            <div id="proj-partial-preview-box" style="margin-top: 1.25rem; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.25); padding: 12px; border-radius: 8px; text-align: center;">
+                <span style="font-size: 0.8rem; color: var(--text-secondary); display: block;">Monto Neto que se Acreditará:</span>
+                <strong id="proj-partial-preview-net" style="font-size: 1.35rem; color: var(--status-green);">$0.00 USD</strong>
+                <span id="proj-partial-preview-gross" style="font-size: 0.75rem; color: var(--text-secondary); display: block; margin-top: 2px;">(Bruto: $0.00 USD)</span>
+            </div>
+
+            <div class="modal-actions" style="margin-top: 1.5rem;">
+                <button id="proj-partial-cancel" class="btn btn-cancel">Cancelar</button>
+                <button id="proj-partial-save" class="btn btn-save" style="background: var(--status-green); color: white;"><i class="ph ph-check-circle"></i> Confirmar Liberación Parcial</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- MODAL DE DETALLES TÉCNICOS DEL PROYECTO -->
+    <div id="projects-details-modal" class="modal hidden">
+        <div class="modal-content" style="max-width: 500px; width: 92%;">
+            <h3 id="proj-details-title">Detalles del Proyecto</h3>
+            <p id="proj-details-subtitle" class="modal-desc" style="margin-bottom: 1.25rem;"></p>
+
+            <div id="proj-details-body" style="display: flex; flex-direction: column; gap: 12px;"></div>
+
+            <div class="modal-actions" style="margin-top: 1.5rem;">
+                <button id="proj-details-close" class="btn btn-primary">Cerrar</button>
+            </div>
+        </div>
+    </div>
     <div id="projects-edit-modal" class="modal hidden">
         <div class="modal-content">
             <h3>Modificar Proyecto</h3>
