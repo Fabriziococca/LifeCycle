@@ -1414,6 +1414,14 @@ export class ProjectsModule {
                     </div>`;
             }
 
+            const isRunning = p.timerStart !== null;
+            const btnTimerIcon = p.isArbitration ? '🔒' : (isRunning ? '⏸️' : '▶️');
+            const btnTimerBg = p.isArbitration ? 'rgba(255,255,255,0.05)' : (isRunning ? 'var(--status-red)' : 'var(--primary-color)');
+            const btnTimerColor = p.isArbitration ? 'var(--text-secondary)' : 'white';
+            const timerButtonLabel = p.isArbitration
+                ? 'Temporizador bloqueado durante el arbitraje'
+                : (isRunning ? 'Pausar temporizador' : 'Iniciar temporizador');
+
             const card = document.createElement('div');
             card.className = 'card';
             card.setAttribute('data-project-id', p.id);
@@ -1454,6 +1462,9 @@ export class ProjectsModule {
                 </div>
 
                 <div class="project-actions-compact-row">
+                    <button class="btn btn-timer project-btn-icon" data-tooltip="${timerButtonLabel}" aria-label="${timerButtonLabel}" style="background:${btnTimerBg}; color:${btnTimerColor}; border:none;">
+                        ${btnTimerIcon}
+                    </button>
                     <button class="btn btn-secondary btn-plan project-btn-icon" data-tooltip="Plan del Proyecto" aria-label="Plan del Proyecto">
                         <i class="ph ph-clipboard-text"></i>
                     </button>
@@ -1490,6 +1501,9 @@ export class ProjectsModule {
             `;
 
             // Event Listeners
+            card.querySelector('.btn-timer')?.addEventListener('click', (e) => {
+                this.toggleTimer(p.id, e);
+            });
             card.querySelector('.project-status-pill')?.addEventListener('click', () => {
                 this.openStatusNoteModal(p.id);
             });
@@ -1506,6 +1520,9 @@ export class ProjectsModule {
             if (btnOptions && dropdownContent) {
                 btnOptions.addEventListener('click', (e) => {
                     e.stopPropagation();
+                    document.querySelectorAll('.dropdown-menu-content').forEach(el => {
+                        if (el !== dropdownContent) el.classList.add('hidden');
+                    });
                     dropdownContent.classList.toggle('hidden');
                 });
             }
