@@ -9,8 +9,9 @@ import {
     CUSTOM_TRACKER_TEMPLATES,
     getCustomAlertKey,
     getCustomTrackerState,
-    normalizeCustomTrackerRegistry
-} from '../custom-tracker-utils.mjs?v=20260729-trackers-v2';
+    normalizeCustomTrackerRegistry,
+    normalizeNavigationPreferences
+} from '../custom-tracker-utils.mjs?v=20260801-adaptive-navigation';
 import {
     migrateLegacyTrackerRegistry,
     readLegacyTrackerSnapshot
@@ -481,6 +482,12 @@ export class CustomTrackersModule {
                 return;
             }
 
+            const favoriteButton = event.target.closest('[data-module-favorite-action]');
+            if (favoriteButton) {
+                this.toggleNavigationFavorite(favoriteButton.dataset.moduleId);
+                return;
+            }
+
             const button = event.target.closest('[data-module-visibility-action]');
             if (!button) return;
             const moduleId = button.dataset.moduleId;
@@ -496,6 +503,47 @@ export class CustomTrackersModule {
     getFirstVisibleModuleId() {
         return Object.keys(APP_MODULES).find(moduleId => this.isModuleVisible(moduleId))
             || null;
+    }
+
+    getNavigationPreferences() {
+        this.registry.navigationPreferences = normalizeNavigationPreferences(
+            this.registry.navigationPreferences
+        );
+        return this.registry.navigationPreferences;
+    }
+
+    getFavoriteModuleIds() {
+        return [...this.getNavigationPreferences().favoriteModules];
+    }
+
+    toggleNavigationFavorite(moduleId) {
+        if (!APP_MODULES[moduleId]) return false;
+        const preferences = this.getNavigationPreferences();
+        const favorites = new Set(preferences.favoriteModules);
+        const wasFavorite = favorites.has(moduleId);
+        if (wasFavorite) {
+            if (favorites.size <= 1) {
+                this.showModulesFeedback('Dejá al menos un módulo favorito para la barra del celular.');
+                return false;
+            }
+            favorites.delete(moduleId);
+        } else {
+            if (favorites.size >= 4) {
+                this.showModulesFeedback('La barra del celular admite hasta cuatro favoritos. Quitá uno antes de agregar otro.');
+                return false;
+            }
+            favorites.add(moduleId);
+        }
+        this.registry.navigationPreferences = normalizeNavigationPreferences({
+            favoriteModules: [...favorites]
+        });
+        this.persistRegistry();
+        this.showModulesFeedback(
+            wasFavorite
+                ? `${APP_MODULES[moduleId].label} se quitó de la barra del celular.`
+                : `${APP_MODULES[moduleId].label} se agregó a la barra del celular.`
+        );
+        return true;
     }
 
     toggleModuleVisibility(moduleId) {
@@ -538,14 +586,17 @@ export class CustomTrackersModule {
         if (activeModuleId && !this.isModuleVisible(activeModuleId)) {
             this.app.lastActiveSectionId = this.getFirstVisibleModuleId();
         }
+        this.app.adaptiveNavigation?.refresh?.();
         this.renderModulesManager();
     }
 
     renderModulesManager() {
         if (!this.modulesSummary) return;
+        const favorites = new Set(this.getFavoriteModuleIds());
         this.modulesSummary.innerHTML = Object.entries(APP_MODULES)
             .map(([moduleId, module]) => {
                 const visible = this.isModuleVisible(moduleId);
+                const favorite = favorites.has(moduleId);
                 return `
                     <article class="module-visibility-card ${visible ? '' : 'is-hidden'}">
                         <span class="module-visibility-icon">
@@ -555,17 +606,28 @@ export class CustomTrackersModule {
                             <strong>${escapeHtml(module.label)}</strong>
                             <small>${visible ? 'Visible en la navegación' : 'Oculto · datos conservados'}</small>
                         </span>
-                        <button
-                            type="button"
-                            class="module-visibility-toggle ${visible ? 'active' : ''}"
-                            data-module-visibility-action="toggle"
-                            data-module-id="${moduleId}"
-                            aria-label="${visible ? 'Ocultar' : 'Mostrar'} módulo ${escapeHtml(module.label)}"
-                            data-tooltip="${visible ? 'Ocultar módulo' : 'Mostrar módulo'}"
-                            aria-pressed="${visible}"
-                        >
-                            <span aria-hidden="true"></span>
-                        </button>
+                        <span class="module-visibility-actions">
+                            <button
+                                type="button"
+                                class="module-favorite-toggle ${favorite ? 'active' : ''}"
+                                data-module-favorite-action="toggle"
+                                data-module-id="${moduleId}"
+                                aria-label="${favorite ? 'Quitar' : 'Agregar'} ${escapeHtml(module.label)} ${favorite ? 'de' : 'a'} favoritos móviles"
+                                data-tooltip="${favorite ? 'Quitar de la barra móvil' : 'Agregar a la barra móvil'}"
+                                aria-pressed="${favorite}"
+                            ><i class="ph ${favorite ? 'ph-fill ph-star' : 'ph-star'}"></i></button>
+                            <button
+                                type="button"
+                                class="module-visibility-toggle ${visible ? 'active' : ''}"
+                                data-module-visibility-action="toggle"
+                                data-module-id="${moduleId}"
+                                aria-label="${visible ? 'Ocultar' : 'Mostrar'} módulo ${escapeHtml(module.label)}"
+                                data-tooltip="${visible ? 'Ocultar módulo' : 'Mostrar módulo'}"
+                                aria-pressed="${visible}"
+                            >
+                                <span aria-hidden="true"></span>
+                            </button>
+                        </span>
                     </article>
                 `;
             })

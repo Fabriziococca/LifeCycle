@@ -8,8 +8,10 @@ import {
     createEmptyCustomTrackerRegistry,
     CUSTOM_TRACKER_FIELD,
     CUSTOM_TRACKER_SCHEMA_VERSION,
+    DEFAULT_NAVIGATION_FAVORITES,
     getCustomAlertKey,
     getCustomTrackerState,
+    normalizeNavigationPreferences,
     normalizeCustomTrackerRegistry,
     validateCustomTrackerRegistry
 } from '../custom-tracker-utils.mjs';
@@ -204,6 +206,35 @@ test('module visibility defaults to visible and preserves explicit hidden module
 
     assert.equal(registry.modulePreferences['higiene-section'].visible, false);
     assert.equal(registry.modulePreferences['projects-section'].visible, true);
+});
+
+test('adaptive navigation keeps between one and four valid favorite modules', () => {
+    assert.deepEqual(
+        normalizeNavigationPreferences(undefined).favoriteModules,
+        DEFAULT_NAVIGATION_FAVORITES
+    );
+    assert.deepEqual(
+        normalizeNavigationPreferences({
+            favoriteModules: [
+                'projects-section',
+                'projects-section',
+                'tareas-section',
+                'finanzas-section',
+                'higiene-section',
+                'unknown-section'
+            ]
+        }).favoriteModules,
+        [
+            'projects-section',
+            'tareas-section',
+            'finanzas-section',
+            'higiene-section'
+        ]
+    );
+    assert.deepEqual(
+        normalizeNavigationPreferences({ favoriteModules: [] }).favoriteModules,
+        DEFAULT_NAVIGATION_FAVORITES
+    );
 });
 
 test('tracker registry keeps synchronized Today quick-action preferences', () => {

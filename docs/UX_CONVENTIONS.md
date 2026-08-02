@@ -152,3 +152,39 @@ parte de estas reglas. No reemplazan la verificación funcional en navegador.
   impedir duplicados.
 - Una regla se puede pausar sin perder su configuración. Eliminarla no borra
   movimientos financieros que ya fueron confirmados.
+
+## 12. Navegación adaptativa
+
+- La navegación cambia de presentación, no de modelo: todos los dispositivos
+  deben abrir los mismos módulos y conservar los mismos identificadores.
+- Escritorio usa una barra lateral contraíble; tablet, un riel compacto; móvil,
+  cuatro favoritos y un acceso `Más`.
+- Los favoritos móviles son una preferencia sincronizada y admiten entre uno y
+  cuatro módulos. Ocultar un módulo no borra esa preferencia ni sus datos.
+- El menú `Más` siempre permite llegar a los módulos restantes, a la cuenta y a
+  las preferencias. `Escape` y tocar el fondo lo cierran.
+- En móvil ningún flujo puede depender del hover ni de desplazamiento horizontal
+  para descubrir un módulo principal.
+
+## 13. Búsqueda y comandos
+
+- `Ctrl+K` o `Cmd+K` abre una única paleta para buscar y ejecutar acciones.
+- Buscar nunca debe indexar secretos, adjuntos privados, endpoints Push ni datos
+  médicos internos. Solo usa los datos funcionales ya cargados en el cliente.
+- Las acciones de la paleta abren el formulario original del módulo. No duplican
+  validaciones, persistencia ni modelos de datos.
+- Cuando la consulta está vacía se muestran pocas acciones frecuentes; al
+  escribir se priorizan coincidencias de nombre y contexto.
+- Flechas, `Enter` y `Escape` deben permitir completar el flujo sin mouse.
+
+## 14. Recordatorios configurables
+
+- Un recordatorio recurrente configura un aviso Push semanal; no representa que
+  una tarea o una tarjeta haya sido completada.
+- Nombre, título, mensaje, hora, días activos, categoría y estado deben poder
+  modificarse sin tocar código.
+- El catálogo y su programación se sincronizan juntos para que el backend use la
+  misma definición visible en la interfaz.
+- Eliminar un recordatorio requiere confirmación y ofrece deshacer. No puede
+  eliminar tarjetas, tareas ni historiales de otros módulos.
+- Los recordatorios existentes deben migrar conservando hora, días y estado.

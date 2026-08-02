@@ -127,8 +127,7 @@ test('quick task capture is global, categorized and keyboard accessible', async 
     assert.match(index, /id="tareas-task-category"/);
     assert.match(index, /aria-labelledby="tareas-task-modal-title"/);
     assert.match(tasksSource, /openTaskCapture\(\{ quick: true \}\)/);
-    assert.match(tasksSource, /event\.altKey/);
-    assert.match(tasksSource, /event\.key\.toLowerCase\(\) !== 'n'/);
+    assert.match(tasksSource, /matchesKeyboardShortcut\(event, 'quick-task'\)/);
     assert.match(appSource, /showToast\(message/);
 });
 
@@ -146,12 +145,15 @@ test('global search is local, keyboard accessible and routes to source modules',
     assert.match(index, /id="global-search-input"/);
     assert.match(index, /role="listbox"/);
     assert.match(appSource, /new GlobalSearchModule\(this\)/);
-    assert.match(searchSource, /event\.ctrlKey \|\| event\.metaKey/);
+    assert.match(searchSource, /matchesKeyboardShortcut\(event, 'command-palette'\)/);
     assert.match(searchSource, /event\.key === 'ArrowDown'/);
     assert.match(searchSource, /event\.key === 'Enter'/);
     assert.match(searchSource, /activateSection\?\.\('tareas-section'/);
     assert.match(searchSource, /renderMonthlyHistory\?\.\('all'\)/);
-    assert.doesNotMatch(searchSource, /finanzas|attachments|medicalData/);
+    assert.match(searchSource, /kind: 'command'/);
+    assert.match(searchSource, /target: \{ command: 'new-reminder' \}/);
+    assert.match(searchSource, /target: \{ command: 'register-expense' \}/);
+    assert.doesNotMatch(searchSource, /attachments|medicalData/);
     const launcher = index.match(/<button[^>]+id="global-search-btn"[\s\S]*?<\/button>/)?.[0] || '';
     assert.doesNotMatch(launcher, /<kbd>/);
 });
@@ -164,6 +166,69 @@ test('mobile navigation explains horizontal overflow and reacts after authentica
     assert.match(index, /id="profile-nav-scroll-hint"/);
     assert.match(appSource, /new ResizeObserver\(update\)/);
     assert.match(appSource, /has-horizontal-overflow/);
+});
+
+test('adaptive navigation uses a desktop sidebar and four mobile favorites plus More', async () => {
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+    const navigationSource = await readFile(
+        path.join(ROOT, 'modules', 'AdaptiveNavigationModule.js'),
+        'utf8'
+    );
+    const trackerSource = await readFile(
+        path.join(ROOT, 'modules', 'CustomTrackersModule.js'),
+        'utf8'
+    );
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+
+    assert.match(appSource, /new AdaptiveNavigationModule\(this\)/);
+    assert.match(appSource, /classList\.remove\('profile-view-active'\)/);
+    assert.match(appSource, /classList\.add\('profile-view-active'\)/);
+    assert.match(navigationSource, /favorites\.slice\(0, 4\)/);
+    assert.match(navigationSource, /className = 'nav-btn adaptive-nav-more'/);
+    assert.match(navigationSource, /data-adaptive-nav-profile="preferencias"/);
+    assert.match(trackerSource, /data-module-favorite-action="toggle"/);
+    assert.match(trackerSource, /toggleNavigationFavorite/);
+    assert.match(styles, /@media \(min-width: 1100px\)[\s\S]*\.main-nav\s*\{[\s\S]*position:\s*fixed/);
+    assert.match(styles, /@media \(max-width: 767px\)[\s\S]*grid-template-columns:\s*repeat\(5/);
+});
+
+test('profile groups settings and exposes the complete keyboard shortcut reference', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+    const shortcutsSource = await readFile(
+        path.join(ROOT, 'keyboard-shortcuts.mjs'),
+        'utf8'
+    );
+    const shortcutsModule = await readFile(
+        path.join(ROOT, 'modules', 'KeyboardShortcutsModule.js'),
+        'utf8'
+    );
+
+    assert.match(index, /class="profile-menu-group">Cuenta</);
+    assert.match(index, /class="profile-menu-group">Personalización</);
+    assert.match(index, /class="profile-menu-group">Datos y aplicación</);
+    assert.match(index, /id="keyboard-shortcuts-list"/);
+    assert.match(index, /data-profile-tab-link="alertas"/);
+    assert.match(appSource, /new KeyboardShortcutsModule\(this\)/);
+    assert.match(shortcutsSource, /id: 'command-palette'/);
+    assert.match(shortcutsSource, /id: 'quick-task'/);
+    assert.match(shortcutsModule, /document\.createElement\('kbd'\)/);
+});
+
+test('recurring reminders use an accessible editor and the shared destructive pattern', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const alertsSource = await readFile(
+        path.join(ROOT, 'modules', 'AlertsModule.js'),
+        'utf8'
+    );
+
+    assert.match(index, /id="btn-new-recurring-reminder"/);
+    assert.match(index, /id="recurring-reminder-modal"[\s\S]*aria-modal="true"/);
+    assert.match(index, /id="recurring-reminder-days"/);
+    assert.match(alertsSource, /event\.key === 'Escape'/);
+    assert.match(alertsSource, /event\.key === 'Tab'/);
+    assert.match(alertsSource, /confirmAction\(\{/);
+    assert.match(alertsSource, /showUndo\?\.\('Recordatorio eliminado\.'/);
 });
 
 test('Today reuses critical items and links back to their source modules', async () => {

@@ -2,6 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { getCompactCurrencyDisplay } from '../finance-display-utils.mjs';
+import { shouldHideCompletedTask } from '../task-visibility-utils.mjs';
 
 test('style.css defines --status-purple and --status-purple-glow in :root', () => {
     const cssPath = path.join(process.cwd(), 'style.css');
@@ -10,7 +12,7 @@ test('style.css defines --status-purple and --status-purple-glow in :root', () =
     assert.match(content, /--status-purple-glow:\s*rgba\(168,\s*85,\s*247/);
 });
 
-test('24-hour completed task cleanup filters out tasks completed > 24h ago when enabled', () => {
+test('24-hour completed task preference hides old items without deleting data', () => {
     const now = Date.now();
     const twentyFiveHoursAgo = now - (25 * 60 * 60 * 1000);
     const oneHourAgo = now - (1 * 60 * 60 * 1000);
@@ -21,21 +23,32 @@ test('24-hour completed task cleanup filters out tasks completed > 24h ago when 
         { id: 't3', text: 'Tarea pendiente', completed: false }
     ];
 
-    const isAutoCleanEnabled = true;
-    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-
-    const filtered = tasks.filter(t => {
-        if (!isAutoCleanEnabled) return true;
-        if (!t.completed) return true;
-        const completedTime = t.completedAt;
-        if (!completedTime) return true;
-        return (now - new Date(completedTime).getTime()) < TWENTY_FOUR_HOURS;
-    });
+    const filtered = tasks.filter(task => !shouldHideCompletedTask(task, {
+        enabled: true,
+        now
+    }));
 
     assert.equal(filtered.length, 2);
     assert.equal(filtered.some(t => t.id === 't1'), false);
     assert.equal(filtered.some(t => t.id === 't2'), true);
     assert.equal(filtered.some(t => t.id === 't3'), true);
+    assert.equal(tasks.length, 3, 'La preferencia no debe borrar tareas del origen');
+    assert.equal(shouldHideCompletedTask(tasks[0], { enabled: false, now }), false);
+});
+
+test('finance donut compacts large ARS amounts and concise USD values', () => {
+    assert.match(
+        getCompactCurrencyDisplay(1114.61, { currency: 'ARS', arsRate: 1518.49 }),
+        /^ARS\s+1[,.]69\s*M$/i
+    );
+    assert.equal(
+        getCompactCurrencyDisplay(24.5, { currency: 'USD' }),
+        'USD 24,5'
+    );
+    assert.match(
+        getCompactCurrencyDisplay(1114.61, { currency: 'ARS', arsRate: null }),
+        /^USD\s/
+    );
 });
 
 test('project creation preserves clientSource and source attributes', () => {

@@ -4,6 +4,7 @@ import {
     parseDateLocal
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { getCompactCurrencyDisplay } from '../finance-display-utils.mjs?v=20260801-finance-display';
 import {
     advanceFinanceRecurringRule,
     buildFinanceRecurringRule,
@@ -1028,7 +1029,7 @@ export class FinanzasModule {
         return `hsl(${hue}, 75%, 60%)`;
     }
 
-    drawDonutChart(segments, totalFormatted) {
+    drawDonutChart(segments, totalAmount) {
         const elDonut = document.getElementById('fin-donut-chart');
         const elValue = document.getElementById('fin-donut-center-value');
         const elLabel = document.getElementById('fin-donut-center-label');
@@ -1042,7 +1043,17 @@ export class FinanzasModule {
             elLabel.innerText = 'Gastado';
             elValue.style.color = 'var(--status-orange)';
         }
-        elValue.innerText = totalFormatted;
+        const preferredCurrency = localStorage.getItem('preferred_currency') || 'USD';
+        const exactValue = this.app.formatCurrency(totalAmount);
+        const compactValue = getCompactCurrencyDisplay(totalAmount, {
+            currency: preferredCurrency,
+            arsRate: preferredCurrency === 'ARS'
+                ? this.app.getCurrencyMultiplier?.()
+                : null
+        });
+        elValue.innerText = compactValue;
+        elValue.title = exactValue;
+        elValue.setAttribute('aria-label', exactValue);
 
         if (segments.length === 0) {
             elDonut.style.background = 'conic-gradient(var(--surface-border) 0% 100%)';
@@ -1442,7 +1453,7 @@ export class FinanzasModule {
         if (catTrading > 0) segments.push({ percent: pctTrading, color: 'var(--status-green)' });
         if (catExtraordinary > 0) segments.push({ percent: pctExtraordinary, color: 'var(--status-yellow)' });
 
-        this.drawDonutChart(segments, this.app.formatCurrency(totalMonth));
+        this.drawDonutChart(segments, totalMonth);
 
         const breakdownHtml = `
             <!-- Freelance -->
@@ -1606,7 +1617,7 @@ export class FinanzasModule {
             segments.push({ percent: pct, color: color });
         });
 
-        this.drawDonutChart(segments, this.app.formatCurrency(totalMonthExpense));
+        this.drawDonutChart(segments, totalMonthExpense);
 
         let breakdownHtml = '';
         if (sortedExpenseCategories.length === 0) {

@@ -215,18 +215,130 @@ const ALERT_DEFINITION_KEYS = [
     'unas_pies', 'lenses_droplets', 'lenses_case', 'lenses_solution',
     'lenses_replace', 'glasses_cloth_wash', 'glasses_cloth_replace', 'vehicle_oil',
     'vehicle_align', 'vehicle_rot', 'vehicle_replace', 'vehicle_issues_check',
-    'vehicle_docs_check', 'vehicle_fluids_check', 'vitamina_d', 'creatine', 'salmon',
-    'neck', 'weigh_in', 'laundry', 'robot', 'workana', 'projects_check',
+    'vehicle_docs_check', 'vehicle_fluids_check', 'vitamina_d', 'robot', 'workana', 'projects_check',
     'tareas_urgentes_check', 'very_urgent_tasks'
 ];
 
-const RECURRING_ALERT_DEFAULTS = {
-    creatine: { enabled: true, time: '23:00', days: [1, 2, 3, 4, 5, 6, 0] },
-    salmon: { enabled: true, time: '17:00', days: [0] },
-    neck: { enabled: true, time: '23:30', days: [5, 6] },
-    weigh_in: { enabled: true, time: '08:00', days: [1, 2, 3, 4, 5, 6, 0] },
-    laundry: { enabled: true, time: '10:00', days: [1, 2, 3, 4, 5, 6, 0] }
-};
+const RECURRING_REMINDERS_FIELD = '__recurring_reminders';
+const DEFAULT_RECURRING_REMINDERS = [
+    {
+        id: 'laundry',
+        name: 'Recordatorio Lavar Ropa (Lavarropas)',
+        title: '🧺 Lavarropas',
+        body: '¡No te olvides de poner a lavar la ropa en el lavarropas hoy!',
+        defaultTime: '10:00',
+        defaultDays: [1, 2, 3, 4, 5, 6, 0]
+    },
+    {
+        id: 'creatine',
+        name: 'Creatina',
+        title: '💪 Creatina',
+        body: '¡No te olvides de tomar la creatina de hoy!',
+        defaultTime: '23:00',
+        defaultDays: [1, 2, 3, 4, 5, 6, 0]
+    },
+    {
+        id: 'salmon',
+        name: 'Salmón & Omega 3',
+        title: '🐟 Salmón & Omega 3',
+        body: 'Recordá sacar el salmón para mañana lunes para comer Omega 3.',
+        defaultTime: '17:00',
+        defaultDays: [0]
+    },
+    {
+        id: 'neck',
+        name: 'Entrenamiento de Cuello',
+        title: '💪 Entrenamiento de Cuello',
+        body: 'Recordá entrenar el cuello hoy (1 vez por semana).',
+        defaultTime: '23:30',
+        defaultDays: [5, 6]
+    },
+    {
+        id: 'weigh_in',
+        name: 'Recordatorio para Pesarme',
+        title: '⚖️ Control de Peso',
+        body: '¡Buen día! No te olvides de pesarte hoy antes de desayunar.',
+        defaultTime: '08:00',
+        defaultDays: [1, 2, 3, 4, 5, 6, 0]
+    },
+    {
+        id: 'trading',
+        name: 'Revisión Trading & Mercado',
+        title: '📈 Trading & Mercado',
+        body: 'Recordá revisar el mercado y tus posiciones de trading de hoy.',
+        defaultTime: '10:00',
+        defaultDays: [1, 2, 3, 4, 5]
+    }
+];
+
+const RECURRING_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{2,95}$/;
+const RECURRING_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+
+function normalizeRecurringDays(value, fallback = []) {
+    const source = Array.isArray(value) ? value : fallback;
+    return [...new Set(source
+        .map(Number)
+        .filter(day => Number.isInteger(day) && day >= 0 && day <= 6))];
+}
+
+function cleanRecurringText(value, maxLength, fallback = '') {
+    const cleaned = String(value ?? '').replace(/\s+/g, ' ').trim();
+    return (cleaned || fallback).slice(0, maxLength);
+}
+
+function ensureRecurringReminderConfigs(alertsConfig, oldReminders = {}) {
+    const storedRegistry = alertsConfig?.[RECURRING_REMINDERS_FIELD];
+    const hasStoredRegistry = storedRegistry
+        && typeof storedRegistry === 'object'
+        && !Array.isArray(storedRegistry)
+        && Array.isArray(storedRegistry.reminders);
+    const candidates = hasStoredRegistry
+        ? storedRegistry.reminders
+        : DEFAULT_RECURRING_REMINDERS;
+    const definitions = new Map();
+
+    candidates.slice(0, 200).forEach(candidate => {
+        const id = cleanRecurringText(candidate?.id, 96).toLowerCase();
+        if (!RECURRING_ID_PATTERN.test(id) || definitions.has(id)) return;
+        const definition = {
+            id,
+            name: cleanRecurringText(candidate?.name, 90, 'Recordatorio'),
+            title: cleanRecurringText(candidate?.title, 100, candidate?.name || '⏰ Recordatorio'),
+            body: cleanRecurringText(candidate?.body, 240, 'Tenés un recordatorio pendiente.'),
+            defaultTime: RECURRING_TIME_PATTERN.test(candidate?.defaultTime || '')
+                ? candidate.defaultTime
+                : '09:00',
+            defaultDays: normalizeRecurringDays(
+                candidate?.defaultDays,
+                [1, 2, 3, 4, 5, 6, 0]
+            )
+        };
+        definitions.set(id, definition);
+
+        const current = alertsConfig[id] && typeof alertsConfig[id] === 'object'
+            ? alertsConfig[id]
+            : {};
+        const legacy = oldReminders?.[id] || {};
+        alertsConfig[id] = {
+            enabled: current.enabled ?? legacy.enabled ?? true,
+            time: RECURRING_TIME_PATTERN.test(current.time || '')
+                ? current.time
+                : (RECURRING_TIME_PATTERN.test(legacy.time || '')
+                    ? legacy.time
+                    : definition.defaultTime),
+            days: normalizeRecurringDays(
+                current.days,
+                normalizeRecurringDays(legacy.days, definition.defaultDays)
+            )
+        };
+    });
+
+    alertsConfig[RECURRING_REMINDERS_FIELD] = {
+        version: 1,
+        reminders: [...definitions.values()]
+    };
+    return definitions;
+}
 
 const MORNING_ALERT_KEYS = new Set([
     'projects_check',
@@ -242,15 +354,6 @@ function getDefaultAlertConfig(key, oldReminders = {}) {
     }
     if (key === 'very_urgent_tasks') {
         return { enabled: true, time: '09:00', days: [], interval_hours: 4 };
-    }
-    if (RECURRING_ALERT_DEFAULTS[key]) {
-        const legacy = oldReminders[key] || {};
-        const defaults = RECURRING_ALERT_DEFAULTS[key];
-        return {
-            enabled: legacy.enabled ?? defaults.enabled,
-            time: legacy.time || defaults.time,
-            days: Array.isArray(legacy.days) ? legacy.days : defaults.days
-        };
     }
     return {
         enabled: true,
@@ -1435,6 +1538,10 @@ async function checkAndSendAllAlerts(forceAll = false) {
             const gymSupplements = parseJsonValue(data.gym_supplements, {});
             const oldReminders = gymSupplements?.custom_reminders || {};
             ensureAlertConfigs(alertsConfig, oldReminders);
+            const recurringReminderMap = ensureRecurringReminderConfigs(
+                alertsConfig,
+                oldReminders
+            );
             ensureCustomTrackerAlertConfigs(
                 alertsConfig,
                 parseJsonValue(data.hygiene_tracker_data, {})
@@ -1454,6 +1561,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
             // Procesar cada alerta definida
             for (const key of Object.keys(alertsConfig)) {
+                if (key === RECURRING_REMINDERS_FIELD) continue;
                 const conf = alertsConfig[key];
                 if (!conf || !conf.enabled) continue;
                 // Estas dos alertas dependen de intervalos desde el último envío,
@@ -1504,7 +1612,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     }
 
                     // Si es una alerta periódica/recurrente, verificar día de la semana
-                    const isRecurring = ['creatine', 'salmon', 'neck', 'weigh_in', 'laundry'].includes(key);
+                    const isRecurring = recurringReminderMap.has(key);
                     if (isRecurring && !forceAll && (!conf.days || !conf.days.includes(candidate.dayOfWeek))) continue;
 
                     // Verificar si ya pasó la hora programada en Argentina
@@ -1544,21 +1652,28 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     const currentOdo = Number(data.vehicle_odometer) || 0;
                     const gymSupplements = parseJSONField(data.gym_supplements, {});
 
-                    const vehicleCatalogNotification = buildVehicleCatalogNotification(
-                        key,
-                        vehicleTrackerData,
-                        currentOdo,
-                        getDaysElapsed,
-                        getDaysUntil
-                    );
-                    const customTrackerNotification = vehicleCatalogNotification?.handled
+                    const recurringReminder = recurringReminderMap.get(key);
+                    const vehicleCatalogNotification = recurringReminder
+                        ? null
+                        : buildVehicleCatalogNotification(
+                            key,
+                            vehicleTrackerData,
+                            currentOdo,
+                            getDaysElapsed,
+                            getDaysUntil
+                        );
+                    const customTrackerNotification = recurringReminder || vehicleCatalogNotification?.handled
                         ? null
                         : buildCustomTrackerNotification(
                             key,
                             hygieneData,
                             getDaysElapsed
                         );
-                    if (vehicleCatalogNotification?.handled) {
+                    if (recurringReminder) {
+                        shouldNotify = true;
+                        title = recurringReminder.title;
+                        body = recurringReminder.body;
+                    } else if (vehicleCatalogNotification?.handled) {
                         shouldNotify = vehicleCatalogNotification.shouldNotify === true;
                         title = vehicleCatalogNotification.title;
                         body = vehicleCatalogNotification.body;
@@ -1887,32 +2002,6 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 }
                             }
                             break;
-                        case 'creatine':
-                            shouldNotify = true;
-                            title = '💪 Creatina';
-                            body = '¡No te olvides de tomar la creatina de hoy!';
-                            break;
-                        case 'salmon':
-                            shouldNotify = true;
-                            title = '🐟 Salmón & Omega 3';
-                            body = 'Recordá sacar el salmón para mañana lunes para comer Omega 3.';
-                            break;
-                        case 'neck':
-                            shouldNotify = true;
-                            title = '💪 Entrenamiento de Cuello';
-                            body = 'Recordá entrenar el cuello hoy (1 vez por semana).';
-                            break;
-                        case 'weigh_in':
-                            shouldNotify = true;
-                            title = '⚖️ Control de Peso';
-                            body = '¡Buen día! No te olvides de pesarte hoy antes de desayunar.';
-                            break;
-                        case 'laundry':
-                            shouldNotify = true;
-                            title = '🧺 Lavarropas';
-                            body = '¡No te olvides de poner a lavar la ropa en el lavarropas hoy!';
-                            break;
-
                         // Otros
                         case 'robot':
                             if (hygieneData.robot_cleaner && hygieneData.robot_cleaner.status === 'dirty') {

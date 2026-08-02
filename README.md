@@ -62,13 +62,19 @@ Float notification center displaying overdue items across all sections, permitti
 Every recurring card in Hygiene, Care, Lenses, and Health uses the same versioned model and is managed from **Profile → Cards**. Existing personal cards are migrated in place with their histories, thresholds, alert settings, and specialized behavior preserved; a fresh account starts with no predefined cards. The centralized manager supports create, edit, reorder, archive, restore, and protected permanent deletion. Each runtime card supports a user-defined action, a daily or monthly cadence that restarts only after a recorded action, automatic visual states, optional instructions, history correction, an optional daily backend Push alert while overdue, and a multi-select mode for recording several completed cards at once. Specialized timers, inventory, and medical attachments remain owned by their dedicated modules.
 
 ### 9. 🧭 Personalized Navigation
-The **Profile → Modules** screen can hide or restore any main module without deleting its information or notifications. At least one module always remains visible, and navigation automatically falls back to an available module when the previous selection is hidden.
+The **Profile → Modules** screen can hide or restore any main module without deleting its information or notifications. At least one module always remains visible, and navigation automatically falls back to an available module when the previous selection is hidden. Desktop uses a collapsible sidebar, tablets use a compact icon rail, and mobile uses four synchronized favorites plus a **More** sheet; favorites can be changed without modifying the modules themselves.
 
 ### 10. 📅 Daily Focus & Quick Tasks
 The **Today** view groups urgent tasks, project deadlines, and overdue trackers without copying their data. Items can be opened in their source module or completed directly when the underlying workflow supports it. Its additional shortcuts are configurable from **Profile → Modules** and open the original Project, Finance, Gym, or Cards workflow instead of creating parallel data. Tasks can also be captured from any module, with **Urgent** as the default priority and non-urgent work kept as an explicit long-term option.
 
 ### 11. 🔁 Confirmable Financial Recurrence
 Finance rules remember the usual type, category, amount, currency, cadence, and next due date. Due occurrences appear as review items and only become real income or expense records after the original form is confirmed. Each occurrence is idempotent, and rules can be edited, paused, resumed, or removed without deleting previously confirmed transactions.
+
+### 12. ⚡ Command Palette & Keyboard Reference
+The global search also acts as a command palette: it can locate cards, tasks, and projects or open the original creation flows for tasks, cards, reminders, income, and expenses. `Ctrl+K` / `Cmd+K` opens it, while the complete shortcut reference lives in **Profile → Preferences** and is rendered from the same registry used by the application.
+
+### 13. ⏰ Configurable Recurring Reminders
+Weekly Push reminders are managed from **Profile → Recordatorios** instead of being hardcoded. Each reminder controls its name, Push title, message, category, active days, time, and enabled state. Legacy personal reminders migrate into the versioned catalog, and the Render notification engine consumes that same synchronized catalog without requiring a database schema change.
 
 ---
 

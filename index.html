@@ -1602,11 +1602,11 @@
             <div class="card" style="margin-bottom: 2rem; padding: 20px;">
                 <div style="display: flex; gap: 30px; align-items: center; flex-wrap: wrap;" id="fin-breakdown-wrapper">
                     <!-- Contenedor del Gráfico de Rosca -->
-                    <div style="display: flex; justify-content: center; align-items: center; flex-shrink: 0; margin: 0 auto 10px auto;" id="fin-donut-chart-container">
-                        <div id="fin-donut-chart" style="background: conic-gradient(var(--surface-border) 0% 100%); position: relative; border-radius: 50%; width: 140px; height: 140px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; box-shadow: 0 4px 10px rgba(0,0,0,0.3);">
-                            <div style="width: 85px; height: 85px; background: #1e1e24; border-radius: 50%; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 5px;">
-                                <span style="font-size: 0.65rem; color: var(--text-secondary);" id="fin-donut-center-label">Total</span>
-                                <strong style="font-size: 0.9rem; color: white; margin-top: 2px;" id="fin-donut-center-value">USD 0.00</strong>
+                    <div class="finance-donut-container" id="fin-donut-chart-container">
+                        <div id="fin-donut-chart" class="finance-donut-chart">
+                            <div class="finance-donut-center">
+                                <span id="fin-donut-center-label">Total</span>
+                                <strong id="fin-donut-center-value">USD 0</strong>
                             </div>
                         </div>
                     </div>
@@ -1700,6 +1700,7 @@
             <div class="profile-layout">
                 <!-- Barra lateral (Sidebar) / Navegación superior en móvil -->
                 <aside class="profile-sidebar" aria-label="Opciones del perfil">
+                    <span class="profile-menu-group">Cuenta</span>
                     <button class="profile-menu-item active" data-tab="cuenta">
                         <i class="ph ph-user"></i>
                         <span>Mi Cuenta</span>
@@ -1708,14 +1709,7 @@
                         <i class="ph ph-bell"></i>
                         <span>Notificaciones</span>
                     </button>
-                    <button class="profile-menu-item" data-tab="instalacion">
-                        <i class="ph ph-device-mobile"></i>
-                        <span>Instalar App</span>
-                    </button>
-                    <button class="profile-menu-item" data-tab="backup">
-                        <i class="ph ph-shield-check"></i>
-                        <span>Copia de Seguridad</span>
-                    </button>
+                    <span class="profile-menu-group">Personalización</span>
                     <button class="profile-menu-item" data-tab="seguimientos">
                         <i class="ph ph-stack"></i>
                         <span>Tarjetas</span>
@@ -1724,14 +1718,22 @@
                         <i class="ph ph-squares-four"></i>
                         <span>Módulos</span>
                     </button>
-                    
+                    <button class="profile-menu-item" data-tab="alertas">
+                        <i class="ph ph-bell-ringing"></i>
+                        <span>Recordatorios</span>
+                    </button>
                     <button class="profile-menu-item" data-tab="preferencias">
                         <i class="ph ph-sliders"></i>
                         <span>Preferencias</span>
                     </button>
-                    <button class="profile-menu-item" data-tab="alertas">
-                        <i class="ph ph-bell-ringing"></i>
-                        <span>Gestor de Alertas</span>
+                    <span class="profile-menu-group">Datos y aplicación</span>
+                    <button class="profile-menu-item" data-tab="backup">
+                        <i class="ph ph-shield-check"></i>
+                        <span>Copia de Seguridad</span>
+                    </button>
+                    <button class="profile-menu-item" data-tab="instalacion">
+                        <i class="ph ph-device-mobile"></i>
+                        <span>Instalar App</span>
                     </button>
                 </aside>
                 <p id="profile-nav-scroll-hint" class="nav-scroll-hint hidden">
@@ -1754,9 +1756,9 @@
                             <div class="card-body">
                                 <div style="display:flex; justify-content:space-between; align-items:center; gap: 1rem; padding: 0.75rem 0;">
                                     <div>
-                                        <h4 style="margin: 0; font-size: 0.95rem; color: white;">Limpiar tareas completadas tras 24 hs</h4>
+                                        <h4 style="margin: 0; font-size: 0.95rem; color: white;">Ocultar tareas personales completadas tras 24 h</h4>
                                         <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">
-                                            Elimina automáticamente de la lista las tareas completadas que tengan más de 24 horas de antigüedad.
+                                            Solo las oculta de la vista diaria: no se eliminan y vuelven a aparecer al desactivar esta preferencia.
                                         </p>
                                     </div>
                                     <label class="switch" style="flex-shrink: 0;">
@@ -1765,6 +1767,18 @@
                                     </label>
                                 </div>
                             </div>
+                        </div>
+                        <div class="card keyboard-shortcuts-card">
+                            <div class="card-header">
+                                <div class="icon-container">
+                                    <i class="ph ph-keyboard"></i>
+                                </div>
+                                <div>
+                                    <h3>Atajos de teclado</h3>
+                                    <p>Todos los atajos disponibles y el contexto en el que funcionan.</p>
+                                </div>
+                            </div>
+                            <div id="keyboard-shortcuts-list" class="keyboard-shortcuts-list"></div>
                         </div>
                     </div>
                     <!-- Pestaña 1: Cuenta -->
@@ -1857,6 +1871,11 @@
                             </div>
                             <div class="card-body">
                                 <p class="backup-text">Recibí los avisos configurados en cualquier celular o computadora donde actives las notificaciones.</p>
+                                <button type="button" class="profile-context-link" data-profile-tab-link="alertas">
+                                    <i class="ph ph-clock"></i>
+                                    Configurar horarios y recordatorios
+                                    <i class="ph ph-arrow-right"></i>
+                                </button>
                                 <div style="display: flex; flex-direction: column; gap: 10px; margin-top: 0.5rem;">
                                     <button id="btn-enable-push" class="btn btn-secondary" style="width: 100%;"><i class="ph ph-bell-simple-ringing"></i> Activar Notificaciones en este Dispositivo</button>
                                     <button id="btn-test-push" class="btn btn-secondary hidden" style="width: 100%; border-color: rgba(59, 130, 246, 0.2); color: #60a5fa;"><i class="ph ph-paper-plane-tilt"></i> Enviar Notificación de Prueba (5s delay)</button>
@@ -2049,7 +2068,8 @@
                                 <i class="ph ph-eye-slash"></i>
                                 <span>
                                     Siempre quedará al menos un módulo visible. Podés recuperar
-                                    cualquier módulo desde esta misma pantalla.
+                                    cualquier módulo desde esta misma pantalla. La estrella elige
+                                    hasta cuatro accesos para la barra inferior del celular.
                                 </span>
                             </div>
                             <div id="module-visibility-summary"></div>
@@ -2089,13 +2109,21 @@
                                         <i class="ph ph-bell-ringing"></i>
                                     </div>
                                     <div>
-                                        <h3 style="margin: 0; font-size: 1.1rem; color: white;">Gestor de Alertas</h3>
-                                        <p style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-secondary);">Configurá el horario y activación de tus notificaciones push.</p>
+                                        <h3 style="margin: 0; font-size: 1.1rem; color: white;">Recordatorios</h3>
+                                        <p style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-secondary);">Elegí qué avisos querés recibir, en qué días y a qué hora.</p>
                                     </div>
                                 </div>
-                                <button id="btn-save-all-alerts" class="btn btn-primary" style="margin: 0; height: 38px; display: flex; align-items: center; gap: 8px;">
-                                    <i class="ph ph-floppy-disk"></i> Guardar Cambios
-                                </button>
+                                <div class="alerts-manager-actions">
+                                    <button type="button" class="btn btn-secondary" data-profile-tab-link="notificaciones">
+                                        <i class="ph ph-devices"></i> Ver dispositivos
+                                    </button>
+                                    <button id="btn-new-recurring-reminder" type="button" class="btn btn-secondary">
+                                        <i class="ph ph-plus"></i> Nuevo recordatorio
+                                    </button>
+                                    <button id="btn-save-all-alerts" class="btn btn-primary">
+                                        <i class="ph ph-floppy-disk"></i> Guardar cambios
+                                    </button>
+                                </div>
                             </div>
 
                             <!-- Pestañas de Categoría (Filtros superiores) -->
@@ -2126,8 +2154,8 @@
         <div class="global-search-dialog">
             <header class="global-search-header">
                 <div>
-                    <span class="global-search-eyebrow">NAVEGACIÓN RÁPIDA</span>
-                    <h2 id="global-search-title">Buscar en LifeCycle</h2>
+                    <span class="global-search-eyebrow">BÚSQUEDA Y ACCIONES</span>
+                    <h2 id="global-search-title">¿Qué querés hacer?</h2>
                 </div>
                 <button
                     id="global-search-close"
@@ -2146,7 +2174,7 @@
                     type="search"
                     autocomplete="off"
                     spellcheck="false"
-                    placeholder="Tarjeta, tarea, cliente o proyecto…"
+                    placeholder="Buscar o escribir una acción…"
                     aria-controls="global-search-results"
                     aria-autocomplete="list"
                 >
@@ -2160,10 +2188,100 @@
             ></div>
             <footer class="global-search-footer">
                 <span><kbd>↑</kbd><kbd>↓</kbd> recorrer</span>
-                <span><kbd>Enter</kbd> abrir</span>
+                <span><kbd>Enter</kbd> abrir o ejecutar</span>
                 <span><i class="ph ph-device-mobile"></i> Búsqueda local</span>
             </footer>
         </div>
+    </div>
+
+    <div
+        id="recurring-reminder-modal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="recurring-reminder-modal-title"
+    >
+        <form id="recurring-reminder-form" class="modal-content recurring-reminder-dialog">
+            <header class="recurring-reminder-dialog-header">
+                <div>
+                    <span class="global-search-eyebrow">AVISO PROGRAMADO</span>
+                    <h3 id="recurring-reminder-modal-title">Nuevo recordatorio</h3>
+                    <p class="modal-desc">Creá avisos semanales sin modificar código.</p>
+                </div>
+                <button
+                    type="button"
+                    class="icon-btn"
+                    data-recurring-reminder-close
+                    aria-label="Cerrar editor de recordatorio"
+                    data-tooltip="Cerrar"
+                ><i class="ph ph-x"></i></button>
+            </header>
+
+            <div class="form-row">
+                <div class="input-group half">
+                    <label for="recurring-reminder-name">Nombre</label>
+                    <input id="recurring-reminder-name" class="text-input" type="text" maxlength="90" placeholder="Ej: Tomar suplemento" required>
+                </div>
+                <div class="input-group half">
+                    <label for="recurring-reminder-category">Sección</label>
+                    <select id="recurring-reminder-category" class="text-input">
+                        <option value="higiene">Higiene y Baño</option>
+                        <option value="cuidado">Cuidado Corporal</option>
+                        <option value="lentes">Lentes y Anteojos</option>
+                        <option value="salud">Salud</option>
+                        <option value="vehiculo">Vehículo</option>
+                        <option value="gym">Nutrición y Hábitos</option>
+                        <option value="otros" selected>Otros Avisos</option>
+                    </select>
+                </div>
+            </div>
+
+            <div class="form-row">
+                <div class="input-group half">
+                    <label for="recurring-reminder-title">Título del push</label>
+                    <input id="recurring-reminder-title" class="text-input" type="text" maxlength="100" placeholder="Ej: 💊 Suplemento">
+                </div>
+                <div class="input-group half">
+                    <label for="recurring-reminder-time">Hora</label>
+                    <input id="recurring-reminder-time" class="text-input" type="time" value="09:00" required>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="recurring-reminder-body">Mensaje</label>
+                <textarea id="recurring-reminder-body" class="text-input" maxlength="240" rows="3" placeholder="Qué querés recordar cuando llegue el aviso" required></textarea>
+            </div>
+
+            <fieldset class="recurring-reminder-days-fieldset">
+                <legend>Días activos</legend>
+                <div id="recurring-reminder-days" class="day-selectors">
+                    <button type="button" class="day-btn active" data-day="1" aria-label="Lunes" aria-pressed="true">L</button>
+                    <button type="button" class="day-btn active" data-day="2" aria-label="Martes" aria-pressed="true">M</button>
+                    <button type="button" class="day-btn active" data-day="3" aria-label="Miércoles" aria-pressed="true">M</button>
+                    <button type="button" class="day-btn active" data-day="4" aria-label="Jueves" aria-pressed="true">J</button>
+                    <button type="button" class="day-btn active" data-day="5" aria-label="Viernes" aria-pressed="true">V</button>
+                    <button type="button" class="day-btn active" data-day="6" aria-label="Sábado" aria-pressed="true">S</button>
+                    <button type="button" class="day-btn active" data-day="0" aria-label="Domingo" aria-pressed="true">D</button>
+                </div>
+            </fieldset>
+
+            <label class="recurring-reminder-enabled" for="recurring-reminder-enabled">
+                <span>
+                    <strong>Recordatorio activo</strong>
+                    <small>Podés pausarlo después desde Recordatorios.</small>
+                </span>
+                <span class="switch">
+                    <input id="recurring-reminder-enabled" type="checkbox" checked>
+                    <span class="slider round"></span>
+                </span>
+            </label>
+
+            <p id="recurring-reminder-error" class="form-error hidden" role="alert"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn btn-cancel" data-recurring-reminder-close>Cancelar</button>
+                <button type="submit" class="btn btn-save"><i class="ph ph-floppy-disk"></i> Guardar recordatorio</button>
+            </div>
+        </form>
     </div>
 
     <!-- Modal de Edición Común (Retroactivo) -->

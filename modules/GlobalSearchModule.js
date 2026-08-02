@@ -4,8 +4,10 @@ import {
 import {
     searchLifeCycleItems
 } from '../search-utils.mjs?v=20260730-global-search';
+import { matchesKeyboardShortcut } from '../keyboard-shortcuts.mjs?v=20260801-shortcuts';
 
 const GROUP_META = Object.freeze({
+    command: Object.freeze({ label: 'Acciones', icon: 'ph-lightning' }),
     tracker: Object.freeze({ label: 'Tarjetas', icon: 'ph-stack' }),
     task: Object.freeze({ label: 'Tareas', icon: 'ph-check-square' }),
     project: Object.freeze({ label: 'Proyectos', icon: 'ph-briefcase' })
@@ -92,10 +94,7 @@ export class GlobalSearchModule {
     }
 
     handleGlobalKeydown(event) {
-        const isShortcut = (
-            (event.ctrlKey || event.metaKey)
-            && event.key.toLocaleLowerCase('es') === 'k'
-        );
+        const isShortcut = matchesKeyboardShortcut(event, 'command-palette');
         if (isShortcut) {
             event.preventDefault();
             this.modal?.classList.contains('hidden') ? this.open() : this.close();
@@ -148,10 +147,64 @@ export class GlobalSearchModule {
 
     buildIndex() {
         return [
+            ...this.getCommandItems(),
             ...this.getTrackerItems(),
             ...this.getVehicleItems(),
             ...this.getTaskItems(),
             ...this.getProjectItems()
+        ];
+    }
+
+    getCommandItems() {
+        return [
+            {
+                id: 'command:new-task',
+                kind: 'command',
+                title: 'Nueva tarea rápida',
+                subtitle: 'Crear · Tareas',
+                keywords: ['anotar pendiente agregar tarea urgente'],
+                target: { command: 'new-task' }
+            },
+            {
+                id: 'command:new-card',
+                kind: 'command',
+                title: 'Nueva tarjeta',
+                subtitle: 'Crear · Seguimiento',
+                keywords: ['agregar seguimiento higiene cuidado salud vehículo'],
+                target: { command: 'new-card' }
+            },
+            {
+                id: 'command:new-reminder',
+                kind: 'command',
+                title: 'Nuevo recordatorio',
+                subtitle: 'Crear · Aviso programado',
+                keywords: ['alerta push horario semanal notificación'],
+                target: { command: 'new-reminder' }
+            },
+            {
+                id: 'command:register-income',
+                kind: 'command',
+                title: 'Registrar ingreso',
+                subtitle: 'Crear · Finanzas',
+                keywords: ['dinero cobro entrada finanzas'],
+                target: { command: 'register-income' }
+            },
+            {
+                id: 'command:register-expense',
+                kind: 'command',
+                title: 'Registrar gasto',
+                subtitle: 'Crear · Finanzas',
+                keywords: ['dinero compra salida finanzas'],
+                target: { command: 'register-expense' }
+            },
+            {
+                id: 'command:notification-settings',
+                kind: 'command',
+                title: 'Dispositivos e historial Push',
+                subtitle: 'Abrir · Notificaciones',
+                keywords: ['diagnóstico historial avisos celular computadora'],
+                target: { command: 'notification-settings' }
+            }
         ];
     }
 
@@ -282,10 +335,13 @@ export class GlobalSearchModule {
     }
 
     renderIdleState() {
-        const counts = this.buildIndex().reduce((result, item) => {
+        const fullIndex = this.buildIndex();
+        const counts = fullIndex.reduce((result, item) => {
             result[item.kind] = (result[item.kind] || 0) + 1;
             return result;
         }, {});
+        this.results = this.getCommandItems().slice(0, 5);
+        this.activeIndex = this.results.length > 0 ? 0 : -1;
         this.resultsRoot.innerHTML = '';
 
         const state = document.createElement('div');
@@ -295,7 +351,7 @@ export class GlobalSearchModule {
         const title = document.createElement('strong');
         title.textContent = 'Buscá sin salir de lo que estabas haciendo';
         const help = document.createElement('p');
-        help.textContent = 'Encontrá tarjetas, tareas y proyectos. La búsqueda ocurre únicamente en este dispositivo.';
+        help.textContent = 'Encontrá información o ejecutá una acción frecuente sin recorrer menús.';
         const summary = document.createElement('div');
         summary.className = 'global-search-counts';
         [
@@ -308,8 +364,26 @@ export class GlobalSearchModule {
             summary.appendChild(badge);
         });
         state.append(icon, title, help, summary);
+        const quickActions = document.createElement('div');
+        quickActions.className = 'global-search-quick-actions';
+        this.results.forEach((result, index) => {
+            const button = document.createElement('button');
+            button.type = 'button';
+            button.id = `global-search-result-${index}`;
+            button.className = 'global-search-quick-action';
+            button.dataset.searchResultIndex = String(index);
+            button.setAttribute('role', 'option');
+            button.setAttribute('aria-selected', String(index === this.activeIndex));
+            const icon = document.createElement('i');
+            icon.className = 'ph ph-lightning';
+            const copy = document.createElement('span');
+            copy.textContent = result.title;
+            button.append(icon, copy);
+            quickActions.appendChild(button);
+        });
+        state.appendChild(quickActions);
         this.resultsRoot.appendChild(state);
-        this.input.removeAttribute('aria-activedescendant');
+        this.updateActiveResult({ scroll: false });
     }
 
     renderResults(query) {
@@ -397,6 +471,42 @@ export class GlobalSearchModule {
             this.openTask(result.target);
         } else if (result.kind === 'project') {
             this.openProject(result.target);
+        } else if (result.kind === 'command') {
+            this.executeCommand(result.target?.command);
+        }
+    }
+
+    executeCommand(command) {
+        if (command === 'new-task') {
+            this.app.tareas?.openTaskCapture?.({ quick: true });
+            return;
+        }
+        if (command === 'new-card') {
+            this.app.openProfileTab?.('seguimientos');
+            requestAnimationFrame(() => this.app.customTrackers?.openEditor?.('hygiene'));
+            return;
+        }
+        if (command === 'new-reminder') {
+            this.app.openProfileTab?.('alertas');
+            requestAnimationFrame(() => this.app.alerts?.openRecurringReminderEditor?.());
+            return;
+        }
+        if (command === 'notification-settings') {
+            this.app.openProfileTab?.('notificaciones');
+            return;
+        }
+        if (command === 'register-income' || command === 'register-expense') {
+            const isExpense = command === 'register-expense';
+            this.app.finanzas?.activateFinanceTab?.(isExpense ? 'expense' : 'income', {
+                persist: true,
+                render: false
+            });
+            this.app.activateSection?.('finanzas-section', { render: true });
+            requestAnimationFrame(() => {
+                document.getElementById(
+                    isExpense ? 'btnOpenFinanzasExpenseModal' : 'btnOpenFinanzasModal'
+                )?.click();
+            });
         }
     }
 

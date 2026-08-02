@@ -4,6 +4,8 @@ import {
     DEFAULT_TASK_URGENCY,
     getTaskCaptureCategories
 } from '../task-capture-utils.mjs?v=20260729-quick-task';
+import { shouldHideCompletedTask } from '../task-visibility-utils.mjs?v=20260801-safe-completed';
+import { matchesKeyboardShortcut } from '../keyboard-shortcuts.mjs?v=20260801-shortcuts';
 
 export class TareasModule {
     constructor(appController) {
@@ -62,7 +64,7 @@ export class TareasModule {
 
             const pinnedProjs = localStorage.getItem('tareas_pinned_projects');
             this.pinnedProjectsStore = pinnedProjs ? JSON.parse(pinnedProjs) : [];
-            this.cleanExpiredCompletedTasks();
+            this.normalizeCompletedTaskTimestamps();
         } catch (e) {
             console.error("Error loading Tareas data:", e);
             this.tasks = [];
@@ -541,10 +543,7 @@ export class TareasModule {
             prefCleanToggle.checked = localStorage.getItem('auto_clean_completed_tasks_24h') === 'true';
             prefCleanToggle.addEventListener('change', (e) => {
                 localStorage.setItem('auto_clean_completed_tasks_24h', String(e.target.checked));
-                if (e.target.checked) {
-                    this.cleanExpiredCompletedTasks();
-                    this.render();
-                }
+                this.render();
             });
         }
 
@@ -668,11 +667,7 @@ export class TareasModule {
             if (
                 event.defaultPrevented
                 || event.repeat
-                || !event.altKey
-                || event.ctrlKey
-                || event.metaKey
-                || event.shiftKey
-                || event.key.toLowerCase() !== 'n'
+                || !matchesKeyboardShortcut(event, 'quick-task')
             ) {
                 return;
             }
@@ -775,28 +770,22 @@ export class TareasModule {
 
     }
 
-    cleanExpiredCompletedTasks() {
-        const isAutoCleanEnabled = localStorage.getItem('auto_clean_completed_tasks_24h') === 'true';
-        if (!isAutoCleanEnabled) return;
-
+    normalizeCompletedTaskTimestamps() {
         const now = Date.now();
-        const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
-
-        const initialLength = this.tasks.length;
-        this.tasks = this.tasks.filter(t => {
-            if (!t.completed) return true;
-            const completedTime = t.completedAt || t.completed_at || t.updatedAt;
-            if (!completedTime) {
-                t.completedAt = now;
-                return true;
+        let changed = false;
+        this.tasks.forEach(task => {
+            if (task.completed && !task.completedAt && !task.completed_at && !task.updatedAt) {
+                task.completedAt = now;
+                changed = true;
             }
-            const age = now - new Date(completedTime).getTime();
-            return age < TWENTY_FOUR_HOURS;
         });
+        if (changed) this.saveData();
+    }
 
-        if (this.tasks.length !== initialLength) {
-            this.saveData();
-        }
+    shouldHideCompletedTask(task) {
+        return shouldHideCompletedTask(task, {
+            enabled: localStorage.getItem('auto_clean_completed_tasks_24h') === 'true'
+        });
     }
 
     toggleTask(id) {
@@ -1149,7 +1138,9 @@ export class TareasModule {
 
             const catTasks = this.tasks.filter(t => t.category === this.currentCategory);
             const pending = catTasks.filter(t => !t.completed);
-            const completed = catTasks.filter(t => t.completed);
+            const allCompleted = catTasks.filter(t => t.completed);
+            const completed = allCompleted.filter(t => !this.shouldHideCompletedTask(t));
+            const hiddenCompletedCount = allCompleted.length - completed.length;
 
             if (pending.length === 0) {
                 activeList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">¡Todo listo por aquí! No hay tareas pendientes.</p>';
@@ -1245,7 +1236,9 @@ export class TareasModule {
             }
 
             if (completed.length === 0) {
-                completedList.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay tareas completadas todavía.</p>';
+                completedList.innerHTML = hiddenCompletedCount > 0
+                    ? `<p class="tasks-hidden-completed-note"><i class="ph ph-eye-slash"></i> ${hiddenCompletedCount} ${hiddenCompletedCount === 1 ? 'tarea completada antigua está oculta' : 'tareas completadas antiguas están ocultas'}. Podés mostrarlas desde Perfil → Preferencias.</p>`
+                    : '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay tareas completadas todavía.</p>';
             } else {
                 completed.forEach(t => {
                     const safeTaskText = escapeHtml(t.text || '');
@@ -1278,6 +1271,12 @@ export class TareasModule {
                     });
                     completedList.appendChild(row);
                 });
+                if (hiddenCompletedCount > 0) {
+                    completedList.insertAdjacentHTML(
+                        'beforeend',
+                        `<p class="tasks-hidden-completed-note"><i class="ph ph-eye-slash"></i> ${hiddenCompletedCount} ${hiddenCompletedCount === 1 ? 'completada antigua oculta' : 'completadas antiguas ocultas'} · Perfil → Preferencias</p>`
+                    );
+                }
             }
         }
     }

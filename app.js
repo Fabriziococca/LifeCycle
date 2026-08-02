@@ -14,6 +14,8 @@ import { NotificationsCenterModule } from './modules/NotificationsCenterModule.j
 import { CustomTrackersModule } from './modules/CustomTrackersModule.js';
 import { TodayModule } from './modules/TodayModule.js';
 import { GlobalSearchModule } from './modules/GlobalSearchModule.js';
+import { KeyboardShortcutsModule } from './modules/KeyboardShortcutsModule.js';
+import { AdaptiveNavigationModule } from './modules/AdaptiveNavigationModule.js';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260729-project-templates';
 import {
     readUiState,
@@ -194,7 +196,7 @@ class AppController {
 
         mainNav.addEventListener('click', (e) => {
             const btn = e.target.closest('.nav-btn');
-            if (!btn) return;
+            if (!btn?.dataset.section) return;
             this.activateSection(btn.dataset.section);
         });
         this.initScrollableNavigationHint(
@@ -400,6 +402,8 @@ class AppController {
         const targetSection = document.getElementById(sectionId);
         if (!targetButton || !targetSection) return false;
 
+        mainNav.classList.remove('hidden');
+        document.body.classList.remove('profile-view-active');
         mainNav.querySelectorAll('.nav-btn').forEach(button => {
             button.classList.toggle('active', button === targetButton);
         });
@@ -409,6 +413,7 @@ class AppController {
 
         this.lastActiveSectionId = sectionId;
         if (persist) this.saveUiState({ section: sectionId });
+        this.adaptiveNavigation?.updateActiveState?.(sectionId);
         this.scrollControlIntoView(mainNav, targetButton, smooth);
         if (render) this.renderSection(sectionId);
         return true;
@@ -422,6 +427,11 @@ class AppController {
             const btn = e.target.closest('.profile-menu-item');
             if (!btn) return;
             this.activateProfileTab(btn.dataset.tab, { smooth: true });
+        });
+        document.querySelector('.profile-main-content')?.addEventListener('click', event => {
+            const link = event.target.closest('[data-profile-tab-link]');
+            if (!link) return;
+            this.activateProfileTab(link.dataset.profileTabLink, { smooth: true });
         });
         this.initScrollableNavigationHint(
             sidebar,
@@ -512,6 +522,7 @@ class AppController {
     }
 
     openProfileTab(tabId = this.uiState.profileTab, { persist = true } = {}) {
+        this.adaptiveNavigation?.closeMore?.({ restoreFocus: false });
         if (this.customTrackers?.reorderContext?.scope === 'runtime') {
             this.customTrackers.cancelReorderMode({ silent: true });
         }
@@ -519,6 +530,7 @@ class AppController {
             this.customTrackers.cancelBulkMode({ silent: true });
         }
         document.getElementById('main-nav')?.classList.add('hidden');
+        document.body.classList.add('profile-view-active');
         document.querySelectorAll('.main-section').forEach(section => {
             section.classList.add('hidden');
         });
@@ -719,6 +731,8 @@ class AppController {
         this.notificationsCenter = new NotificationsCenterModule(this);
         this.today = new TodayModule(this);
         this.globalSearch = new GlobalSearchModule(this);
+        this.keyboardShortcuts = new KeyboardShortcutsModule(this);
+        this.adaptiveNavigation = new AdaptiveNavigationModule(this);
         this.restoreUiState();
         requestAnimationFrame(() => this.refreshNavigationHints());
         

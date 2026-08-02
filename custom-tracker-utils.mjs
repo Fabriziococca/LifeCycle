@@ -119,6 +119,13 @@ export const APP_MODULES = Object.freeze({
     'tareas-section': Object.freeze({ label: 'Tareas', icon: 'ph-check-square' })
 });
 
+export const DEFAULT_NAVIGATION_FAVORITES = Object.freeze([
+    'hoy-section',
+    'projects-section',
+    'tareas-section',
+    'finanzas-section'
+]);
+
 export const CUSTOM_TRACKER_ICONS = Object.freeze([
     'ph-sparkle',
     'ph-check-circle',
@@ -682,12 +689,44 @@ function normalizeModulePreferences(value, { strict = false } = {}) {
     return result;
 }
 
+export function createDefaultNavigationPreferences() {
+    return {
+        favoriteModules: [...DEFAULT_NAVIGATION_FAVORITES]
+    };
+}
+
+export function normalizeNavigationPreferences(value, { strict = false } = {}) {
+    if (strict && value !== undefined && !isRecord(value)) {
+        throw new CustomTrackerValidationError(
+            '"navigationPreferences" debe ser un objeto.'
+        );
+    }
+    const candidate = isRecord(value) ? value : {};
+    if (strict && candidate.favoriteModules !== undefined && !Array.isArray(candidate.favoriteModules)) {
+        throw new CustomTrackerValidationError(
+            '"navigationPreferences.favoriteModules" debe ser una lista.'
+        );
+    }
+    const requested = Array.isArray(candidate.favoriteModules)
+        ? candidate.favoriteModules
+        : DEFAULT_NAVIGATION_FAVORITES;
+    const favoriteModules = [...new Set(requested)]
+        .filter(moduleId => MODULE_KEYS.has(moduleId))
+        .slice(0, 4);
+    return {
+        favoriteModules: favoriteModules.length > 0
+            ? favoriteModules
+            : [...DEFAULT_NAVIGATION_FAVORITES]
+    };
+}
+
 export function createEmptyCustomTrackerRegistry() {
     return {
         version: CUSTOM_TRACKER_SCHEMA_VERSION,
         trackers: [],
         histories: {},
         modulePreferences: createDefaultModulePreferences(),
+        navigationPreferences: createDefaultNavigationPreferences(),
         todayPreferences: createDefaultTodayPreferences(),
         migration: null
     };
@@ -778,6 +817,7 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
         trackers,
         histories,
         modulePreferences: normalizeModulePreferences(value.modulePreferences, { strict }),
+        navigationPreferences: normalizeNavigationPreferences(value.navigationPreferences, { strict }),
         todayPreferences: normalizeTodayPreferences(value.todayPreferences, { strict }),
         migration: normalizeMigrationMeta(value.migration)
     };
