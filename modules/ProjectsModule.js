@@ -1162,12 +1162,20 @@ export class ProjectsModule {
                 badgeSpan = '<span class="badge" style="background:var(--status-green); color:#fff; font-size:0.7rem; margin-left:8px; vertical-align:middle; padding:3px 8px;">Fabro (70%)</span>';
             }
 
-            let sourceBadge = '';
-            if (p.source === 'external') {
-                sourceBadge = '<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-secondary); border: 1px solid var(--surface-border); font-size:0.7rem; margin-left:8px; vertical-align:middle; padding:3px 8px;">Externo</span>';
-            } else {
-                sourceBadge = '<span class="badge" style="background:rgba(59, 130, 246, 0.15); color:#60a5fa; font-size:0.7rem; margin-left:8px; vertical-align:middle; padding:3px 8px;">Workana</span>';
-            }
+            const clientSourceVal = p.clientSource || (p.source === 'external' ? 'direct' : 'workana');
+            const clientSourceLabels = {
+                workana: '🎯 Origen: Workana',
+                linkedin: '🎯 Origen: LinkedIn',
+                direct: '🎯 Origen: Directo',
+                social: '🎯 Origen: Redes',
+                other: '🎯 Origen: Otro'
+            };
+            const sourceLabels = {
+                workana: '💼 Vía: Workana',
+                external: '💼 Vía: Directo'
+            };
+            const clientSourceBadge = `<span class="badge" style="background:rgba(59, 130, 246, 0.12); color:#60a5fa; border:1px solid rgba(59, 130, 246, 0.25); font-size:0.7rem; margin-left:6px; vertical-align:middle; padding:3px 8px;">${escapeHtml(clientSourceLabels[clientSourceVal] || '🎯 Origen: ' + clientSourceVal)}</span>`;
+            const sourceBadge = `<span class="badge" style="background:rgba(255,255,255,0.08); color:var(--text-secondary); border: 1px solid var(--surface-border); font-size:0.7rem; margin-left:6px; vertical-align:middle; padding:3px 8px;">${escapeHtml(sourceLabels[p.source] || '💼 Vía: ' + (p.source || 'Workana'))}</span>`;
 
             const isRunning = p.timerStart !== null;
             const btnIcon = p.isArbitration ? '🔒' : (isRunning ? '⏸️' : '▶️');
@@ -1284,33 +1292,21 @@ export class ProjectsModule {
                     </div>
                 </div>
                 
-                <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 10px;">
-                    <div style="display: flex; gap: 8px;">
-                        <button class="btn btn-secondary btn-plan" style="margin: 0; width: 100%;"><i class="ph ph-clipboard-text"></i> Plan del Proyecto</button>
-                    </div>
+                <div class="project-actions-compact" style="display: flex; gap: 8px; margin-top: 10px; align-items: center; justify-content: flex-end;">
+                    <button class="btn btn-secondary btn-plan" style="margin: 0; flex: 1; display: inline-flex; align-items: center; justify-content: center; gap: 6px; height: 38px;" data-tooltip="Plan del Proyecto" aria-label="Plan del Proyecto">
+                        <i class="ph ph-clipboard-text" style="font-size: 1.1rem;"></i>
+                        <span>Plan</span>
+                    </button>
+                    <button class="btn btn-secondary btn-manage" style="margin:0; padding: 0 12px; height: 38px; display: inline-flex; align-items: center; justify-content: center;" data-tooltip="Gestionar Proyecto (Editar / Fases)" aria-label="Gestionar Proyecto"><i class="ph ph-gear" style="font-size: 1.1rem;"></i></button>
                     ${p.isArbitration ? `
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
-                            <button class="btn btn-primary half btn-resolve" style="margin:0; background: var(--status-red); color: white;"><i class="ph ph-scales"></i> Resolver</button>
-                        </div>
+                        <button class="btn btn-primary btn-resolve" style="margin:0; background: var(--status-red); color: white; padding: 0 14px; height: 38px; display: inline-flex; align-items: center; justify-content: center;" data-tooltip="Resolver Arbitraje" aria-label="Resolver Arbitraje"><i class="ph ph-scales" style="font-size: 1.1rem;"></i></button>
                     ` : (p.hasChangesRequested ? `
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
-                            <button class="btn btn-primary half btn-redeliver" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-arrow-clockwise"></i> Reentregar Trabajo</button>
-                        </div>
+                        <button class="btn btn-primary btn-redeliver" style="margin:0; background: var(--status-green); color: white; padding: 0 14px; height: 38px; display: inline-flex; align-items: center; justify-content: center;" data-tooltip="Reentregar Trabajo" aria-label="Reentregar Trabajo"><i class="ph ph-arrow-clockwise" style="font-size: 1.1rem;"></i></button>
                     ` : (!p.isDelivered ? `
-                        <div style="display: flex; gap: 8px;">
-                            <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
-                            <button class="btn btn-primary half btn-deliver" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-check"></i> Entregado</button>
-                        </div>
+                        <button class="btn btn-primary btn-deliver" style="margin:0; background: var(--status-green); color: white; padding: 0 16px; height: 38px; display: inline-flex; align-items: center; gap: 6px;" data-tooltip="Marcar como Entregado" aria-label="Marcar como Entregado"><i class="ph ph-check" style="font-size: 1.1rem;"></i> <span>Entregado</span></button>
                     ` : `
-                        <div style="display: flex; flex-direction: column; gap: 8px;">
-                            <div style="display: flex; gap: 8px;">
-                                <button class="btn btn-secondary half btn-manage" style="margin:0;"><i class="ph ph-gear"></i> Gestionar</button>
-                                <button class="btn btn-primary half btn-confirm" style="margin:0; background: var(--status-green); color: white;"><i class="ph ph-coins"></i> Pago Confirmado</button>
-                            </div>
-                            <button class="btn btn-secondary btn-request-changes" style="margin:0; width:100%; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24; font-size: 0.8rem; height: 32px;"><i class="ph ph-warning-diamond"></i> Solicitó Cambios el Cliente</button>
-                        </div>
+                        <button class="btn btn-primary btn-confirm" style="margin:0; background: var(--status-green); color: white; padding: 0 14px; height: 38px; display: inline-flex; align-items: center; justify-content: center;" data-tooltip="Confirmar Pago y Finalizar" aria-label="Confirmar Pago"><i class="ph ph-coins" style="font-size: 1.1rem;"></i></button>
+                        <button class="btn btn-secondary btn-request-changes" style="margin:0; background: rgba(245, 158, 11, 0.12); border-color: rgba(245, 158, 11, 0.3); color: #fbbf24; padding: 0 12px; height: 38px; display: inline-flex; align-items: center; justify-content: center;" data-tooltip="Marcar Solicitud de Cambios del Cliente" aria-label="Solicitó Cambios"><i class="ph ph-warning-diamond" style="font-size: 1.1rem;"></i></button>
                     `)) }
                 </div>
             `;

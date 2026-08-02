@@ -50,3 +50,12 @@ test('project creation preserves clientSource and source attributes', () => {
     assert.equal(newProj.source, 'external');
     assert.equal(newProj.clientSource, 'workana');
 });
+
+test('ProjectsModule.js declares clientSourceBadge before building card innerHTML', () => {
+    const projPath = path.join(process.cwd(), 'modules', 'ProjectsModule.js');
+    const content = fs.readFileSync(projPath, 'utf8');
+    const badgeDeclarationIndex = content.indexOf('const clientSourceBadge =');
+    const innerHTMLIndex = content.indexOf('${clientSourceBadge}');
+    assert.ok(badgeDeclarationIndex > 0, 'clientSourceBadge must be declared');
+    assert.ok(innerHTMLIndex > badgeDeclarationIndex, 'clientSourceBadge must be declared before innerHTML interpolation');
+});
