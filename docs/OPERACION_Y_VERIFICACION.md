@@ -54,7 +54,7 @@ En cada celular o computadora:
 
 El botón “Diagnosticar este dispositivo” realiza una comprobación no destructiva de HTTPS, compatibilidad, permiso, Service Worker, suscripción local, registro en LifeCycle, configuración del backend y una prueba real si el equipo ya está registrado. No puede cambiar por sí mismo los permisos de Brave ni de Windows.
 
-### Administración e historial por dispositivo
+### Administración y diagnóstico por dispositivo
 
 La pantalla Perfil > Notificaciones permite:
 
@@ -62,16 +62,17 @@ La pantalla Perfil > Notificaciones permite:
 - enviar una prueba a un dispositivo específico;
 - revocar un endpoint sin desactivar los demás;
 - ver la última actividad y si el último intento fue aceptado o rechazado;
-- filtrar los últimos intentos por aceptados, fallidos, endpoints vencidos o ausencia de dispositivos;
-- confirmar manualmente “La vi” para separar la aceptación técnica de la recepción observada.
+- ver el estado resumido del motor y su último error registrado;
+- abrir `Diagnóstico avanzado > Ver actividad técnica` cuando sea necesario;
+- filtrar los últimos intentos por aceptados, fallidos, endpoints vencidos o ausencia de dispositivos.
 
-“Aceptada por Push” significa que el proveedor Web Push recibió correctamente el mensaje. La API del navegador no confirma de forma fiable que la persona haya visto la notificación. Solo después de pulsar “La vi” LifeCycle muestra una confirmación humana. El backend conserva como máximo 90 días de historial y elimina automáticamente los registros anteriores.
+“Aceptada por Push” significa que el proveedor Web Push recibió correctamente el mensaje. La API del navegador no confirma de forma fiable que la persona haya visto la notificación, por lo que la interfaz ya no solicita una confirmación manual “La vi”. El backend conserva como máximo 90 días de historial técnico y elimina automáticamente los registros anteriores.
 
 El esquema base de estas funciones está registrado en:
 
 `supabase/migrations/20260801062050_push_management_and_history.sql`
 
-El diagnóstico completo, la confirmación humana, el estado sin dispositivos y la retención están registrados en:
+El diagnóstico completo, los campos históricos de confirmación, el estado sin dispositivos y la retención están registrados en:
 
 `supabase/migrations/20260801193348_complete_push_diagnostics_and_retention.sql`
 

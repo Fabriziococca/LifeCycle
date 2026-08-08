@@ -29,6 +29,62 @@ function inferPlatform(userAgent) {
     return 'Dispositivo';
 }
 
+function parseTimestamp(value) {
+    if (!value) return null;
+    const timestamp = new Date(value).getTime();
+    return Number.isFinite(timestamp) ? timestamp : null;
+}
+
+export function buildPushEnginePresentation(value = {}) {
+    const state = value && typeof value === 'object' ? value : {};
+    const consecutiveFailures = Math.max(
+        0,
+        Number.parseInt(state.consecutiveFailures, 10) || 0
+    );
+    const successTimestamp = parseTimestamp(state.lastSuccessAt);
+    const failureTimestamp = parseTimestamp(state.lastFailureAt);
+    const recoveredAfterFailure = (
+        successTimestamp !== null
+        && failureTimestamp !== null
+        && successTimestamp > failureTimestamp
+    );
+    const lastError = failureTimestamp === null
+        ? ''
+        : `Último error registrado ${formatDateTime(state.lastFailureAt)}${recoveredAfterFailure ? ' · recuperado en una revisión posterior.' : '.'}`;
+
+    if (state.configured !== true) {
+        return {
+            tone: 'warning',
+            title: 'Motor pendiente de configuración',
+            detail: 'Falta completar la conexión del backend para enviar avisos.',
+            lastError
+        };
+    }
+
+    if (consecutiveFailures > 0) {
+        return {
+            tone: 'danger',
+            title: 'Motor con errores',
+            detail: consecutiveFailures === 1
+                ? '1 revisión consecutiva falló.'
+                : `${consecutiveFailures} revisiones consecutivas fallaron.`,
+            lastError
+        };
+    }
+
+    const lastSuccess = successTimestamp === null
+        ? 'Configurado; esperando la primera revisión completa.'
+        : `Última revisión correcta ${formatDateTime(state.lastSuccessAt)}.`;
+    return {
+        tone: 'success',
+        title: 'Motor operativo',
+        detail: state.running
+            ? `Revisión en curso · ${lastSuccess}`
+            : lastSuccess,
+        lastError
+    };
+}
+
 export class PushManagementModule {
     constructor(authModule) {
         this.auth = authModule;
@@ -40,7 +96,9 @@ export class PushManagementModule {
         this.historyNote = document.getElementById('push-history-note');
         this.historyRefresh = document.getElementById('push-history-refresh');
         this.historyFilter = document.getElementById('push-history-filter');
+        this.advancedDiagnostics = document.getElementById('push-advanced-diagnostics');
         this.healthStatus = document.getElementById('push-engine-status');
+        this.healthLastError = document.getElementById('push-engine-last-error');
         this.diagnosticsButton = document.getElementById('btn-diagnose-push');
         this.diagnosticsResults = document.getElementById('push-diagnostics-results');
         this.devices = [];
@@ -57,14 +115,14 @@ export class PushManagementModule {
         this.devicesRefresh?.addEventListener('click', () => this.loadDevices());
         this.historyRefresh?.addEventListener('click', () => this.loadHistory());
         this.historyFilter?.addEventListener('change', () => this.loadHistory());
+        this.advancedDiagnostics?.addEventListener('toggle', () => {
+            if (this.advancedDiagnostics.open) this.loadHistory();
+        });
         this.diagnosticsButton?.addEventListener('click', () => {
             this.runDiagnostics().catch(error => this.showError(error));
         });
         this.devicesList?.addEventListener('click', event => {
             this.handleDeviceAction(event).catch(error => this.showError(error));
-        });
-        this.historyList?.addEventListener('click', event => {
-            this.handleHistoryAction(event).catch(error => this.showError(error));
         });
     }
 
@@ -305,11 +363,14 @@ export class PushManagementModule {
             this.clear();
             return;
         }
-        await Promise.allSettled([
+        const operations = [
             this.loadDevices(),
-            this.loadHistory(),
             this.loadHealth()
-        ]);
+        ];
+        if (this.advancedDiagnostics?.open) {
+            operations.push(this.loadHistory());
+        }
+        await Promise.allSettled(operations);
     }
 
     clear() {
@@ -319,10 +380,11 @@ export class PushManagementModule {
         this.metadataAvailable = true;
         this.editingDeviceId = null;
         this.pendingDeleteId = null;
+        if (this.advancedDiagnostics) this.advancedDiagnostics.open = false;
         this.diagnosticsResults?.classList.add('hidden');
         if (this.diagnosticsResults) this.diagnosticsResults.innerHTML = '';
         if (this.devicesList) this.devicesList.innerHTML = '<p class="push-manager-empty">Iniciá sesión para ver tus dispositivos.</p>';
-        if (this.historyList) this.historyList.innerHTML = '<p class="push-manager-empty">Iniciá sesión para ver el historial.</p>';
+        if (this.historyList) this.historyList.innerHTML = '<p class="push-manager-empty">Abrí la actividad técnica para cargar los últimos intentos.</p>';
     }
 
     async loadDevices() {
@@ -531,7 +593,6 @@ export class PushManagementModule {
             const detail = entry.status === 'accepted'
                 ? entry.body
                 : (entry.error_message || entry.body || 'El proveedor rechazó el envío.');
-            const confirmed = Boolean(entry.confirmed_at);
             return `
                 <article class="push-history-row">
                     <span class="push-history-status ${meta.className}"><i class="ph ${meta.icon}"></i></span>
@@ -539,63 +600,35 @@ export class PushManagementModule {
                         <strong>${escapeHtml(entry.title || entry.alert_key || 'Notificación')}</strong>
                         <small>${escapeHtml(detail || '')}</small>
                         <small>${escapeHtml(device)} · ${escapeHtml(formatDateTime(entry.attempted_at))}</small>
-                        ${confirmed ? `<small class="push-history-confirmed"><i class="ph ph-eye"></i> Confirmada por vos · ${escapeHtml(formatDateTime(entry.confirmed_at))}</small>` : ''}
                     </span>
                     <span class="push-history-side">
                         <span class="push-history-badge ${meta.className}">${escapeHtml(meta.label)}</span>
-                        ${entry.status === 'accepted' && !confirmed ? `
-                            <button
-                                type="button"
-                                class="push-history-confirm"
-                                data-push-history-action="confirm-seen"
-                                data-history-id="${escapeHtml(String(entry.id))}"
-                            ><i class="ph ph-eye"></i> La vi</button>
-                        ` : ''}
                     </span>
                 </article>
             `;
         }).join('');
     }
 
-    async handleHistoryAction(event) {
-        const button = event.target.closest('[data-push-history-action="confirm-seen"]');
-        if (!button || this.busy) return;
-        const historyId = button.dataset.historyId;
-        if (!historyId) return;
-        this.busy = true;
-        button.disabled = true;
-        try {
-            await this.request(`/api/push/history/${encodeURIComponent(historyId)}/confirm`, {
-                method: 'POST'
-            });
-            await this.loadHistory();
-            this.app.showToast?.('Notificación confirmada como vista.');
-        } finally {
-            this.busy = false;
-        }
-    }
-
     async loadHealth() {
         if (!this.healthStatus) return;
         try {
             const response = await fetch('/api/health', { cache: 'no-store' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
             const result = await response.json();
-            const state = result.notifications || {};
-            if (!state.configured) {
-                this.healthStatus.className = 'push-engine-status warning';
-                this.healthStatus.textContent = 'El backend de notificaciones no está configurado completamente.';
-            } else if (state.consecutiveFailures > 0) {
-                this.healthStatus.className = 'push-engine-status danger';
-                this.healthStatus.textContent = `El motor registró ${state.consecutiveFailures} fallo(s) consecutivo(s).`;
-            } else {
-                this.healthStatus.className = 'push-engine-status success';
-                this.healthStatus.textContent = state.lastSuccessAt
-                    ? `Motor operativo · última revisión correcta ${formatDateTime(state.lastSuccessAt)}.`
-                    : 'Motor configurado; todavía no registró una revisión completa.';
+            const presentation = buildPushEnginePresentation(result.notifications);
+            this.healthStatus.className = `push-engine-status ${presentation.tone}`;
+            this.healthStatus.textContent = `${presentation.title} · ${presentation.detail}`;
+            if (this.healthLastError) {
+                this.healthLastError.textContent = presentation.lastError;
+                this.healthLastError.classList.toggle('hidden', !presentation.lastError);
             }
         } catch {
             this.healthStatus.className = 'push-engine-status warning';
-            this.healthStatus.textContent = 'No se pudo consultar el estado del motor.';
+            this.healthStatus.textContent = 'Estado no disponible · No se pudo consultar el motor de notificaciones.';
+            if (this.healthLastError) {
+                this.healthLastError.textContent = '';
+                this.healthLastError.classList.add('hidden');
+            }
         }
     }
 

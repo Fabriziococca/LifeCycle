@@ -74,6 +74,12 @@ abierto sigue visible, pero no participa de los promedios hasta cerrar. Los
 detalles anuales de Finanzas mantienen una tabla comparativa compacta en
 escritorio y usan meses desplegables con movimientos en celular.
 
+El estado del motor de notificaciones permanece visible como resumen. El
+historial técnico vive dentro de `Diagnóstico avanzado`, empieza colapsado y
+se carga al abrir `Ver actividad técnica`. Los filtros de fallos siguen
+disponibles, pero la interfaz no solicita confirmar manualmente “La vi”; el
+backend conserva el historial y su retención sin alterar los avisos.
+
 ## 2. Tooltips y dispositivos
 
 - El tooltip aparece con mouse al mantener el puntero y con teclado al enfocar

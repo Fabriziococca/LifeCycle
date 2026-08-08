@@ -632,6 +632,7 @@ test('push management distinguishes devices, provider acceptance and failures', 
         'utf8'
     );
     const serverSource = await readFile(path.join(ROOT, 'server.js'), 'utf8');
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
     const migration = await readFile(
         path.join(ROOT, 'supabase', 'migrations', '20260801062050_push_management_and_history.sql'),
         'utf8'
@@ -639,14 +640,22 @@ test('push management distinguishes devices, provider acceptance and failures', 
 
     assert.match(index, /id="push-devices-list"/);
     assert.match(index, /id="push-history-list"/);
+    assert.match(index, /id="push-advanced-diagnostics"/);
+    assert.match(index, /Diagnóstico avanzado/);
+    assert.match(index, /Ver actividad técnica/);
+    assert.match(index, /id="push-engine-last-error"/);
     assert.match(index, /id="btn-diagnose-push"/);
     assert.match(index, /id="push-diagnostics-results"/);
     assert.match(index, /Aceptada.*servicio Push/s);
     assert.match(authSource, /PushManagementModule/);
     assert.match(managerSource, /\/api\/push\/devices/);
     assert.match(managerSource, /data-push-device-action="test"/);
-    assert.match(managerSource, /data-push-history-action="confirm-seen"/);
+    assert.match(managerSource, /buildPushEnginePresentation/);
+    assert.match(managerSource, /this\.advancedDiagnostics\?\.open/);
+    assert.doesNotMatch(managerSource, /data-push-history-action="confirm-seen"/);
+    assert.doesNotMatch(managerSource, /La vi/);
     assert.match(managerSource, /\/api\/push\/history/);
+    assert.match(styles, /\.push-advanced-diagnostics:not\(\[open\]\) > \.push-advanced-content\s*\{[\s\S]*?display: none/);
     assert.match(serverSource, /app\.post\('\/api\/push\/status'/);
     assert.match(serverSource, /app\.post\('\/api\/push\/devices\/:id\/test'/);
     assert.match(serverSource, /notification_delivery_log/);

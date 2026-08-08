@@ -1929,7 +1929,6 @@
                                     <button id="btn-test-push" class="btn btn-secondary hidden" style="width: 100%; border-color: rgba(59, 130, 246, 0.2); color: #60a5fa;"><i class="ph ph-paper-plane-tilt"></i> Enviar Notificación de Prueba (5s delay)</button>
                                     <button id="btn-diagnose-push" class="btn btn-secondary" style="width: 100%;"><i class="ph ph-stethoscope"></i> Diagnosticar este dispositivo</button>
                                     <p id="push-status-message" class="push-status inactive" role="status" aria-live="polite">Comprobando el estado de este dispositivo...</p>
-                                    <p id="push-engine-status" class="push-engine-status" role="status">Comprobando el motor de notificaciones...</p>
                                     <div id="push-diagnostics-results" class="push-diagnostics-results hidden" aria-live="polite"></div>
                                 </div>
                             </div>
@@ -1956,20 +1955,33 @@
                             </div>
                         </div>
 
-                        <div id="push-history-card" class="card push-manager-card">
-                            <div class="card-header push-manager-header">
-                                <div class="push-manager-heading">
-                                    <div class="icon-container"><i class="ph ph-clock-counter-clockwise"></i></div>
+                        <details id="push-advanced-diagnostics" class="card push-manager-card push-advanced-diagnostics">
+                            <summary class="push-advanced-summary">
+                                <span class="push-manager-heading">
+                                    <span class="icon-container"><i class="ph ph-stethoscope"></i></span>
+                                    <span class="push-advanced-copy">
+                                        <span class="push-advanced-eyebrow">Notificaciones</span>
+                                        <strong>Diagnóstico avanzado</strong>
+                                        <span id="push-engine-status" class="push-engine-status" role="status">Comprobando el motor de notificaciones...</span>
+                                        <span id="push-engine-last-error" class="push-engine-last-error hidden" role="status"></span>
+                                    </span>
+                                </span>
+                                <span class="push-advanced-toggle">
+                                    <span class="push-advanced-toggle-closed">Ver actividad técnica</span>
+                                    <span class="push-advanced-toggle-open">Ocultar actividad técnica</span>
+                                    <i class="ph ph-caret-down" aria-hidden="true"></i>
+                                </span>
+                            </summary>
+                            <div class="push-advanced-content">
+                                <div class="push-activity-header">
                                     <div>
-                                        <h3>Historial de notificaciones</h3>
+                                        <h4>Actividad técnica</h4>
                                         <p>Últimos intentos realizados por el backend.</p>
                                     </div>
+                                    <button id="push-history-refresh" type="button" class="push-manager-refresh" aria-label="Actualizar actividad técnica" data-tooltip="Actualizar actividad">
+                                        <i class="ph ph-arrows-clockwise"></i>
+                                    </button>
                                 </div>
-                                <button id="push-history-refresh" type="button" class="push-manager-refresh" aria-label="Actualizar historial" data-tooltip="Actualizar historial">
-                                    <i class="ph ph-arrows-clockwise"></i>
-                                </button>
-                            </div>
-                            <div class="card-body">
                                 <div class="push-history-toolbar">
                                     <label for="push-history-filter">Mostrar</label>
                                     <select id="push-history-filter" class="time-input">
@@ -1980,12 +1992,12 @@
                                         <option value="no_devices">Sin dispositivos</option>
                                     </select>
                                 </div>
-                                <p id="push-history-note" class="push-manager-note">“Aceptada” confirma que el servicio Push recibió el envío; los navegadores no confirman si fue visto.</p>
+                                <p id="push-history-note" class="push-manager-note">“Aceptada” confirma que el servicio Push recibió el envío; este historial técnico no confirma si el aviso fue visto.</p>
                                 <div id="push-history-list" class="push-history-list" aria-live="polite">
-                                    <p class="push-manager-empty">Cargando historial...</p>
+                                    <p class="push-manager-empty">Abrí la actividad técnica para cargar los últimos intentos.</p>
                                 </div>
                             </div>
-                        </div>
+                        </details>
                     </div>
 
                     <!-- Pestaña 3: Instalación PWA -->
