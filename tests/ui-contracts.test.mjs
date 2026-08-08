@@ -320,6 +320,45 @@ test('the second discoverability batch avoids duplicate branding and reuses card
     assert.match(trackersSource, /Ya alcanzó o superó el plazo definido\./);
 });
 
+test('the third compact-layout batch preserves vehicle and health histories behind disclosures', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+    const healthSource = await readFile(
+        path.join(ROOT, 'modules', 'HealthModule.js'),
+        'utf8'
+    );
+    const vehicleSource = await readFile(
+        path.join(ROOT, 'modules', 'VehicleModule.js'),
+        'utf8'
+    );
+
+    assert.match(index, /class="health-controls-grid"/);
+    assert.match(index, /id="blood-status-badge"/);
+    assert.match(index, /id="blood-history-disclosure"/);
+    assert.match(index, /summary class="btn btn-history" role="button" aria-expanded="false"/);
+    assert.match(index, /id="blood-history-count"/);
+    assert.match(index, /id="blood-tests-list"/);
+    assert.match(healthSource, /statusText = 'Atención'/);
+    assert.match(healthSource, /statusText = 'Próximo'/);
+    assert.match(healthSource, /this\.bloodHistoryCount\.textContent/);
+    assert.match(healthSource, /String\(this\.bloodHistoryDisclosure\.open\)/);
+
+    assert.match(index, /class="card vehicle-odometer-card"/);
+    assert.match(index, /class="lenses-dashboard vehicle-maintenance-grid"/);
+    assert.match(index, /class="card vehicle-maintenance-card vehicle-fluids-card"/);
+    assert.match(index, /id="vehicle-issue-composer"/);
+    assert.match(index, /<summary class="btn btn-primary" role="button" aria-expanded="false"[\s\S]*?Reportar falla/);
+    assert.match(index, /id="vehicle-issues-count"/);
+    assert.match(vehicleSource, /this\.issueComposer\.open = false/);
+    assert.match(vehicleSource, /String\(this\.issueComposer\.open\)/);
+    assert.match(vehicleSource, /activeIssues\.some\(issue => issue\.urgency === 'alta'\)/);
+
+    assert.match(styles, /\.health-controls-grid\s*{[\s\S]*?grid-template-columns:/);
+    assert.match(styles, /\.vehicle-fluid-grid\s*{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
+    assert.match(styles, /\.vehicle-issue-composer:not\(\[open\]\) > \.vehicle-add-issue-form\s*{[\s\S]*?display: none/);
+    assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.vehicle-fluid-grid/);
+});
+
 test('Today reuses critical items and links back to their source modules', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');

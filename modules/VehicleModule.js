@@ -83,9 +83,11 @@ export class VehicleModule {
 
         // Issues UI Elements
         this.addIssueForm = document.getElementById('vehicle-add-issue-form');
+        this.issueComposer = document.getElementById('vehicle-issue-composer');
         this.issueTitleInput = document.getElementById('issue-title-input');
         this.issueUrgencySelect = document.getElementById('issue-urgency-select');
         this.issuesListContainer = document.getElementById('vehicle-issues-list');
+        this.issuesCount = document.getElementById('vehicle-issues-count');
 
         // Load data
         this.odometer = Number(localStorage.getItem('vehicle_odometer')) || 0;
@@ -353,7 +355,19 @@ export class VehicleModule {
             if (title) {
                 this.addIssue(title, urgency);
                 if (this.issueTitleInput) this.issueTitleInput.value = '';
+                if (this.issueUrgencySelect) this.issueUrgencySelect.value = 'baja';
+                if (this.issueComposer) {
+                    this.issueComposer.open = false;
+                    this.issueComposer.querySelector('summary')?.focus();
+                }
             }
+        });
+
+        this.issueComposer?.addEventListener('toggle', () => {
+            this.issueComposer.querySelector('summary')?.setAttribute(
+                'aria-expanded',
+                String(this.issueComposer.open)
+            );
         });
 
         this.render();
@@ -733,9 +747,13 @@ export class VehicleModule {
         this.issuesListContainer.innerHTML = '';
 
         const activeIssues = this.issues.filter(i => !i.resolvedAt);
+        if (this.issuesCount) {
+            this.issuesCount.textContent = String(activeIssues.length);
+            this.issuesCount.className = `badge ${activeIssues.some(issue => issue.urgency === 'alta') ? 'red' : 'gray'}`;
+        }
 
         if (activeIssues.length === 0) {
-            this.issuesListContainer.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">No hay fallas ni pendientes registrados.</p>';
+            this.issuesListContainer.innerHTML = '<p class="vehicle-issues-empty">No hay fallas ni pendientes registrados.</p>';
             return;
         }
 

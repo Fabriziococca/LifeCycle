@@ -8,6 +8,9 @@ export class HealthModule {
         this.bloodDaysCount = document.getElementById('blood-days-count');
         this.bloodLastDate = document.getElementById('blood-last-date');
         this.bloodNextDate = document.getElementById('blood-next-date');
+        this.bloodStatusBadge = document.getElementById('blood-status-badge');
+        this.bloodHistoryCount = document.getElementById('blood-history-count');
+        this.bloodHistoryDisclosure = document.getElementById('blood-history-disclosure');
         
         this.btnAddBlood = document.getElementById('btn-add-blood-test');
         this.bloodForm = document.getElementById('blood-test-form');
@@ -58,8 +61,10 @@ export class HealthModule {
         // Carga formulario análisis
         this.btnAddBlood?.addEventListener('click', () => {
             if (this.bloodForm) this.bloodForm.classList.remove('hidden');
+            this.btnAddBlood.setAttribute('aria-expanded', 'true');
             if (this.bloodFormDate) {
                 this.bloodFormDate.value = getLocalISODate();
+                requestAnimationFrame(() => this.bloodFormDate.focus());
             }
         });
 
@@ -105,21 +110,32 @@ export class HealthModule {
         });
 
         this.bloodFormCancel?.addEventListener('click', () => {
-            this.clearBloodForm();
+            this.clearBloodForm({ restoreFocus: true });
         });
 
         this.bloodFormSave?.addEventListener('click', () => {
             this.saveBloodTestEntry();
         });
 
+        this.bloodHistoryDisclosure?.addEventListener('toggle', () => {
+            this.bloodHistoryDisclosure.querySelector('summary')?.setAttribute(
+                'aria-expanded',
+                String(this.bloodHistoryDisclosure.open)
+            );
+        });
+
         this.render();
     }
 
-    clearBloodForm() {
+    clearBloodForm({ restoreFocus = false } = {}) {
         if (this.bloodForm) this.bloodForm.classList.add('hidden');
+        this.btnAddBlood?.setAttribute('aria-expanded', 'false');
         if (this.bloodFormDate) this.bloodFormDate.value = '';
         if (this.bloodFormPortal) this.bloodFormPortal.value = '';
         this.resetAttachedFile();
+        if (restoreFocus) {
+            requestAnimationFrame(() => this.btnAddBlood?.focus());
+        }
     }
 
     resetAttachedFile() {
@@ -228,7 +244,7 @@ export class HealthModule {
             this.bloodTests.push(entry);
             this.bloodTests.sort((a, b) => new Date(b.date) - new Date(a.date));
             this.saveBloodTests();
-            this.clearBloodForm();
+            this.clearBloodForm({ restoreFocus: true });
             this.render();
         } catch (error) {
             console.error("Error guardando el análisis de sangre:", error);
@@ -375,7 +391,7 @@ export class HealthModule {
             }
 
             const card = document.createElement('div');
-            card.className = 'card';
+            card.className = 'card health-control-card health-medical-card';
             if (daysElapsed !== null) {
                 card.style.borderColor = statusColor;
             }
@@ -392,11 +408,12 @@ export class HealthModule {
                 historyHtml = '<li style="font-size: 0.85rem; padding: 0.5rem; text-align: center; color: var(--text-secondary);">Sin visitas anteriores</li>';
             }
 
-            const badgeClass = statusText === 'Al día' ? 'green' : (statusText === 'Vencido' ? 'red' : (statusText === 'Próximo' ? 'orange' : ''));
+            const historyCount = Array.isArray(doc.history) ? doc.history.length : 0;
+            const badgeClass = statusText === 'Al día' ? 'green' : (statusText === 'Vencido' ? 'red' : (statusText === 'Próximo' ? 'orange' : 'gray'));
 
             card.innerHTML = `
-                <div class="card-header">
-                    <div style="display: flex; align-items: center; gap: 0.75rem;">
+                <div class="card-header health-card-header">
+                    <div class="health-card-heading">
                         <div class="icon-container">
                             <i class="ph ${key === 'dentista' ? 'ph-first-aid' : 'ph-eye'}"></i>
                         </div>
@@ -410,7 +427,7 @@ export class HealthModule {
                     </button>
                 </div>
                 
-                <div class="card-body" style="padding: 0;">
+                <div class="card-body health-control-card-body" style="padding: 0;">
                     <div class="frequency-control">
                         <i class="ph ph-calendar-blank"></i>
                         <span>Frecuencia:</span>
@@ -436,7 +453,7 @@ export class HealthModule {
 
                     <button type="button" class="btn btn-record btn-quick-visit" data-key="${safeKey}" style="width: 100%;">✓ Registrar Visita Hoy</button>
                     
-                    <button type="button" class="btn btn-history btn-toggle-visit-history" style="margin-top: 0.5rem; width:100%;">Ver Historial</button>
+                    <button type="button" class="btn btn-history btn-toggle-visit-history" style="margin-top: 0.5rem; width:100%;">Ver historial (${historyCount})</button>
                     <div class="history-log hidden" style="margin-top: 0.75rem;">
                         <ul style="padding-left: 0; display:flex; flex-direction:column; gap:0.4rem; list-style:none; margin:0;">
                             ${historyHtml}
@@ -464,10 +481,10 @@ export class HealthModule {
                 const btn = e.currentTarget;
                 if (log.classList.contains('hidden')) {
                     log.classList.remove('hidden');
-                    btn.innerText = 'Ocultar Historial';
+                    btn.innerText = `Ocultar historial (${historyCount})`;
                 } else {
                     log.classList.add('hidden');
-                    btn.innerText = 'Ver Historial';
+                    btn.innerText = `Ver historial (${historyCount})`;
                 }
             });
 
@@ -554,15 +571,38 @@ export class HealthModule {
         const elCard = document.getElementById('blood-tests-card');
 
         let statusColor = 'var(--text-secondary)';
+        let statusText = 'Sin datos';
+        let statusTone = 'gray';
         if (daysElapsed !== null) {
-            if (daysElapsed >= 365) statusColor = 'var(--status-red)';
-            else if (daysElapsed >= 330) statusColor = 'var(--status-orange)';
-            else if (daysElapsed >= 270) statusColor = 'var(--status-yellow)';
-            else statusColor = 'var(--status-green)';
+            if (daysElapsed >= 365) {
+                statusColor = 'var(--status-red)';
+                statusText = 'Vencido';
+                statusTone = 'red';
+            } else if (daysElapsed >= 330) {
+                statusColor = 'var(--status-orange)';
+                statusText = 'Atención';
+                statusTone = 'orange';
+            } else if (daysElapsed >= 270) {
+                statusColor = 'var(--status-yellow)';
+                statusText = 'Próximo';
+                statusTone = 'yellow';
+            } else {
+                statusColor = 'var(--status-green)';
+                statusText = 'Al día';
+                statusTone = 'green';
+            }
         }
 
         if (elCard) {
             elCard.style.borderColor = daysElapsed !== null ? statusColor : 'var(--surface-border)';
+            elCard.dataset.tone = statusTone;
+        }
+        if (this.bloodStatusBadge) {
+            this.bloodStatusBadge.className = `badge ${statusTone}`;
+            this.bloodStatusBadge.textContent = statusText;
+        }
+        if (this.bloodHistoryCount) {
+            this.bloodHistoryCount.textContent = String(this.bloodTests.length);
         }
 
         if (this.bloodDaysCount) {

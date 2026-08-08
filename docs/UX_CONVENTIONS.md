@@ -57,6 +57,12 @@ Los estados avanzan en este orden y no cambian los valores guardados:
 - `Atención`: pasa a una advertencia más visible;
 - `Vencido`: alcanzó o superó el plazo configurado.
 
+Vehículo y Salud usan composición compacta sin fusionar datos distintos. El
+odómetro permanece como resumen independiente, los mantenimientos conservan
+sus historiales y los fluidos vuelven a una columna en móvil. Los formularios
+secundarios y los historiales extensos empiezan colapsados, pero nunca se
+eliminan ni se recortan sus datos o adjuntos.
+
 ## 2. Tooltips y dispositivos
 
 - El tooltip aparece con mouse al mantener el puntero y con teclado al enfocar

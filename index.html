@@ -313,70 +313,80 @@
         <!-- SECCIÓN: SALUD -->
         <section id="salud-section" class="main-section hidden">
             <h3 class="section-title">Controles Médicos</h3>
-            <div id="salud-grid-section" class="cards-grid" style="margin-bottom: 2rem;">
-                <!-- Dentista y Oculista generados dinámicamente -->
-            </div>
-
-            <div class="card" id="blood-tests-card" style="max-width: 600px; margin: 0 auto;">
-                <div class="card-header">
-                    <div class="icon-container">
-                        <i class="ph ph-first-aid-kit"></i>
-                    </div>
-                    <h3>Análisis de Sangre</h3>
+            <div class="health-controls-grid">
+                <div id="salud-grid-section" class="health-tracker-host">
+                    <!-- Dentista y Oculista generados dinámicamente -->
                 </div>
-                <div class="card-body">
-                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 0.5rem;">
-                        <div class="time-display" style="margin-bottom: 0;">
-                            <span class="days-count" id="blood-days-count" style="color: var(--primary-color);">0</span>
-                            <span class="days-label">días desde el último estudio</span>
-                        </div>
-                    </div>
-                    
-                    <div class="date-info-container" style="margin-bottom: 1.5rem;">
-                        <div class="date-info">
-                            <i class="ph ph-clock-counter-clockwise"></i>
-                            <span>Último análisis: <strong id="blood-last-date">Nunca</strong></span>
-                        </div>
-                        <div class="date-info">
-                            <i class="ph ph-calendar"></i>
-                            <span>Próximo análisis (anual): <strong id="blood-next-date">N/A</strong></span>
-                        </div>
-                    </div>
 
-                    <button id="btn-add-blood-test" class="btn btn-primary" style="width: 100%; margin-bottom: 1rem;">
-                        <i class="ph-bold ph-plus-circle"></i> Agregar Nuevo Estudio
-                    </button>
-
-                    <!-- Formulario agregar estudio (oculto por defecto) -->
-                    <div id="blood-test-form" class="migration-guide hidden" style="margin-bottom: 1.5rem; padding: 1.25rem;">
-                        <h4 style="margin-bottom: 0.75rem;">Registrar Estudio de Sangre</h4>
-                        <div style="display: flex; flex-direction: column; gap: 0.75rem;">
-                            <div class="input-group">
-                                <label>Fecha del Estudio:</label>
-                                <input type="date" id="blood-form-date" class="date-input">
+                <article class="card health-control-card health-blood-card" id="blood-tests-card">
+                    <div class="card-header health-card-header">
+                        <div class="health-card-heading">
+                            <div class="icon-container">
+                                <i class="ph ph-first-aid-kit"></i>
                             </div>
-                            <div class="input-group">
-                                <label>Archivo PDF / Imagen del Estudio:</label>
-                                <input type="file" id="blood-form-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" style="display: none;">
-                                <label for="blood-form-file" class="btn btn-secondary" style="margin: 0; width: 100%; box-sizing: border-box; font-size: 0.9rem; padding: 10px 14px;"><i class="ph ph-paperclip"></i> Adjuntar PDF / Imagen</label>
-                                <div id="blood-form-file-name" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 5px; word-break: break-all;" class="hidden"></div>
-                            </div>
-                            <div class="input-group">
-                                <label>Enlace al Portal Web del Laboratorio:</label>
-                                <input type="url" id="blood-form-portal" class="time-input" placeholder="https://laboratorio.com/...">
-                            </div>
-                            <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
-                                <button id="blood-form-cancel" class="btn btn-cancel" style="flex: 1; padding: 0.6rem;">Cancelar</button>
-                                <button id="blood-form-save" class="btn btn-save" style="flex: 1; padding: 0.6rem;">Guardar</button>
+                            <h3>Análisis de Sangre</h3>
+                        </div>
+                        <span id="blood-status-badge" class="badge gray">Sin datos</span>
+                    </div>
+                    <div class="card-body health-control-card-body">
+                        <div class="health-status-row">
+                            <div class="time-display">
+                                <span class="days-count" id="blood-days-count" style="color: var(--primary-color);">0</span>
+                                <span class="days-label">días desde el último estudio</span>
                             </div>
                         </div>
-                    </div>
 
-                    <h4 class="sub-section-title">Historial de Estudios</h4>
-                    <ul id="blood-tests-list" class="history-list" style="padding-left: 0;">
-                        <!-- Lista de estudios generada dinámicamente -->
-                    </ul>
-                </div>
+                        <div class="date-info-container health-card-dates">
+                            <div class="date-info">
+                                <i class="ph ph-clock-counter-clockwise"></i>
+                                <span>Último análisis: <strong id="blood-last-date">Nunca</strong></span>
+                            </div>
+                            <div class="date-info">
+                                <i class="ph ph-calendar"></i>
+                                <span>Próximo análisis: <strong id="blood-next-date">N/A</strong></span>
+                            </div>
+                        </div>
+
+                        <button id="btn-add-blood-test" class="btn btn-primary health-primary-action" aria-expanded="false" aria-controls="blood-test-form">
+                            <i class="ph-bold ph-plus-circle"></i> Agregar estudio
+                        </button>
+
+                        <!-- Formulario agregar estudio (oculto por defecto) -->
+                        <div id="blood-test-form" class="migration-guide health-blood-form hidden">
+                            <h4>Registrar estudio de sangre</h4>
+                            <div class="health-blood-form-fields">
+                                <div class="input-group">
+                                    <label for="blood-form-date">Fecha del estudio</label>
+                                    <input type="date" id="blood-form-date" class="date-input">
+                                </div>
+                                <div class="input-group">
+                                    <label for="blood-form-file">Archivo PDF o imagen</label>
+                                    <input type="file" id="blood-form-file" accept=".pdf,.jpg,.jpeg,.png,.webp,.heic,.heif" class="hidden">
+                                    <label for="blood-form-file" class="btn btn-secondary health-file-picker"><i class="ph ph-paperclip"></i> Adjuntar archivo</label>
+                                    <div id="blood-form-file-name" class="health-file-name hidden"></div>
+                                </div>
+                                <div class="input-group">
+                                    <label for="blood-form-portal">Portal web del laboratorio</label>
+                                    <input type="url" id="blood-form-portal" class="time-input" placeholder="https://laboratorio.com/...">
+                                </div>
+                                <div class="health-form-actions">
+                                    <button type="button" id="blood-form-cancel" class="btn btn-cancel">Cancelar</button>
+                                    <button type="button" id="blood-form-save" class="btn btn-save">Guardar</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <details id="blood-history-disclosure" class="health-history-disclosure">
+                            <summary class="btn btn-history" role="button" aria-expanded="false" aria-controls="blood-tests-list">
+                                <i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i>
+                                <span>Ver historial (<span id="blood-history-count">0</span>)</span>
+                            </summary>
+                            <ul id="blood-tests-list" class="history-list health-blood-history-list">
+                                <!-- Lista de estudios generada dinámicamente -->
+                            </ul>
+                        </details>
+                    </div>
+                </article>
             </div>
         </section>
 
@@ -398,24 +408,27 @@
             <!-- CONTENIDO 1: MANTENIMIENTO -->
             <div id="vehicle-maint-content" class="vehicle-tab-content">
                 <!-- Odómetro -->
-                <div class="card" style="max-width: 600px; margin: 0 auto 2rem auto; border: 1px dashed var(--primary-color);">
-                    <div class="card-body" style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 1rem; padding: 1.25rem;">
-                        <div style="display: flex; align-items: center; gap: 0.75rem;">
-                            <div class="icon-container" style="width: 40px; height: 40px;">
-                                <i class="ph ph-gauge" style="font-size: 1.4rem; color: var(--primary-color);"></i>
+                <div class="card vehicle-odometer-card">
+                    <div class="card-body vehicle-odometer-row">
+                        <div class="vehicle-odometer-label">
+                            <div class="icon-container">
+                                <i class="ph ph-gauge"></i>
                             </div>
-                            <strong style="font-size: 1.05rem;">Kilometraje Actual del Auto:</strong>
+                            <span>
+                                <small>Odómetro</small>
+                                <strong>Kilometraje actual</strong>
+                            </span>
                         </div>
-                        <div style="display: flex; align-items: center; gap: 0.5rem;">
-                            <input type="number" id="vehicle-odometer-input" class="number-input" style="width: 120px; font-size: 1.1rem; font-weight: 700; text-align: right;" value="0">
-                            <span style="font-weight: 600; color: var(--text-secondary);">km</span>
+                        <div class="vehicle-odometer-field">
+                            <input type="number" id="vehicle-odometer-input" class="number-input" inputmode="numeric" aria-label="Kilometraje actual del auto" value="0">
+                            <span>km</span>
                         </div>
                     </div>
                 </div>
 
-                <div class="lenses-dashboard">
+                <div class="lenses-dashboard vehicle-maintenance-grid">
                     <!-- Tarjeta Aceite y Filtros -->
-                    <div class="card" id="vehicle-oil-card">
+                    <div class="card vehicle-maintenance-card vehicle-oil-card" id="vehicle-oil-card">
                         <div class="card-header">
                             <div class="icon-container">
                                 <i class="ph ph-drop-half-bottom"></i>
@@ -478,7 +491,7 @@
                     </div>
 
                     <!-- Tarjeta Neumáticos y Geometría -->
-                    <div class="card" id="vehicle-tires-card">
+                    <div class="card vehicle-maintenance-card vehicle-tires-card" id="vehicle-tires-card">
                         <div class="card-header">
                             <div class="icon-container">
                                 <i class="ph ph-arrows-clockwise"></i>
@@ -487,7 +500,7 @@
                         </div>
                         <div class="card-body">
                             <!-- Alineación & Balanceo -->
-                            <div id="vehicle-align-item" style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
+                            <div id="vehicle-align-item" class="vehicle-tire-row">
                                 <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Alineación & Balanceo</h4>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
                                     <span>Último: <strong id="align-last">Nunca</strong></span>
@@ -497,7 +510,7 @@
                             </div>
 
                             <!-- Rotación -->
-                            <div id="vehicle-rotation-item" style="margin-bottom: 1.25rem; border-bottom: 1px dashed var(--surface-border); padding-bottom: 1rem;">
+                            <div id="vehicle-rotation-item" class="vehicle-tire-row">
                                 <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Rotación de Neumáticos</h4>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
                                     <span>Última: <strong id="rot-last">Nunca</strong></span>
@@ -507,7 +520,7 @@
                             </div>
 
                             <!-- Reemplazo -->
-                            <div id="vehicle-replace-item" style="margin-bottom: 1rem;">
+                            <div id="vehicle-replace-item" class="vehicle-tire-row vehicle-tire-row-last">
                                 <h4 style="font-size: 0.95rem; font-weight:600; margin-bottom: 0.5rem; color: var(--primary-color);">Reemplazo de Ruedas</h4>
                                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.5rem;">
                                     <span>Último: <strong id="replace-last">Nunca</strong></span>
@@ -549,14 +562,14 @@
                     </div>
 
                     <!-- Tarjeta Fluidos y Seguridad -->
-                    <div class="card" id="vehicle-fluids-card">
+                    <div class="card vehicle-maintenance-card vehicle-fluids-card" id="vehicle-fluids-card">
                         <div class="card-header">
                             <div class="icon-container">
                                 <i class="ph ph-drop"></i>
                             </div>
                             <h3>Fluidos y Seguridad</h3>
                         </div>
-                        <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                        <div class="card-body vehicle-fluid-grid">
                             <!-- Refrigerante -->
                             <div class="vehicle-info-card" id="fluid-card-refrigerante">
                                 <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 0.5rem;">
@@ -619,14 +632,14 @@
 
             <!-- CONTENIDO 2: DOCUMENTACIÓN -->
             <div id="vehicle-docs-content" class="vehicle-tab-content hidden">
-                <div id="vehicle-docs-card" class="card" style="max-width: 700px; margin: 0 auto;">
+                <div id="vehicle-docs-card" class="card vehicle-docs-card">
                     <div class="card-header">
                         <div class="icon-container">
                             <i class="ph ph-file-text"></i>
                         </div>
                         <h3>Documentación Personal y del Auto</h3>
                     </div>
-                    <div class="card-body" style="display: flex; flex-direction: column; gap: 1rem;">
+                    <div class="card-body vehicle-docs-list">
                         <!-- DNI -->
                         <div class="vehicle-info-card" id="doc-card-dni" style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem;">
                             <div style="flex: 1; min-width: 200px;">
@@ -705,45 +718,54 @@
 
             <!-- CONTENIDO 3: FALLAS Y PENDIENTES -->
             <div id="vehicle-issues-content" class="vehicle-tab-content hidden">
-                <div class="lenses-dashboard">
+                <div class="lenses-dashboard vehicle-issues-layout">
                     <!-- Formulario de Reporte -->
-                    <div class="card">
+                    <div class="card vehicle-issue-composer-card">
                         <div class="card-header">
                             <div class="icon-container">
                                 <i class="ph ph-warning-octagon"></i>
                             </div>
-                            <h3>Reportar Falla o Pendiente</h3>
+                            <h3>Nueva falla o pendiente</h3>
                         </div>
                         <div class="card-body">
-                            <form id="vehicle-add-issue-form" style="display:flex; flex-direction:column; gap:1rem;">
-                                <div class="input-group">
-                                    <label for="issue-title-input">Descripción de la falla:</label>
-                                    <input type="text" id="issue-title-input" class="text-input" placeholder="Ej: Arreglar baúl roto" required>
-                                </div>
-                                <div class="input-group">
-                                    <label for="issue-urgency-select">Nivel de Urgencia:</label>
-                                    <select id="issue-urgency-select" class="time-input" style="width: 100%;">
-                                        <option value="baja">Baja Urgencia (Recordatorio visual)</option>
-                                        <option value="alta">Alta Urgencia (Notificación push diaria)</option>
-                                    </select>
-                                </div>
-                                <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem; width: 100%;">
-                                    <i class="ph ph-plus-circle"></i> Agregar Falla
-                                </button>
-                            </form>
+                            <details id="vehicle-issue-composer" class="vehicle-issue-composer">
+                                <summary class="btn btn-primary" role="button" aria-expanded="false" aria-controls="vehicle-add-issue-form">
+                                    <i class="ph ph-plus-circle" aria-hidden="true"></i>
+                                    Reportar falla
+                                </summary>
+                                <form id="vehicle-add-issue-form" class="vehicle-add-issue-form">
+                                    <div class="input-group">
+                                        <label for="issue-title-input">Descripción de la falla</label>
+                                        <input type="text" id="issue-title-input" class="text-input" placeholder="Ej: Arreglar baúl roto" required>
+                                    </div>
+                                    <div class="input-group">
+                                        <label for="issue-urgency-select">Nivel de urgencia</label>
+                                        <select id="issue-urgency-select" class="time-input">
+                                            <option value="baja">Baja urgencia (recordatorio visual)</option>
+                                            <option value="alta">Alta urgencia (notificación push diaria)</option>
+                                        </select>
+                                    </div>
+                                    <button type="submit" class="btn btn-primary">
+                                        <i class="ph ph-plus-circle"></i> Agregar falla
+                                    </button>
+                                </form>
+                            </details>
                         </div>
                     </div>
 
                     <!-- Listado de Fallas -->
-                    <div class="card">
+                    <div class="card vehicle-issues-card">
                         <div class="card-header">
-                            <div class="icon-container">
-                                <i class="ph ph-list-checks"></i>
+                            <div class="vehicle-issues-heading">
+                                <div class="icon-container">
+                                    <i class="ph ph-list-checks"></i>
+                                </div>
+                                <h3>Fallas registradas</h3>
                             </div>
-                            <h3>Fallas Registradas</h3>
+                            <span id="vehicle-issues-count" class="badge gray">0</span>
                         </div>
                         <div class="card-body">
-                            <div id="vehicle-issues-list" style="display: flex; flex-direction: column; gap: 0.75rem;">
+                            <div id="vehicle-issues-list" class="vehicle-issues-list">
                                 <!-- Renderizado dinámico de fallas -->
                             </div>
                         </div>
