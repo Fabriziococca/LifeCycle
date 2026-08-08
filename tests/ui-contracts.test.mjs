@@ -359,6 +359,57 @@ test('the third compact-layout batch preserves vehicle and health histories behi
     assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.vehicle-fluid-grid/);
 });
 
+test('the fourth projects and finance batch protects money actions and separates open months', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+    const syncSource = await readFile(path.join(ROOT, 'sync-config.mjs'), 'utf8');
+    const feedbackSource = await readFile(
+        path.join(ROOT, 'feedback-controller.mjs'),
+        'utf8'
+    );
+    const projectsSource = await readFile(
+        path.join(ROOT, 'modules', 'ProjectsModule.js'),
+        'utf8'
+    );
+    const financeSource = await readFile(
+        path.join(ROOT, 'modules', 'FinanzasModule.js'),
+        'utf8'
+    );
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+
+    assert.match(appSource, /lifecycle_financial_amounts_hidden/);
+    assert.doesNotMatch(syncSource, /lifecycle_financial_amounts_hidden/);
+    assert.match(appSource, /formatFinancialAmount\(amountUsd\)/);
+    assert.match(appSource, /querySelectorAll\('\[data-financial-privacy-toggle\]'\)/);
+    assert.equal((index.match(/data-financial-privacy-toggle/g) || []).length, 2);
+
+    assert.match(feedbackSource, /class="app-feedback-details hidden"/);
+    assert.match(feedbackSource, /this\.details\.replaceChildren/);
+    assert.match(projectsSource, /title: 'Confirmar pago'/);
+    assert.match(projectsSource, /label: 'Monto'/);
+    assert.match(projectsSource, /label: 'Fecha'/);
+    assert.match(projectsSource, /label: 'Tipo'/);
+    assert.match(projectsSource, /calculateClosedMonthAverages\(this\.getIncomeMovements\(\)/);
+    assert.match(projectsSource, /Mes en curso/);
+    assert.match(projectsSource, /Meses cerrados/);
+    assert.match(index, /id="proj-plan-viewer"/);
+    assert.match(index, /id="proj-plan-editor" class="project-plan-editor hidden"/);
+    assert.match(index, /id="proj-plan-tab-phases"/);
+
+    assert.match(financeSource, /async deleteEntry\(id\)/);
+    assert.match(financeSource, /async deleteExpense\(id\)/);
+    assert.match(financeSource, /buildProjectIncomeMovements\(\{/);
+    assert.match(index, /id="fin-year-category-select"/);
+    assert.match(index, /id="fin-expense-year-category-select"/);
+    assert.match(index, /id="fin-year-mobile-list"/);
+    assert.match(index, /id="fin-expense-year-mobile-list"/);
+    assert.match(styles, /\.finance-annual-table thead th\s*{[\s\S]*?position: sticky/);
+    assert.match(styles, /\.history-month-card:not\(\[open\]\) > \.history-month-details\s*{[\s\S]*?display: none/);
+    assert.match(styles, /\.finance-annual-mobile-month:not\(\[open\]\) > \.finance-annual-mobile-detail\s*{[\s\S]*?display: none/);
+    assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.project-actions-compact-row > \.btn,[\s\S]*?min-height: 44px/);
+    assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.finance-annual-mobile-list/);
+});
+
 test('Today reuses critical items and links back to their source modules', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');

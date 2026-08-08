@@ -1334,7 +1334,14 @@
         <!-- SECCIÓN: PROYECTOS (ProjectPulse) -->
         <section id="projects-section" class="main-section hidden">
             <!-- Dashboard Financiero -->
-            <div class="dashboard-container" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 2rem;">
+            <div class="financial-summary-toolbar">
+                <span>Resumen financiero</span>
+                <button type="button" class="financial-privacy-toggle" data-financial-privacy-toggle aria-pressed="false" aria-label="Ocultar montos de Proyectos y Finanzas" data-tooltip="Ocultar montos">
+                    <i class="ph ph-eye-slash" aria-hidden="true"></i>
+                    <span data-financial-privacy-label>Ocultar montos</span>
+                </button>
+            </div>
+            <div class="dashboard-container financial-summary-grid projects-financial-summary" style="display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-bottom: 2rem;">
                 <div class="card" style="margin:0; padding: 15px; border: 1px solid var(--primary-color);">
                     <div style="font-size: 0.8rem; color: var(--text-secondary);">Activos</div>
                     <div id="activeUSD" style="font-size: 1.4rem; font-weight: bold; color: var(--primary-color); margin-top: 5px;">USD 0.00</div>
@@ -1550,7 +1557,14 @@
         <!-- SECCIÓN: FINANZAS (FinanzasTracker) -->
         <section id="finanzas-section" class="main-section hidden">
             <!-- Dashboard Financiero (6 tarjetas) -->
-            <div class="dashboard-container" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 2rem;">
+            <div class="financial-summary-toolbar">
+                <span>Resumen financiero</span>
+                <button type="button" class="financial-privacy-toggle" data-financial-privacy-toggle aria-pressed="false" aria-label="Ocultar montos de Proyectos y Finanzas" data-tooltip="Ocultar montos">
+                    <i class="ph ph-eye-slash" aria-hidden="true"></i>
+                    <span data-financial-privacy-label>Ocultar montos</span>
+                </button>
+            </div>
+            <div class="dashboard-container financial-summary-grid finance-financial-summary" style="display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; margin-bottom: 2rem;">
                 <!-- Mes Actual -->
                 <div class="card" style="margin:0; padding: 12px 15px; border: 1px solid var(--status-green);">
                     <div style="font-size: 0.75rem; color: var(--text-secondary);" id="fin-month-income-label">Ingresos del Mes</div>
@@ -2398,12 +2412,20 @@
     <!-- MODALS ESPECÍFICOS DE PROYECTOS -->
 
     <!-- MODAL DE LIBERACIÓN PARCIAL DE FONDOS -->
-    <div id="projects-partial-release-modal" class="modal hidden">
+    <div id="projects-partial-release-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="proj-partial-title">
         <div class="modal-content" style="max-width: 480px; width: 92%;">
-            <h3>💰 Liberación Parcial de Fondos</h3>
+            <h3 id="proj-partial-title">💰 Liberación parcial de fondos</h3>
             <p id="proj-partial-desc" class="modal-desc" style="margin-bottom: 1.25rem;">Liberá una parte del presupuesto neto de un proyecto en curso sin finalizarlo.</p>
 
             <div class="finance-block" style="background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); padding: 10px 14px; border-radius: 8px; margin-bottom: 1.25rem;">
+                <div class="project-payment-review-row">
+                    <span>Tipo:</span>
+                    <strong id="proj-partial-payment-type">Pago parcial</strong>
+                </div>
+                <div class="project-payment-review-row">
+                    <span>Fecha:</span>
+                    <strong id="proj-partial-payment-date">--</strong>
+                </div>
                 <div style="display: flex; justify-content: space-between; font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 4px;">
                     <span>Presupuesto Neto Total:</span>
                     <strong id="proj-partial-total-net" style="color: white;">$0.00 USD</strong>
@@ -2415,7 +2437,7 @@
             </div>
 
             <div class="input-group">
-                <label style="font-size:0.85rem; display:block; margin-bottom:6px; font-weight:600;">Porcentaje o Monto a Liberar (%)</label>
+                <label for="proj-partial-pct" style="font-size:0.85rem; display:block; margin-bottom:6px; font-weight:600;">Porcentaje del saldo a liberar</label>
                 <input type="number" id="proj-partial-pct" class="number-input" min="1" max="100" step="1" value="50">
             </div>
 
@@ -2435,7 +2457,7 @@
 
             <div class="modal-actions" style="margin-top: 1.5rem;">
                 <button id="proj-partial-cancel" class="btn btn-cancel">Cancelar</button>
-                <button id="proj-partial-save" class="btn btn-save" style="background: var(--status-green); color: white;"><i class="ph ph-check-circle"></i> Confirmar Liberación Parcial</button>
+                <button id="proj-partial-save" class="btn btn-save" style="background: var(--status-green); color: white;"><i class="ph ph-check-circle"></i> Confirmar pago parcial</button>
             </div>
         </div>
     </div>
@@ -2622,47 +2644,63 @@
     </div>
 
     <!-- MODAL DE DESGLOSE ANUAL (FINANZAS) -->
-    <div id="finanzas-year-details-modal" class="modal hidden">
-        <div class="modal-content" style="max-width: 1000px; width: 92vw; max-height: 90vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <h3 id="fin-year-modal-title" style="margin: 0;">Detalle Anual de Ingresos</h3>
+    <div id="finanzas-year-details-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="fin-year-modal-title">
+        <div class="modal-content finance-annual-modal-content">
+            <div class="finance-annual-modal-header">
+                <div>
+                    <span class="finance-annual-eyebrow">Comparación anual</span>
+                    <h3 id="fin-year-modal-title">Detalle anual de ingresos</h3>
+                </div>
                 <button id="fin-year-modal-close" type="button" class="icon-btn" aria-label="Cerrar detalle anual de ingresos" data-tooltip="Cerrar detalle"><i class="ph ph-x" aria-hidden="true"></i></button>
             </div>
-            <p class="modal-desc" style="margin-bottom: 15px;">Desglose mensual de ingresos por categoría del año seleccionado.</p>
+            <p class="modal-desc finance-annual-description">Compará los meses y abrí cada bloque en celular para ver sus movimientos.</p>
             
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; gap:10px;">
-                <label style="font-size:0.85rem; font-weight:600; color:white;">Seleccionar Año:</label>
-                <select id="fin-year-select" class="number-input" style="width:auto; padding:6px 12px; margin:0; font-size:0.85rem; height: auto;"></select>
+            <div class="finance-annual-filters">
+                <div class="input-group">
+                    <label for="fin-year-select">Año</label>
+                    <select id="fin-year-select" class="number-input"></select>
+                </div>
+                <div class="input-group">
+                    <label for="fin-year-category-select">Categoría</label>
+                    <select id="fin-year-category-select" class="number-input">
+                        <option value="all">Todas</option>
+                        <option value="freelance">Freelance</option>
+                        <option value="discord">Discord</option>
+                        <option value="trading">Trading</option>
+                        <option value="extraordinary">Extraordinario</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Tabla de desglose de meses -->
-            <div style="overflow-x:auto;">
-                <table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.85rem; color:var(--text-secondary);">
+            <div class="finance-annual-table-shell">
+                <table class="finance-annual-table">
                     <thead>
-                        <tr style="border-bottom:2px solid var(--surface-border); color:white;">
-                            <th style="padding:10px 8px; font-weight:600;">Mes</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Freelance</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Discord</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Trading</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Extraordinario</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right; color:var(--status-green);">Total</th>
+                        <tr>
+                            <th>Mes</th>
+                            <th data-annual-category="freelance">Freelance</th>
+                            <th data-annual-category="discord">Discord</th>
+                            <th data-annual-category="trading">Trading</th>
+                            <th data-annual-category="extraordinary">Extraordinario</th>
+                            <th class="finance-annual-total">Total</th>
                         </tr>
                     </thead>
                     <tbody id="fin-year-table-body">
                         <!-- Carga dinámica por JS -->
                     </tbody>
                     <tfoot>
-                        <tr style="border-top:2px solid var(--surface-border); font-weight:bold; color:white;">
-                            <th style="padding:12px 8px;">Total Año</th>
-                            <th id="fin-year-tot-freelance" style="padding:12px 8px; text-align:right;">USD 0.00</th>
-                            <th id="fin-year-tot-discord" style="padding:12px 8px; text-align:right;">USD 0.00</th>
-                            <th id="fin-year-tot-trading" style="padding:12px 8px; text-align:right;">USD 0.00</th>
-                            <th id="fin-year-tot-extraordinary" style="padding:12px 8px; text-align:right;">USD 0.00</th>
-                            <th id="fin-year-tot-grand" style="padding:12px 8px; text-align:right; color:var(--status-green);">USD 0.00</th>
+                        <tr>
+                            <th>Total año</th>
+                            <th id="fin-year-tot-freelance" data-annual-category="freelance">USD 0.00</th>
+                            <th id="fin-year-tot-discord" data-annual-category="discord">USD 0.00</th>
+                            <th id="fin-year-tot-trading" data-annual-category="trading">USD 0.00</th>
+                            <th id="fin-year-tot-extraordinary" data-annual-category="extraordinary">USD 0.00</th>
+                            <th id="fin-year-tot-grand" class="finance-annual-total">USD 0.00</th>
                         </tr>
                     </tfoot>
                 </table>
             </div>
+            <div id="fin-year-mobile-list" class="finance-annual-mobile-list"></div>
         </div>
     </div>
 
@@ -2866,74 +2904,119 @@
     </div>
 
     <!-- MODAL DE DESGLOSE ANUAL DE GASTOS -->
-    <div id="finanzas-expense-year-details-modal" class="modal hidden">
-        <div class="modal-content" style="max-width: 1000px; width: 92vw; max-height: 90vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <h3 style="margin: 0; color: var(--status-orange);">Detalle Anual de Gastos</h3>
+    <div id="finanzas-expense-year-details-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="fin-expense-year-modal-title">
+        <div class="modal-content finance-annual-modal-content is-expense">
+            <div class="finance-annual-modal-header">
+                <div>
+                    <span class="finance-annual-eyebrow">Comparación anual</span>
+                    <h3 id="fin-expense-year-modal-title">Detalle anual de gastos</h3>
+                </div>
                 <button id="fin-expense-year-modal-close" type="button" class="icon-btn" aria-label="Cerrar detalle anual de gastos" data-tooltip="Cerrar detalle"><i class="ph ph-x" aria-hidden="true"></i></button>
             </div>
-            <p class="modal-desc" style="margin-bottom: 15px;">Desglose mensual de gastos por categoría del año seleccionado.</p>
+            <p class="modal-desc finance-annual-description">Compará los meses y abrí cada bloque en celular para ver sus movimientos.</p>
             
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:1.5rem; gap:10px;">
-                <label style="font-size:0.85rem; font-weight:600; color:white;">Seleccionar Año:</label>
-                <select id="fin-expense-year-select" class="number-input" style="width:auto; padding:6px 12px; margin:0; font-size:0.85rem; height: auto;"></select>
+            <div class="finance-annual-filters">
+                <div class="input-group">
+                    <label for="fin-expense-year-select">Año</label>
+                    <select id="fin-expense-year-select" class="number-input"></select>
+                </div>
+                <div class="input-group">
+                    <label for="fin-expense-year-category-select">Categoría</label>
+                    <select id="fin-expense-year-category-select" class="number-input">
+                        <option value="all">Todas</option>
+                        <option value="comida">Comida</option>
+                        <option value="vehiculo">Vehículo</option>
+                        <option value="servicios">Servicios</option>
+                        <option value="salud">Salud</option>
+                        <option value="ocio">Ocio</option>
+                        <option value="otros">Otros</option>
+                    </select>
+                </div>
             </div>
 
             <!-- Tabla de desglose de meses de gastos -->
-            <div style="overflow-x:auto;">
-                <table style="width:100%; border-collapse:collapse; text-align:left; font-size:0.82rem; color:var(--text-secondary);">
+            <div class="finance-annual-table-shell">
+                <table class="finance-annual-table">
                     <thead>
-                        <tr style="border-bottom:2px solid var(--surface-border); color:white;">
-                            <th style="padding:10px 8px; font-weight:600;">Mes</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Comida</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Vehículo</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Servicios</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Salud</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Ocio</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right;">Otros*</th>
-                            <th style="padding:10px 8px; font-weight:600; text-align:right; color:var(--status-orange);">Total</th>
+                        <tr>
+                            <th>Mes</th>
+                            <th data-annual-category="comida">Comida</th>
+                            <th data-annual-category="vehiculo">Vehículo</th>
+                            <th data-annual-category="servicios">Servicios</th>
+                            <th data-annual-category="salud">Salud</th>
+                            <th data-annual-category="ocio">Ocio</th>
+                            <th data-annual-category="otros">Otros</th>
+                            <th class="finance-annual-total">Total</th>
                         </tr>
                     </thead>
                     <tbody id="fin-expense-year-table-body">
                         <!-- Carga dinámica por JS -->
                     </tbody>
                     <tfoot>
-                        <tr style="border-top:2px solid var(--surface-border); font-weight:bold; color:white;">
-                            <th style="padding:12px 8px;">Total Año</th>
-                            <th id="fin-expense-year-tot-comida" style="padding:12px 8px; text-align:right;">USD 0.00</th>
-                            <th id="fin-expense-year-tot-vehiculo" style="padding:12px 8px; text-align:right;">USD 0.00</th>
-                            <th id="fin-expense-year-tot-servicios" style="padding:12px 8px; text-align:right;">USD 0.00</th>
-                            <th id="fin-expense-year-tot-salud" style="padding:12px 8px; text-align:right;">USD 0.00</th>
-                            <th id="fin-expense-year-tot-ocio" style="padding:12px 8px; text-align:right;">USD 0.00</th>
-                            <th id="fin-expense-year-tot-otros" style="padding:12px 8px; text-align:right;">USD 0.00</th>
-                            <th id="fin-expense-year-tot-grand" style="padding:12px 8px; text-align:right; color:var(--status-orange);">USD 0.00</th>
+                        <tr>
+                            <th>Total año</th>
+                            <th id="fin-expense-year-tot-comida" data-annual-category="comida">USD 0.00</th>
+                            <th id="fin-expense-year-tot-vehiculo" data-annual-category="vehiculo">USD 0.00</th>
+                            <th id="fin-expense-year-tot-servicios" data-annual-category="servicios">USD 0.00</th>
+                            <th id="fin-expense-year-tot-salud" data-annual-category="salud">USD 0.00</th>
+                            <th id="fin-expense-year-tot-ocio" data-annual-category="ocio">USD 0.00</th>
+                            <th id="fin-expense-year-tot-otros" data-annual-category="otros">USD 0.00</th>
+                            <th id="fin-expense-year-tot-grand" class="finance-annual-total">USD 0.00</th>
                         </tr>
                     </tfoot>
                 </table>
             </div>
+            <div id="fin-expense-year-mobile-list" class="finance-annual-mobile-list"></div>
         </div>
     </div>
 
-    <div id="projects-plan-modal" class="modal hidden">
-        <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
-                <h3 id="proj-plan-modal-title" style="margin: 0;">Plan de Acción</h3>
-                <button id="proj-plan-modal-close" type="button" class="icon-btn" aria-label="Cerrar plan de acción" data-tooltip="Cerrar plan"><i class="ph ph-x" aria-hidden="true"></i></button>
+    <div id="projects-plan-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="proj-plan-modal-title">
+        <div class="modal-content project-plan-modal-content">
+            <div class="project-plan-modal-header">
+                <div>
+                    <span class="project-plan-eyebrow">Plan del proyecto</span>
+                    <h3 id="proj-plan-modal-title">Plan de acción</h3>
+                </div>
+                <div class="project-plan-header-actions">
+                    <button id="proj-plan-modal-edit" type="button" class="btn btn-secondary">
+                        <i class="ph ph-pencil-simple" aria-hidden="true"></i> Editar plan
+                    </button>
+                    <button id="proj-plan-modal-close" type="button" class="icon-btn" aria-label="Cerrar plan de acción" data-tooltip="Cerrar plan"><i class="ph ph-x" aria-hidden="true"></i></button>
+                </div>
             </div>
-            <p class="modal-desc" style="margin-bottom: 15px;">Resumen y Plan paso a paso (Fases).</p>
-            
-            <div class="input-group">
-                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Resumen del Proyecto</label>
-                <textarea id="proj-summary-textarea" class="text-input" rows="3" placeholder="¿De qué trata el proyecto?" style="resize: vertical; min-height: 60px;"></textarea>
+            <p class="modal-desc project-plan-modal-description">Leé el contexto general o recorré las fases sin mezclar la edición.</p>
+
+            <div id="proj-plan-viewer" class="project-plan-viewer">
+                <div class="project-plan-tabs" role="tablist" aria-label="Contenido del plan">
+                    <button id="proj-plan-tab-summary" type="button" class="project-plan-tab active" role="tab" aria-selected="true" aria-controls="proj-plan-panel-summary">
+                        Resumen
+                    </button>
+                    <button id="proj-plan-tab-phases" type="button" class="project-plan-tab" role="tab" aria-selected="false" aria-controls="proj-plan-panel-phases" tabindex="-1">
+                        Plan paso a paso
+                    </button>
+                </div>
+                <section id="proj-plan-panel-summary" class="project-plan-panel" role="tabpanel" aria-labelledby="proj-plan-tab-summary">
+                    <div id="proj-plan-summary-view" class="project-plan-reading-surface"></div>
+                </section>
+                <section id="proj-plan-panel-phases" class="project-plan-panel hidden" role="tabpanel" aria-labelledby="proj-plan-tab-phases">
+                    <div id="proj-plan-phases-view" class="project-plan-reading-surface is-phases"></div>
+                </section>
             </div>
 
-            <div class="input-group" style="margin-top: 1.25rem;">
-                <label style="font-size:0.85rem; display:block; margin-bottom:5px;">Plan paso a paso (Fases)</label>
-                <textarea id="proj-phases-textarea" class="text-input" rows="5" placeholder="Ej: Fase 1: Estructura&#10;Fase 2: Diseño..." style="resize: vertical; min-height: 80px;"></textarea>
+            <div id="proj-plan-editor" class="project-plan-editor hidden">
+                <div class="input-group">
+                    <label for="proj-summary-textarea">Resumen del proyecto</label>
+                    <textarea id="proj-summary-textarea" class="text-input" rows="5" placeholder="¿De qué trata el proyecto?"></textarea>
+                </div>
+                <div class="input-group">
+                    <label for="proj-phases-textarea">Plan paso a paso (fases)</label>
+                    <textarea id="proj-phases-textarea" class="text-input" rows="10" placeholder="Ej: Fase 1: Estructura&#10;Fase 2: Diseño..."></textarea>
+                </div>
             </div>
 
-            <div class="modal-actions" style="margin-top: 1.5rem;">
-                <button id="proj-plan-modal-save" class="btn btn-save" style="width: 100%;">Guardar Cambios</button>
+            <div id="proj-plan-edit-actions" class="modal-actions project-plan-edit-actions hidden">
+                <button id="proj-plan-modal-cancel-edit" type="button" class="btn btn-cancel">Cancelar edición</button>
+                <button id="proj-plan-modal-save" type="button" class="btn btn-save">Guardar cambios</button>
             </div>
         </div>
     </div>
@@ -3019,14 +3102,14 @@
         </div>
     </div>
 
-    <div id="projects-history-modal" class="modal hidden">
-        <div class="modal-content" style="max-width: 650px; width: 92vw; max-height: 85vh; display: flex; flex-direction: column;">
+    <div id="projects-history-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="proj-history-modal-title">
+        <div class="modal-content project-history-modal-content">
             <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom: 5px;">
                 <div>
                     <h3 id="proj-history-modal-title" style="margin: 0 0 5px 0;">Historial Mensual</h3>
-                    <p class="modal-desc" style="margin: 0 0 10px 0;">Ingresos por cada mes finalizado.</p>
+                    <p class="modal-desc" style="margin: 0 0 10px 0;">El mes abierto permanece visible y los promedios usan solo meses cerrados.</p>
                 </div>
-                <button id="proj-btnToggleAddPastIncome" style="background:var(--primary-color); color:white; border:none; padding:8px 12px; font-size:0.8rem; border-radius:8px; cursor:pointer; white-space:nowrap; flex-shrink:0;">+ Pasado</button>
+                <button id="proj-btnToggleAddPastIncome" type="button" class="btn btn-secondary project-add-past-toggle" aria-expanded="false" aria-controls="proj-add-past-income-form"><i class="ph ph-plus"></i> Ingreso pasado</button>
             </div>
             
             <!-- Formulario de ingreso pasado -->
@@ -3063,7 +3146,7 @@
             </div>
             
             <!-- Promedios mensuales -->
-            <div id="proj-averages-container" style="background: rgba(255,255,255,0.03); border: 1px solid var(--surface-border); border-radius:12px; padding:12px 10px; margin-bottom:15px; display:grid; grid-template-columns: repeat(3, 1fr); gap:6px; text-align:center; font-size:0.85rem;">
+            <div id="proj-averages-container" class="project-averages-grid">
                 <div style="display:flex; flex-direction:column; gap:2px; border-right: 1px solid var(--surface-border); padding-right:4px;">
                     <span style="font-size:0.75rem; color:var(--text-secondary);">Histórico</span>
                     <strong id="proj-avgHistorical" style="font-size:0.9rem; color:var(--status-green); white-space:nowrap;">USD 0.00</strong>
@@ -3078,7 +3161,7 @@
                 </div>
             </div>
             
-            <div id="proj-monthlyHistoryList" style="overflow-y: auto; display: flex; flex-direction: column; gap: 10px; padding-right: 5px; margin-bottom: 15px; flex: 1;">
+            <div id="proj-monthlyHistoryList" class="project-monthly-history-list">
                 <!-- Rellenado por JS -->
             </div>
 

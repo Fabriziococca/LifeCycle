@@ -14,6 +14,7 @@ import {
     removeFinanceRecurringRule,
     upsertFinanceRecurringRule
 } from '../finance-recurring-utils.mjs?v=20260729-finance-recurring';
+import { buildProjectIncomeMovements } from '../project-income-utils.mjs?v=20260808-project-income';
 
 export class FinanzasModule {
     constructor(appController) {
@@ -93,6 +94,11 @@ export class FinanzasModule {
         localStorage.setItem('finanzasData', JSON.stringify(this.data));
     }
 
+    formatAmount(amount) {
+        return this.app.formatFinancialAmount?.(amount)
+            || this.app.formatCurrency(amount);
+    }
+
     getFinanceRecurringRuleById(ruleId) {
         const id = String(ruleId || '');
         return (this.data.recurringRules || []).find(rule => rule.id === id) || null;
@@ -119,6 +125,7 @@ export class FinanzasModule {
     }
 
     formatFinanceRecurringAmount(rule) {
+        if (this.app.isFinancialAmountsHidden?.()) return '••••••';
         const locale = rule.currency === 'ARS' ? 'es-AR' : 'en-US';
         const value = new Intl.NumberFormat(locale, {
             minimumFractionDigits: rule.currency === 'ARS' ? 0 : 2,
@@ -744,19 +751,35 @@ export class FinanzasModule {
         const yearModal = document.getElementById('finanzas-year-details-modal');
         const closeYearBtn = document.getElementById('fin-year-modal-close');
         const yearSelect = document.getElementById('fin-year-select');
+        const yearCategorySelect = document.getElementById('fin-year-category-select');
 
         btnOpenYear?.addEventListener('click', () => {
             this.populateYearsSelector();
             this.renderAnnualBreakdown();
             yearModal?.classList.remove('hidden');
+            requestAnimationFrame(() => yearSelect?.focus());
         });
 
         closeYearBtn?.addEventListener('click', () => {
             yearModal?.classList.add('hidden');
+            btnOpenYear?.focus();
         });
 
         yearSelect?.addEventListener('change', () => {
             this.renderAnnualBreakdown();
+        });
+        yearCategorySelect?.addEventListener('change', () => {
+            this.renderAnnualBreakdown();
+        });
+        yearModal?.addEventListener('click', event => {
+            if (event.target === yearModal) yearModal.classList.add('hidden');
+        });
+        yearModal?.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                yearModal.classList.add('hidden');
+                btnOpenYear?.focus();
+            }
         });
 
         // Listeners para modal de desglose anual de gastos
@@ -764,19 +787,35 @@ export class FinanzasModule {
         const expenseYearModal = document.getElementById('finanzas-expense-year-details-modal');
         const closeExpenseYearBtn = document.getElementById('fin-expense-year-modal-close');
         const expenseYearSelect = document.getElementById('fin-expense-year-select');
+        const expenseYearCategorySelect = document.getElementById('fin-expense-year-category-select');
 
         btnOpenExpenseYear?.addEventListener('click', () => {
             this.populateExpenseYearsSelector();
             this.renderExpenseAnnualBreakdown();
             expenseYearModal?.classList.remove('hidden');
+            requestAnimationFrame(() => expenseYearSelect?.focus());
         });
 
         closeExpenseYearBtn?.addEventListener('click', () => {
             expenseYearModal?.classList.add('hidden');
+            btnOpenExpenseYear?.focus();
         });
 
         expenseYearSelect?.addEventListener('change', () => {
             this.renderExpenseAnnualBreakdown();
+        });
+        expenseYearCategorySelect?.addEventListener('change', () => {
+            this.renderExpenseAnnualBreakdown();
+        });
+        expenseYearModal?.addEventListener('click', event => {
+            if (event.target === expenseYearModal) expenseYearModal.classList.add('hidden');
+        });
+        expenseYearModal?.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                expenseYearModal.classList.add('hidden');
+                btnOpenExpenseYear?.focus();
+            }
         });
 
         this.activateFinanceTab(this.activeTab, {
@@ -890,8 +929,29 @@ export class FinanzasModule {
         this.render();
     }
 
-    deleteEntry(id) {
-        const index = this.data.entries.findIndex(entry => entry.id === id);
+    async deleteEntry(id) {
+        const entry = this.data.entries.find(item => item.id === id);
+        if (!entry) return;
+        const confirmed = await this.app.confirmAction({
+            title: 'Eliminar ingreso',
+            message: 'Este cobro dejará de formar parte de los totales y balances.',
+            tone: 'danger',
+            details: [
+                { label: 'Detalle', value: entry.description || 'Sin descripción' },
+                { label: 'Monto', value: this.formatAmount(entry.amount) },
+                { label: 'Fecha', value: this.formatFinanceRecurringDate(entry.date) },
+                {
+                    label: 'Categoría',
+                    value: this.getFinanceRecurringCategoryLabel('income', entry.category)
+                }
+            ],
+            cancelLabel: 'Conservar ingreso',
+            confirmLabel: 'Eliminar ingreso',
+            closeOnBackdrop: false
+        });
+        if (!confirmed) return;
+
+        const index = this.data.entries.findIndex(item => item.id === id);
         if (index < 0) return;
         const deletedEntry = this.data.entries[index];
         this.data.entries.splice(index, 1);
@@ -976,8 +1036,29 @@ export class FinanzasModule {
         this.render();
     }
 
-    deleteExpense(id) {
-        const index = this.data.expenses.findIndex(expense => expense.id === id);
+    async deleteExpense(id) {
+        const expense = this.data.expenses.find(item => item.id === id);
+        if (!expense) return;
+        const confirmed = await this.app.confirmAction({
+            title: 'Eliminar gasto',
+            message: 'Este gasto dejará de formar parte de los totales y balances.',
+            tone: 'danger',
+            details: [
+                { label: 'Detalle', value: expense.description || 'Sin descripción' },
+                { label: 'Monto', value: this.formatAmount(expense.amount) },
+                { label: 'Fecha', value: this.formatFinanceRecurringDate(expense.date) },
+                {
+                    label: 'Categoría',
+                    value: this.getFinanceRecurringCategoryLabel('expense', expense.category)
+                }
+            ],
+            cancelLabel: 'Conservar gasto',
+            confirmLabel: 'Eliminar gasto',
+            closeOnBackdrop: false
+        });
+        if (!confirmed) return;
+
+        const index = this.data.expenses.findIndex(item => item.id === id);
         if (index < 0) return;
         const deletedExpense = this.data.expenses[index];
         this.data.expenses.splice(index, 1);
@@ -995,64 +1076,20 @@ export class FinanzasModule {
     getCombinedEntries() {
         const list = [...(this.data.entries || [])];
 
-        // 1. Process Partial Releases from Active Projects
-        const activeProjects = this.app.projects?.projects || [];
-        activeProjects.forEach(p => {
-            if (Array.isArray(p.partialReleases) && p.partialReleases.length > 0) {
-                p.partialReleases.forEach((rel, idx) => {
-                    list.push({
-                        id: `proj-partial-active-${p.id}-${rel.id || idx}`,
-                        category: 'freelance',
-                        source: p.source || 'workana',
-                        date: rel.date || getLocalISODate(),
-                        amount: Number(rel.netAmount || 0),
-                        description: `[Parcial ${rel.percent}%] ${p.client} - ${p.project}`
-                    });
-                });
-            }
+        const projectMovements = buildProjectIncomeMovements({
+            activeProjects: this.app.projects?.projects || [],
+            historyProjects: this.app.projects?.history || [],
+            fallbackDate: getLocalISODate()
         });
-
-        // 2. Process History Projects (Final amounts & partial releases)
-        const projHistory = this.app.projects?.history || [];
-        projHistory.forEach(p => {
-            const hasPartials = Array.isArray(p.partialReleases) && p.partialReleases.length > 0;
-            if (hasPartials) {
-                let sumPartialNet = 0;
-                p.partialReleases.forEach((rel, idx) => {
-                    const partialNet = Number(rel.netAmount || 0);
-                    sumPartialNet += partialNet;
-                    list.push({
-                        id: `proj-partial-hist-${p.id}-${rel.id || idx}`,
-                        category: 'freelance',
-                        source: p.source || 'workana',
-                        date: rel.date || getLocalISODate(),
-                        amount: partialNet,
-                        description: `[Parcial ${rel.percent}%] ${p.client} - ${p.project}`
-                    });
-                });
-                const finalRemainingNet = Math.max(0, Number(p.budgetNet || 0) - sumPartialNet);
-                if (finalRemainingNet > 0) {
-                    const dateVal = p.deliveredDate || (p.deliveredAt ? p.deliveredAt.split('T')[0] : getLocalISODate());
-                    list.push({
-                        id: `proj-final-${p.id}`,
-                        category: 'freelance',
-                        source: p.source || 'workana',
-                        date: dateVal,
-                        amount: finalRemainingNet,
-                        description: `[Final] ${p.client} - ${p.project}`
-                    });
-                }
-            } else {
-                const dateVal = p.deliveredDate || (p.deliveredAt ? p.deliveredAt.split('T')[0] : getLocalISODate());
-                list.push({
-                    id: `proj-${p.id}`,
-                    category: 'freelance',
-                    source: p.source || 'workana',
-                    date: dateVal,
-                    amount: Number(p.budgetNet || 0),
-                    description: `${p.client} - ${p.project}`
-                });
-            }
+        projectMovements.forEach(movement => {
+            list.push({
+                id: movement.id,
+                category: 'freelance',
+                source: movement.source,
+                date: movement.date,
+                amount: movement.amount,
+                description: movement.description
+            });
         });
 
         return list;
@@ -1093,13 +1130,16 @@ export class FinanzasModule {
             elValue.style.color = 'var(--status-orange)';
         }
         const preferredCurrency = localStorage.getItem('preferred_currency') || 'USD';
-        const exactValue = this.app.formatCurrency(totalAmount);
-        const compactValue = getCompactCurrencyDisplayParts(totalAmount, {
-            currency: preferredCurrency,
-            arsRate: preferredCurrency === 'ARS'
-                ? this.app.getCurrencyMultiplier?.()
-                : null
-        });
+        const amountsHidden = this.app.isFinancialAmountsHidden?.() === true;
+        const exactValue = this.formatAmount(totalAmount);
+        const compactValue = amountsHidden
+            ? { currency: '', amount: '••••••' }
+            : getCompactCurrencyDisplayParts(totalAmount, {
+                currency: preferredCurrency,
+                arsRate: preferredCurrency === 'ARS'
+                    ? this.app.getCurrencyMultiplier?.()
+                    : null
+            });
         elCurrency.innerText = compactValue.currency;
         elAmount.innerText = compactValue.amount;
         elValue.dataset.amountLength = compactValue.amount.length > 9
@@ -1148,15 +1188,137 @@ export class FinanzasModule {
         yearSelect.value = sortedYears.includes(parseInt(selected)) ? selected : String(sortedYears[0]);
     }
 
+    getAnnualMonthState(selectedYear, monthIndex) {
+        const now = new Date();
+        const selectedIndex = (selectedYear * 12) + monthIndex;
+        const currentIndex = (now.getFullYear() * 12) + now.getMonth();
+        return {
+            isCurrent: selectedIndex === currentIndex,
+            isFuture: selectedIndex > currentIndex
+        };
+    }
+
+    applyAnnualCategoryFilter(modalId, selectedCategory) {
+        const modal = document.getElementById(modalId);
+        if (!modal) return;
+        modal.dataset.categoryFilter = selectedCategory;
+        modal.querySelectorAll('[data-annual-category]').forEach(cell => {
+            cell.classList.toggle(
+                'hidden',
+                selectedCategory !== 'all'
+                    && cell.dataset.annualCategory !== selectedCategory
+            );
+        });
+    }
+
+    renderAnnualMobileList({
+        containerId,
+        selectedYear,
+        monthlyData,
+        entries,
+        categories,
+        selectedCategory,
+        getEntryCategory,
+        tone
+    }) {
+        const container = document.getElementById(containerId);
+        if (!container) return;
+        const visibleCategories = selectedCategory === 'all'
+            ? categories
+            : categories.filter(category => category.key === selectedCategory);
+        const sign = tone === 'expense' ? '-' : '+';
+
+        container.innerHTML = monthlyData.map(month => {
+            const date = new Date(selectedYear, month.monthIndex, 1);
+            const monthName = date.toLocaleDateString('es-AR', { month: 'long' });
+            const title = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+            const { isCurrent, isFuture } = this.getAnnualMonthState(
+                selectedYear,
+                month.monthIndex
+            );
+            const total = selectedCategory === 'all'
+                ? month.total
+                : Number(month[selectedCategory] || 0);
+            const monthEntries = entries.filter(entry => {
+                if (!entry.date || parseInt(entry.date.slice(0, 4)) !== selectedYear) {
+                    return false;
+                }
+                if (parseInt(entry.date.slice(5, 7)) - 1 !== month.monthIndex) {
+                    return false;
+                }
+                return selectedCategory === 'all'
+                    || getEntryCategory(entry) === selectedCategory;
+            });
+            const categoryRows = visibleCategories.map(category => `
+                <div>
+                    <span>${escapeHtml(category.label)}</span>
+                    <strong>${this.formatAmount(month[category.key])}</strong>
+                </div>
+            `).join('');
+            const movementRows = monthEntries.length > 0
+                ? monthEntries
+                    .sort((a, b) => String(b.date).localeCompare(String(a.date)))
+                    .map(entry => {
+                        const parsedDate = parseDateLocal(entry.date);
+                        const dateLabel = parsedDate
+                            ? parsedDate.toLocaleDateString('es-AR', {
+                                day: '2-digit',
+                                month: 'short'
+                            })
+                            : entry.date;
+                        return `
+                            <div class="finance-annual-mobile-movement">
+                                <span>
+                                    <strong>${escapeHtml(entry.description || 'Sin descripción')}</strong>
+                                    <small>${escapeHtml(dateLabel || '-')}</small>
+                                </span>
+                                <b>${sign} ${this.formatAmount(entry.amount)}</b>
+                            </div>
+                        `;
+                    }).join('')
+                : '<p class="finance-annual-mobile-empty">Sin movimientos registrados.</p>';
+
+            return `
+                <details class="finance-annual-mobile-month${isCurrent ? ' is-current' : ''}${isFuture ? ' is-future' : ''}"${isCurrent ? ' open' : ''}>
+                    <summary>
+                        <span>
+                            <strong>${escapeHtml(title)}</strong>
+                            ${isCurrent ? '<small>En curso</small>' : (isFuture ? '<small>Futuro</small>' : '')}
+                        </span>
+                        <b>${this.formatAmount(total)}</b>
+                    </summary>
+                    <div class="finance-annual-mobile-detail">
+                        <div class="finance-annual-mobile-categories">${categoryRows}</div>
+                        <div class="finance-annual-mobile-movements">
+                            <h5>Movimientos</h5>
+                            ${movementRows}
+                        </div>
+                    </div>
+                </details>
+            `;
+        }).join('');
+    }
+
     renderAnnualBreakdown() {
         const yearSelect = document.getElementById('fin-year-select');
+        const categorySelect = document.getElementById('fin-year-category-select');
         const tableBody = document.getElementById('fin-year-table-body');
-        if (!yearSelect || !tableBody) return;
+        if (!yearSelect || !categorySelect || !tableBody) return;
 
         const selectedYear = parseInt(yearSelect.value) || new Date().getFullYear();
+        const selectedCategory = categorySelect.value || 'all';
         const combined = this.getCombinedEntries();
-
         const yearEntries = combined.filter(e => e.date && parseInt(e.date.slice(0, 4)) === selectedYear);
+        const categories = [
+            { key: 'freelance', label: 'Freelance' },
+            { key: 'discord', label: 'Discord' },
+            { key: 'trading', label: 'Trading' },
+            { key: 'extraordinary', label: 'Extraordinario' }
+        ];
+        const categoryKeys = new Set(categories.map(category => category.key));
+        const getEntryCategory = entry => categoryKeys.has(entry.category)
+            ? entry.category
+            : 'extraordinary';
 
         const monthlyData = Array.from({ length: 12 }, (_, i) => ({
             monthIndex: i,
@@ -1171,10 +1333,7 @@ export class FinanzasModule {
             const monthIdx = parseInt(e.date.slice(5, 7)) - 1;
             if (monthIdx >= 0 && monthIdx < 12) {
                 const amt = Number(e.amount || 0);
-                if (e.category === 'freelance') monthlyData[monthIdx].freelance += amt;
-                else if (e.category === 'discord') monthlyData[monthIdx].discord += amt;
-                else if (e.category === 'trading') monthlyData[monthIdx].trading += amt;
-                else if (e.category === 'extraordinary') monthlyData[monthIdx].extraordinary += amt;
+                monthlyData[monthIdx][getEntryCategory(e)] += amt;
                 monthlyData[monthIdx].total += amt;
             }
         });
@@ -1195,15 +1354,22 @@ export class FinanzasModule {
             const d = new Date(selectedYear, m.monthIndex, 1);
             const monthName = d.toLocaleDateString('es-AR', { month: 'long' });
             const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+            const { isCurrent, isFuture } = this.getAnnualMonthState(
+                selectedYear,
+                m.monthIndex
+            );
+            const filteredTotal = selectedCategory === 'all'
+                ? m.total
+                : m[selectedCategory];
 
             return `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-secondary);">
-                    <td style="padding:10px 8px; font-weight:600; color:white;">${capitalizedMonth}</td>
-                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.freelance)}</td>
-                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.discord)}</td>
-                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.trading)}</td>
-                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.extraordinary)}</td>
-                    <td style="padding:10px 8px; text-align:right; font-weight:bold; color:white;">${this.app.formatCurrency(m.total)}</td>
+                <tr class="finance-annual-row${isCurrent ? ' is-current' : ''}${isFuture ? ' is-future' : ''}">
+                    <td>${escapeHtml(capitalizedMonth)}${isCurrent ? '<span>En curso</span>' : ''}</td>
+                    <td data-annual-category="freelance">${this.formatAmount(m.freelance)}</td>
+                    <td data-annual-category="discord">${this.formatAmount(m.discord)}</td>
+                    <td data-annual-category="trading">${this.formatAmount(m.trading)}</td>
+                    <td data-annual-category="extraordinary">${this.formatAmount(m.extraordinary)}</td>
+                    <td class="finance-annual-total">${this.formatAmount(filteredTotal)}</td>
                 </tr>
             `;
         }).join('');
@@ -1214,11 +1380,36 @@ export class FinanzasModule {
         const te = document.getElementById('fin-year-tot-extraordinary');
         const tg = document.getElementById('fin-year-tot-grand');
 
-        if (tf) tf.innerText = this.app.formatCurrency(totFreelance);
-        if (td) td.innerText = this.app.formatCurrency(totDiscord);
-        if (tt) tt.innerText = this.app.formatCurrency(totTrading);
-        if (te) te.innerText = this.app.formatCurrency(totExtraordinary);
-        if (tg) tg.innerText = this.app.formatCurrency(totGrand);
+        if (tf) tf.innerText = this.formatAmount(totFreelance);
+        if (td) td.innerText = this.formatAmount(totDiscord);
+        if (tt) tt.innerText = this.formatAmount(totTrading);
+        if (te) te.innerText = this.formatAmount(totExtraordinary);
+        if (tg) {
+            const selectedTotal = {
+                freelance: totFreelance,
+                discord: totDiscord,
+                trading: totTrading,
+                extraordinary: totExtraordinary
+            }[selectedCategory];
+            tg.innerText = this.formatAmount(
+                selectedCategory === 'all' ? totGrand : selectedTotal
+            );
+        }
+
+        this.applyAnnualCategoryFilter(
+            'finanzas-year-details-modal',
+            selectedCategory
+        );
+        this.renderAnnualMobileList({
+            containerId: 'fin-year-mobile-list',
+            selectedYear,
+            monthlyData,
+            entries: yearEntries,
+            categories,
+            selectedCategory,
+            getEntryCategory,
+            tone: 'income'
+        });
     }
 
     populateExpenseYearsSelector() {
@@ -1245,13 +1436,28 @@ export class FinanzasModule {
 
     renderExpenseAnnualBreakdown() {
         const yearSelect = document.getElementById('fin-expense-year-select');
+        const categorySelect = document.getElementById('fin-expense-year-category-select');
         const tableBody = document.getElementById('fin-expense-year-table-body');
-        if (!yearSelect || !tableBody) return;
+        if (!yearSelect || !categorySelect || !tableBody) return;
 
         const selectedYear = parseInt(yearSelect.value) || new Date().getFullYear();
+        const selectedCategory = categorySelect.value || 'all';
         const expenses = this.data.expenses || [];
-
         const yearExpenses = expenses.filter(e => e.date && parseInt(e.date.slice(0, 4)) === selectedYear);
+        const categories = [
+            { key: 'comida', label: 'Comida' },
+            { key: 'vehiculo', label: 'Vehículo' },
+            { key: 'servicios', label: 'Servicios' },
+            { key: 'salud', label: 'Salud' },
+            { key: 'ocio', label: 'Ocio' },
+            { key: 'otros', label: 'Otros' }
+        ];
+        const categoryKeys = new Set(categories
+            .filter(category => category.key !== 'otros')
+            .map(category => category.key));
+        const getEntryCategory = entry => categoryKeys.has(entry.category)
+            ? entry.category
+            : 'otros';
 
         const monthlyData = Array.from({ length: 12 }, (_, i) => ({
             monthIndex: i,
@@ -1268,14 +1474,7 @@ export class FinanzasModule {
             const monthIdx = parseInt(e.date.slice(5, 7)) - 1;
             if (monthIdx >= 0 && monthIdx < 12) {
                 const amt = Number(e.amount || 0);
-                const cat = e.category;
-                if (cat === 'comida') monthlyData[monthIdx].comida += amt;
-                else if (cat === 'vehiculo') monthlyData[monthIdx].vehiculo += amt;
-                else if (cat === 'servicios') monthlyData[monthIdx].servicios += amt;
-                else if (cat === 'salud') monthlyData[monthIdx].salud += amt;
-                else if (cat === 'ocio') monthlyData[monthIdx].ocio += amt;
-                else monthlyData[monthIdx].otros += amt;
-
+                monthlyData[monthIdx][getEntryCategory(e)] += amt;
                 monthlyData[monthIdx].total += amt;
             }
         });
@@ -1300,17 +1499,24 @@ export class FinanzasModule {
             const d = new Date(selectedYear, m.monthIndex, 1);
             const monthName = d.toLocaleDateString('es-AR', { month: 'long' });
             const capitalizedMonth = monthName.charAt(0).toUpperCase() + monthName.slice(1);
+            const { isCurrent, isFuture } = this.getAnnualMonthState(
+                selectedYear,
+                m.monthIndex
+            );
+            const filteredTotal = selectedCategory === 'all'
+                ? m.total
+                : m[selectedCategory];
 
             return `
-                <tr style="border-bottom: 1px solid rgba(255,255,255,0.05); color: var(--text-secondary);">
-                    <td style="padding:10px 8px; font-weight:600; color:white;">${capitalizedMonth}</td>
-                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.comida)}</td>
-                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.vehiculo)}</td>
-                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.servicios)}</td>
-                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.salud)}</td>
-                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.ocio)}</td>
-                    <td style="padding:10px 8px; text-align:right;">${this.app.formatCurrency(m.otros)}</td>
-                    <td style="padding:10px 8px; text-align:right; font-weight:bold; color:white;">${this.app.formatCurrency(m.total)}</td>
+                <tr class="finance-annual-row${isCurrent ? ' is-current' : ''}${isFuture ? ' is-future' : ''}">
+                    <td>${escapeHtml(capitalizedMonth)}${isCurrent ? '<span>En curso</span>' : ''}</td>
+                    <td data-annual-category="comida">${this.formatAmount(m.comida)}</td>
+                    <td data-annual-category="vehiculo">${this.formatAmount(m.vehiculo)}</td>
+                    <td data-annual-category="servicios">${this.formatAmount(m.servicios)}</td>
+                    <td data-annual-category="salud">${this.formatAmount(m.salud)}</td>
+                    <td data-annual-category="ocio">${this.formatAmount(m.ocio)}</td>
+                    <td data-annual-category="otros">${this.formatAmount(m.otros)}</td>
+                    <td class="finance-annual-total">${this.formatAmount(filteredTotal)}</td>
                 </tr>
             `;
         }).join('');
@@ -1323,13 +1529,40 @@ export class FinanzasModule {
         const tot = document.getElementById('fin-expense-year-tot-otros');
         const tg = document.getElementById('fin-expense-year-tot-grand');
 
-        if (tc) tc.innerText = this.app.formatCurrency(totComida);
-        if (tv) tv.innerText = this.app.formatCurrency(totVehiculo);
-        if (ts) ts.innerText = this.app.formatCurrency(totServicios);
-        if (tsl) tsl.innerText = this.app.formatCurrency(totSalud);
-        if (to) to.innerText = this.app.formatCurrency(totOcio);
-        if (tot) tot.innerText = this.app.formatCurrency(totOtros);
-        if (tg) tg.innerText = this.app.formatCurrency(totGrand);
+        if (tc) tc.innerText = this.formatAmount(totComida);
+        if (tv) tv.innerText = this.formatAmount(totVehiculo);
+        if (ts) ts.innerText = this.formatAmount(totServicios);
+        if (tsl) tsl.innerText = this.formatAmount(totSalud);
+        if (to) to.innerText = this.formatAmount(totOcio);
+        if (tot) tot.innerText = this.formatAmount(totOtros);
+        if (tg) {
+            const selectedTotal = {
+                comida: totComida,
+                vehiculo: totVehiculo,
+                servicios: totServicios,
+                salud: totSalud,
+                ocio: totOcio,
+                otros: totOtros
+            }[selectedCategory];
+            tg.innerText = this.formatAmount(
+                selectedCategory === 'all' ? totGrand : selectedTotal
+            );
+        }
+
+        this.applyAnnualCategoryFilter(
+            'finanzas-expense-year-details-modal',
+            selectedCategory
+        );
+        this.renderAnnualMobileList({
+            containerId: 'fin-expense-year-mobile-list',
+            selectedYear,
+            monthlyData,
+            entries: yearExpenses,
+            categories,
+            selectedCategory,
+            getEntryCategory,
+            tone: 'expense'
+        });
     }
 
     populateMonthsSelector(combinedIncomes, expenses) {
@@ -1420,10 +1653,10 @@ export class FinanzasModule {
         const yExp = document.getElementById('fin-year-expense');
         const yBal = document.getElementById('fin-year-balance');
 
-        if (mInc) mInc.innerText = this.app.formatCurrency(monthIncomeSum);
-        if (mExp) mExp.innerText = this.app.formatCurrency(monthExpenseSum);
+        if (mInc) mInc.innerText = this.formatAmount(monthIncomeSum);
+        if (mExp) mExp.innerText = this.formatAmount(monthExpenseSum);
         if (mBal) {
-            mBal.innerText = this.app.formatCurrency(monthBalance);
+            mBal.innerText = this.formatAmount(monthBalance);
             const card = document.getElementById('fin-month-balance-card');
             if (card) {
                 card.style.borderColor = monthBalance >= 0 ? 'var(--status-green)' : 'var(--status-red)';
@@ -1431,10 +1664,10 @@ export class FinanzasModule {
             }
         }
 
-        if (yInc) yInc.innerText = this.app.formatCurrency(yearIncomeSum);
-        if (yExp) yExp.innerText = this.app.formatCurrency(yearExpenseSum);
+        if (yInc) yInc.innerText = this.formatAmount(yearIncomeSum);
+        if (yExp) yExp.innerText = this.formatAmount(yearExpenseSum);
         if (yBal) {
-            yBal.innerText = this.app.formatCurrency(yearBalance);
+            yBal.innerText = this.formatAmount(yearBalance);
             const card = document.getElementById('fin-year-balance-card');
             if (card) {
                 card.style.borderColor = yearBalance >= 0 ? 'var(--status-green)' : 'var(--status-red)';
@@ -1450,19 +1683,14 @@ export class FinanzasModule {
         const selectedMonth = this.monthSelect?.value;
         if (!selectedMonth) return;
 
-        const [yr, mn] = selectedMonth.split('-');
-        const d = new Date(parseInt(yr), parseInt(mn) - 1, 1);
-        const label = d.toLocaleDateString('es-AR', { month: 'long', year: 'numeric' });
-        const capitalizedMonth = label.charAt(0).toUpperCase() + label.slice(1);
-
         if (this.activeTab === 'income') {
-            this.renderIncomeBreakdownAndList(selectedMonth, capitalizedMonth);
+            this.renderIncomeBreakdownAndList(selectedMonth);
         } else {
-            this.renderExpenseBreakdownAndList(selectedMonth, capitalizedMonth);
+            this.renderExpenseBreakdownAndList(selectedMonth);
         }
     }
 
-    renderIncomeBreakdownAndList(selectedMonth, capitalizedMonth) {
+    renderIncomeBreakdownAndList(selectedMonth) {
         const combined = this.getCombinedEntries();
         const monthEntries = combined.filter(e => e.date && e.date.slice(0, 7) === selectedMonth);
 
@@ -1490,11 +1718,6 @@ export class FinanzasModule {
 
         const totalMonth = catFreelance + catDiscord + catTrading + catExtraordinary;
 
-        const labelEl = document.getElementById('fin-month-income-label');
-        if (labelEl) {
-            labelEl.innerText = `Ingresos de ${capitalizedMonth}`;
-        }
-
         const pctFreelance = totalMonth > 0 ? (catFreelance / totalMonth) * 100 : 0;
         const pctDiscord = totalMonth > 0 ? (catDiscord / totalMonth) * 100 : 0;
         const pctTrading = totalMonth > 0 ? (catTrading / totalMonth) * 100 : 0;
@@ -1516,7 +1739,7 @@ export class FinanzasModule {
                         <i class="ph ph-caret-right" id="fin-freelance-caret" style="transition: transform 0.2s;"></i>
                         <i class="ph ph-briefcase" style="color:var(--primary-color);"></i> Freelance (Proyectos)
                     </span>
-                    <strong style="color:white;">${this.app.formatCurrency(catFreelance)} (${pctFreelance.toFixed(0)}%)</strong>
+                    <strong style="color:white;">${this.formatAmount(catFreelance)} (${pctFreelance.toFixed(0)}%)</strong>
                 </div>
                 <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
                     <div style="height:100%; width:${pctFreelance}%; background:var(--primary-color); border-radius:4px; transition:width 0.3s;"></div>
@@ -1525,11 +1748,11 @@ export class FinanzasModule {
                 <div id="fin-freelance-sub-breakdown" class="hidden" style="padding-left: 20px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; border-left: 2px solid rgba(255,255,255,0.05); margin-left: 6px;">
                     <div style="display:flex; justify-content:space-between; width: 100%;">
                         <span style="color:var(--text-secondary);">💻 Workana:</span>
-                        <strong style="color:white;">${this.app.formatCurrency(freelanceWorkana)}</strong>
+                        <strong style="color:white;">${this.formatAmount(freelanceWorkana)}</strong>
                     </div>
                     <div style="display:flex; justify-content:space-between; width: 100%;">
                         <span style="color:var(--text-secondary);">🌍 Externo (LinkedIn/Otros):</span>
-                        <strong style="color:white;">${this.app.formatCurrency(freelanceExternal)}</strong>
+                        <strong style="color:white;">${this.formatAmount(freelanceExternal)}</strong>
                     </div>
                 </div>
             </div>
@@ -1537,7 +1760,7 @@ export class FinanzasModule {
             <div style="display:flex; flex-direction:column; gap:6px;">
                 <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
                     <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-chat-circle" style="color:var(--status-purple);"></i> Discord (Negocio)</span>
-                    <strong style="color:white;">${this.app.formatCurrency(catDiscord)} (${pctDiscord.toFixed(0)}%)</strong>
+                    <strong style="color:white;">${this.formatAmount(catDiscord)} (${pctDiscord.toFixed(0)}%)</strong>
                 </div>
                 <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
                     <div style="height:100%; width:${pctDiscord}%; background:var(--status-purple); border-radius:4px; transition:width 0.3s;"></div>
@@ -1547,7 +1770,7 @@ export class FinanzasModule {
             <div style="display:flex; flex-direction:column; gap:6px;">
                 <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
                     <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-chart-line-up" style="color:var(--status-green);"></i> Trading</span>
-                    <strong style="color:white;">${this.app.formatCurrency(catTrading)} (${pctTrading.toFixed(0)}%)</strong>
+                    <strong style="color:white;">${this.formatAmount(catTrading)} (${pctTrading.toFixed(0)}%)</strong>
                 </div>
                 <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
                     <div style="height:100%; width:${pctTrading}%; background:var(--status-green); border-radius:4px; transition:width 0.3s;"></div>
@@ -1557,7 +1780,7 @@ export class FinanzasModule {
             <div style="display:flex; flex-direction:column; gap:6px;">
                 <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
                     <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-gift" style="color:var(--status-yellow);"></i> Ingresos Extraordinarios</span>
-                    <strong style="color:white;">${this.app.formatCurrency(catExtraordinary)} (${pctExtraordinary.toFixed(0)}%)</strong>
+                    <strong style="color:white;">${this.formatAmount(catExtraordinary)} (${pctExtraordinary.toFixed(0)}%)</strong>
                 </div>
                 <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
                     <div style="height:100%; width:${pctExtraordinary}%; background:var(--status-yellow); border-radius:4px; transition:width 0.3s;"></div>
@@ -1620,7 +1843,7 @@ export class FinanzasModule {
                         </div>
                     </div>
                     <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
-                        <strong style="color:var(--status-green); font-size:0.95rem;">+ ${this.app.formatCurrency(e.amount)}</strong>
+                        <strong style="color:var(--status-green); font-size:0.95rem;">+ ${this.formatAmount(e.amount)}</strong>
                         ${deleteBtn}
                     </div>
                 </div>
@@ -1635,7 +1858,7 @@ export class FinanzasModule {
         });
     }
 
-    renderExpenseBreakdownAndList(selectedMonth, capitalizedMonth) {
+    renderExpenseBreakdownAndList(selectedMonth) {
         const expenses = this.data.expenses || [];
         const monthExpenses = expenses.filter(e => e.date && e.date.slice(0, 7) === selectedMonth);
 
@@ -1655,11 +1878,6 @@ export class FinanzasModule {
         });
 
         const totalMonthExpense = Object.values(grouped).reduce((a, b) => a + b, 0);
-
-        const labelEl = document.getElementById('fin-month-expense-label');
-        if (labelEl) {
-            labelEl.innerText = `Gastos de ${capitalizedMonth}`;
-        }
 
         const sortedExpenseCategories = Object.entries(grouped).sort((a, b) => b[1] - a[1]);
 
@@ -1689,7 +1907,7 @@ export class FinanzasModule {
                             <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;">
                                 <i class="ph ${meta.icon}" style="color:${meta.color};"></i> ${escapeHtml(meta.name)}
                             </span>
-                            <strong style="color:white;">${this.app.formatCurrency(amount)} (${pct.toFixed(0)}%)</strong>
+                            <strong style="color:white;">${this.formatAmount(amount)} (${pct.toFixed(0)}%)</strong>
                         </div>
                         <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
                             <div style="height:100%; width:${pct}%; background:${meta.color}; border-radius:4px; transition:width 0.3s;"></div>
@@ -1739,7 +1957,7 @@ export class FinanzasModule {
                         </div>
                     </div>
                     <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
-                        <strong style="color:var(--status-orange); font-size:0.95rem;">- ${this.app.formatCurrency(e.amount)}</strong>
+                        <strong style="color:var(--status-orange); font-size:0.95rem;">- ${this.formatAmount(e.amount)}</strong>
                         <button type="button" class="btn-delete-fin-expense-item icon-btn icon-btn-sm is-danger" data-id="${safeId}" data-tooltip="Eliminar gasto" aria-label="Eliminar gasto ${safeDescription}"><i class="ph ph-trash" aria-hidden="true"></i></button>
                     </div>
                 </div>

@@ -29,6 +29,8 @@ import {
 import { TooltipController } from './tooltip-controller.mjs?v=20260729-tooltips';
 import { FeedbackController } from './feedback-controller.mjs?v=20260730-feedback';
 
+const FINANCIAL_AMOUNTS_HIDDEN_KEY = 'lifecycle_financial_amounts_hidden';
+
 class AppController {
     constructor() {
         window.lifecycle_controller = this;
@@ -37,6 +39,7 @@ class AppController {
         this.toastTimer = null;
         this.navigationHintRefreshers = [];
         this.navigationHintObservers = [];
+        this.financialAmountsHidden = localStorage.getItem(FINANCIAL_AMOUNTS_HIDDEN_KEY) === '1';
         this.tooltips = new TooltipController(document);
         this.tooltips.init();
         this.feedback = new FeedbackController(document);
@@ -59,6 +62,7 @@ class AppController {
         this.initProfileTabs();
         this.initProfileOverlay();
         this.initCurrencyPreference();
+        this.initFinancialPrivacyControls();
     }
 
     initCurrencyPreference() {
@@ -183,6 +187,51 @@ class AppController {
             return `ARS $${totalArs.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;
         }
         return `USD ${num.toFixed(2)}`;
+    }
+
+    isFinancialAmountsHidden() {
+        return this.financialAmountsHidden === true;
+    }
+
+    formatFinancialAmount(amountUsd) {
+        return this.isFinancialAmountsHidden()
+            ? '••••••'
+            : this.formatCurrency(amountUsd);
+    }
+
+    initFinancialPrivacyControls() {
+        document.querySelectorAll('[data-financial-privacy-toggle]').forEach(button => {
+            if (button.dataset.financialPrivacyBound === 'true') return;
+            button.dataset.financialPrivacyBound = 'true';
+            button.addEventListener('click', () => {
+                this.setFinancialAmountsHidden(!this.isFinancialAmountsHidden());
+            });
+        });
+        this.updateFinancialPrivacyControls();
+    }
+
+    setFinancialAmountsHidden(hidden) {
+        this.financialAmountsHidden = Boolean(hidden);
+        localStorage.setItem(
+            FINANCIAL_AMOUNTS_HIDDEN_KEY,
+            this.financialAmountsHidden ? '1' : '0'
+        );
+        this.updateFinancialPrivacyControls();
+        this.refreshFinancialViews();
+    }
+
+    updateFinancialPrivacyControls() {
+        const hidden = this.isFinancialAmountsHidden();
+        const actionLabel = hidden ? 'Mostrar montos' : 'Ocultar montos';
+        document.querySelectorAll('[data-financial-privacy-toggle]').forEach(button => {
+            button.setAttribute('aria-pressed', String(hidden));
+            button.setAttribute('aria-label', `${actionLabel} de Proyectos y Finanzas`);
+            button.dataset.tooltip = actionLabel;
+            const icon = button.querySelector('i');
+            const label = button.querySelector('[data-financial-privacy-label]');
+            if (icon) icon.className = `ph ${hidden ? 'ph-eye' : 'ph-eye-slash'}`;
+            if (label) label.textContent = actionLabel;
+        });
     }
 
     refreshFinancialViews() {

@@ -63,6 +63,17 @@ sus historiales y los fluidos vuelven a una columna en móvil. Los formularios
 secundarios y los historiales extensos empiezan colapsados, pero nunca se
 eliminan ni se recortan sus datos o adjuntos.
 
+Proyectos y Finanzas comparten una preferencia local para ocultar montos. La
+preferencia se conserva solo en ese navegador, afecta ambas pantallas y nunca
+modifica ni sincroniza los valores reales. Los pagos, reversiones y
+eliminaciones muestran una confirmación propia con el movimiento que se va a
+registrar o quitar.
+
+El historial de Proyectos separa el mes en curso de los meses cerrados. El mes
+abierto sigue visible, pero no participa de los promedios hasta cerrar. Los
+detalles anuales de Finanzas mantienen una tabla comparativa compacta en
+escritorio y usan meses desplegables con movimientos en celular.
+
 ## 2. Tooltips y dispositivos
 
 - El tooltip aparece con mouse al mantener el puntero y con teclado al enfocar

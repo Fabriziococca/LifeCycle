@@ -7,6 +7,12 @@ import {
     removeProjectTemplate,
     upsertProjectTemplate
 } from '../project-template-utils.mjs?v=20260729-project-templates';
+import {
+    buildProjectIncomeMovements,
+    calculateClosedMonthAverages,
+    getMovementMonthKey,
+    groupProjectIncomeMovementsByMonth
+} from '../project-income-utils.mjs?v=20260808-project-income';
 
 export class ProjectsModule {
     
@@ -30,6 +36,8 @@ export class ProjectsModule {
         this.editingStatusNoteProjectId = null;
         this.selectedTemplateId = null;
         this.templateModalReturnFocus = null;
+        this.planModalReturnFocus = null;
+        this.activePlanTab = 'summary';
         this.FIXED_FEE = 0.0732; // Costo operativo retiro PayPal/Lemon (7.32%)
 
         window.projects = this;
@@ -361,7 +369,7 @@ export class ProjectsModule {
             if (template.summary || template.phases) details.push('con plan');
             details.push(
                 template.includeBudget && template.budgetGross !== null
-                    ? `USD ${template.budgetGross.toFixed(2)}`
+                    ? this.formatAmount(template.budgetGross)
                     : 'precio variable'
             );
             const subtitle = template.projectName
@@ -461,6 +469,20 @@ export class ProjectsModule {
 
     formatDate(isoString) {
         return DateUtils.formatDateTime(isoString);
+    }
+
+    formatAmount(amount) {
+        return this.app.formatFinancialAmount?.(amount)
+            || this.app.formatCurrency(amount);
+    }
+
+    getIncomeMovements({ includeZeroFinals = false } = {}) {
+        return buildProjectIncomeMovements({
+            activeProjects: this.projects,
+            historyProjects: this.history,
+            fallbackDate: getLocalISODate(),
+            includeZeroFinals
+        });
     }
 
     setupListeners() {
@@ -749,17 +771,37 @@ export class ProjectsModule {
 
         // Plan Modal Save & Close
         const planClose = document.getElementById('proj-plan-modal-close');
+        const planEdit = document.getElementById('proj-plan-modal-edit');
+        const planCancelEdit = document.getElementById('proj-plan-modal-cancel-edit');
         const planSave = document.getElementById('proj-plan-modal-save');
         const planModal = document.getElementById('projects-plan-modal');
+        const planSummaryTab = document.getElementById('proj-plan-tab-summary');
+        const planPhasesTab = document.getElementById('proj-plan-tab-phases');
 
         planClose?.addEventListener('click', () => {
-            planModal?.classList.add('hidden');
-            this.currentProjectId = null;
+            this.closePlanModal();
+        });
+
+        planEdit?.addEventListener('click', () => {
+            this.setPlanModalMode('edit');
+        });
+
+        planCancelEdit?.addEventListener('click', () => {
+            const project = this.getCurrentPlanProject();
+            if (project) this.populatePlanModal(project);
+            this.setPlanModalMode('view');
+        });
+
+        planSummaryTab?.addEventListener('click', () => {
+            this.setPlanModalTab('summary');
+        });
+
+        planPhasesTab?.addEventListener('click', () => {
+            this.setPlanModalTab('phases');
         });
 
         planSave?.addEventListener('click', () => {
-            if (!this.currentProjectId) return;
-            const p = this.projects.find(proj => String(proj.id) === String(this.currentProjectId)) || this.history.find(proj => String(proj.id) === String(this.currentProjectId));
+            const p = this.getCurrentPlanProject();
             if (!p) return;
 
             const summaryEl = document.getElementById('proj-summary-textarea');
@@ -770,14 +812,21 @@ export class ProjectsModule {
 
             this.saveData();
             this.render();
-            planModal?.classList.add('hidden');
-            this.currentProjectId = null;
+            this.populatePlanModal(p);
+            this.setPlanModalMode('view');
+            this.app.showToast?.('Plan del proyecto actualizado.');
         });
 
         planModal?.addEventListener('click', (e) => {
             if (e.target === planModal) {
-                planModal.classList.add('hidden');
-                this.currentProjectId = null;
+                this.closePlanModal();
+            }
+        });
+
+        planModal?.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.closePlanModal();
             }
         });
 
@@ -814,12 +863,20 @@ export class ProjectsModule {
         const btnSavePast = document.getElementById('proj-btnSavePastIncome');
 
         btnTogglePast?.addEventListener('click', () => {
-            pastForm?.classList.toggle('hidden');
+            const isHidden = pastForm?.classList.toggle('hidden') ?? true;
+            btnTogglePast.setAttribute('aria-expanded', String(!isHidden));
+            if (!isHidden) {
+                requestAnimationFrame(() => {
+                    document.getElementById('proj-pastClient')?.focus();
+                });
+            }
         });
 
         btnCancelPast?.addEventListener('click', () => {
             pastForm?.classList.add('hidden');
+            btnTogglePast?.setAttribute('aria-expanded', 'false');
             this.resetPastForm();
+            btnTogglePast?.focus();
         });
 
         btnSavePast?.addEventListener('click', () => {
@@ -864,6 +921,7 @@ export class ProjectsModule {
             this.render();
             this.renderMonthlyHistory('all');
             pastForm?.classList.add('hidden');
+            btnTogglePast?.setAttribute('aria-expanded', 'false');
             this.resetPastForm();
         });
 
@@ -917,8 +975,13 @@ export class ProjectsModule {
         if (!modal) return;
 
         document.getElementById('proj-partial-desc').innerText = `Proyecto: ${project.client} - ${project.project}`;
-        document.getElementById('proj-partial-total-net').innerText = this.app.formatCurrency(totalNet);
-        document.getElementById('proj-partial-pending-net').innerText = this.app.formatCurrency(pendingNet);
+        document.getElementById('proj-partial-total-net').innerText = this.formatAmount(totalNet);
+        document.getElementById('proj-partial-pending-net').innerText = this.formatAmount(pendingNet);
+        document.getElementById('proj-partial-payment-type').innerText = 'Pago parcial';
+        document.getElementById('proj-partial-payment-date').innerText = DateUtils.formatInputDate(
+            getLocalISODate(),
+            '-'
+        );
 
         const pctInput = document.getElementById('proj-partial-pct');
         if (pctInput) pctInput.value = 50;
@@ -951,8 +1014,8 @@ export class ProjectsModule {
 
         const previewNet = document.getElementById('proj-partial-preview-net');
         const previewGross = document.getElementById('proj-partial-preview-gross');
-        if (previewNet) previewNet.innerText = this.app.formatCurrency(releaseNet);
-        if (previewGross) previewGross.innerText = `(Bruto: ${this.app.formatCurrency(releaseGross)})`;
+        if (previewNet) previewNet.innerText = this.formatAmount(releaseNet);
+        if (previewGross) previewGross.innerText = `(Bruto: ${this.formatAmount(releaseGross)})`;
     }
 
     confirmPartialRelease() {
@@ -975,11 +1038,7 @@ export class ProjectsModule {
 
         if (!Array.isArray(project.partialReleases)) project.partialReleases = [];
 
-        const now = new Date();
-        const year = now.getFullYear();
-        const month = String(now.getMonth() + 1).padStart(2, '0');
-        const day = String(now.getDate()).padStart(2, '0');
-        const dateStr = `${year}-${month}-${day}`;
+        const dateStr = getLocalISODate();
 
         project.partialReleases.push({
             id: Date.now(),
@@ -993,7 +1052,10 @@ export class ProjectsModule {
         document.getElementById('projects-partial-release-modal')?.classList.add('hidden');
         if (this.app.finanzas) this.app.finanzas.render();
         this.render();
-        this.app.showFeedback(`💰 Liberación parcial de ${this.app.formatCurrency(releaseNet)} registrada exitosamente.`, 'success');
+        this.app.showToast?.(
+            `Liberación parcial de ${this.formatAmount(releaseNet)} registrada.`,
+            { tone: 'success' }
+        );
     }
 
     openDetailsModal(id) {
@@ -1021,7 +1083,7 @@ export class ProjectsModule {
         const totalHours = initialMs / (3600 * 1000);
         if (totalHours > 0) {
             const rate = (p.budgetNet || 0) / totalHours;
-            rateText = `${this.app.formatCurrency(rate)}/h`;
+            rateText = `${this.formatAmount(rate)}/h`;
         }
 
         const clientSourceLabels = {
@@ -1047,7 +1109,7 @@ export class ProjectsModule {
                     ${p.partialReleases.map(r => `
                         <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 3px;">
                             <span>${r.date} (${r.percent}%):</span>
-                            <strong style="color: white;">${this.app.formatCurrency(r.netAmount)}</strong>
+                            <strong style="color: white;">${this.formatAmount(r.netAmount)}</strong>
                         </div>
                     `).join('')}
                 </div>`;
@@ -1189,7 +1251,7 @@ export class ProjectsModule {
         subNameEl.textContent = `Plan ${sub.plan} (${sub.cycle} ${sub.cycle == 1 ? 'mes' : 'meses'})`;
         startDateEl.textContent = start.toLocaleDateString('es-AR');
         endDateEl.textContent = expiry.toLocaleDateString('es-AR');
-        costValEl.textContent = this.app.formatCurrency(sub.cost);
+        costValEl.textContent = this.formatAmount(sub.cost);
         daysCountEl.textContent = diffDays;
 
         // Reset class and styling
@@ -1239,78 +1301,31 @@ export class ProjectsModule {
             }
             activeNetSum += Math.max(0, Number(p.budgetNet || 0) - sumPartials);
         });
-        document.getElementById('activeUSD').innerText = this.app.formatCurrency(activeNetSum);
+        document.getElementById('activeUSD').innerText = this.formatAmount(activeNetSum);
 
         const now = new Date();
         const currYear = now.getFullYear();
-        const currMonth = now.getMonth();
+        const currMonthKey = getMovementMonthKey(now);
 
         let monthNetSum = 0;
         let yearNetSum = 0;
         let totalNetSum = 0;
 
-        // Liberaciones parciales de proyectos activos
-        this.projects.forEach(p => {
-            if (Array.isArray(p.partialReleases)) {
-                p.partialReleases.forEach(r => {
-                    const netVal = Number(r.netAmount || 0);
-                    totalNetSum += netVal;
-                    if (r.date) {
-                        const del = parseDateLocal(r.date);
-                        if (del && del.getFullYear() === currYear) {
-                            yearNetSum += netVal;
-                            if (del.getMonth() === currMonth) monthNetSum += netVal;
-                        }
-                    }
-                });
-            }
-        });
-
-        // Historial de proyectos
-        this.history.forEach(p => {
-            if (Array.isArray(p.partialReleases) && p.partialReleases.length > 0) {
-                let sumPartials = 0;
-                p.partialReleases.forEach(r => {
-                    const netVal = Number(r.netAmount || 0);
-                    sumPartials += netVal;
-                    totalNetSum += netVal;
-                    if (r.date) {
-                        const del = parseDateLocal(r.date);
-                        if (del && del.getFullYear() === currYear) {
-                            yearNetSum += netVal;
-                            if (del.getMonth() === currMonth) monthNetSum += netVal;
-                        }
-                    }
-                });
-                const finalRem = Math.max(0, Number(p.budgetNet || 0) - sumPartials);
-                if (finalRem > 0) {
-                    totalNetSum += finalRem;
-                    const dateStr = p.deliveredDate || p.deliveredAt;
-                    if (dateStr) {
-                        const del = parseDateLocal(dateStr);
-                        if (del && del.getFullYear() === currYear) {
-                            yearNetSum += finalRem;
-                            if (del.getMonth() === currMonth) monthNetSum += finalRem;
-                        }
-                    }
-                }
-            } else {
-                const netVal = Number(p.budgetNet || 0);
-                totalNetSum += netVal;
-                const dateStr = p.deliveredDate || p.deliveredAt;
-                if (dateStr) {
-                    const del = parseDateLocal(dateStr);
-                    if (del && del.getFullYear() === currYear) {
-                        yearNetSum += netVal;
-                        if (del.getMonth() === currMonth) monthNetSum += netVal;
-                    }
+        this.getIncomeMovements().forEach(movement => {
+            const amount = Number(movement.amount || 0);
+            const movementDate = parseDateLocal(movement.date);
+            totalNetSum += amount;
+            if (movementDate?.getFullYear() === currYear) {
+                yearNetSum += amount;
+                if (getMovementMonthKey(movement.date) === currMonthKey) {
+                    monthNetSum += amount;
                 }
             }
         });
 
-        document.getElementById('monthUSD').innerText = this.app.formatCurrency(monthNetSum);
-        document.getElementById('yearUSD').innerText = this.app.formatCurrency(yearNetSum);
-        document.getElementById('totalUSD').innerText = this.app.formatCurrency(totalNetSum);
+        document.getElementById('monthUSD').innerText = this.formatAmount(monthNetSum);
+        document.getElementById('yearUSD').innerText = this.formatAmount(yearNetSum);
+        document.getElementById('totalUSD').innerText = this.formatAmount(totalNetSum);
 
         if (this.projects.length === 0) {
             list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 25px;">No hay proyectos activos.</p>';
@@ -1409,8 +1424,8 @@ export class ProjectsModule {
             if (sumPartialNet > 0) {
                 partialReleaseHTML = `
                     <div class="partial-release-badge">
-                        <span style="color: var(--status-green); font-weight: 600;">💰 Liberado: ${this.app.formatCurrency(sumPartialNet)} (${partialPctTotal}%)</span>
-                        <span style="color: var(--status-yellow); font-size: 0.8rem;">Pendiente: ${this.app.formatCurrency(pendingNet)}</span>
+                        <span style="color: var(--status-green); font-weight: 600;">💰 Liberado: ${this.formatAmount(sumPartialNet)} (${partialPctTotal}%)</span>
+                        <span style="color: var(--status-yellow); font-size: 0.8rem;">Pendiente: ${this.formatAmount(pendingNet)}</span>
                     </div>`;
             }
 
@@ -1457,16 +1472,17 @@ export class ProjectsModule {
                 ${partialReleaseHTML}
 
                 <div class="finance-block" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid var(--surface-border); padding: 6px 10px; border-radius: 8px; margin-bottom: 0.6rem;">
-                    <span class="gross-amount" style="font-size: 0.78rem; color: var(--text-secondary);">Bruto: ${this.app.formatCurrency(p.budgetGross || 0)}</span>
-                    <strong class="net-amount" style="font-size: 0.9rem; color: var(--status-green);">Neto Pendiente: ${this.app.formatCurrency(pendingNet)}</strong>
+                    <span class="gross-amount" style="font-size: 0.78rem; color: var(--text-secondary);">Bruto: ${this.formatAmount(p.budgetGross || 0)}</span>
+                    <strong class="net-amount" style="font-size: 0.9rem; color: var(--status-green);">Neto Pendiente: ${this.formatAmount(pendingNet)}</strong>
                 </div>
 
                 <div class="project-actions-compact-row">
                     <button class="btn btn-timer project-btn-icon" data-tooltip="${timerButtonLabel}" aria-label="${timerButtonLabel}" style="background:${btnTimerBg}; color:${btnTimerColor}; border:none;">
                         ${btnTimerIcon}
                     </button>
-                    <button class="btn btn-secondary btn-plan project-btn-icon" data-tooltip="Plan del Proyecto" aria-label="Plan del Proyecto">
+                    <button class="btn btn-secondary btn-plan project-plan-view-button" data-tooltip="Ver plan del proyecto" aria-label="Ver plan del proyecto">
                         <i class="ph ph-clipboard-text"></i>
+                        <span>Ver plan</span>
                     </button>
                     <button class="btn btn-secondary btn-manage project-btn-icon" data-tooltip="Gestionar Proyecto (Editar / Fases)" aria-label="Gestionar Proyecto">
                         <i class="ph ph-gear"></i>
@@ -1626,24 +1642,109 @@ export class ProjectsModule {
         this.render();
     }
 
-    openPlanModal(id) {
-        this.currentProjectId = id;
-        const p = this.projects.find(proj => String(proj.id) === String(id)) || this.history.find(proj => String(proj.id) === String(id));
-        if (!p) return;
+    getCurrentPlanProject() {
+        if (this.currentProjectId === null || this.currentProjectId === undefined) {
+            return null;
+        }
+        return this.projects.find(
+            project => String(project.id) === String(this.currentProjectId)
+        ) || this.history.find(
+            project => String(project.id) === String(this.currentProjectId)
+        ) || null;
+    }
 
+    populatePlanModal(project) {
+        const summary = String(project?.summary || '').trim();
+        const phases = String(project?.phases || '').trim();
+        const summaryInput = document.getElementById('proj-summary-textarea');
+        const phasesInput = document.getElementById('proj-phases-textarea');
+        const summaryView = document.getElementById('proj-plan-summary-view');
+        const phasesView = document.getElementById('proj-plan-phases-view');
+
+        if (summaryInput) summaryInput.value = summary;
+        if (phasesInput) phasesInput.value = phases;
+        if (summaryView) {
+            summaryView.textContent = summary || 'Todavía no hay un resumen cargado para este proyecto.';
+            summaryView.classList.toggle('is-empty', !summary);
+        }
+        if (phasesView) {
+            phasesView.textContent = phases || 'Todavía no hay fases cargadas para este proyecto.';
+            phasesView.classList.toggle('is-empty', !phases);
+        }
+    }
+
+    setPlanModalTab(tab) {
+        const nextTab = tab === 'phases' ? 'phases' : 'summary';
+        this.activePlanTab = nextTab;
+        ['summary', 'phases'].forEach(tabName => {
+            const button = document.getElementById(`proj-plan-tab-${tabName}`);
+            const panel = document.getElementById(`proj-plan-panel-${tabName}`);
+            const isActive = tabName === nextTab;
+            button?.classList.toggle('active', isActive);
+            button?.setAttribute('aria-selected', String(isActive));
+            button?.setAttribute('tabindex', isActive ? '0' : '-1');
+            panel?.classList.toggle('hidden', !isActive);
+        });
+    }
+
+    setPlanModalMode(mode) {
+        const isEditing = mode === 'edit';
+        document.getElementById('proj-plan-viewer')?.classList.toggle('hidden', isEditing);
+        document.getElementById('proj-plan-editor')?.classList.toggle('hidden', !isEditing);
+        document.getElementById('proj-plan-edit-actions')?.classList.toggle('hidden', !isEditing);
+        document.getElementById('proj-plan-modal-edit')?.classList.toggle('hidden', isEditing);
+
+        if (isEditing) {
+            requestAnimationFrame(() => {
+                document.getElementById('proj-summary-textarea')?.focus();
+            });
+        } else {
+            this.setPlanModalTab(this.activePlanTab);
+        }
+    }
+
+    closePlanModal() {
+        document.getElementById('projects-plan-modal')?.classList.add('hidden');
+        const returnFocus = this.planModalReturnFocus;
+        const projectId = this.currentProjectId;
+        const fallbackFocus = document.querySelector(
+            `.card[data-project-id="${CSS.escape(String(projectId ?? ''))}"] .btn-plan`
+        );
+        this.planModalReturnFocus = null;
+        this.currentProjectId = null;
+        setTimeout(() => {
+            const target = returnFocus?.isConnected ? returnFocus : fallbackFocus;
+            target?.focus?.();
+        }, 0);
+    }
+
+    openPlanModal(id) {
+        const project = this.projects.find(
+            item => String(item.id) === String(id)
+        ) || this.history.find(
+            item => String(item.id) === String(id)
+        );
+        if (!project) return;
+
+        this.currentProjectId = id;
+        this.planModalReturnFocus = document.activeElement;
         const titleEl = document.getElementById('proj-plan-modal-title');
         if (titleEl) {
-            titleEl.innerText = `Plan de Acción (${p.client ? p.client + ': ' + p.project : p.project})`;
+            titleEl.textContent = project.client
+                ? `${project.client}: ${project.project}`
+                : project.project;
         }
 
-        const summaryEl = document.getElementById('proj-summary-textarea');
-        const phasesEl = document.getElementById('proj-phases-textarea');
-
-        if (summaryEl) summaryEl.value = p.summary || '';
-        if (phasesEl) phasesEl.value = p.phases || '';
+        this.populatePlanModal(project);
+        this.activePlanTab = 'summary';
+        this.setPlanModalMode('view');
+        this.setPlanModalTab('summary');
 
         const modal = document.getElementById('projects-plan-modal');
         modal?.classList.remove('hidden');
+        requestAnimationFrame(() => {
+            document.getElementById('proj-plan-tab-summary')?.focus();
+        });
     }
 
 
@@ -1718,18 +1819,62 @@ export class ProjectsModule {
         }
     }
 
-    confirmPayment(id) {
+    async confirmPayment(id) {
         const pIndex = this.projects.findIndex(proj => proj.id == id);
-        if (pIndex !== -1) {
-            const p = this.projects[pIndex];
-            p.deliveredDate = getLocalISODate();
+        if (pIndex === -1) return;
 
-            this.history.unshift(p);
-            this.projects.splice(pIndex, 1);
-            this.saveData();
-            this.render();
-            this.app.finanzas?.render();
-        }
+        const project = this.projects[pIndex];
+        const partialReleases = Array.isArray(project.partialReleases)
+            ? project.partialReleases
+            : [];
+        const releasedNet = partialReleases.reduce(
+            (sum, release) => sum + Number(release.netAmount || 0),
+            0
+        );
+        const paymentAmount = Math.max(0, Number(project.budgetNet || 0) - releasedNet);
+        const paymentDate = getLocalISODate();
+        const paymentType = partialReleases.length > 0
+            ? `Pago final restante (${partialReleases.length} parcial${partialReleases.length === 1 ? '' : 'es'} previa${partialReleases.length === 1 ? '' : 's'})`
+            : 'Pago total';
+        const confirmed = await this.app.confirmAction({
+            title: 'Confirmar pago',
+            message: 'Revisá el movimiento antes de finalizar el proyecto y registrarlo como ingreso.',
+            tone: 'warning',
+            details: [
+                {
+                    label: 'Proyecto',
+                    value: `${project.client} - ${project.project}`
+                },
+                {
+                    label: 'Monto',
+                    value: this.formatAmount(paymentAmount)
+                },
+                {
+                    label: 'Fecha',
+                    value: DateUtils.formatInputDate(paymentDate, paymentDate)
+                },
+                {
+                    label: 'Tipo',
+                    value: paymentType
+                }
+            ],
+            cancelLabel: 'Cancelar',
+            confirmLabel: 'Confirmar pago',
+            closeOnBackdrop: false
+        });
+        if (!confirmed) return;
+
+        const currentIndex = this.projects.findIndex(proj => proj.id == id);
+        if (currentIndex === -1) return;
+        const currentProject = this.projects[currentIndex];
+        currentProject.deliveredDate = paymentDate;
+
+        this.history.unshift(currentProject);
+        this.projects.splice(currentIndex, 1);
+        this.saveData();
+        this.render();
+        this.app.finanzas?.render();
+        this.app.auth?.syncToCloud(false).catch(() => {});
     }
 
     openResolveArbitrationModal(id) {
@@ -1738,7 +1883,7 @@ export class ProjectsModule {
         const modal = document.getElementById('projects-resolve-arbitration-modal');
         if (modal && p) {
             document.getElementById('proj-resolve-desc').innerText = `Proyecto de ${p.client} - ${p.project}. Se recalculará el presupuesto final según el porcentaje que decida el arbitraje.`;
-            document.getElementById('proj-resolve-orig-gross').innerText = this.app.formatCurrency(p.budgetGross || 0);
+            document.getElementById('proj-resolve-orig-gross').innerText = this.formatAmount(p.budgetGross || 0);
             document.getElementById('proj-arbitration-pct').value = 70; // 70% por defecto
             
             modal.classList.remove('hidden');
@@ -1759,8 +1904,8 @@ export class ProjectsModule {
         const targetGross = p.budgetGross * (pct / 100);
         const targetNet = this.calculateNet(targetGross, p.feeType, p.manualPercent, p.isDelegated, p.isReceived);
 
-        document.getElementById('proj-resolve-new-gross').innerText = this.app.formatCurrency(targetGross);
-        document.getElementById('proj-resolve-new-net').innerText = this.app.formatCurrency(targetNet);
+        document.getElementById('proj-resolve-new-gross').innerText = this.formatAmount(targetGross);
+        document.getElementById('proj-resolve-new-net').innerText = this.formatAmount(targetNet);
     }
 
     confirmResolveArbitration() {
@@ -1803,105 +1948,151 @@ export class ProjectsModule {
         if (!list) return;
         list.innerHTML = '';
 
-        // Calcular Promedios
+        const modalTitle = document.getElementById('proj-history-modal-title');
+        if (modalTitle) {
+            modalTitle.textContent = filterType === 'month'
+                ? 'Mes en curso'
+                : (filterType === 'year' ? 'Historial del año' : 'Historial mensual');
+        }
+
         const averages = this.calculateAverages();
-        document.getElementById('proj-avgHistorical').innerText = this.app.formatCurrency(averages.historical);
-        document.getElementById('proj-avg6Months').innerText = this.app.formatCurrency(averages.last6);
-        document.getElementById('proj-avg3Months').innerText = this.app.formatCurrency(averages.last3);
+        document.getElementById('proj-avgHistorical').innerText = this.formatAmount(averages.historical);
+        document.getElementById('proj-avg6Months').innerText = this.formatAmount(averages.last6);
+        document.getElementById('proj-avg3Months').innerText = this.formatAmount(averages.last3);
 
-        // Agrupar
-        const monthsMap = {};
-        this.history.forEach(p => {
-            const dateStr = p.deliveredDate || p.deliveredAt;
-            const delDate = parseDateLocal(dateStr) || new Date();
-            const year = delDate.getFullYear();
-            const month = delDate.getMonth();
-            const key = `${year}-${String(month + 1).padStart(2, '0')}`;
+        const movements = this.getIncomeMovements({ includeZeroFinals: true });
+        const monthsMap = groupProjectIncomeMovementsByMonth(movements);
+        const currentMonthKey = getMovementMonthKey(new Date());
+        const currentYear = currentMonthKey.slice(0, 4);
+        const currentMonth = monthsMap[currentMonthKey] || {
+            movements: [],
+            totalNet: 0
+        };
 
-            if (!monthsMap[key]) {
-                monthsMap[key] = {
-                    title: delDate.toLocaleString('es-AR', { month: 'long', year: 'numeric' }),
-                    projects: [],
-                    totalNet: 0
-                };
-            }
-            monthsMap[key].projects.push(p);
-            monthsMap[key].totalNet += (p.budgetNet || 0);
-        });
+        const formatMonthTitle = monthKey => {
+            const date = parseDateLocal(`${monthKey}-01`);
+            if (!date) return monthKey;
+            const title = date.toLocaleDateString('es-AR', {
+                month: 'long',
+                year: 'numeric'
+            });
+            return title.charAt(0).toUpperCase() + title.slice(1);
+        };
 
-        // Ordenar meses descendiente
-        const sortedKeys = Object.keys(monthsMap).sort((a, b) => b.localeCompare(a));
+        const formatMovementDate = value => {
+            const date = parseDateLocal(value);
+            return date
+                ? date.toLocaleDateString('es-AR', {
+                    day: '2-digit',
+                    month: '2-digit',
+                    year: 'numeric'
+                })
+                : '-';
+        };
 
-        if (sortedKeys.length === 0) {
-            list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 20px;">Historial vacío.</p>';
+        const movementTypeLabel = movement => {
+            if (movement.kind === 'partial') return `Pago parcial ${movement.percent}%`;
+            if (movement.kind === 'final') return 'Pago final';
+            return 'Pago total';
+        };
+
+        const createMonthCard = (monthKey, month, { isCurrent = false } = {}) => {
+            const card = document.createElement('details');
+            card.className = `history-month-card${isCurrent ? ' is-current' : ''}`;
+            card.open = isCurrent;
+
+            const movementItems = month.movements.length > 0
+                ? month.movements.map(movement => {
+                    const safeClient = escapeHtml(movement.client || '');
+                    const safeProjectName = escapeHtml(movement.project || '');
+                    const safeProjectId = escapeHtml(movement.projectId);
+                    const safeDate = escapeHtml(formatMovementDate(movement.date));
+                    const safeType = escapeHtml(movementTypeLabel(movement));
+                    const reversalButton = movement.canReverse
+                        ? `<button type="button" class="btn-delete-history-project icon-btn icon-btn-sm is-danger" data-id="${safeProjectId}" data-tooltip="Desconfirmar pago" aria-label="Desconfirmar pago de ${safeProjectName}"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i></button>`
+                        : '<span class="history-payment-kind-badge">Registrado</span>';
+                    return `
+                        <div class="history-project-item" data-history-project-id="${safeProjectId}">
+                            <div class="history-project-info">
+                                <span class="history-project-title">${safeClient} - ${safeProjectName}</span>
+                                <span class="history-project-date">${safeType} · ${safeDate}</span>
+                            </div>
+                            <div class="history-project-actions">
+                                <span class="history-project-net">+ ${this.formatAmount(movement.amount)}</span>
+                                ${reversalButton}
+                            </div>
+                        </div>
+                    `;
+                }).join('')
+                : '<p class="history-month-empty">Todavía no hay cobros registrados en este mes.</p>';
+
+            card.innerHTML = `
+                <summary class="history-month-header">
+                    <span class="history-month-title-group">
+                        <strong>${escapeHtml(formatMonthTitle(monthKey))}</strong>
+                        ${isCurrent ? '<span class="badge yellow">En curso</span>' : ''}
+                    </span>
+                    <span class="history-month-total">
+                        <strong>+ ${this.formatAmount(month.totalNet)}</strong>
+                        <i class="ph ph-caret-down toggle-icon" aria-hidden="true"></i>
+                    </span>
+                </summary>
+                <div class="history-month-details">
+                    ${movementItems}
+                </div>
+            `;
+
+            card.querySelectorAll('.btn-delete-history-project').forEach(button => {
+                button.addEventListener('click', event => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    this.deleteHistoryProject(button.dataset.id, filterType);
+                });
+            });
+            return card;
+        };
+
+        const currentHeading = document.createElement('div');
+        currentHeading.className = 'project-history-section-heading';
+        currentHeading.innerHTML = `
+            <div>
+                <span>Mes en curso</span>
+                <small>Visible ahora, excluido de los promedios hasta que cierre.</small>
+            </div>
+        `;
+        list.append(currentHeading, createMonthCard(currentMonthKey, currentMonth, {
+            isCurrent: true
+        }));
+
+        if (filterType === 'month') return;
+
+        const closedHeading = document.createElement('div');
+        closedHeading.className = 'project-history-section-heading is-closed';
+        closedHeading.innerHTML = `
+            <div>
+                <span>Meses cerrados</span>
+                <small>Base de los promedios históricos.</small>
+            </div>
+        `;
+        list.appendChild(closedHeading);
+
+        const closedKeys = Object.keys(monthsMap)
+            .filter(monthKey => monthKey < currentMonthKey)
+            .filter(monthKey => filterType !== 'year' || monthKey.startsWith(currentYear))
+            .sort((a, b) => b.localeCompare(a));
+
+        if (closedKeys.length === 0) {
+            const empty = document.createElement('p');
+            empty.className = 'project-history-closed-empty';
+            empty.textContent = filterType === 'year'
+                ? 'Todavía no hay meses cerrados con cobros en este año.'
+                : 'Todavía no hay meses cerrados con cobros.';
+            list.appendChild(empty);
             return;
         }
 
-        sortedKeys.forEach(k => {
-            const m = monthsMap[k];
-            const card = document.createElement('div');
-            card.className = 'history-month-card';
-
-            let projItems = '';
-            m.projects.forEach(p => {
-                const dateVal = p.deliveredDate || p.deliveredAt;
-                let dateStr = '-';
-                if (dateVal) {
-                    if (dateVal.length === 10 && dateVal.includes('-') && !dateVal.includes('T')) {
-                        const [y, m, d] = dateVal.split('-');
-                        dateStr = `${d}/${m}/${y}`;
-                    } else {
-                        const d = parseDateLocal(dateVal);
-                        if (d) {
-                            const day = String(d.getDate()).padStart(2, '0');
-                            const month = String(d.getMonth() + 1).padStart(2, '0');
-                            const year = d.getFullYear();
-                            dateStr = `${day}/${month}/${year}`;
-                        }
-                    }
-                }
-                const safeClient = escapeHtml(p.client || '');
-                const safeProjectName = escapeHtml(p.project || '');
-                const safeDate = escapeHtml(dateStr);
-                const safeProjectId = escapeHtml(p.id);
-                projItems += `
-                    <div class="history-project-item" data-history-project-id="${safeProjectId}">
-                        <div class="history-project-info">
-                            <span class="history-project-title">${safeClient} - ${safeProjectName}</span>
-                            <span class="history-project-date">Cobrado: ${safeDate}</span>
-                        </div>
-                        <div class="history-project-actions">
-                            <span class="history-project-net">+ ${this.app.formatCurrency(p.budgetNet)}</span>
-                            <button type="button" class="btn-delete-history-project icon-btn icon-btn-sm is-danger" data-id="${safeProjectId}" data-tooltip="Desconfirmar pago" aria-label="Desconfirmar pago de ${safeProjectName}"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i></button>
-                        </div>
-                    </div>
-                `;
-            });
-
-            card.innerHTML = `
-                <div class="history-month-header">
-                    <h4>${escapeHtml(m.title)}</h4>
-                    <div style="display:flex; align-items:center; gap:10px;">
-                        <strong style="color:var(--status-green);">+ ${this.app.formatCurrency(m.totalNet)}</strong>
-                        <span class="toggle-icon"><i class="ph ph-caret-down"></i></span>
-                    </div>
-                </div>
-                <div class="history-month-details hidden">
-                    ${projItems}
-                </div>
-            `;
-            
-            card.querySelector('.history-month-header').addEventListener('click', () => {
-                card.querySelector('.history-month-details').classList.toggle('hidden');
-            });
-            
-            card.querySelectorAll('.btn-delete-history-project').forEach(btn => {
-                btn.addEventListener('click', () => {
-                    this.deleteHistoryProject(parseInt(btn.dataset.id), filterType);
-                });
-            });
-
-            list.appendChild(card);
+        closedKeys.forEach(monthKey => {
+            list.appendChild(createMonthCard(monthKey, monthsMap[monthKey]));
         });
     }
 
@@ -1914,6 +2105,18 @@ export class ProjectsModule {
             title: 'Desconfirmar pago',
             message: `"${p.project}" de ${p.client} se quitará de los ingresos y volverá a la lista de proyectos activos.`,
             tone: 'warning',
+            details: [
+                { label: 'Proyecto', value: `${p.client} - ${p.project}` },
+                { label: 'Monto total', value: this.formatAmount(p.budgetNet || 0) },
+                {
+                    label: 'Fecha registrada',
+                    value: DateUtils.formatInputDate(
+                        p.deliveredDate || getLocalISODate(p.deliveredAt),
+                        '-'
+                    )
+                }
+            ],
+            cancelLabel: 'Conservar pago',
             confirmLabel: 'Desconfirmar pago'
         });
         if (confirmed) {
@@ -1930,52 +2133,9 @@ export class ProjectsModule {
     }
 
     calculateAverages() {
-        if (this.history.length === 0) return { historical: 0, last6: 0, last3: 0 };
-
-        const now = new Date();
-        const currentYear = now.getFullYear();
-        const currentMonth = now.getMonth();
-
-        let earliestDate = now;
-        this.history.forEach(p => {
-            const dateStr = p.deliveredDate || p.deliveredAt;
-            if (dateStr) {
-                const d = parseDateLocal(dateStr);
-                if (d && d < earliestDate) earliestDate = d;
-            }
+        return calculateClosedMonthAverages(this.getIncomeMovements(), {
+            today: new Date()
         });
-
-        const startYear = earliestDate.getFullYear();
-        const startMonth = earliestDate.getMonth();
-        const totalHistoricalMonths = Math.max(1, (currentYear - startYear) * 12 + (currentMonth - startMonth) + 1);
-
-        let totalUSD = 0;
-        this.history.forEach(p => {
-            totalUSD += (p.budgetNet || 0);
-        });
-
-        const avgHistorical = totalUSD / totalHistoricalMonths;
-
-        let sum3Months = 0;
-        let sum6Months = 0;
-
-        const dateLimit3 = new Date(currentYear, currentMonth - 2, 1);
-        const dateLimit6 = new Date(currentYear, currentMonth - 5, 1);
-
-        this.history.forEach(p => {
-            const dateStr = p.deliveredDate || p.deliveredAt;
-            if (!dateStr) return;
-            const d = parseDateLocal(dateStr);
-            if (!d) return;
-            if (d >= dateLimit3) sum3Months += (p.budgetNet || 0);
-            if (d >= dateLimit6) sum6Months += (p.budgetNet || 0);
-        });
-
-        return {
-            historical: avgHistorical,
-            last6: sum6Months / 6,
-            last3: sum3Months / 3
-        };
     }
 
     startTimersLoop() {
@@ -2004,7 +2164,7 @@ export class ProjectsModule {
                             const totalHours = totalMs / (3600 * 1000);
                             if (totalHours > 0) {
                                 const rate = (p.budgetNet || 0) / totalHours;
-                                rateValue.innerText = `${this.app.formatCurrency(rate)}/h`;
+                                rateValue.innerText = `${this.formatAmount(rate)}/h`;
 
                                 let rateColor = 'var(--text-secondary)';
                                 if (rate >= 25) rateColor = 'var(--status-green)';

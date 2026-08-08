@@ -13,6 +13,7 @@ test('message feedback uses safe visible defaults', () => {
             tone: 'info',
             title: 'Información',
             message: 'Cambios guardados.',
+            details: [],
             confirmLabel: 'Entendido',
             cancelLabel: 'Cancelar',
             showCancel: false,
@@ -53,4 +54,23 @@ test('unknown tones and empty labels fall back deterministically', () => {
     assert.equal(result.tone, 'warning');
     assert.equal(result.title, 'Atención');
     assert.equal(result.confirmLabel, 'Confirmar');
+});
+
+test('confirmation details keep only complete safe label-value pairs', () => {
+    const result = normalizeFeedbackOptions({
+        message: 'Revisá el movimiento.',
+        details: [
+            { label: 'Proyecto', value: 'Sitio institucional' },
+            { label: 'Monto', value: 'USD 125.00' },
+            { label: '', value: 'omitido' },
+            null
+        ]
+    }, {
+        mode: 'confirm'
+    });
+
+    assert.deepEqual(result.details, [
+        { label: 'Proyecto', value: 'Sitio institucional' },
+        { label: 'Monto', value: 'USD 125.00' }
+    ]);
 });

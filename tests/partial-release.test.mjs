@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { buildProjectIncomeMovements } from '../project-income-utils.mjs';
 
 test('partial release calculates gross and net amounts correctly for 50%', () => {
     const totalGross = 461.00;
@@ -29,21 +30,13 @@ test('FinanzasModule getCombinedEntries includes partial releases from active pr
         ]
     };
 
-    const entries = [];
-    if (Array.isArray(activeProject.partialReleases)) {
-        activeProject.partialReleases.forEach((rel, idx) => {
-            entries.push({
-                id: `proj-partial-active-${activeProject.id}-${rel.id || idx}`,
-                category: 'freelance',
-                source: activeProject.source,
-                date: rel.date,
-                amount: Number(rel.netAmount),
-                description: `[Parcial ${rel.percent}%] ${activeProject.client} - ${activeProject.project}`
-            });
-        });
-    }
+    const entries = buildProjectIncomeMovements({
+        activeProjects: [activeProject],
+        fallbackDate: '2026-08-08'
+    });
 
     assert.equal(entries.length, 1);
+    assert.equal(entries[0].id, 'proj-partial-active-1-101');
     assert.equal(entries[0].amount, 181.58);
     assert.equal(entries[0].description, '[Parcial 50%] David - Seguridad');
 });

@@ -24,6 +24,16 @@ function normalizeText(value, fallback = '') {
     return text || fallback;
 }
 
+function normalizeDetails(value) {
+    if (!Array.isArray(value)) return [];
+    return value
+        .map(item => ({
+            label: normalizeText(item?.label),
+            value: normalizeText(item?.value)
+        }))
+        .filter(item => item.label && item.value);
+}
+
 export function normalizeFeedbackOptions(value, {
     mode = 'message'
 } = {}) {
@@ -40,6 +50,7 @@ export function normalizeFeedbackOptions(value, {
         tone,
         title: normalizeText(source.title, defaults.title),
         message: normalizeText(source.message),
+        details: normalizeDetails(source.details),
         confirmLabel: normalizeText(
             source.confirmLabel,
             mode === 'confirm' ? 'Confirmar' : 'Entendido'
@@ -57,6 +68,7 @@ export class FeedbackController {
         this.dialog = null;
         this.title = null;
         this.message = null;
+        this.details = null;
         this.icon = null;
         this.confirmButton = null;
         this.cancelButton = null;
@@ -84,6 +96,7 @@ export class FeedbackController {
                 <div class="app-feedback-copy">
                     <h2 id="app-feedback-dialog-title"></h2>
                     <p id="app-feedback-dialog-message"></p>
+                    <dl class="app-feedback-details hidden" data-feedback-details></dl>
                 </div>
                 <div class="app-feedback-actions">
                     <button type="button" class="btn btn-secondary" data-feedback-cancel>
@@ -100,6 +113,7 @@ export class FeedbackController {
         this.dialog = dialog;
         this.title = dialog.querySelector('#app-feedback-dialog-title');
         this.message = dialog.querySelector('#app-feedback-dialog-message');
+        this.details = dialog.querySelector('[data-feedback-details]');
         this.icon = dialog.querySelector('[data-feedback-icon] i');
         this.confirmButton = dialog.querySelector('[data-feedback-confirm]');
         this.cancelButton = dialog.querySelector('[data-feedback-cancel]');
@@ -140,6 +154,16 @@ export class FeedbackController {
         this.dialog.dataset.closeOnBackdrop = String(config.closeOnBackdrop);
         this.title.textContent = config.title;
         this.message.textContent = config.message;
+        this.details.replaceChildren(...config.details.map(detail => {
+            const row = this.document.createElement('div');
+            const term = this.document.createElement('dt');
+            const description = this.document.createElement('dd');
+            term.textContent = detail.label;
+            description.textContent = detail.value;
+            row.append(term, description);
+            return row;
+        }));
+        this.details.classList.toggle('hidden', config.details.length === 0);
         this.icon.className = `ph ${config.icon}`;
         this.confirmButton.textContent = config.confirmLabel;
         this.cancelButton.textContent = config.cancelLabel;
