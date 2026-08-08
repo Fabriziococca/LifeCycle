@@ -33,6 +33,18 @@ El controlador compartido también reconoce los `title` existentes y los
 convierte al tooltip visual de LifeCycle. El código nuevo debe preferir
 `data-tooltip` y `aria-label`.
 
+Los controles compactos reutilizan los componentes visuales comunes:
+
+- `icon-btn` para cierres y acciones de solo icono; `is-danger` identifica una
+  acción riesgosa y `icon-btn-sm` reduce su huella únicamente en escritorio;
+- `lifecycle-checkbox` para selecciones simples visibles, dentro de una etiqueta
+  `lifecycle-checkbox-label` cuando incluya texto;
+- `switch` con `slider` para preferencias binarias persistentes.
+
+No se usan cruces de texto (`&times;`) ni checkboxes nativos como controles de
+interfaz. Los componentes deben conservar foco visible, estado deshabilitado y
+un área táctil mínima de 44 px en móvil.
+
 ## 2. Tooltips y dispositivos
 
 - El tooltip aparece con mouse al mantener el puntero y con teclado al enfocar

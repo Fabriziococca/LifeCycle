@@ -1054,7 +1054,7 @@ export class VehicleModule {
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span style="font-size:0.8rem; color:var(--text-secondary);">Cambio: ${components.join(', ') || 'Ninguno'}</span>
-                            <button type="button" class="btn-delete-maint" style="border:none; background:transparent; cursor:pointer;" title="Eliminar registro" aria-label="Eliminar registro de aceite">❌</button>
+                            <button type="button" class="btn-delete-maint icon-btn icon-btn-sm is-danger" data-tooltip="Eliminar registro" aria-label="Eliminar registro de aceite"><i class="ph ph-trash" aria-hidden="true"></i></button>
                         </div>
                     `;
 
@@ -1106,7 +1106,7 @@ export class VehicleModule {
                         </div>
                         <div style="display:flex; justify-content:space-between; align-items:center;">
                             <span style="font-size:0.8rem; color:var(--text-secondary);">A los ${safeKm} km</span>
-                            <button type="button" class="btn-delete-maint" style="border:none; background:transparent; cursor:pointer;" title="Eliminar registro" aria-label="Eliminar registro de mantenimiento">❌</button>
+                            <button type="button" class="btn-delete-maint icon-btn icon-btn-sm is-danger" data-tooltip="Eliminar registro" aria-label="Eliminar registro de mantenimiento"><i class="ph ph-trash" aria-hidden="true"></i></button>
                         </div>
                     `;
 

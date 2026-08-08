@@ -13,7 +13,7 @@ function getCompactFormatter(locale, maximumFractionDigits) {
     return COMPACT_FORMATTERS.get(key);
 }
 
-export function getCompactCurrencyDisplay(amountUsd, {
+export function getCompactCurrencyDisplayParts(amountUsd, {
     currency = 'USD',
     arsRate = null,
     locale = 'es-AR'
@@ -38,5 +38,13 @@ export function getCompactCurrencyDisplay(amountUsd, {
             maximumFractionDigits: displayCurrency === 'USD' ? 2 : 0
         }).format(displayAmount);
 
-    return `${displayCurrency} ${formattedAmount}`;
+    return {
+        currency: displayCurrency,
+        amount: formattedAmount
+    };
+}
+
+export function getCompactCurrencyDisplay(amountUsd, options = {}) {
+    const display = getCompactCurrencyDisplayParts(amountUsd, options);
+    return `${display.currency} ${display.amount}`;
 }

@@ -2,7 +2,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { getCompactCurrencyDisplay } from '../finance-display-utils.mjs';
+import {
+    getCompactCurrencyDisplay,
+    getCompactCurrencyDisplayParts
+} from '../finance-display-utils.mjs';
 import { shouldHideCompletedTask } from '../task-visibility-utils.mjs';
 
 test('style.css defines --status-purple and --status-purple-glow in :root', () => {
@@ -48,6 +51,10 @@ test('finance donut compacts large ARS amounts and concise USD values', () => {
     assert.match(
         getCompactCurrencyDisplay(1114.61, { currency: 'ARS', arsRate: null }),
         /^USD\s/
+    );
+    assert.deepEqual(
+        getCompactCurrencyDisplayParts(186.89, { currency: 'USD' }),
+        { currency: 'USD', amount: '186,89' }
     );
 });
 

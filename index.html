@@ -454,10 +454,10 @@
                                     <div class="input-group">
                                         <label>Componentes cambiados:</label>
                                         <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 0.5rem; margin-top: 0.25rem;">
-                                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-oil" checked> Aceite</label>
-                                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-oil" checked> Filtro Aceite</label>
-                                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-air" checked> Filtro Aire</label>
-                                            <label style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" id="oil-chk-fil-cab" checked> Filtro A/A (Hab.)</label>
+                                            <label class="lifecycle-checkbox-label" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" class="lifecycle-checkbox" id="oil-chk-oil" checked> Aceite</label>
+                                            <label class="lifecycle-checkbox-label" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" class="lifecycle-checkbox" id="oil-chk-fil-oil" checked> Filtro Aceite</label>
+                                            <label class="lifecycle-checkbox-label" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" class="lifecycle-checkbox" id="oil-chk-fil-air" checked> Filtro Aire</label>
+                                            <label class="lifecycle-checkbox-label" style="display: flex; align-items: center; gap: 0.4rem; font-size: 0.85rem;"><input type="checkbox" class="lifecycle-checkbox" id="oil-chk-fil-cab" checked> Filtro A/A (Hab.)</label>
                                         </div>
                                     </div>
                                     <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
@@ -1606,7 +1606,10 @@
                         <div id="fin-donut-chart" class="finance-donut-chart">
                             <div class="finance-donut-center">
                                 <span id="fin-donut-center-label">Total</span>
-                                <strong id="fin-donut-center-value">USD 0</strong>
+                                <strong id="fin-donut-center-value" aria-live="polite">
+                                    <span id="fin-donut-center-currency" class="finance-donut-currency">USD</span>
+                                    <span id="fin-donut-center-amount" class="finance-donut-amount">0</span>
+                                </strong>
                             </div>
                         </div>
                     </div>
@@ -1762,7 +1765,11 @@
                                         </p>
                                     </div>
                                     <label class="switch" style="flex-shrink: 0;">
-                                        <input type="checkbox" id="pref-auto-clean-tasks">
+                                        <input
+                                            type="checkbox"
+                                            id="pref-auto-clean-tasks"
+                                            aria-label="Ocultar tareas personales completadas después de 24 horas"
+                                        >
                                         <span class="slider round"></span>
                                     </label>
                                 </div>
@@ -2277,7 +2284,7 @@
             </label>
 
             <p id="recurring-reminder-error" class="form-error hidden" role="alert"></p>
-            <div class="modal-actions">
+            <div class="modal-actions recurring-reminder-actions">
                 <button type="button" class="btn btn-cancel" data-recurring-reminder-close>Cancelar</button>
                 <button type="submit" class="btn btn-save"><i class="ph ph-floppy-disk"></i> Guardar recordatorio</button>
             </div>
@@ -2517,7 +2524,7 @@
                     <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px;" data-note="👨‍💻 En Desarrollo">👨‍💻 En Desarrollo</button>
                     <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px;" data-note="🔍 En Revisión del Cliente">🔍 En Revisión del Cliente</button>
                     <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px;" data-note="⚠️ Cambios en Proceso">⚠️ Cambios en Proceso</button>
-                    <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(239,68,68,0.15); color: #f87171;" data-note="">❌ Limpiar Estado</button>
+                    <button type="button" class="btn btn-secondary chip-btn" style="margin:0; padding: 6px 12px; font-size: 0.8rem; border-radius: 20px; background: rgba(239,68,68,0.15); color: #f87171;" data-note=""><i class="ph ph-trash" aria-hidden="true"></i> Limpiar estado</button>
                 </div>
             </div>
 
@@ -2592,7 +2599,7 @@
         <div class="modal-content" style="max-width: 1000px; width: 92vw; max-height: 90vh; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <h3 id="fin-year-modal-title" style="margin: 0;">Detalle Anual de Ingresos</h3>
-                <button id="fin-year-modal-close" aria-label="Cerrar detalle anual de ingresos" data-tooltip="Cerrar" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+                <button id="fin-year-modal-close" type="button" class="icon-btn" aria-label="Cerrar detalle anual de ingresos" data-tooltip="Cerrar detalle"><i class="ph ph-x" aria-hidden="true"></i></button>
             </div>
             <p class="modal-desc" style="margin-bottom: 15px;">Desglose mensual de ingresos por categoría del año seleccionado.</p>
             
@@ -2836,7 +2843,7 @@
         <div class="modal-content" style="max-width: 1000px; width: 92vw; max-height: 90vh; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <h3 style="margin: 0; color: var(--status-orange);">Detalle Anual de Gastos</h3>
-                <button id="fin-expense-year-modal-close" aria-label="Cerrar detalle anual de gastos" data-tooltip="Cerrar" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+                <button id="fin-expense-year-modal-close" type="button" class="icon-btn" aria-label="Cerrar detalle anual de gastos" data-tooltip="Cerrar detalle"><i class="ph ph-x" aria-hidden="true"></i></button>
             </div>
             <p class="modal-desc" style="margin-bottom: 15px;">Desglose mensual de gastos por categoría del año seleccionado.</p>
             
@@ -2884,7 +2891,7 @@
         <div class="modal-content" style="max-height: 90vh; overflow-y: auto;">
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px;">
                 <h3 id="proj-plan-modal-title" style="margin: 0;">Plan de Acción</h3>
-                <button id="proj-plan-modal-close" aria-label="Cerrar planificación de ingresos" data-tooltip="Cerrar" style="background:none; border:none; color:var(--text-secondary); font-size:1.5rem; cursor:pointer;">&times;</button>
+                <button id="proj-plan-modal-close" type="button" class="icon-btn" aria-label="Cerrar plan de acción" data-tooltip="Cerrar plan"><i class="ph ph-x" aria-hidden="true"></i></button>
             </div>
             <p class="modal-desc" style="margin-bottom: 15px;">Resumen y Plan paso a paso (Fases).</p>
             
@@ -3131,7 +3138,7 @@
                     <span id="tareas-detail-category" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.75rem; padding: 3px 8px; margin-bottom: 6px; display: inline-block;">Freelance</span>
                     <h3 style="margin: 0; font-size: 1.1rem; color: white;">Detalle de la Tarea</h3>
                 </div>
-                <button id="tareas-detail-close-btn" type="button" title="Cerrar detalle" aria-label="Cerrar detalle de la tarea" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; font-size: 1.4rem; line-height: 1; padding: 4px;">&times;</button>
+                <button id="tareas-detail-close-btn" type="button" class="icon-btn" data-tooltip="Cerrar detalle" aria-label="Cerrar detalle de la tarea"><i class="ph ph-x" aria-hidden="true"></i></button>
             </div>
             
             <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 1.25rem; margin-bottom: 1.25rem; max-height: 320px; overflow-y: auto;">

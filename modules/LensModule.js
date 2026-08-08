@@ -443,7 +443,7 @@ export class LensModule {
                     <span class="hist-date">${safeDate}</span>
                     <span class="hist-time">${safeDuration}</span>
                 </div>
-                <button type="button" class="btn-delete-entry" data-index="${index}" title="Borrar registro" aria-label="Borrar uso de lentes del ${safeDate}">❌</button>
+                <button type="button" class="btn-delete-entry icon-btn icon-btn-sm is-danger" data-index="${index}" data-tooltip="Borrar registro" aria-label="Borrar uso de lentes del ${safeDate}"><i class="ph ph-trash" aria-hidden="true"></i></button>
             `;
             this.historyList.appendChild(li);
         });

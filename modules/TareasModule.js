@@ -532,10 +532,7 @@ export class TareasModule {
 
         const btnTasksSettings = document.getElementById('btn-tasks-settings');
         btnTasksSettings?.addEventListener('click', () => {
-            if (this.app.navigation) {
-                this.app.navigation.switchTab('perfil');
-                this.app.auth?.switchProfileTab?.('preferencias');
-            }
+            this.app.openProfileTab?.('preferencias');
         });
 
         const prefCleanToggle = document.getElementById('pref-auto-clean-tasks');
@@ -1008,8 +1005,8 @@ export class TareasModule {
                                 <input type="text" class="text-input edit-task-input" value="${safeTaskText}" aria-label="Editar descripción de la tarea" style="flex:1; margin:0; padding:6px 10px; font-size:0.95rem; height:36px; min-width:0;">
                             </div>
                             <div style="display:flex; gap:8px; align-items:center; margin-left:10px;">
-                                <button type="button" class="btn-save-task" title="Guardar tarea" aria-label="Guardar tarea" style="background:none; border:none; color:var(--status-green); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-check"></i></button>
-                                <button type="button" class="btn-cancel-task" title="Cancelar edición" aria-label="Cancelar edición" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-x"></i></button>
+                                <button type="button" class="btn-save-task icon-btn icon-btn-sm is-success" data-tooltip="Guardar tarea" aria-label="Guardar tarea"><i class="ph ph-check" aria-hidden="true"></i></button>
+                                <button type="button" class="btn-cancel-task icon-btn icon-btn-sm" data-tooltip="Cancelar edición" aria-label="Cancelar edición"><i class="ph ph-x" aria-hidden="true"></i></button>
                             </div>
                         `;
                         const input = row.querySelector('.edit-task-input');
@@ -1053,9 +1050,9 @@ export class TareasModule {
                                 <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText} ${badge}</span>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                                <button type="button" class="btn-view-task" title="Ver tarea completa" aria-label="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
-                                <button type="button" class="btn-edit-task" title="Editar tarea" aria-label="Editar tarea" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
-                                <button type="button" class="btn-delete-task" title="Eliminar tarea" aria-label="Eliminar tarea" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                                <button type="button" class="btn-view-task icon-btn icon-btn-sm is-primary" data-tooltip="Ver tarea completa" aria-label="Ver tarea completa"><i class="ph ph-eye" aria-hidden="true"></i></button>
+                                <button type="button" class="btn-edit-task icon-btn icon-btn-sm" data-tooltip="Editar tarea" aria-label="Editar tarea"><i class="ph ph-pencil" aria-hidden="true"></i></button>
+                                <button type="button" class="btn-delete-task icon-btn icon-btn-sm is-danger" data-tooltip="Eliminar tarea" aria-label="Eliminar tarea"><i class="ph ph-trash" aria-hidden="true"></i></button>
                             </div>
                         `;
 
@@ -1102,8 +1099,8 @@ export class TareasModule {
                             <span class="task-text-span" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText}</span>
                         </div>
                         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                            <button type="button" class="btn-view-task" title="Ver tarea completa" aria-label="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
-                            <button type="button" class="btn-delete-task" title="Eliminar tarea" aria-label="Eliminar tarea" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                            <button type="button" class="btn-view-task icon-btn icon-btn-sm is-primary" data-tooltip="Ver tarea completa" aria-label="Ver tarea completa"><i class="ph ph-eye" aria-hidden="true"></i></button>
+                            <button type="button" class="btn-delete-task icon-btn icon-btn-sm is-danger" data-tooltip="Eliminar tarea" aria-label="Eliminar tarea"><i class="ph ph-trash" aria-hidden="true"></i></button>
                         </div>
                     `;
 
@@ -1168,8 +1165,8 @@ export class TareasModule {
                                 <input type="text" class="text-input edit-task-input" value="${safeTaskText}" aria-label="Editar descripción de la tarea" style="flex:1; margin:0; padding:6px 10px; font-size:0.95rem; height:36px; min-width:0;">
                             </div>
                             <div style="display:flex; gap:8px; align-items:center; margin-left:10px;">
-                                <button type="button" class="btn-save-task" title="Guardar tarea" aria-label="Guardar tarea" style="background:none; border:none; color:var(--status-green); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-check"></i></button>
-                                <button type="button" class="btn-cancel-task" title="Cancelar edición" aria-label="Cancelar edición" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; padding:4px;"><i class="ph ph-x"></i></button>
+                                <button type="button" class="btn-save-task icon-btn icon-btn-sm is-success" data-tooltip="Guardar tarea" aria-label="Guardar tarea"><i class="ph ph-check" aria-hidden="true"></i></button>
+                                <button type="button" class="btn-cancel-task icon-btn icon-btn-sm" data-tooltip="Cancelar edición" aria-label="Cancelar edición"><i class="ph ph-x" aria-hidden="true"></i></button>
                             </div>
                         `;
                         const input = row.querySelector('.edit-task-input');
@@ -1211,9 +1208,9 @@ export class TareasModule {
                                 <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText} ${badge}</span>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                                <button type="button" class="btn-view-task" title="Ver tarea completa" aria-label="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
-                                <button type="button" class="btn-edit-task" title="Editar tarea" aria-label="Editar tarea" style="background:none; border:none; color:var(--text-secondary); cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-pencil"></i></button>
-                                <button type="button" class="btn-delete-task" title="Eliminar tarea" aria-label="Eliminar tarea" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                                <button type="button" class="btn-view-task icon-btn icon-btn-sm is-primary" data-tooltip="Ver tarea completa" aria-label="Ver tarea completa"><i class="ph ph-eye" aria-hidden="true"></i></button>
+                                <button type="button" class="btn-edit-task icon-btn icon-btn-sm" data-tooltip="Editar tarea" aria-label="Editar tarea"><i class="ph ph-pencil" aria-hidden="true"></i></button>
+                                <button type="button" class="btn-delete-task icon-btn icon-btn-sm is-danger" data-tooltip="Eliminar tarea" aria-label="Eliminar tarea"><i class="ph ph-trash" aria-hidden="true"></i></button>
                             </div>
                         `;
 
@@ -1255,8 +1252,8 @@ export class TareasModule {
                             <span class="task-text-span" style="color:var(--text-secondary); font-size:0.95rem; text-decoration:line-through; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText}</span>
                         </div>
                         <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
-                            <button type="button" class="btn-view-task" title="Ver tarea completa" aria-label="Ver tarea completa" style="background:none; border:none; color:#60a5fa; cursor:pointer; font-size:1.1rem; display:flex; align-items:center; padding:4px;"><i class="ph ph-eye"></i></button>
-                            <button type="button" class="btn-delete-task" title="Eliminar tarea" aria-label="Eliminar tarea" style="background:none; border:none; color:var(--status-red); cursor:pointer; font-size:1.2rem; display:flex; align-items:center; padding:4px;">&times;</button>
+                            <button type="button" class="btn-view-task icon-btn icon-btn-sm is-primary" data-tooltip="Ver tarea completa" aria-label="Ver tarea completa"><i class="ph ph-eye" aria-hidden="true"></i></button>
+                            <button type="button" class="btn-delete-task icon-btn icon-btn-sm is-danger" data-tooltip="Eliminar tarea" aria-label="Eliminar tarea"><i class="ph ph-trash" aria-hidden="true"></i></button>
                         </div>
                     `;
 

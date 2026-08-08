@@ -385,7 +385,7 @@ export class HealthModule {
                 historyHtml = doc.history.map((dateStr, idx) => `
                     <li style="font-size: 0.85rem; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.15); border-radius: var(--border-radius-sm);">
                         <span>${escapeHtml(this.formatDate(dateStr))}</span>
-                        <button type="button" class="btn-delete-visit-history" data-key="${safeKey}" data-index="${idx}" title="Borrar registro" aria-label="Borrar visita de ${name}" style="border:none; background:transparent; cursor:pointer;">❌</button>
+                        <button type="button" class="btn-delete-visit-history icon-btn icon-btn-sm is-danger" data-key="${safeKey}" data-index="${idx}" data-tooltip="Borrar registro" aria-label="Borrar visita de ${name}"><i class="ph ph-trash" aria-hidden="true"></i></button>
                     </li>
                 `).join('');
             } else {
@@ -405,8 +405,8 @@ export class HealthModule {
                             <span class="badge ${badgeClass}" style="font-size: 0.65rem; padding: 2px 6px; text-transform: uppercase;">${statusText}</span>
                         </h3>
                     </div>
-                    <button type="button" class="btn-edit-retro-medical" data-key="${safeKey}" title="Editar fecha de última visita" aria-label="Editar fecha de ${name}" style="background:transparent; border:none; cursor:pointer; color:var(--text-secondary);">
-                        <i class="ph ph-pencil-simple" style="font-size: 1.2rem;"></i>
+                    <button type="button" class="btn-edit-retro-medical icon-btn icon-btn-sm" data-key="${safeKey}" data-tooltip="Editar fecha" aria-label="Editar fecha de ${name}">
+                        <i class="ph ph-pencil-simple" aria-hidden="true"></i>
                     </button>
                 </div>
                 
@@ -682,12 +682,10 @@ export class HealthModule {
 
                     const deleteButton = document.createElement('button');
                     deleteButton.type = 'button';
-                    deleteButton.className = 'btn-delete-blood';
-                    deleteButton.style.border = 'none';
-                    deleteButton.style.background = 'transparent';
-                    deleteButton.style.cursor = 'pointer';
-                    deleteButton.title = 'Eliminar registro';
-                    deleteButton.textContent = '❌';
+                    deleteButton.className = 'btn-delete-blood icon-btn icon-btn-sm is-danger';
+                    deleteButton.dataset.tooltip = 'Eliminar registro';
+                    deleteButton.setAttribute('aria-label', 'Eliminar análisis de sangre');
+                    deleteButton.innerHTML = '<i class="ph ph-trash" aria-hidden="true"></i>';
                     deleteButton.addEventListener('click', async () => {
                         deleteButton.disabled = true;
                         await this.deleteBloodTest(test.id);

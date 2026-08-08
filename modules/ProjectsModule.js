@@ -1872,7 +1872,7 @@ export class ProjectsModule {
                         </div>
                         <div class="history-project-actions">
                             <span class="history-project-net">+ ${this.app.formatCurrency(p.budgetNet)}</span>
-                            <button type="button" class="btn-delete-history-project" data-id="${safeProjectId}" title="Desconfirmar pago" aria-label="Desconfirmar pago de ${safeProjectName}">&times;</button>
+                            <button type="button" class="btn-delete-history-project icon-btn icon-btn-sm is-danger" data-id="${safeProjectId}" data-tooltip="Desconfirmar pago" aria-label="Desconfirmar pago de ${safeProjectName}"><i class="ph ph-arrow-counter-clockwise" aria-hidden="true"></i></button>
                         </div>
                     </div>
                 `;

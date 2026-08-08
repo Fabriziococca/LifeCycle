@@ -4,7 +4,7 @@ import {
     parseDateLocal
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
-import { getCompactCurrencyDisplay } from '../finance-display-utils.mjs?v=20260801-finance-display';
+import { getCompactCurrencyDisplayParts } from '../finance-display-utils.mjs?v=20260808-finance-display';
 import {
     advanceFinanceRecurringRule,
     buildFinanceRecurringRule,
@@ -1079,9 +1079,11 @@ export class FinanzasModule {
     drawDonutChart(segments, totalAmount) {
         const elDonut = document.getElementById('fin-donut-chart');
         const elValue = document.getElementById('fin-donut-center-value');
+        const elCurrency = document.getElementById('fin-donut-center-currency');
+        const elAmount = document.getElementById('fin-donut-center-amount');
         const elLabel = document.getElementById('fin-donut-center-label');
 
-        if (!elDonut) return;
+        if (!elDonut || !elValue || !elCurrency || !elAmount || !elLabel) return;
 
         if (this.activeTab === 'income') {
             elLabel.innerText = 'Ingresado';
@@ -1092,13 +1094,17 @@ export class FinanzasModule {
         }
         const preferredCurrency = localStorage.getItem('preferred_currency') || 'USD';
         const exactValue = this.app.formatCurrency(totalAmount);
-        const compactValue = getCompactCurrencyDisplay(totalAmount, {
+        const compactValue = getCompactCurrencyDisplayParts(totalAmount, {
             currency: preferredCurrency,
             arsRate: preferredCurrency === 'ARS'
                 ? this.app.getCurrencyMultiplier?.()
                 : null
         });
-        elValue.innerText = compactValue;
+        elCurrency.innerText = compactValue.currency;
+        elAmount.innerText = compactValue.amount;
+        elValue.dataset.amountLength = compactValue.amount.length > 9
+            ? 'long'
+            : (compactValue.amount.length > 6 ? 'medium' : 'short');
         elValue.title = exactValue;
         elValue.setAttribute('aria-label', exactValue);
 
@@ -1599,7 +1605,7 @@ export class FinanzasModule {
 
             const isManual = !String(e.id).startsWith('proj-');
             const deleteBtn = isManual
-                ? `<button type="button" class="btn-delete-fin-item" data-id="${safeId}" style="background:none; border:none; color:var(--status-red); cursor:pointer; padding:6px; display:flex; align-items:center;" title="Eliminar ingreso" aria-label="Eliminar ingreso ${safeDescription}"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>`
+                ? `<button type="button" class="btn-delete-fin-item icon-btn icon-btn-sm is-danger" data-id="${safeId}" data-tooltip="Eliminar ingreso" aria-label="Eliminar ingreso ${safeDescription}"><i class="ph ph-trash" aria-hidden="true"></i></button>`
                 : `<span style="font-size: 0.7rem; color: var(--text-secondary); padding: 4px 8px; background: rgba(255,255,255,0.03); border:1px solid var(--surface-border); border-radius:4px;">Proyecto</span>`;
 
             return `
@@ -1734,7 +1740,7 @@ export class FinanzasModule {
                     </div>
                     <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
                         <strong style="color:var(--status-orange); font-size:0.95rem;">- ${this.app.formatCurrency(e.amount)}</strong>
-                        <button type="button" class="btn-delete-fin-expense-item" data-id="${safeId}" style="background:none; border:none; color:var(--status-red); cursor:pointer; padding:6px; display:flex; align-items:center;" title="Eliminar gasto" aria-label="Eliminar gasto ${safeDescription}"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>
+                        <button type="button" class="btn-delete-fin-expense-item icon-btn icon-btn-sm is-danger" data-id="${safeId}" data-tooltip="Eliminar gasto" aria-label="Eliminar gasto ${safeDescription}"><i class="ph ph-trash" aria-hidden="true"></i></button>
                     </div>
                 </div>
             `;

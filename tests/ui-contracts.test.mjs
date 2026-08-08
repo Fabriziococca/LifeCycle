@@ -231,6 +231,61 @@ test('recurring reminders use an accessible editor and the shared destructive pa
     assert.match(alertsSource, /showUndo\?\.\('Recordatorio eliminado\.'/);
 });
 
+test('the first visual cleanup batch uses shared controls without native white states', async () => {
+    const moduleFiles = (await readdir(path.join(ROOT, 'modules')))
+        .filter(file => file.endsWith('.js'))
+        .map(file => path.join(ROOT, 'modules', file));
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+    const tasksSource = await readFile(
+        path.join(ROOT, 'modules', 'TareasModule.js'),
+        'utf8'
+    );
+    const financeSource = await readFile(
+        path.join(ROOT, 'modules', 'FinanzasModule.js'),
+        'utf8'
+    );
+    const projectsSource = await readFile(
+        path.join(ROOT, 'modules', 'ProjectsModule.js'),
+        'utf8'
+    );
+    const donutValueStyles = styles.match(
+        /\.finance-donut-center strong\s*\{([^}]*)\}/
+    )?.[1] || '';
+    const genericDeleteCrosses = [];
+
+    for (const file of [path.join(ROOT, 'index.html'), ...moduleFiles]) {
+        const source = await readFile(file, 'utf8');
+        for (const match of source.matchAll(/&times;|❌/g)) {
+            const line = source.slice(0, match.index).split('\n').length;
+            genericDeleteCrosses.push(`${path.relative(ROOT, file)}:${line}`);
+        }
+    }
+
+    assert.match(tasksSource, /this\.app\.openProfileTab\?\.\('preferencias'\)/);
+    assert.doesNotMatch(tasksSource, /this\.app\.navigation/);
+    assert.match(styles, /\.icon-btn\s*\{/);
+    assert.match(styles, /\.lifecycle-checkbox\s*\{/);
+    assert.match(styles, /\.lifecycle-checkbox-label\s*\{/);
+    assert.match(styles, /\.switch input:checked \+ \.slider/);
+    assert.match(styles, /input:-webkit-autofill/);
+    assert.match(styles, /\.recurring-reminder-actions\s*\{/);
+    assert.match(index, /id="global-search-close"[\s\S]*?class="icon-btn"/);
+    assert.match(index, /id="fin-year-modal-close"[^>]*class="icon-btn"/);
+    assert.match(index, /id="fin-expense-year-modal-close"[^>]*class="icon-btn"/);
+    assert.match(index, /id="proj-plan-modal-close"[^>]*class="icon-btn"/);
+    assert.match(index, /id="fin-donut-center-currency"/);
+    assert.match(index, /id="fin-donut-center-amount"/);
+    assert.match(financeSource, /getCompactCurrencyDisplayParts/);
+    assert.match(projectsSource, /ph-arrow-counter-clockwise/);
+    assert.doesNotMatch(donutValueStyles, /text-overflow|ellipsis/);
+    assert.deepEqual(
+        genericDeleteCrosses,
+        [],
+        `Cruces genéricas pendientes: ${genericDeleteCrosses.join(', ')}`
+    );
+});
+
 test('Today reuses critical items and links back to their source modules', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');

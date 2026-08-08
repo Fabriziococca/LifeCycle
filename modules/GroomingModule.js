@@ -106,7 +106,7 @@ export class GroomingModule {
             return `
                 <div class="history-item" style="display: flex; justify-content: space-between; align-items: center; gap: 8px; margin-bottom: 4px; font-size: 0.8rem;">
                     <span>${escapeHtml(formatted)}</span>
-                    <button type="button" class="btn-delete-grooming-history" data-zone="${safeZoneId}" data-index="${index}" style="background: none; border: none; color: #ef4444; cursor: pointer; padding: 2px 6px;" title="Borrar registro" aria-label="Borrar registro de cuidado personal">❌</button>
+                    <button type="button" class="btn-delete-grooming-history icon-btn icon-btn-sm is-danger" data-zone="${safeZoneId}" data-index="${index}" data-tooltip="Borrar registro" aria-label="Borrar registro de cuidado personal"><i class="ph ph-trash" aria-hidden="true"></i></button>
                 </div>
             `;
         }).join('');

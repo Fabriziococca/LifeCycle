@@ -1042,8 +1042,8 @@ export class GymModule {
                             <span class="unit-label-prefix" style="font-size:0.75rem;">RIR</span>
                             <input type="number" class="session-set-rir" data-exercise-index="${exerciseIndex}" data-index="${idx}" placeholder="-" value="${rirVal}" min="0" max="10" aria-label="RIR de ${safeExerciseName}, serie ${idx + 1}" style="padding: 4px 8px; height: 32px; font-size: 0.85rem; width: 100%;">
                         </div>
-                        <label class="fail-checkbox-wrapper" style="margin:0; display: flex; align-items: center; gap: 4px;">
-                            <input type="checkbox" class="session-set-failed" data-exercise-index="${exerciseIndex}" data-index="${idx}" aria-label="Marcar fallo en ${safeExerciseName}, serie ${idx + 1}" ${isFailedChecked}>
+                        <label class="fail-checkbox-wrapper lifecycle-checkbox-label" style="margin:0; display: flex; align-items: center; gap: 4px;">
+                            <input type="checkbox" class="session-set-failed lifecycle-checkbox" data-exercise-index="${exerciseIndex}" data-index="${idx}" aria-label="Marcar fallo en ${safeExerciseName}, serie ${idx + 1}" ${isFailedChecked}>
                             <span style="font-size: 0.8rem;">Fallo</span>
                         </label>
                     </div>
