@@ -206,6 +206,19 @@ class AppController {
         );
     }
 
+    updateAppHeaderFromButton(button, { fallbackTitle = 'LifeCycle' } = {}) {
+        const title = button?.querySelector('.nav-label, span')?.textContent?.trim()
+            || fallbackTitle;
+        const sourceIcon = button?.querySelector('i');
+        const titleElement = document.getElementById('app-context-title');
+        const iconElement = document.getElementById('app-context-icon');
+
+        if (titleElement) titleElement.textContent = title;
+        if (iconElement) {
+            iconElement.className = sourceIcon?.className || 'ph ph-squares-four';
+        }
+    }
+
     saveUiState(patch) {
         this.uiState = writeUiState(localStorage, this.uiState, patch);
         return this.uiState;
@@ -413,6 +426,7 @@ class AppController {
 
         this.lastActiveSectionId = sectionId;
         if (persist) this.saveUiState({ section: sectionId });
+        this.updateAppHeaderFromButton(targetButton, { fallbackTitle: 'Inicio' });
         this.adaptiveNavigation?.updateActiveState?.(sectionId);
         this.scrollControlIntoView(mainNav, targetButton, smooth);
         if (render) this.renderSection(sectionId);
@@ -460,6 +474,7 @@ class AppController {
         });
 
         if (persist) this.saveUiState({ profileTab: tabId });
+        this.updateAppHeaderFromButton(targetButton, { fallbackTitle: 'Perfil' });
         this.scrollControlIntoView(sidebar, targetButton, smooth);
         if (render && tabId === 'alertas') this.alerts?.render();
         if (render && tabId === 'seguimientos') this.customTrackers?.renderManager();

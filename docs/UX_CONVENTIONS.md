@@ -45,6 +45,18 @@ No se usan cruces de texto (`&times;`) ni checkboxes nativos como controles de
 interfaz. Los componentes deben conservar foco visible, estado deshabilitado y
 un área táctil mínima de 44 px en móvil.
 
+La cabecera de contenido identifica el módulo activo. En escritorio con la
+barra lateral expandida no repite la marca `LifeCycle`; cuando la navegación se
+contrae, en tablet o en celular, muestra una identificación compacta.
+
+Las tarjetas configurables exponen `Editar configuración` como acción
+contextual, pero siempre abren el administrador y el editor central existentes.
+Los estados avanzan en este orden y no cambian los valores guardados:
+
+- `Próximo`: empieza a mostrarse como cercano;
+- `Atención`: pasa a una advertencia más visible;
+- `Vencido`: alcanzó o superó el plazo configurado.
+
 ## 2. Tooltips y dispositivos
 
 - El tooltip aparece con mouse al mantener el puntero y con teclado al enfocar

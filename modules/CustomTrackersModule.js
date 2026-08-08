@@ -27,8 +27,8 @@ import Sortable from '../vendor/sortable.complete.esm.js?v=1.15.7';
 const STATUS_META = Object.freeze({
     new: { label: 'Sin registros', color: 'var(--text-secondary)' },
     green: { label: 'Al día', color: 'var(--status-green)' },
-    yellow: { label: 'Atención', color: 'var(--status-yellow)' },
-    orange: { label: 'Próximo', color: 'var(--status-orange)' },
+    yellow: { label: 'Próximo', color: 'var(--status-yellow)' },
+    orange: { label: 'Atención', color: 'var(--status-orange)' },
     red: { label: 'Vencido', color: 'var(--status-red)' }
 });
 
@@ -742,7 +742,22 @@ export class CustomTrackersModule {
     }
 
     setupRuntimeListeners() {
+        document.addEventListener('toggle', event => {
+            const menu = event.target;
+            if (!(menu instanceof HTMLDetailsElement) || !menu.matches('.custom-tracker-menu')) {
+                return;
+            }
+            menu.querySelector('summary')?.setAttribute(
+                'aria-expanded',
+                String(menu.open)
+            );
+        }, true);
+
         document.addEventListener('click', event => {
+            document.querySelectorAll('.custom-tracker-menu[open]').forEach(menu => {
+                if (!menu.contains(event.target)) menu.removeAttribute('open');
+            });
+
             const bulkButton = event.target.closest(
                 '.custom-runtime-order-toolbar [data-custom-bulk-action]'
             );
@@ -797,11 +812,16 @@ export class CustomTrackersModule {
             const trackerId = button.dataset.trackerId;
             const tracker = this.getTracker(trackerId);
             if (!tracker) return;
+            button.closest('.custom-tracker-menu')?.removeAttribute('open');
 
             if (action === 'toggle-bulk') {
                 this.toggleBulkSelection(trackerId);
             } else if (this.bulkContext?.sectionKey === tracker.section) {
                 return;
+            } else if (action === 'edit-config') {
+                this.openManagerEditor(trackerId);
+            } else if (action === 'archive') {
+                this.archiveTracker(trackerId, { showGlobalUndo: true });
             } else if (action === 'record') {
                 this.recordTracker(trackerId);
             } else if (action === 'toggle-history') {
@@ -850,10 +870,43 @@ export class CustomTrackersModule {
         });
 
         document.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                const openMenus = Array.from(document.querySelectorAll(
+                    '.custom-tracker-menu[open]'
+                ));
+                if (openMenus.length > 0) {
+                    openMenus.forEach(menu => menu.removeAttribute('open'));
+                    openMenus[0].querySelector('summary')?.focus();
+                    return;
+                }
+            }
             if (event.target.closest('.custom-runtime-order-toolbar')) return;
             if (!event.target.closest('.main-section.is-custom-reordering')) return;
             this.handleReorderKeyboard(event);
         });
+    }
+
+    openManagerEditor(trackerId) {
+        const tracker = this.getTracker(trackerId);
+        if (!tracker || tracker.archived || tracker.deleted) return false;
+
+        this.activeCategoryFilter = tracker.section;
+        this.app.saveUiState?.({ trackerManagerFilter: tracker.section });
+        if (!this.app.openProfileTab?.('seguimientos')) return false;
+
+        requestAnimationFrame(() => {
+            const editButton = this.managerRoot?.querySelector(
+                `[data-custom-manager-action="edit"][data-tracker-id="${tracker.id}"]`
+            );
+            const row = editButton?.closest('.custom-manager-row');
+            row?.classList.add('is-targeted');
+            row?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            this.openEditor(tracker.section, tracker.id, editButton || null);
+            if (row) {
+                setTimeout(() => row.classList.remove('is-targeted'), 1800);
+            }
+        });
+        return true;
     }
 
     ensureEditorDialog() {
@@ -917,14 +970,14 @@ export class CustomTrackersModule {
                             <select id="custom-tracker-icon" class="text-input"></select>
                         </div>
                         <div class="input-group custom-day-thresholds">
-                            <label for="custom-tracker-yellow">Mostrar atención desde</label>
+                            <label for="custom-tracker-yellow">Mostrar próximo desde</label>
                             <div class="custom-number-with-unit">
                                 <input id="custom-tracker-yellow" class="number-input" type="number" min="1" max="3650" inputmode="numeric">
                                 <span>días</span>
                             </div>
                         </div>
                         <div class="input-group custom-day-thresholds">
-                            <label for="custom-tracker-orange">Mostrar próximo desde</label>
+                            <label for="custom-tracker-orange">Mostrar atención desde</label>
                             <div class="custom-number-with-unit">
                                 <input id="custom-tracker-orange" class="number-input" type="number" min="1" max="3650" inputmode="numeric">
                                 <span>días</span>
@@ -936,6 +989,20 @@ export class CustomTrackersModule {
                                 <input id="custom-tracker-warning-days" class="number-input" type="number" min="1" max="365" inputmode="numeric">
                                 <span>días</span>
                             </div>
+                        </div>
+                        <div class="custom-threshold-help custom-form-wide" aria-label="Cómo funcionan los estados de una tarjeta">
+                            <span>
+                                <i class="ph ph-clock-countdown" aria-hidden="true"></i>
+                                <span><strong>Próximo</strong><small>Empieza a mostrarse como cercano.</small></span>
+                            </span>
+                            <span>
+                                <i class="ph ph-warning-circle" aria-hidden="true"></i>
+                                <span><strong>Atención</strong><small>Cambia a una advertencia más visible.</small></span>
+                            </span>
+                            <span>
+                                <i class="ph ph-x-circle" aria-hidden="true"></i>
+                                <span><strong>Vencido</strong><small>Ya alcanzó o superó el plazo definido.</small></span>
+                            </span>
                         </div>
                         <div class="input-group custom-form-wide">
                             <label for="custom-tracker-instructions">Instrucciones opcionales</label>
@@ -1510,7 +1577,7 @@ export class CustomTrackersModule {
         }
     }
 
-    archiveTracker(trackerId) {
+    archiveTracker(trackerId, { showGlobalUndo = false } = {}) {
         const tracker = this.getTracker(trackerId);
         if (!tracker || tracker.archived || tracker.deleted) return;
         tracker.archived = true;
@@ -1521,6 +1588,12 @@ export class CustomTrackersModule {
         this.clearPendingHistoryDeletes(trackerId);
         this.syncAlertConfig(tracker, tracker.alert, { disabled: true });
         this.persistRegistry();
+        if (showGlobalUndo && this.app.showUndo) {
+            this.app.showUndo(`${tracker.name} fue archivada.`, () => {
+                this.restoreTracker(tracker.id);
+            });
+            return;
+        }
         this.showManagerFeedback(`${tracker.name} fue archivada.`, {
             label: 'Deshacer',
             action: 'undo-archive',
@@ -2369,7 +2442,27 @@ export class CustomTrackersModule {
                         >
                             <i class="ph ${isBulkSelected ? 'ph-check' : 'ph-circle'}"></i>
                         </button>
-                    ` : '')}
+                    ` : `
+                        <details class="custom-tracker-menu">
+                            <summary role="button" aria-haspopup="menu" aria-expanded="false" aria-label="Abrir acciones de ${safeName}" data-tooltip="Acciones de la tarjeta">
+                                <i class="ph ph-dots-three-vertical" aria-hidden="true"></i>
+                            </summary>
+                            <div class="custom-tracker-menu-popover" role="menu" aria-label="Acciones de ${safeName}">
+                                <button type="button" role="menuitem" data-custom-runtime-action="edit-config" data-tracker-id="${tracker.id}">
+                                    <i class="ph ph-pencil-simple" aria-hidden="true"></i>
+                                    Editar configuración
+                                </button>
+                                <button type="button" role="menuitem" data-custom-runtime-action="toggle-history" data-tracker-id="${tracker.id}">
+                                    <i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i>
+                                    ${historyOpen ? 'Ocultar historial' : 'Ver historial'}
+                                </button>
+                                <button type="button" role="menuitem" class="danger" data-custom-runtime-action="archive" data-tracker-id="${tracker.id}">
+                                    <i class="ph ph-archive" aria-hidden="true"></i>
+                                    Archivar
+                                </button>
+                            </div>
+                        </details>
+                    `)}
                 </div>
                 <div class="custom-tracker-metric">
                     <strong>${state.elapsedDays === null ? '--' : state.elapsedDays}</strong>

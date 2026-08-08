@@ -124,10 +124,15 @@
             </div>
         </div>
 
-        <header class="app-header">
+        <header class="app-header" aria-label="Módulo actual">
             <div class="header-title">
-                <i class="ph-fill ph-activity"></i>
-                <h1>LifeCycle</h1>
+                <span class="app-header-brand" aria-hidden="true">
+                    <i id="app-context-icon" class="ph ph-house-line"></i>
+                </span>
+                <span class="app-header-copy">
+                    <span class="app-header-product">LifeCycle</span>
+                    <h1 id="app-context-title" aria-live="polite" aria-atomic="true">Hoy</h1>
+                </span>
             </div>
         </header>
 

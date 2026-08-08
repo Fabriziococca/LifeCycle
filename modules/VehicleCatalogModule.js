@@ -322,7 +322,9 @@ export class VehicleCatalogModule {
             if (!actionButton) return;
             const cardId = actionButton.dataset.vehicleCardId;
             const action = actionButton.dataset.vehicleCardAction;
-            if (action === 'record') {
+            if (action === 'edit-config') {
+                this.openManagerEditor(cardId);
+            } else if (action === 'record') {
                 const card = this.getCard(cardId);
                 if (card?.type === 'check') {
                     this.recordCard(cardId);
@@ -346,6 +348,52 @@ export class VehicleCatalogModule {
         });
     }
 
+    openManagerEditor(cardId) {
+        const card = this.getCard(cardId);
+        const manager = this.app.customTrackers;
+        if (!card || card.archived || card.deleted || !manager) return false;
+
+        manager.activeCategoryFilter = 'vehicle';
+        this.app.saveUiState?.({ trackerManagerFilter: 'vehicle' });
+        if (!this.app.openProfileTab?.('seguimientos')) return false;
+
+        requestAnimationFrame(() => {
+            const editButton = manager.managerRoot?.querySelector(
+                `[data-vehicle-manager-action="edit"][data-vehicle-card-id="${card.id}"]`
+            );
+            const row = editButton?.closest('.custom-manager-row');
+            row?.classList.add('is-targeted');
+            row?.scrollIntoView({ block: 'center', behavior: 'smooth' });
+            this.openEditor(card.id, editButton || null);
+            if (row) {
+                setTimeout(() => row.classList.remove('is-targeted'), 1800);
+            }
+        });
+        return true;
+    }
+
+    ensureLegacyEditButton(root, title, card) {
+        const host = title?.parentElement;
+        if (!root || !host || !card) return;
+
+        host.classList.add('vehicle-config-title-host');
+        host.classList.toggle('is-root', host === root);
+        let button = host.querySelector(
+            ':scope > [data-vehicle-card-action="edit-config"]'
+        );
+        if (!button) {
+            button = document.createElement('button');
+            button.type = 'button';
+            button.className = 'vehicle-config-edit icon-btn icon-btn-sm';
+            button.dataset.vehicleCardAction = 'edit-config';
+            button.innerHTML = '<i class="ph ph-pencil-simple" aria-hidden="true"></i>';
+            host.appendChild(button);
+        }
+        button.dataset.vehicleCardId = card.id;
+        button.setAttribute('aria-label', `Editar configuración de ${card.name}`);
+        button.dataset.tooltip = 'Editar configuración';
+    }
+
     applyLegacyVisibility() {
         Object.entries(LEGACY_ELEMENT_MAP).forEach(([legacyId, config]) => {
             const card = this.getLegacyCard(legacyId);
@@ -357,7 +405,9 @@ export class VehicleCatalogModule {
             root.dataset.vehicleCardId = card.id;
             const title = root.querySelector(config.titleSelector);
             if (title) title.textContent = card.name;
-            const icon = root.querySelector('i');
+            this.ensureLegacyEditButton(root, title, card);
+            const icon = Array.from(root.querySelectorAll('i'))
+                .find(candidate => !candidate.closest('.vehicle-config-edit'));
             if (icon) icon.className = `ph ${card.icon}`;
             const action = config.actionSelector
                 ? root.querySelector(config.actionSelector)
@@ -456,7 +506,12 @@ export class VehicleCatalogModule {
                         <h3>${safeName}</h3>
                         <span>${escapeHtml(typeLabel(card))}</span>
                     </div>
-                    <span class="badge ${state?.tone === 'red' ? 'red' : (state?.tone === 'orange' ? 'orange' : (state?.tone === 'green' ? 'green' : 'gray'))}">${status}</span>
+                    <div class="vehicle-dynamic-card-header-actions">
+                        <span class="badge ${state?.tone === 'red' ? 'red' : (state?.tone === 'orange' ? 'orange' : (state?.tone === 'green' ? 'green' : 'gray'))}">${status}</span>
+                        <button type="button" class="vehicle-config-edit icon-btn icon-btn-sm" data-vehicle-card-action="edit-config" data-vehicle-card-id="${card.id}" aria-label="Editar configuración de ${safeName}" data-tooltip="Editar configuración">
+                            <i class="ph ph-pencil-simple" aria-hidden="true"></i>
+                        </button>
+                    </div>
                 </div>
                 <div class="card-body vehicle-dynamic-card-body">
                     <div class="vehicle-dynamic-card-state">

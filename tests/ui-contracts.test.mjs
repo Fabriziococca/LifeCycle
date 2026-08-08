@@ -286,6 +286,40 @@ test('the first visual cleanup batch uses shared controls without native white s
     );
 });
 
+test('the second discoverability batch avoids duplicate branding and reuses card editors', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+    const trackersSource = await readFile(
+        path.join(ROOT, 'modules', 'CustomTrackersModule.js'),
+        'utf8'
+    );
+    const vehicleSource = await readFile(
+        path.join(ROOT, 'modules', 'VehicleCatalogModule.js'),
+        'utf8'
+    );
+
+    assert.match(index, /id="app-context-title"[^>]*>Hoy<\/h1>/);
+    assert.match(index, /id="app-context-icon"/);
+    assert.match(appSource, /updateAppHeaderFromButton\(targetButton/);
+    assert.match(
+        styles,
+        /body:not\(\.adaptive-nav-collapsed\):not\(\.profile-view-active\) \.app-header-brand/
+    );
+    assert.match(trackersSource, /data-custom-runtime-action="edit-config"/);
+    assert.match(trackersSource, /data-custom-runtime-action="archive"/);
+    assert.match(trackersSource, /<summary role="button" aria-haspopup="menu"/);
+    assert.match(trackersSource, /String\(menu\.open\)/);
+    assert.match(trackersSource, /openManagerEditor\(trackerId\)/);
+    assert.match(trackersSource, /openProfileTab\?\.\('seguimientos'\)/);
+    assert.match(vehicleSource, /ensureLegacyEditButton\(root, title, card\)/);
+    assert.match(vehicleSource, /data-vehicle-card-action="edit-config"/);
+    assert.ok(trackersSource.includes("yellow: { label: 'Próximo'"));
+    assert.ok(trackersSource.includes("orange: { label: 'Atención'"));
+    assert.match(trackersSource, /Empieza a mostrarse como cercano\./);
+    assert.match(trackersSource, /Ya alcanzó o superó el plazo definido\./);
+});
+
 test('Today reuses critical items and links back to their source modules', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
