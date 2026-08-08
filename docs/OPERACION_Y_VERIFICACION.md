@@ -38,7 +38,7 @@ No devuelve claves, tokens ni URLs de endpoints.
 
 `GET /api/check-reminders`
 
-Requiere el encabezado `X-Admin-Token` y puede enviar notificaciones reales. Revisa tanto alertas por horario como robot y tareas muy urgentes. Al ser una prueba forzada, no posterga el próximo aviso normal.
+Requiere el encabezado `X-Admin-Token` y puede enviar notificaciones reales. Revisa alertas por horario, eventos de Trading, robot y tareas muy urgentes. Al ser una prueba forzada, no posterga el próximo aviso normal.
 
 ### Prueba por dispositivo
 
@@ -87,6 +87,33 @@ La migración siguiente mantiene la base alineada con el cliente y cierra una de
 `supabase/migrations/20260801062115_harden_private_snapshots_and_sync_schema.sql`
 
 Esta segunda migración agrega `projectPulseTemplates` a la lista de claves que el RPC autenticado puede sincronizar y activa/impone RLS sobre el snapshot privado de seguridad. No concede acceso nuevo a `anon` ni a `authenticated`.
+
+## Trading
+
+Los eventos financieros se guardan dentro de `finanzasData.tradingEvents`, por
+lo que usan el mismo flujo autenticado de sincronización y backup que Finanzas.
+No se creó una tabla ni una política RLS adicional.
+
+Cada evento conserva empresa, ticker opcional, nombre, fecha y hora, notas,
+fuente opcional, estado e intervalos de aviso. Los valores iniciales son 60,
+30, 15, 7 y 1 día, pero pueden editarse entre 1 y 365 días.
+
+El motor configurado del backend evalúa los eventos activos cada cinco minutos.
+Cada envío usa una clave formada por evento, fecha programada y umbral. La clave
+se persiste en `alerts_sent_log` después de una aceptación de Push, de modo que
+un reinicio normal de Render no repite el mismo aviso. Si cambia la fecha del
+evento se genera una serie nueva de claves; editar solamente el texto no duplica
+avisos ya enviados.
+
+La pestaña Trading consulta el historial existente mediante
+`GET /api/push/history?scope=trading`. El endpoint sigue requiriendo la sesión
+Supabase del usuario y devuelve únicamente sus registros. El historial técnico
+mantiene la retención general de 90 días y no confirma que la persona haya visto
+el aviso.
+
+El recordatorio semanal `Trading & Mercado` continúa siendo una definición
+recurrente separada. No se consultan APIs bursátiles ni calendarios externos en
+esta versión.
 
 ## Backups
 

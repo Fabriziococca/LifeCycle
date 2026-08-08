@@ -4,6 +4,7 @@ export const DEFAULT_UI_STATE = Object.freeze({
     section: 'hoy-section',
     profileTab: 'cuenta',
     hygieneCategory: 'tecnologia',
+    financeView: 'personal',
     financeTab: 'income',
     financeMonth: '',
     gymTab: 'records',
@@ -44,6 +45,7 @@ const VALID_HYGIENE_CATEGORIES = new Set([
 ]);
 
 const VALID_FINANCE_TABS = new Set(['income', 'expense']);
+const VALID_FINANCE_VIEWS = new Set(['personal', 'trading']);
 const VALID_GYM_TABS = new Set([
     'records',
     'routine',
@@ -111,6 +113,9 @@ export function normalizeUiState(value) {
         hygieneCategory: VALID_HYGIENE_CATEGORIES.has(candidate.hygieneCategory)
             ? candidate.hygieneCategory
             : DEFAULT_UI_STATE.hygieneCategory,
+        financeView: VALID_FINANCE_VIEWS.has(candidate.financeView)
+            ? candidate.financeView
+            : DEFAULT_UI_STATE.financeView,
         financeTab: VALID_FINANCE_TABS.has(candidate.financeTab)
             ? candidate.financeTab
             : DEFAULT_UI_STATE.financeTab,

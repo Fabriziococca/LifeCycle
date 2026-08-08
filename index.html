@@ -1556,6 +1556,18 @@
 
         <!-- SECCIÓN: FINANZAS (FinanzasTracker) -->
         <section id="finanzas-section" class="main-section hidden">
+            <div class="finance-view-switch" role="tablist" aria-label="Secciones de Finanzas">
+                <button id="btnFinanceViewPersonal" class="finance-view-tab active" type="button" role="tab" aria-selected="true" aria-controls="finance-personal-view" tabindex="0">
+                    <i class="ph ph-wallet"></i>
+                    Mis finanzas
+                </button>
+                <button id="btnFinanceViewTrading" class="finance-view-tab" type="button" role="tab" aria-selected="false" aria-controls="finance-trading-view" tabindex="-1">
+                    <i class="ph ph-chart-line-up"></i>
+                    Trading
+                </button>
+            </div>
+
+            <div id="finance-personal-view" role="tabpanel" aria-labelledby="btnFinanceViewPersonal">
             <!-- Dashboard Financiero (6 tarjetas) -->
             <div class="financial-summary-toolbar">
                 <span>Resumen financiero</span>
@@ -1665,6 +1677,55 @@
             <!-- Registro de Transacciones -->
             <h3 id="fin-list-title">Transacciones del Mes</h3>
             <div id="finanzasList" style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; margin-bottom: 2rem;"></div>
+            </div>
+
+            <div id="finance-trading-view" class="hidden" role="tabpanel" aria-labelledby="btnFinanceViewTrading">
+                <div class="trading-view-header">
+                    <div>
+                        <span class="trading-view-eyebrow">Calendario personal</span>
+                        <h2>Eventos y balances</h2>
+                        <p>Seguimiento manual de resultados, balances y fechas financieras importantes.</p>
+                    </div>
+                    <div class="trading-view-actions">
+                        <button id="btnRefreshTradingHistory" type="button" class="btn btn-secondary">
+                            <i class="ph ph-arrows-clockwise"></i>
+                            Actualizar avisos
+                        </button>
+                        <button id="btnAddTradingEvent" type="button" class="btn btn-primary">
+                            <i class="ph ph-plus-circle"></i>
+                            Nuevo evento
+                        </button>
+                    </div>
+                </div>
+
+                <div class="trading-summary-grid" aria-label="Resumen de eventos de Trading">
+                    <article class="card trading-summary-card active">
+                        <span>Eventos activos</span>
+                        <strong id="trading-active-count">0</strong>
+                    </article>
+                    <article class="card trading-summary-card paused">
+                        <span>Pausados</span>
+                        <strong id="trading-paused-count">0</strong>
+                    </article>
+                    <article class="card trading-summary-card next">
+                        <span>Próximo evento</span>
+                        <strong id="trading-next-event">Sin eventos próximos</strong>
+                    </article>
+                </div>
+
+                <div class="trading-separation-note">
+                    <i class="ph ph-info"></i>
+                    <p>Estos avisos progresivos son independientes del recordatorio semanal “Trading &amp; Mercado”. No se consultan cotizaciones ni calendarios externos.</p>
+                </div>
+
+                <div class="trading-list-heading">
+                    <div>
+                        <h3>Próximos eventos y balances</h3>
+                        <p>Avisos predeterminados: 60, 30, 15, 7 y 1 día antes.</p>
+                    </div>
+                </div>
+                <div id="trading-events-list" class="trading-events-list" aria-live="polite"></div>
+            </div>
         </section>
 
         <!-- SECCIÓN: LISTA DE TAREAS -->
@@ -2599,6 +2660,82 @@
                 <button id="proj-status-note-save" class="btn btn-save">Guardar Estado</button>
             </div>
         </div>
+    </div>
+
+    <div
+        id="trading-event-modal"
+        class="modal hidden"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="trading-event-modal-title"
+    >
+        <form id="trading-event-form" class="modal-content trading-event-dialog">
+            <header class="trading-event-dialog-header">
+                <div>
+                    <span class="global-search-eyebrow">TRADING</span>
+                    <h3 id="trading-event-modal-title">Nuevo evento financiero</h3>
+                    <p class="modal-desc">Programá un balance o una fecha importante con avisos progresivos.</p>
+                </div>
+                <button type="button" class="icon-btn" data-trading-event-close aria-label="Cerrar editor de evento" data-tooltip="Cerrar">
+                    <i class="ph ph-x"></i>
+                </button>
+            </header>
+
+            <div class="form-row">
+                <div class="input-group half">
+                    <label for="trading-event-company">Empresa</label>
+                    <input id="trading-event-company" class="text-input" type="text" maxlength="100" placeholder="Ej: NVIDIA" required>
+                </div>
+                <div class="input-group half">
+                    <label for="trading-event-ticker">Ticker <span class="optional-label">opcional</span></label>
+                    <input id="trading-event-ticker" class="text-input" type="text" maxlength="20" placeholder="Ej: NVDA" autocapitalize="characters">
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="trading-event-name">Nombre del evento</label>
+                <input id="trading-event-name" class="text-input" type="text" maxlength="120" placeholder="Ej: Presentación de resultados Q3" required>
+            </div>
+
+            <div class="form-row">
+                <div class="input-group half">
+                    <label for="trading-event-datetime">Fecha y hora</label>
+                    <input id="trading-event-datetime" class="text-input" type="datetime-local" required>
+                </div>
+                <div class="input-group half">
+                    <label for="trading-event-notice-days">Avisar días antes</label>
+                    <input id="trading-event-notice-days" class="text-input" type="text" inputmode="numeric" value="60, 30, 15, 7, 1" placeholder="60, 30, 15, 7, 1" required>
+                    <small class="field-help">De 1 a 12 intervalos enteros, entre 1 y 365 días.</small>
+                </div>
+            </div>
+
+            <div class="input-group">
+                <label for="trading-event-notes">Notas <span class="optional-label">opcional</span></label>
+                <textarea id="trading-event-notes" class="text-input" maxlength="800" rows="3" placeholder="Qué querés revisar cuando llegue la fecha"></textarea>
+            </div>
+
+            <div class="input-group">
+                <label for="trading-event-source">Fuente <span class="optional-label">opcional</span></label>
+                <input id="trading-event-source" class="text-input" type="url" maxlength="500" placeholder="https://...">
+            </div>
+
+            <label class="trading-event-enabled" for="trading-event-enabled">
+                <span>
+                    <strong>Avisos activos</strong>
+                    <small>Al pausar, el evento se conserva sin generar notificaciones.</small>
+                </span>
+                <span class="switch">
+                    <input id="trading-event-enabled" type="checkbox" checked>
+                    <span class="slider round"></span>
+                </span>
+            </label>
+
+            <p id="trading-event-form-error" class="form-error hidden" role="alert"></p>
+            <div class="modal-actions trading-event-form-actions">
+                <button type="button" class="btn btn-cancel" data-trading-event-close>Cancelar</button>
+                <button type="submit" class="btn btn-save"><i class="ph ph-floppy-disk"></i> Guardar evento</button>
+            </div>
+        </form>
     </div>
 
     <!-- MODAL DE REGISTRO DE INGRESO (FINANZAS) -->

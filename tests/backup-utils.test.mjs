@@ -312,6 +312,42 @@ test('backup validates confirmable recurring finance rules', () => {
     );
 });
 
+test('backup validates synchronized Trading events', () => {
+    const tradingEvent = {
+        id: 'trade_nvidia_q3',
+        company: 'NVIDIA',
+        ticker: 'NVDA',
+        name: 'Resultados Q3',
+        scheduledAt: '2026-10-30T20:00:00.000Z',
+        notes: 'Revisar guidance.',
+        sourceUrl: 'https://investor.nvidia.com/',
+        noticeDays: [60, 30, 15, 7, 1],
+        status: 'active',
+        createdAt: '2026-08-08T20:00:00.000Z',
+        updatedAt: '2026-08-08T20:00:00.000Z'
+    };
+
+    assert.doesNotThrow(() => normalizeBackupStorageEntry('finanzasData', {
+        entries: [],
+        expenses: [],
+        recurringRules: [],
+        tradingEvents: [tradingEvent]
+    }));
+
+    assert.throws(
+        () => normalizeBackupStorageEntry('finanzasData', {
+            tradingEvents: [{ ...tradingEvent, noticeDays: [0, 400] }]
+        }),
+        /noticeDays/
+    );
+    assert.throws(
+        () => normalizeBackupStorageEntry('finanzasData', {
+            tradingEvents: [{ ...tradingEvent, sourceUrl: 'javascript:alert(1)' }]
+        }),
+        /sourceUrl/
+    );
+});
+
 test('backup validates configurable tracker definitions and histories', () => {
     const tracker = createCustomTracker({
         section: 'hygiene',

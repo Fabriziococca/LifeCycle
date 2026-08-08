@@ -80,6 +80,13 @@ se carga al abrir `Ver actividad técnica`. Los filtros de fallos siguen
 disponibles, pero la interfaz no solicita confirmar manualmente “La vi”; el
 backend conserva el historial y su retención sin alterar los avisos.
 
+Finanzas contiene dos vistas principales: `Mis finanzas` conserva ingresos,
+gastos y recurrentes; `Trading` administra un calendario manual de eventos y
+balances. Los avisos de Trading usan intervalos editables y no reutilizan el
+recordatorio semanal `Trading & Mercado`. Cada tarjeta permite editar, pausar,
+eliminar con confirmación y consultar un historial técnico breve. No se
+presentan cotizaciones ni datos externos como si fueran información local.
+
 ## 2. Tooltips y dispositivos
 
 - El tooltip aparece con mouse al mantener el puntero y con teclado al enfocar

@@ -410,6 +410,52 @@ test('the fourth projects and finance batch protects money actions and separates
     assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.finance-annual-mobile-list/);
 });
 
+test('the sixth Trading batch stays inside Finance and schedules idempotent progressive alerts', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const financeSource = await readFile(
+        path.join(ROOT, 'modules', 'FinanzasModule.js'),
+        'utf8'
+    );
+    const tradingUtils = await readFile(
+        path.join(ROOT, 'trading-event-utils.js'),
+        'utf8'
+    );
+    const serverSource = await readFile(path.join(ROOT, 'server.js'), 'utf8');
+    const syncSource = await readFile(path.join(ROOT, 'sync-config.mjs'), 'utf8');
+    const stateSource = await readFile(path.join(ROOT, 'ui-state.mjs'), 'utf8');
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+
+    assert.match(index, /id="btnFinanceViewPersonal"[\s\S]*?Mis finanzas/);
+    assert.match(index, /id="btnFinanceViewTrading"[\s\S]*?Trading/);
+    assert.match(index, /id="finance-trading-view"/);
+    assert.match(index, /id="trading-event-form"/);
+    assert.match(index, /id="trading-event-notice-days"/);
+    assert.match(index, /60, 30, 15, 7, 1/);
+    assert.match(index, /independientes del recordatorio semanal/);
+
+    assert.match(financeSource, /tradingEvents: \[\]/);
+    assert.match(financeSource, /activateFinanceView\(viewId/);
+    assert.match(financeSource, /parseTradingNoticeDays/);
+    assert.match(financeSource, /scope=trading/);
+    assert.match(financeSource, /async deleteTradingEvent/);
+    assert.match(financeSource, /statusPriority === currentPriority[\s\S]{0,120}attemptedAt > currentAttemptedAt/);
+    assert.match(stateSource, /financeView: 'personal'/);
+    assert.match(syncSource, /'finanzasData'/);
+
+    assert.match(tradingUtils, /DEFAULT_TRADING_NOTICE_DAYS = Object\.freeze\(\[60, 30, 15, 7, 1\]\)/);
+    assert.match(tradingUtils, /scheduledTimestamp - \(currentThreshold \* DAY_MS\)/);
+    assert.match(tradingUtils, /TRADING_ALERT_PREFIX[\s\S]*?getTradingScheduleToken/);
+    assert.match(serverSource, /sendDueTradingEventAlerts/);
+    assert.match(serverSource, /alerts_sent_log/);
+    assert.match(serverSource, /query\.like\('alert_key', `\$\{TRADING_ALERT_PREFIX\}%`\)/);
+    assert.doesNotMatch(serverSource, /DEFAULT_RECURRING_REMINDERS[\s\S]{0,400}sendDueTradingEventAlerts/);
+
+    assert.match(styles, /\.finance-view-tab\s*{[\s\S]*?min-height: 44px/);
+    assert.match(styles, /\.trading-event-actions \.btn\s*{[\s\S]*?min-height: 44px/);
+    assert.match(styles, /input\[type="datetime-local"\][\s\S]*?color-scheme: dark/);
+    assert.match(styles, /@media \(max-width: 520px\)[\s\S]*?\.trading-event-actions/);
+});
+
 test('Today reuses critical items and links back to their source modules', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');

@@ -40,6 +40,11 @@ const {
     preserveDeviceName,
     toPublicPushDevice
 } = require('./push-management');
+const {
+    TRADING_ALERT_PREFIX,
+    getDueTradingEventNotice,
+    normalizeTradingEvents
+} = require('./trading-event-utils');
 
 // Búfer en memoria para depuración de logs en Render
 const logBuffer = [];
@@ -118,6 +123,7 @@ const reportedOptionalSchemaWarnings = new Set();
 const PUSH_PROVIDER_TIMEOUT_MS = 12000;
 const NOTIFICATION_HISTORY_RETENTION_DAYS = 90;
 const NOTIFICATION_HISTORY_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
+const MAX_TRADING_NOTIFICATIONS_PER_RUN = 25;
 let lastNotificationHistoryCleanupAt = 0;
 
 function setBoundedDeliveryState(map, key, value, maxEntries = 1000) {
@@ -689,6 +695,78 @@ async function sendPushToSubscriptions({
     return { successCount, failureCount, staleCount, lastFailureStatus };
 }
 
+function formatTradingEventSchedule(value) {
+    const date = new Date(value);
+    if (!Number.isFinite(date.getTime())) return 'fecha no disponible';
+    return new Intl.DateTimeFormat('es-AR', {
+        timeZone: 'America/Argentina/Buenos_Aires',
+        day: 'numeric',
+        month: 'short',
+        hour: '2-digit',
+        minute: '2-digit'
+    }).format(date);
+}
+
+async function sendDueTradingEventAlerts({
+    userId,
+    userData,
+    subscriptions,
+    forceAll = false,
+    now = new Date()
+}) {
+    const financeData = parseJsonValue(userData.finanzasData, {});
+    const tradingEvents = normalizeTradingEvents(financeData?.tradingEvents);
+    if (tradingEvents.length === 0) return {};
+
+    const sentLog = userData.alerts_sent_log && typeof userData.alerts_sent_log === 'object'
+        ? userData.alerts_sent_log
+        : {};
+    const dateStr = getArgentinaTime().dateStr;
+    const dueNotices = tradingEvents
+        .map(event => getDueTradingEventNotice(event, now))
+        .filter(Boolean)
+        .filter(notice => (
+            forceAll
+            || (
+                !Object.prototype.hasOwnProperty.call(sentLog, notice.alertKey)
+                && !wasSentForDate(userId, notice.alertKey, dateStr)
+            )
+        ))
+        .sort((a, b) => new Date(a.event.scheduledAt) - new Date(b.event.scheduledAt))
+        .slice(0, MAX_TRADING_NOTIFICATIONS_PER_RUN);
+    const sentLogUpdates = {};
+
+    for (const notice of dueNotices) {
+        const companyLabel = notice.event.ticker
+            ? `${notice.event.company} (${notice.event.ticker})`
+            : notice.event.company;
+        const leadLabel = notice.noticeDays === 1
+            ? 'Falta 1 día'
+            : `Faltan ${notice.noticeDays} días`;
+        const payload = JSON.stringify({
+            title: `📊 ${notice.event.name}`,
+            body: `${companyLabel} · ${leadLabel} · ${formatTradingEventSchedule(notice.event.scheduledAt)}.`,
+            url: '/'
+        });
+        const result = await sendPushToSubscriptions({
+            userId,
+            subscriptions,
+            payload,
+            context: `evento de Trading ${notice.event.id}`,
+            alertKey: notice.alertKey,
+            delayMs: 250
+        });
+
+        if (!forceAll && result.successCount > 0) {
+            rememberSentForDate(userId, notice.alertKey, dateStr);
+            sentLog[notice.alertKey] = dateStr;
+            sentLogUpdates[notice.alertKey] = dateStr;
+        }
+    }
+
+    return sentLogUpdates;
+}
+
 // Rate Limiter integrado y liviano (sin dependencias npm)
 const ipCounts = {};
 const rateLimitResetTimer = setInterval(() => {
@@ -1109,6 +1187,7 @@ app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
     }
     const status = normalizeHistoryStatus(req.query.status);
     const limit = normalizeHistoryLimit(req.query.limit, 50);
+    const scope = req.query.scope === 'trading' ? 'trading' : '';
     try {
         let query = supabase
             .from('notification_delivery_log')
@@ -1117,6 +1196,7 @@ app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
             .order('attempted_at', { ascending: false })
             .limit(limit);
         if (status) query = query.eq('status', status);
+        if (scope === 'trading') query = query.like('alert_key', `${TRADING_ALERT_PREFIX}%`);
         const { data, error } = await query;
         if (error) throw error;
         notificationHistorySchemaAvailable = true;
@@ -1558,6 +1638,17 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
             let dataChanged = false;
             const sentLogUpdates = {};
+
+            const tradingSentLogUpdates = await sendDueTradingEventAlerts({
+                userId,
+                userData: data,
+                subscriptions: userSubs,
+                forceAll
+            });
+            if (Object.keys(tradingSentLogUpdates).length > 0) {
+                Object.assign(sentLogUpdates, tradingSentLogUpdates);
+                dataChanged = true;
+            }
 
             // Procesar cada alerta definida
             for (const key of Object.keys(alertsConfig)) {

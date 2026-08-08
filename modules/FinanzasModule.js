@@ -15,21 +15,70 @@ import {
     upsertFinanceRecurringRule
 } from '../finance-recurring-utils.mjs?v=20260729-finance-recurring';
 import { buildProjectIncomeMovements } from '../project-income-utils.mjs?v=20260808-project-income';
+import '../trading-event-utils.js?v=20260808-trading-events';
+
+const {
+    DEFAULT_TRADING_NOTICE_DAYS,
+    createTradingEventId,
+    normalizeTradingEvent,
+    normalizeTradingEvents,
+    normalizeTradingSourceUrl,
+    parseTradingEventAlertKey,
+    parseTradingNoticeDays
+} = globalThis.LifeCycleTradingEvents;
 
 export class FinanzasModule {
     constructor(appController) {
         this.app = appController;
         this.data = this.loadData();
         this.currentProjectId = null;
+        this.activeFinanceView = this.app.uiState?.financeView || 'personal';
         this.activeTab = this.app.uiState?.financeTab || 'income';
         this.pendingRecurringContext = null;
         this.editingRecurringRuleId = null;
         this.recurringModalReturnFocus = null;
+        this.editingTradingEventId = null;
+        this.tradingModalReturnFocus = null;
+        this.tradingHistoryByEvent = new Map();
+        this.tradingHistoryState = 'idle';
 
         this.monthSelect = document.getElementById('finanzas-month-select');
         this.listContainer = document.getElementById('finanzasList');
 
         this.init();
+    }
+
+    activateFinanceView(viewId, { persist = true, render = true } = {}) {
+        const nextView = viewId === 'trading' ? 'trading' : 'personal';
+        const personalButton = document.getElementById('btnFinanceViewPersonal');
+        const tradingButton = document.getElementById('btnFinanceViewTrading');
+        const personalView = document.getElementById('finance-personal-view');
+        const tradingView = document.getElementById('finance-trading-view');
+        const isPersonal = nextView === 'personal';
+
+        this.activeFinanceView = nextView;
+        personalButton?.classList.toggle('active', isPersonal);
+        tradingButton?.classList.toggle('active', !isPersonal);
+        personalButton?.setAttribute('aria-selected', String(isPersonal));
+        tradingButton?.setAttribute('aria-selected', String(!isPersonal));
+        personalButton?.setAttribute('tabindex', isPersonal ? '0' : '-1');
+        tradingButton?.setAttribute('tabindex', isPersonal ? '-1' : '0');
+        personalView?.classList.toggle('hidden', !isPersonal);
+        tradingView?.classList.toggle('hidden', isPersonal);
+
+        if (persist) this.app.saveUiState?.({ financeView: nextView });
+        if (render) {
+            if (isPersonal) {
+                this.renderBreakdownAndList();
+            } else {
+                this.renderTradingEvents();
+                if (this.tradingHistoryState === 'idle') {
+                    this.loadTradingHistory().catch(error => {
+                        console.warn('No se pudo cargar el historial de Trading:', error);
+                    });
+                }
+            }
+        }
     }
 
     activateFinanceTab(tabId, { persist = true, render = true } = {}) {
@@ -76,13 +125,19 @@ export class FinanzasModule {
 
     loadData() {
         const raw = localStorage.getItem('finanzasData');
-        const defaultData = { entries: [], expenses: [], recurringRules: [] };
+        const defaultData = {
+            entries: [],
+            expenses: [],
+            recurringRules: [],
+            tradingEvents: []
+        };
         if (!raw) return defaultData;
         try {
             const parsed = JSON.parse(raw) || {};
             if (!parsed.entries) parsed.entries = [];
             if (!parsed.expenses) parsed.expenses = [];
             parsed.recurringRules = normalizeFinanceRecurringRules(parsed.recurringRules);
+            parsed.tradingEvents = normalizeTradingEvents(parsed.tradingEvents);
             return parsed;
         } catch (e) {
             console.error("Error parsing finanzas data:", e);
@@ -618,7 +673,505 @@ export class FinanzasModule {
         );
     }
 
+    toTradingDateTimeInputValue(value) {
+        const date = new Date(value);
+        if (!Number.isFinite(date.getTime())) return '';
+        const pad = number => String(number).padStart(2, '0');
+        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+    }
+
+    formatTradingDateTime(value) {
+        const date = new Date(value);
+        if (!Number.isFinite(date.getTime())) return 'Fecha no disponible';
+        return date.toLocaleString('es-AR', {
+            day: 'numeric',
+            month: 'short',
+            year: 'numeric',
+            hour: '2-digit',
+            minute: '2-digit'
+        });
+    }
+
+    getTradingEventStatus(event, now = Date.now()) {
+        if (event.status === 'paused') {
+            return { tone: 'paused', label: 'Pausado' };
+        }
+        const scheduledAt = new Date(event.scheduledAt).getTime();
+        const remainingMs = scheduledAt - now;
+        if (!Number.isFinite(scheduledAt) || remainingMs <= 0) {
+            return { tone: 'past', label: 'Finalizado' };
+        }
+        const remainingHours = Math.ceil(remainingMs / (60 * 60 * 1000));
+        if (remainingHours <= 24) {
+            return {
+                tone: 'urgent',
+                label: remainingHours === 1 ? 'En 1 hora' : `En ${remainingHours} horas`
+            };
+        }
+        const remainingDays = Math.ceil(remainingMs / (24 * 60 * 60 * 1000));
+        return {
+            tone: remainingDays <= 7 ? 'soon' : 'upcoming',
+            label: remainingDays === 1 ? 'En 1 día' : `En ${remainingDays} días`
+        };
+    }
+
+    showTradingFormError(message = '') {
+        const error = document.getElementById('trading-event-form-error');
+        if (!error) return;
+        error.textContent = message;
+        error.classList.toggle('hidden', !message);
+    }
+
+    openTradingEventModal(eventId = null, returnFocusElement = null) {
+        const event = eventId
+            ? this.data.tradingEvents.find(item => item.id === eventId)
+            : null;
+        this.editingTradingEventId = event?.id || null;
+        this.tradingModalReturnFocus = returnFocusElement || document.activeElement;
+
+        const form = document.getElementById('trading-event-form');
+        form?.reset();
+        const defaultDate = new Date();
+        defaultDate.setDate(defaultDate.getDate() + 7);
+        defaultDate.setHours(10, 0, 0, 0);
+
+        const title = document.getElementById('trading-event-modal-title');
+        const company = document.getElementById('trading-event-company');
+        const ticker = document.getElementById('trading-event-ticker');
+        const name = document.getElementById('trading-event-name');
+        const scheduledAt = document.getElementById('trading-event-datetime');
+        const noticeDays = document.getElementById('trading-event-notice-days');
+        const notes = document.getElementById('trading-event-notes');
+        const sourceUrl = document.getElementById('trading-event-source');
+        const enabled = document.getElementById('trading-event-enabled');
+
+        if (title) title.textContent = event ? 'Editar evento financiero' : 'Nuevo evento financiero';
+        if (company) company.value = event?.company || '';
+        if (ticker) ticker.value = event?.ticker || '';
+        if (name) name.value = event?.name || '';
+        if (scheduledAt) {
+            scheduledAt.value = this.toTradingDateTimeInputValue(
+                event?.scheduledAt || defaultDate
+            );
+        }
+        if (noticeDays) {
+            noticeDays.value = (event?.noticeDays || DEFAULT_TRADING_NOTICE_DAYS).join(', ');
+        }
+        if (notes) notes.value = event?.notes || '';
+        if (sourceUrl) sourceUrl.value = event?.sourceUrl || '';
+        if (enabled) enabled.checked = event?.status !== 'paused';
+
+        this.showTradingFormError('');
+        document.getElementById('trading-event-modal')?.classList.remove('hidden');
+        requestAnimationFrame(() => company?.focus());
+    }
+
+    closeTradingEventModal({ restoreFocus = true } = {}) {
+        document.getElementById('trading-event-modal')?.classList.add('hidden');
+        this.showTradingFormError('');
+        const returnFocus = this.tradingModalReturnFocus;
+        this.tradingModalReturnFocus = null;
+        this.editingTradingEventId = null;
+        if (restoreFocus && returnFocus?.focus) returnFocus.focus();
+    }
+
+    saveTradingEvent() {
+        const company = document.getElementById('trading-event-company')?.value.trim() || '';
+        const ticker = document.getElementById('trading-event-ticker')?.value.trim() || '';
+        const name = document.getElementById('trading-event-name')?.value.trim() || '';
+        const dateValue = document.getElementById('trading-event-datetime')?.value || '';
+        const noticeValue = document.getElementById('trading-event-notice-days')?.value || '';
+        const notes = document.getElementById('trading-event-notes')?.value.trim() || '';
+        const sourceValue = document.getElementById('trading-event-source')?.value.trim() || '';
+        const enabled = document.getElementById('trading-event-enabled')?.checked !== false;
+        const noticeDays = parseTradingNoticeDays(noticeValue);
+        const scheduledAt = new Date(dateValue);
+        const sourceUrl = normalizeTradingSourceUrl(sourceValue);
+
+        if (!company || !name) {
+            this.showTradingFormError('Completá la empresa y el nombre del evento.');
+            return;
+        }
+        if (!Number.isFinite(scheduledAt.getTime()) || scheduledAt.getTime() <= Date.now()) {
+            this.showTradingFormError('Elegí una fecha y hora futuras.');
+            return;
+        }
+        if (!noticeDays) {
+            this.showTradingFormError('Ingresá entre 1 y 12 avisos, usando días enteros de 1 a 365.');
+            return;
+        }
+        if (sourceValue && !sourceUrl) {
+            this.showTradingFormError('La fuente debe ser una dirección web http o https válida.');
+            return;
+        }
+
+        const existing = this.editingTradingEventId
+            ? this.data.tradingEvents.find(item => item.id === this.editingTradingEventId)
+            : null;
+        const now = new Date().toISOString();
+        const normalized = normalizeTradingEvent({
+            id: existing?.id || createTradingEventId(),
+            company,
+            ticker,
+            name,
+            scheduledAt: scheduledAt.toISOString(),
+            noticeDays,
+            notes,
+            sourceUrl,
+            status: enabled ? 'active' : 'paused',
+            createdAt: existing?.createdAt || now,
+            updatedAt: now
+        });
+        if (!normalized) {
+            this.showTradingFormError('No se pudo validar el evento. Revisá los datos ingresados.');
+            return;
+        }
+
+        if (existing) {
+            this.data.tradingEvents = this.data.tradingEvents.map(item => (
+                item.id === existing.id ? normalized : item
+            ));
+        } else {
+            this.data.tradingEvents.push(normalized);
+        }
+        this.data.tradingEvents = normalizeTradingEvents(this.data.tradingEvents);
+        this.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.closeTradingEventModal({ restoreFocus: false });
+        this.renderTradingEvents();
+        this.app.showToast?.(existing ? 'Evento actualizado.' : 'Evento de Trading creado.');
+    }
+
+    toggleTradingEventStatus(eventId) {
+        const event = this.data.tradingEvents.find(item => item.id === eventId);
+        if (!event) return;
+        event.status = event.status === 'paused' ? 'active' : 'paused';
+        event.updatedAt = new Date().toISOString();
+        this.data.tradingEvents = normalizeTradingEvents(this.data.tradingEvents);
+        this.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.renderTradingEvents();
+        this.app.showToast?.(event.status === 'active' ? 'Avisos reactivados.' : 'Avisos pausados.');
+    }
+
+    async deleteTradingEvent(eventId) {
+        const index = this.data.tradingEvents.findIndex(item => item.id === eventId);
+        if (index < 0) return;
+        const event = this.data.tradingEvents[index];
+        const confirmed = await this.app.confirmAction({
+            title: 'Eliminar evento financiero',
+            message: 'El evento dejará de generar avisos y ya no aparecerá en Trading.',
+            tone: 'danger',
+            details: [
+                { label: 'Empresa', value: event.ticker ? `${event.company} · ${event.ticker}` : event.company },
+                { label: 'Evento', value: event.name },
+                { label: 'Fecha', value: this.formatTradingDateTime(event.scheduledAt) }
+            ],
+            cancelLabel: 'Conservar evento',
+            confirmLabel: 'Eliminar evento',
+            closeOnBackdrop: false
+        });
+        if (!confirmed) return;
+
+        this.data.tradingEvents.splice(index, 1);
+        this.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.renderTradingEvents();
+        this.app.showUndo('Evento eliminado.', () => {
+            this.data.tradingEvents.splice(index, 0, event);
+            this.data.tradingEvents = normalizeTradingEvents(this.data.tradingEvents);
+            this.saveData();
+            this.app.auth?.syncToCloud(false).catch(() => {});
+            this.renderTradingEvents();
+        });
+    }
+
+    async handleTradingEventAction(event) {
+        const button = event.target.closest('[data-trading-action]');
+        if (!button) return;
+        const eventId = button.dataset.eventId;
+        if (!eventId) return;
+        if (button.dataset.tradingAction === 'edit') {
+            this.openTradingEventModal(eventId, button);
+        } else if (button.dataset.tradingAction === 'toggle') {
+            this.toggleTradingEventStatus(eventId);
+        } else if (button.dataset.tradingAction === 'delete') {
+            await this.deleteTradingEvent(eventId);
+        }
+    }
+
+    async getTradingHistoryAccessToken() {
+        const auth = this.app.auth;
+        if (!auth?.user || !auth.supabase) return '';
+        const { data: { session }, error } = await auth.supabase.auth.getSession();
+        if (error || !session?.access_token) return '';
+        return session.access_token;
+    }
+
+    async loadTradingHistory() {
+        const token = await this.getTradingHistoryAccessToken();
+        if (!token) {
+            this.tradingHistoryState = 'signed-out';
+            this.tradingHistoryByEvent = new Map();
+            this.renderTradingEvents();
+            return;
+        }
+
+        this.tradingHistoryState = 'loading';
+        this.renderTradingEvents();
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 12000);
+        try {
+            const response = await fetch('/api/push/history?scope=trading&limit=100', {
+                headers: { Authorization: `Bearer ${token}` },
+                cache: 'no-store',
+                signal: controller.signal
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                throw new Error(result.error || `HTTP ${response.status}`);
+            }
+            if (result.available === false) {
+                this.tradingHistoryState = 'unavailable';
+                this.tradingHistoryByEvent = new Map();
+                return;
+            }
+
+            const grouped = new Map();
+            (result.entries || []).forEach(entry => {
+                const parsed = parseTradingEventAlertKey(entry.alert_key);
+                if (!parsed) return;
+                if (!grouped.has(parsed.eventId)) grouped.set(parsed.eventId, new Map());
+                const eventEntries = grouped.get(parsed.eventId);
+                const current = eventEntries.get(entry.alert_key);
+                const attemptedAt = new Date(entry.attempted_at).getTime();
+                const currentAttemptedAt = new Date(current?.attemptedAt || 0).getTime();
+                const statusPriority = entry.status === 'accepted' ? 2 : 1;
+                const currentPriority = current?.status === 'accepted' ? 2 : 1;
+                if (
+                    !current
+                    || statusPriority > currentPriority
+                    || (
+                        statusPriority === currentPriority
+                        && attemptedAt > currentAttemptedAt
+                    )
+                ) {
+                    eventEntries.set(entry.alert_key, {
+                        noticeDays: parsed.noticeDays,
+                        status: entry.status,
+                        attemptedAt: entry.attempted_at
+                    });
+                }
+            });
+            this.tradingHistoryByEvent = new Map(
+                [...grouped.entries()].map(([eventId, entries]) => [
+                    eventId,
+                    [...entries.values()]
+                        .sort((a, b) => new Date(b.attemptedAt) - new Date(a.attemptedAt))
+                        .slice(0, 5)
+                ])
+            );
+            this.tradingHistoryState = 'ready';
+        } catch (error) {
+            this.tradingHistoryState = 'failed';
+            this.tradingHistoryByEvent = new Map();
+            if (error?.name !== 'AbortError') {
+                console.warn('No se pudo consultar el historial de Trading:', error);
+            }
+        } finally {
+            clearTimeout(timeoutId);
+            this.renderTradingEvents();
+        }
+    }
+
+    renderTradingHistory(eventId) {
+        const entries = this.tradingHistoryByEvent.get(eventId) || [];
+        let content = '';
+        if (this.tradingHistoryState === 'loading') {
+            content = '<p class="trading-history-empty">Cargando avisos...</p>';
+        } else if (this.tradingHistoryState === 'signed-out') {
+            content = '<p class="trading-history-empty">Iniciá sesión para consultar los avisos enviados.</p>';
+        } else if (this.tradingHistoryState === 'unavailable') {
+            content = '<p class="trading-history-empty">El historial técnico no está disponible.</p>';
+        } else if (this.tradingHistoryState === 'failed') {
+            content = '<p class="trading-history-empty">No se pudo cargar el historial en este momento.</p>';
+        } else if (entries.length === 0) {
+            content = '<p class="trading-history-empty">Todavía no se enviaron avisos para este evento.</p>';
+        } else {
+            const statusLabels = {
+                accepted: 'Aceptado por Push',
+                failed: 'Falló',
+                expired: 'Dispositivo vencido',
+                no_devices: 'Sin dispositivos'
+            };
+            content = `
+                <ul class="trading-history-list">
+                    ${entries.map(entry => `
+                        <li>
+                            <span>Aviso ${escapeHtml(String(entry.noticeDays))} ${entry.noticeDays === 1 ? 'día' : 'días'} antes</span>
+                            <small>${escapeHtml(statusLabels[entry.status] || 'Intento registrado')} · ${escapeHtml(this.formatTradingDateTime(entry.attemptedAt))}</small>
+                        </li>
+                    `).join('')}
+                </ul>
+            `;
+        }
+        return `
+            <details class="trading-event-history">
+                <summary>Historial de avisos${entries.length ? ` (${entries.length})` : ''}</summary>
+                ${content}
+            </details>
+        `;
+    }
+
+    renderTradingEvents() {
+        const list = document.getElementById('trading-events-list');
+        if (!list) return;
+        const events = normalizeTradingEvents(this.data.tradingEvents);
+        this.data.tradingEvents = events;
+        const now = Date.now();
+        const activeUpcoming = events
+            .filter(event => event.status === 'active' && new Date(event.scheduledAt).getTime() > now)
+            .sort((a, b) => new Date(a.scheduledAt) - new Date(b.scheduledAt));
+        const pausedCount = events.filter(event => event.status === 'paused').length;
+
+        const activeCount = document.getElementById('trading-active-count');
+        const paused = document.getElementById('trading-paused-count');
+        const nextEvent = document.getElementById('trading-next-event');
+        if (activeCount) activeCount.textContent = String(activeUpcoming.length);
+        if (paused) paused.textContent = String(pausedCount);
+        if (nextEvent) {
+            nextEvent.textContent = activeUpcoming[0]
+                ? this.formatTradingDateTime(activeUpcoming[0].scheduledAt)
+                : 'Sin eventos próximos';
+        }
+
+        if (events.length === 0) {
+            list.innerHTML = `
+                <div class="trading-empty-state">
+                    <i class="ph ph-calendar-plus"></i>
+                    <h3>Tu calendario de Trading está vacío</h3>
+                    <p>Agregá balances, presentaciones de resultados u otros eventos financieros para recibir avisos progresivos.</p>
+                    <button type="button" class="btn btn-primary" data-trading-empty-add>
+                        <i class="ph ph-plus-circle"></i> Agregar primer evento
+                    </button>
+                </div>
+            `;
+            list.querySelector('[data-trading-empty-add]')?.addEventListener('click', event => {
+                this.openTradingEventModal(null, event.currentTarget);
+            });
+            return;
+        }
+
+        const sorted = [...events].sort((a, b) => {
+            const aTime = new Date(a.scheduledAt).getTime();
+            const bTime = new Date(b.scheduledAt).getTime();
+            const aPast = aTime <= now;
+            const bPast = bTime <= now;
+            if (aPast !== bPast) return aPast ? 1 : -1;
+            return aPast ? bTime - aTime : aTime - bTime;
+        });
+
+        list.innerHTML = sorted.map(event => {
+            const status = this.getTradingEventStatus(event, now);
+            const ticker = event.ticker
+                ? `<span class="trading-event-ticker">${escapeHtml(event.ticker)}</span>`
+                : '';
+            const source = event.sourceUrl
+                ? `<a class="trading-event-source" href="${escapeHtml(event.sourceUrl)}" target="_blank" rel="noopener noreferrer"><i class="ph ph-arrow-square-out"></i> Abrir fuente</a>`
+                : '';
+            return `
+                <article class="trading-event-card ${escapeHtml(status.tone)}">
+                    <div class="trading-event-card-header">
+                        <div class="trading-event-identity">
+                            <div class="trading-event-company-row">
+                                <strong>${escapeHtml(event.company)}</strong>
+                                ${ticker}
+                            </div>
+                            <h3>${escapeHtml(event.name)}</h3>
+                            <p><i class="ph ph-calendar-blank"></i> ${escapeHtml(this.formatTradingDateTime(event.scheduledAt))}</p>
+                        </div>
+                        <span class="trading-event-status ${escapeHtml(status.tone)}">${escapeHtml(status.label)}</span>
+                    </div>
+                    <div class="trading-event-notices" aria-label="Avisos configurados">
+                        <span>Avisos</span>
+                        ${event.noticeDays.map(days => `<span class="trading-notice-chip">${days}d</span>`).join('')}
+                    </div>
+                    ${event.notes ? `<p class="trading-event-notes">${escapeHtml(event.notes)}</p>` : ''}
+                    ${source}
+                    ${this.renderTradingHistory(event.id)}
+                    <div class="trading-event-actions">
+                        <button type="button" class="btn btn-secondary" data-trading-action="edit" data-event-id="${escapeHtml(event.id)}">
+                            <i class="ph ph-pencil-simple"></i> Editar
+                        </button>
+                        <button type="button" class="btn btn-secondary" data-trading-action="toggle" data-event-id="${escapeHtml(event.id)}">
+                            <i class="ph ${event.status === 'paused' ? 'ph-play' : 'ph-pause'}"></i>
+                            ${event.status === 'paused' ? 'Activar avisos' : 'Pausar avisos'}
+                        </button>
+                        <button type="button" class="btn btn-danger trading-event-delete" data-trading-action="delete" data-event-id="${escapeHtml(event.id)}" aria-label="Eliminar ${escapeHtml(event.name)}">
+                            <i class="ph ph-trash"></i> Eliminar
+                        </button>
+                    </div>
+                </article>
+            `;
+        }).join('');
+    }
+
     init() {
+        const personalViewButton = document.getElementById('btnFinanceViewPersonal');
+        const tradingViewButton = document.getElementById('btnFinanceViewTrading');
+        const financeViewSwitch = document.querySelector('.finance-view-switch');
+        personalViewButton?.addEventListener('click', () => {
+            this.activateFinanceView('personal');
+        });
+        tradingViewButton?.addEventListener('click', () => {
+            this.activateFinanceView('trading');
+        });
+        financeViewSwitch?.addEventListener('keydown', event => {
+            if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
+            event.preventDefault();
+            const nextView = this.activeFinanceView === 'personal' ? 'trading' : 'personal';
+            this.activateFinanceView(nextView);
+            (nextView === 'trading' ? tradingViewButton : personalViewButton)?.focus();
+        });
+
+        const tradingAddButton = document.getElementById('btnAddTradingEvent');
+        const tradingRefreshButton = document.getElementById('btnRefreshTradingHistory');
+        const tradingList = document.getElementById('trading-events-list');
+        const tradingModal = document.getElementById('trading-event-modal');
+        const tradingForm = document.getElementById('trading-event-form');
+        const tradingCloseButtons = tradingModal?.querySelectorAll('[data-trading-event-close]') || [];
+
+        tradingAddButton?.addEventListener('click', () => {
+            this.openTradingEventModal(null, tradingAddButton);
+        });
+        tradingRefreshButton?.addEventListener('click', () => {
+            this.loadTradingHistory().catch(error => {
+                console.warn('No se pudo actualizar el historial de Trading:', error);
+            });
+        });
+        tradingList?.addEventListener('click', event => {
+            this.handleTradingEventAction(event).catch(error => {
+                console.error('No se pudo completar la acción de Trading:', error);
+                this.app.showToast?.('No se pudo completar la acción.', { tone: 'error' });
+            });
+        });
+        tradingCloseButtons.forEach(button => {
+            button.addEventListener('click', () => this.closeTradingEventModal());
+        });
+        tradingModal?.addEventListener('click', event => {
+            if (event.target === tradingModal) this.closeTradingEventModal();
+        });
+        tradingModal?.addEventListener('keydown', event => {
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.closeTradingEventModal();
+            }
+        });
+        tradingForm?.addEventListener('submit', event => {
+            event.preventDefault();
+            this.saveTradingEvent();
+        });
+
         // Pestañas (Income vs Expense)
         const tabIncome = document.getElementById('btnFinTabIncome');
         const tabExpense = document.getElementById('btnFinTabExpense');
@@ -819,6 +1372,10 @@ export class FinanzasModule {
         });
 
         this.activateFinanceTab(this.activeTab, {
+            persist: false,
+            render: false
+        });
+        this.activateFinanceView(this.activeFinanceView, {
             persist: false,
             render: false
         });
@@ -1600,6 +2157,18 @@ export class FinanzasModule {
     }
 
     render() {
+        this.renderTradingEvents();
+        if (
+            this.activeFinanceView === 'trading'
+            && (
+                this.tradingHistoryState === 'idle'
+                || (this.tradingHistoryState === 'signed-out' && this.app.auth?.user)
+            )
+        ) {
+            this.loadTradingHistory().catch(error => {
+                console.warn('No se pudo cargar el historial de Trading:', error);
+            });
+        }
         this.renderFinanceRecurringDuePanel();
         const combined = this.getCombinedEntries();
         const expenses = this.data.expenses || [];

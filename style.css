@@ -1310,6 +1310,7 @@ input[type="number"],
 input[type="email"],
 input[type="password"],
 input[type="date"],
+input[type="datetime-local"],
 input[type="time"],
 input[type="search"],
 input[type="tel"],
@@ -1348,6 +1349,7 @@ input[type="number"]:focus,
 input[type="email"]:focus,
 input[type="password"]:focus,
 input[type="date"]:focus,
+input[type="datetime-local"]:focus,
 input[type="time"]:focus,
 input[type="search"]:focus,
 input[type="tel"]:focus,
@@ -9213,6 +9215,596 @@ body.adaptive-navigation-open {
 
 .dropdown-menu-item:hover {
     background: rgba(255, 255, 255, 0.06);
+}
+
+/* ==========================================================================
+   Tanda 6: Trading dentro de Finanzas
+   ========================================================================== */
+.finance-view-switch {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.35rem;
+    margin-bottom: 1.5rem;
+    padding: 0.3rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.finance-view-tab {
+    min-height: 44px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+    padding: 0.65rem 1rem;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: transparent;
+    color: var(--text-secondary);
+    font: inherit;
+    font-size: 0.9rem;
+    font-weight: 750;
+    cursor: pointer;
+    transition: 0.2s ease;
+}
+
+.finance-view-tab:hover,
+.finance-view-tab:focus-visible {
+    color: var(--text-primary);
+    background: rgba(255, 255, 255, 0.04);
+}
+
+.finance-view-tab:focus-visible {
+    outline: 2px solid rgba(96, 165, 250, 0.8);
+    outline-offset: 2px;
+}
+
+.finance-view-tab.active {
+    border-color: rgba(59, 130, 246, 0.36);
+    background: linear-gradient(135deg, rgba(37, 99, 235, 0.3), rgba(14, 165, 233, 0.12));
+    color: #eff6ff;
+    box-shadow: 0 8px 22px rgba(30, 64, 175, 0.16);
+}
+
+.finance-view-tab i {
+    color: #60a5fa;
+    font-size: 1.1rem;
+}
+
+.trading-view-header,
+.trading-list-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.trading-view-header {
+    margin-bottom: 1.15rem;
+}
+
+.trading-view-header h2,
+.trading-view-header p,
+.trading-list-heading h3,
+.trading-list-heading p {
+    margin: 0;
+}
+
+.trading-view-header p,
+.trading-list-heading p {
+    margin-top: 0.3rem;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.5;
+}
+
+.trading-view-eyebrow {
+    display: block;
+    margin-bottom: 0.18rem;
+    color: #60a5fa;
+    font-size: 0.68rem;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+}
+
+.trading-view-actions {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 0.6rem;
+}
+
+.trading-view-actions .btn {
+    width: auto;
+    min-height: 44px;
+    margin: 0;
+}
+
+.trading-summary-grid {
+    display: grid;
+    grid-template-columns: 0.8fr 0.8fr 1.5fr;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.trading-summary-card {
+    min-width: 0;
+    margin: 0;
+    padding: 0.9rem 1rem;
+}
+
+.trading-summary-card span,
+.trading-summary-card strong {
+    display: block;
+}
+
+.trading-summary-card span {
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+}
+
+.trading-summary-card strong {
+    margin-top: 0.3rem;
+    color: var(--text-primary);
+    font-size: 1.2rem;
+    overflow-wrap: anywhere;
+}
+
+.trading-summary-card.active {
+    border-color: rgba(16, 185, 129, 0.32);
+}
+
+.trading-summary-card.active strong {
+    color: #6ee7b7;
+}
+
+.trading-summary-card.paused {
+    border-color: rgba(245, 158, 11, 0.28);
+}
+
+.trading-summary-card.paused strong {
+    color: #fbbf24;
+}
+
+.trading-summary-card.next {
+    border-color: rgba(59, 130, 246, 0.3);
+}
+
+.trading-summary-card.next strong {
+    color: #bfdbfe;
+    font-size: 0.92rem;
+    line-height: 1.45;
+}
+
+.trading-separation-note {
+    display: flex;
+    align-items: flex-start;
+    gap: 0.65rem;
+    margin-bottom: 1.4rem;
+    padding: 0.8rem 0.9rem;
+    border: 1px solid rgba(59, 130, 246, 0.2);
+    border-radius: 10px;
+    background: rgba(37, 99, 235, 0.08);
+    color: #bfdbfe;
+}
+
+.trading-separation-note i {
+    flex: 0 0 auto;
+    margin-top: 0.1rem;
+    font-size: 1rem;
+}
+
+.trading-separation-note p {
+    margin: 0;
+    font-size: 0.76rem;
+    line-height: 1.5;
+}
+
+.trading-list-heading {
+    margin-bottom: 0.8rem;
+}
+
+.trading-events-list {
+    display: grid;
+    gap: 0.85rem;
+    padding-bottom: 1.5rem;
+}
+
+.trading-empty-state {
+    display: flex;
+    align-items: center;
+    flex-direction: column;
+    padding: 2.5rem 1.25rem;
+    border: 1px dashed rgba(96, 165, 250, 0.32);
+    border-radius: 14px;
+    background: rgba(15, 23, 42, 0.34);
+    text-align: center;
+}
+
+.trading-empty-state > i {
+    color: #60a5fa;
+    font-size: 2rem;
+}
+
+.trading-empty-state h3 {
+    margin: 0.75rem 0 0.3rem;
+}
+
+.trading-empty-state p {
+    max-width: 520px;
+    margin: 0 0 1rem;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.55;
+}
+
+.trading-empty-state .btn {
+    width: auto;
+    min-height: 44px;
+    margin: 0;
+}
+
+.trading-event-card {
+    min-width: 0;
+    padding: 1rem;
+    border: 1px solid rgba(96, 165, 250, 0.2);
+    border-left: 3px solid #60a5fa;
+    border-radius: 12px;
+    background: rgba(15, 23, 42, 0.5);
+}
+
+.trading-event-card.soon,
+.trading-event-card.urgent {
+    border-left-color: #fbbf24;
+}
+
+.trading-event-card.paused,
+.trading-event-card.past {
+    border-left-color: #64748b;
+    opacity: 0.82;
+}
+
+.trading-event-card-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+}
+
+.trading-event-identity {
+    min-width: 0;
+}
+
+.trading-event-company-row {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.45rem;
+}
+
+.trading-event-company-row > strong {
+    color: #bfdbfe;
+    font-size: 0.78rem;
+}
+
+.trading-event-ticker,
+.trading-notice-chip {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px solid rgba(96, 165, 250, 0.28);
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.1);
+    color: #93c5fd;
+    font-size: 0.66rem;
+    font-weight: 750;
+}
+
+.trading-event-ticker {
+    min-height: 22px;
+    padding: 0.16rem 0.45rem;
+    letter-spacing: 0.04em;
+}
+
+.trading-event-identity h3 {
+    margin: 0.3rem 0 0.2rem;
+    color: var(--text-primary);
+    font-size: 1rem;
+    overflow-wrap: anywhere;
+}
+
+.trading-event-identity p {
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin: 0;
+    color: var(--text-secondary);
+    font-size: 0.75rem;
+}
+
+.trading-event-status {
+    flex: 0 0 auto;
+    padding: 0.28rem 0.55rem;
+    border-radius: 999px;
+    background: rgba(59, 130, 246, 0.12);
+    color: #93c5fd;
+    font-size: 0.68rem;
+    font-weight: 750;
+}
+
+.trading-event-status.soon,
+.trading-event-status.urgent {
+    background: rgba(245, 158, 11, 0.12);
+    color: #fbbf24;
+}
+
+.trading-event-status.paused,
+.trading-event-status.past {
+    background: rgba(100, 116, 139, 0.16);
+    color: #cbd5e1;
+}
+
+.trading-event-notices {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.35rem;
+    margin-top: 0.8rem;
+}
+
+.trading-event-notices > span:first-child {
+    margin-right: 0.1rem;
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+}
+
+.trading-notice-chip {
+    min-width: 30px;
+    min-height: 24px;
+    padding: 0.15rem 0.4rem;
+}
+
+.trading-event-notes {
+    margin: 0.75rem 0 0;
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.5;
+}
+
+.trading-event-source {
+    min-height: 36px;
+    display: inline-flex;
+    align-items: center;
+    gap: 0.35rem;
+    margin-top: 0.55rem;
+    color: #93c5fd;
+    font-size: 0.74rem;
+    font-weight: 700;
+    text-decoration: none;
+}
+
+.trading-event-source:hover,
+.trading-event-source:focus-visible {
+    color: #dbeafe;
+    text-decoration: underline;
+}
+
+.trading-event-history {
+    margin-top: 0.65rem;
+    border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+
+.trading-event-history > summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    color: #93c5fd;
+    font-size: 0.74rem;
+    font-weight: 700;
+    cursor: pointer;
+}
+
+.trading-history-list {
+    display: grid;
+    gap: 0.45rem;
+    margin: 0 0 0.75rem;
+    padding: 0;
+    list-style: none;
+}
+
+.trading-history-list li {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 0.7rem;
+    padding: 0.55rem 0.65rem;
+    border-radius: 8px;
+    background: rgba(15, 23, 42, 0.54);
+    color: var(--text-primary);
+    font-size: 0.72rem;
+}
+
+.trading-history-list small {
+    color: var(--text-secondary);
+    text-align: right;
+}
+
+.trading-history-empty {
+    margin: 0 0 0.75rem;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+}
+
+.trading-event-actions {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    margin-top: 0.7rem;
+}
+
+.trading-event-actions .btn {
+    width: auto;
+    min-height: 44px;
+    margin: 0;
+    padding: 0.55rem 0.75rem;
+    font-size: 0.75rem;
+}
+
+.trading-event-actions .trading-event-delete {
+    margin-left: auto;
+    border-color: rgba(239, 68, 68, 0.34);
+    background: rgba(239, 68, 68, 0.12);
+    color: #fca5a5;
+}
+
+.trading-event-actions .trading-event-delete:hover,
+.trading-event-actions .trading-event-delete:focus-visible {
+    border-color: rgba(248, 113, 113, 0.62);
+    background: rgba(239, 68, 68, 0.2);
+    color: #fecaca;
+}
+
+.trading-event-dialog {
+    width: min(680px, 92vw);
+    max-height: 90vh;
+    overflow-y: auto;
+}
+
+.trading-event-dialog-header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-bottom: 1.15rem;
+}
+
+.trading-event-dialog-header h3,
+.trading-event-dialog-header p {
+    margin: 0;
+}
+
+.optional-label {
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+    font-weight: 500;
+}
+
+.field-help {
+    display: block;
+    margin-top: 0.35rem;
+    color: var(--text-secondary);
+    font-size: 0.68rem;
+    line-height: 1.4;
+}
+
+.trading-event-enabled {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 1rem;
+    margin-top: 1rem;
+    padding: 0.7rem 0.8rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 10px;
+    background: rgba(15, 23, 42, 0.4);
+    cursor: pointer;
+}
+
+.trading-event-enabled strong,
+.trading-event-enabled small {
+    display: block;
+}
+
+.trading-event-enabled small {
+    margin-top: 0.15rem;
+    color: var(--text-secondary);
+    font-size: 0.7rem;
+}
+
+.trading-event-form-actions {
+    margin-top: 1rem;
+}
+
+@media (max-width: 720px) {
+    .trading-view-header {
+        flex-direction: column;
+    }
+
+    .trading-view-actions,
+    .trading-view-actions .btn {
+        width: 100%;
+    }
+
+    .trading-view-actions {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .trading-summary-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+    }
+
+    .trading-summary-card.next {
+        grid-column: 1 / -1;
+    }
+}
+
+@media (max-width: 520px) {
+    .finance-view-tab {
+        padding-inline: 0.5rem;
+        font-size: 0.82rem;
+    }
+
+    .trading-view-actions {
+        grid-template-columns: 1fr;
+    }
+
+    .trading-event-card-header,
+    .trading-history-list li {
+        flex-direction: column;
+    }
+
+    .trading-event-status {
+        align-self: flex-start;
+    }
+
+    .trading-history-list small {
+        text-align: left;
+    }
+
+    .trading-event-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
+
+    .trading-event-actions .btn,
+    .trading-event-actions .trading-event-delete {
+        width: 100%;
+        margin-left: 0;
+    }
+
+    .trading-event-dialog .form-row {
+        flex-direction: column;
+    }
+
+    .trading-event-dialog .input-group.half {
+        width: 100%;
+    }
+
+    .trading-event-enabled {
+        align-items: flex-start;
+    }
+
+    .trading-event-form-actions {
+        display: grid;
+        grid-template-columns: 1fr;
+    }
 }
 
 /* ==========================================================================

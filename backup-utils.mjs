@@ -453,6 +453,49 @@ function validateFinanceRecurringRule(rule, path) {
     }
 }
 
+function validateTradingEvent(event, path) {
+    assertText(event.id, `${path}.id`);
+    if (!/^[a-z0-9][a-z0-9_-]{2,95}$/.test(event.id)) {
+        throw new BackupValidationError(`"${path}.id" no es un identificador de Trading válido.`);
+    }
+    assertText(event.company, `${path}.company`);
+    assertText(event.name, `${path}.name`);
+    assertText(event.scheduledAt, `${path}.scheduledAt`);
+    if (!Number.isFinite(Date.parse(event.scheduledAt))) {
+        throw new BackupValidationError(`"${path}.scheduledAt" no es una fecha y hora válida.`);
+    }
+    assertOptionalTextFields(event, path, [
+        'ticker',
+        'notes',
+        'sourceUrl',
+        'createdAt',
+        'updatedAt'
+    ]);
+    if (!['active', 'paused'].includes(event.status)) {
+        throw new BackupValidationError(`"${path}.status" no es un estado de Trading válido.`);
+    }
+    if (
+        !Array.isArray(event.noticeDays)
+        || event.noticeDays.length < 1
+        || event.noticeDays.length > 12
+        || event.noticeDays.some(days => (
+            !Number.isInteger(Number(days))
+            || Number(days) < 1
+            || Number(days) > 365
+        ))
+    ) {
+        throw new BackupValidationError(`"${path}.noticeDays" no contiene intervalos válidos.`);
+    }
+    if (event.sourceUrl) {
+        try {
+            const source = new URL(event.sourceUrl);
+            if (!['http:', 'https:'].includes(source.protocol)) throw new Error('invalid');
+        } catch {
+            throw new BackupValidationError(`"${path}.sourceUrl" no es una fuente web válida.`);
+        }
+    }
+}
+
 function validateMeal(meal, path) {
     assertOptionalId(meal, path);
     assertOptionalTextFields(meal, path, ['name', 'group', 'unit']);
@@ -683,6 +726,13 @@ function validateBackupDataShape(key, value) {
                     value.recurringRules,
                     `${key}.recurringRules`,
                     validateFinanceRecurringRule
+                );
+            }
+            if (Object.hasOwn(value, 'tradingEvents')) {
+                assertArrayOfRecords(
+                    value.tradingEvents,
+                    `${key}.tradingEvents`,
+                    validateTradingEvent
                 );
             }
             break;
