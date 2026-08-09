@@ -16,7 +16,11 @@ import {
     migrateLegacyTrackerRegistry,
     readLegacyTrackerSnapshot
 } from '../tracker-migration.mjs?v=20260729-trackers-v2';
-import { DateUtils, getLocalISODate } from '../utils.js';
+import {
+    combineLocalDateWithTime,
+    DateUtils,
+    getLocalISODate
+} from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import {
     normalizeTodayPreferences,
@@ -84,10 +88,12 @@ export class CustomTrackersModule {
         this.app = appController;
         this.app.customTrackers = this;
         this.registry = this.loadRegistry();
-        this.openHistoryIds = new Set();
         this.openInstructionIds = new Set();
         this.pendingDeleteIds = new Set();
         this.pendingHistoryDeleteKeys = new Set();
+        this.historyDialogTrackerId = null;
+        this.historyDialogTrigger = null;
+        this.historyEditMode = false;
         this.editingId = null;
         this.lastDialogTrigger = null;
         this.toastTimer = null;
@@ -95,6 +101,7 @@ export class CustomTrackersModule {
         this.bulkContext = null;
         this.sortableInstances = [];
         this.activeCategoryFilter = this.app.uiState?.trackerManagerFilter || 'all';
+        this.managerSearchQuery = '';
 
         this.managerRoot = document.getElementById('tab-seguimientos');
         this.managerSummary = document.getElementById('custom-trackers-manager-summary');
@@ -110,6 +117,7 @@ export class CustomTrackersModule {
         this.todayActionsFeedback = document.getElementById('today-actions-feedback');
 
         this.ensureRuntimeOrderControls();
+        this.ensureHistoryDialog();
         this.ensureEditorDialog();
         this.setupManagerListeners();
         this.setupModuleListeners();
@@ -409,6 +417,7 @@ export class CustomTrackersModule {
         });
         this.orderTrackersButton?.addEventListener('click', () => {
             this.activeCategoryFilter = 'all';
+            this.managerSearchQuery = '';
             this.app.saveUiState?.({ trackerManagerFilter: 'all' });
             this.enterReorderMode('manager');
         });
@@ -447,6 +456,12 @@ export class CustomTrackersModule {
 
             if (action === 'new') {
                 this.openEditor(button.dataset.section || 'hygiene', null, button);
+            } else if (action === 'clear-search') {
+                this.managerSearchQuery = '';
+                this.renderManager();
+                requestAnimationFrame(() => {
+                    this.managerRoot?.querySelector('[data-custom-manager-search]')?.focus();
+                });
             } else if (action === 'edit') {
                 const tracker = this.getTracker(trackerId);
                 if (tracker && !tracker.deleted) {
@@ -465,6 +480,24 @@ export class CustomTrackersModule {
             } else if (action === 'confirm-delete') {
                 this.deleteTracker(trackerId);
             }
+        });
+
+        this.managerRoot?.addEventListener('input', event => {
+            const searchInput = event.target.closest('[data-custom-manager-search]');
+            if (!searchInput || this.reorderContext?.scope === 'manager') return;
+
+            const cursorPosition = searchInput.selectionStart;
+            this.managerSearchQuery = searchInput.value.slice(0, 80);
+            this.renderManager();
+            requestAnimationFrame(() => {
+                const nextInput = this.managerRoot?.querySelector(
+                    '[data-custom-manager-search]'
+                );
+                nextInput?.focus();
+                if (Number.isInteger(cursorPosition)) {
+                    nextInput?.setSelectionRange(cursorPosition, cursorPosition);
+                }
+            });
         });
 
         this.managerRoot?.addEventListener('keydown', event => {
@@ -812,7 +845,9 @@ export class CustomTrackersModule {
             const trackerId = button.dataset.trackerId;
             const tracker = this.getTracker(trackerId);
             if (!tracker) return;
-            button.closest('.custom-tracker-menu')?.removeAttribute('open');
+            const menu = button.closest('.custom-tracker-menu');
+            const menuTrigger = menu?.querySelector('summary') || button;
+            menu?.removeAttribute('open');
 
             if (action === 'toggle-bulk') {
                 this.toggleBulkSelection(trackerId);
@@ -824,10 +859,8 @@ export class CustomTrackersModule {
                 this.archiveTracker(trackerId, { showGlobalUndo: true });
             } else if (action === 'record') {
                 this.recordTracker(trackerId);
-            } else if (action === 'toggle-history') {
-                if (this.openHistoryIds.has(trackerId)) this.openHistoryIds.delete(trackerId);
-                else this.openHistoryIds.add(trackerId);
-                this.renderSection(tracker.section);
+            } else if (action === 'open-history') {
+                this.openHistoryDialog(trackerId, menuTrigger);
             } else if (action === 'toggle-instructions') {
                 if (this.openInstructionIds.has(trackerId)) {
                     this.openInstructionIds.delete(trackerId);
@@ -835,37 +868,6 @@ export class CustomTrackersModule {
                     this.openInstructionIds.add(trackerId);
                 }
                 this.renderSection(tracker.section);
-            } else if (action === 'edit-latest') {
-                const latest = this.getHistory(trackerId)[0];
-                if (latest) {
-                    this.app.openEditModal(
-                        'customTracker',
-                        tracker.id,
-                        tracker.name,
-                        latest
-                    );
-                }
-            } else if (action === 'request-delete-history') {
-                this.pendingHistoryDeleteKeys.add(
-                    this.getHistoryDeleteKey(
-                        trackerId,
-                        Number(button.dataset.historyIndex)
-                    )
-                );
-                this.renderSection(tracker.section);
-            } else if (action === 'cancel-delete-history') {
-                this.pendingHistoryDeleteKeys.delete(
-                    this.getHistoryDeleteKey(
-                        trackerId,
-                        Number(button.dataset.historyIndex)
-                    )
-                );
-                this.renderSection(tracker.section);
-            } else if (action === 'confirm-delete-history') {
-                this.deleteHistoryEntry(
-                    trackerId,
-                    Number(button.dataset.historyIndex)
-                );
             }
         });
 
@@ -891,6 +893,7 @@ export class CustomTrackersModule {
         if (!tracker || tracker.archived || tracker.deleted) return false;
 
         this.activeCategoryFilter = tracker.section;
+        this.managerSearchQuery = '';
         this.app.saveUiState?.({ trackerManagerFilter: tracker.section });
         if (!this.app.openProfileTab?.('seguimientos')) return false;
 
@@ -905,6 +908,325 @@ export class CustomTrackersModule {
             if (row) {
                 setTimeout(() => row.classList.remove('is-targeted'), 1800);
             }
+        });
+        return true;
+    }
+
+    ensureHistoryDialog() {
+        document.getElementById('custom-tracker-history-dialog')?.remove();
+
+        const dialog = document.createElement('div');
+        dialog.id = 'custom-tracker-history-dialog';
+        dialog.className = 'custom-tracker-dialog custom-tracker-history-dialog hidden';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-labelledby', 'custom-tracker-history-dialog-title');
+        dialog.setAttribute('aria-describedby', 'custom-tracker-history-dialog-subtitle');
+        dialog.innerHTML = `
+            <div class="custom-tracker-dialog-card custom-tracker-history-dialog-card">
+                <div class="custom-tracker-dialog-header">
+                    <div>
+                        <span class="custom-trackers-eyebrow">Historial de la tarjeta</span>
+                        <h2 id="custom-tracker-history-dialog-title">Historial</h2>
+                        <p id="custom-tracker-history-dialog-subtitle"></p>
+                    </div>
+                    <button type="button" class="custom-dialog-close" data-history-dialog-action="close" aria-label="Cerrar historial" data-tooltip="Cerrar">
+                        <i class="ph ph-x" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div id="custom-tracker-history-dialog-body"></div>
+                <div class="custom-tracker-dialog-actions custom-tracker-history-dialog-actions">
+                    <button type="button" class="btn btn-secondary" data-history-dialog-action="close">Cerrar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+        this.historyDialog = dialog;
+
+        dialog.addEventListener('click', event => {
+            if (event.target === dialog) {
+                this.closeHistoryDialog();
+                return;
+            }
+
+            const button = event.target.closest('[data-history-dialog-action]');
+            if (!button) return;
+            const action = button.dataset.historyDialogAction;
+
+            if (action === 'close') {
+                this.closeHistoryDialog();
+            } else if (action === 'edit-latest') {
+                this.historyEditMode = true;
+                this.renderHistoryDialog();
+                requestAnimationFrame(() => {
+                    this.historyDialog?.querySelector('#custom-tracker-history-date')?.focus();
+                });
+            } else if (action === 'cancel-edit') {
+                this.historyEditMode = false;
+                this.renderHistoryDialog();
+                requestAnimationFrame(() => {
+                    this.historyDialog?.querySelector('[data-history-dialog-action="edit-latest"]')?.focus();
+                });
+            } else if (action === 'request-delete') {
+                const historyIndex = Number(button.dataset.historyIndex);
+                this.pendingHistoryDeleteKeys.add(
+                    this.getHistoryDeleteKey(this.historyDialogTrackerId, historyIndex)
+                );
+                this.renderHistoryDialog();
+            } else if (action === 'cancel-delete') {
+                const historyIndex = Number(button.dataset.historyIndex);
+                this.pendingHistoryDeleteKeys.delete(
+                    this.getHistoryDeleteKey(this.historyDialogTrackerId, historyIndex)
+                );
+                this.renderHistoryDialog();
+            } else if (action === 'confirm-delete') {
+                this.deleteHistoryEntry(
+                    this.historyDialogTrackerId,
+                    Number(button.dataset.historyIndex)
+                );
+            }
+        });
+
+        dialog.addEventListener('submit', event => {
+            if (!event.target.matches('[data-custom-history-edit-form]')) return;
+            event.preventDefault();
+            this.saveHistoryDate();
+        });
+
+        document.addEventListener('keydown', event => {
+            if (!this.historyDialog || this.historyDialog.classList.contains('hidden')) return;
+
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                if (this.historyEditMode) {
+                    this.historyEditMode = false;
+                    this.renderHistoryDialog();
+                } else {
+                    this.closeHistoryDialog();
+                }
+                return;
+            }
+
+            if (event.key !== 'Tab') return;
+            const focusable = Array.from(this.historyDialog.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), a[href]'
+            )).filter(element => !element.closest('.hidden'));
+            if (focusable.length === 0) return;
+
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
+    }
+
+    openHistoryDialog(trackerId, trigger = null) {
+        const tracker = this.getTracker(trackerId);
+        if (!tracker || tracker.archived || tracker.deleted || !this.historyDialog) return false;
+
+        this.historyDialogTrackerId = trackerId;
+        this.historyDialogTrigger = trigger instanceof HTMLElement ? trigger : null;
+        this.historyEditMode = false;
+        this.clearPendingHistoryDeletes(trackerId);
+        this.renderHistoryDialog();
+        this.historyDialog.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        requestAnimationFrame(() => {
+            this.historyDialog?.querySelector('[data-history-dialog-action="close"]')?.focus();
+        });
+        return true;
+    }
+
+    closeHistoryDialog({ restoreFocus = true } = {}) {
+        if (!this.historyDialog || this.historyDialog.classList.contains('hidden')) return;
+        const trackerId = this.historyDialogTrackerId;
+        const previousTrigger = this.historyDialogTrigger;
+        if (trackerId) this.clearPendingHistoryDeletes(trackerId);
+        this.historyDialog.classList.add('hidden');
+        this.historyDialogTrackerId = null;
+        this.historyDialogTrigger = null;
+        this.historyEditMode = false;
+        document.body.classList.remove('modal-open');
+
+        if (!restoreFocus) return;
+        const fallbackTrigger = trackerId
+            ? document.querySelector(
+                `.custom-tracker-card[data-tracker-id="${CSS.escape(trackerId)}"] .custom-tracker-menu summary`
+            )
+            : null;
+        requestAnimationFrame(() => {
+            (previousTrigger?.isConnected ? previousTrigger : fallbackTrigger)?.focus?.();
+        });
+    }
+
+    renderHistoryDialog() {
+        if (!this.historyDialog || !this.historyDialogTrackerId) return;
+        const previousScrollTop = this.historyDialog
+            .querySelector('.custom-history-dialog-list')?.scrollTop || 0;
+        const tracker = this.getTracker(this.historyDialogTrackerId);
+        if (!tracker || tracker.archived || tracker.deleted) {
+            this.closeHistoryDialog({ restoreFocus: false });
+            return;
+        }
+
+        const history = this.getHistory(tracker.id);
+        const state = getCustomTrackerState(tracker, history);
+        const status = STATUS_META[state.status] || STATUS_META.new;
+        const section = CUSTOM_TRACKER_SECTIONS[tracker.section];
+        const subsection = section?.subsections?.[tracker.subsection];
+        const latestLabel = state.latest
+            ? DateUtils.formatFriendlyDate(state.latest)
+            : 'Nunca';
+        const nextLabel = state.nextDate
+            ? DateUtils.formatFriendlyDate(state.nextDate)
+            : 'Después del primer registro';
+        const historyCountLabel = `${history.length} ${history.length === 1 ? 'registro' : 'registros'}`;
+
+        this.historyDialog.style.setProperty('--custom-status-color', status.color);
+        this.historyDialog.querySelector('#custom-tracker-history-dialog-title').textContent = (
+            tracker.name
+        );
+        this.historyDialog.querySelector('#custom-tracker-history-dialog-subtitle').textContent = [
+            section?.label,
+            subsection?.label
+        ].filter(Boolean).join(' · ');
+
+        const body = this.historyDialog.querySelector('#custom-tracker-history-dialog-body');
+        body.innerHTML = `
+            <div class="custom-history-dialog-summary" aria-label="Resumen de ${escapeHtml(tracker.name)}">
+                <article>
+                    <span>Estado</span>
+                    <strong class="custom-history-dialog-status">${escapeHtml(status.label)}</strong>
+                </article>
+                <article>
+                    <span>Último</span>
+                    <strong>${escapeHtml(latestLabel)}</strong>
+                </article>
+                <article>
+                    <span>Próximo</span>
+                    <strong>${escapeHtml(nextLabel)}</strong>
+                </article>
+            </div>
+            <div class="custom-history-dialog-heading">
+                <div>
+                    <h3>Registros</h3>
+                    <small>${escapeHtml(historyCountLabel)} · más recientes primero</small>
+                </div>
+                <button
+                    type="button"
+                    class="btn btn-secondary"
+                    data-history-dialog-action="edit-latest"
+                    ${history.length === 0 ? 'disabled' : ''}
+                >
+                    <i class="ph ph-calendar-pencil" aria-hidden="true"></i>
+                    Editar última fecha
+                </button>
+            </div>
+            ${this.historyEditMode && history.length > 0 ? `
+                <form class="custom-history-edit-form" data-custom-history-edit-form novalidate>
+                    <label for="custom-tracker-history-date">Nueva fecha del último registro</label>
+                    <div>
+                        <input
+                            id="custom-tracker-history-date"
+                            class="date-input"
+                            type="date"
+                            value="${getLocalISODate(new Date(history[0]))}"
+                            max="${getLocalISODate()}"
+                            required
+                        >
+                        <button type="button" class="btn btn-secondary" data-history-dialog-action="cancel-edit">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">Guardar fecha</button>
+                    </div>
+                    <p class="custom-history-edit-error hidden" role="alert"></p>
+                </form>
+            ` : ''}
+            <div class="custom-history-dialog-list" role="region" aria-label="Registros de ${escapeHtml(tracker.name)}" tabindex="0">
+                ${history.length > 0 ? `
+                    <ol>
+                        ${history.map((date, historyIndex) => {
+                            const confirmationKey = this.getHistoryDeleteKey(
+                                tracker.id,
+                                historyIndex
+                            );
+                            const awaitingConfirmation = this.pendingHistoryDeleteKeys.has(
+                                confirmationKey
+                            );
+                            return `
+                                <li class="${awaitingConfirmation ? 'is-confirming' : ''}">
+                                    <span class="custom-history-dialog-date">
+                                        <i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i>
+                                        <span>
+                                            <strong>${escapeHtml(DateUtils.formatDateTime(date))}</strong>
+                                            <small>Registro ${history.length - historyIndex} de ${history.length}</small>
+                                        </span>
+                                    </span>
+                                    ${awaitingConfirmation ? `
+                                        <span class="custom-history-dialog-delete-confirmation">
+                                            <span>¿Borrar este registro?</span>
+                                            <button type="button" class="btn btn-secondary" data-history-dialog-action="cancel-delete" data-history-index="${historyIndex}">Cancelar</button>
+                                            <button type="button" class="btn btn-danger" data-history-dialog-action="confirm-delete" data-history-index="${historyIndex}">Borrar</button>
+                                        </span>
+                                    ` : `
+                                        <button
+                                            type="button"
+                                            class="custom-history-dialog-delete"
+                                            data-history-dialog-action="request-delete"
+                                            data-history-index="${historyIndex}"
+                                            aria-label="Borrar registro del ${escapeHtml(DateUtils.formatDateTime(date))}"
+                                            data-tooltip="Borrar registro"
+                                        >
+                                            <i class="ph ph-trash" aria-hidden="true"></i>
+                                        </button>
+                                    `}
+                                </li>
+                            `;
+                        }).join('')}
+                    </ol>
+                ` : `
+                    <div class="custom-history-dialog-empty">
+                        <i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i>
+                        <strong>Todavía no hay registros</strong>
+                        <span>La primera fecha aparecerá después de usar la acción principal de la tarjeta.</span>
+                    </div>
+                `}
+            </div>
+        `;
+        const historyList = body.querySelector('.custom-history-dialog-list');
+        if (historyList) historyList.scrollTop = previousScrollTop;
+    }
+
+    saveHistoryDate() {
+        const input = this.historyDialog?.querySelector('#custom-tracker-history-date');
+        const error = this.historyDialog?.querySelector('.custom-history-edit-error');
+        const trackerId = this.historyDialogTrackerId;
+        if (!input || !trackerId) return false;
+
+        if (!input.value || input.value > getLocalISODate()) {
+            if (error) {
+                error.textContent = 'Elegí una fecha válida que no esté en el futuro.';
+                error.classList.remove('hidden');
+            }
+            return false;
+        }
+
+        const selectedDate = combineLocalDateWithTime(input.value, new Date());
+        if (!selectedDate || !this.updateLatestDate(trackerId, selectedDate)) {
+            if (error) {
+                error.textContent = 'No se pudo actualizar la fecha. Revisala e intentá nuevamente.';
+                error.classList.remove('hidden');
+            }
+            return false;
+        }
+
+        this.historyEditMode = false;
+        this.renderHistoryDialog();
+        requestAnimationFrame(() => {
+            this.historyDialog?.querySelector('[data-history-dialog-action="edit-latest"]')?.focus();
         });
         return true;
     }
@@ -1583,7 +1905,9 @@ export class CustomTrackersModule {
         tracker.archived = true;
         tracker.updatedAt = new Date().toISOString();
         tracker.alert = this.getEffectiveAlertConfig(tracker);
-        this.openHistoryIds.delete(trackerId);
+        if (this.historyDialogTrackerId === trackerId) {
+            this.closeHistoryDialog({ restoreFocus: false });
+        }
         this.openInstructionIds.delete(trackerId);
         this.clearPendingHistoryDeletes(trackerId);
         this.syncAlertConfig(tracker, tracker.alert, { disabled: true });
@@ -1644,7 +1968,9 @@ export class CustomTrackersModule {
         this.registry.histories[trackerId] = [];
         this.clearLegacyTracker(tracker);
         this.pendingDeleteIds.delete(trackerId);
-        this.openHistoryIds.delete(trackerId);
+        if (this.historyDialogTrackerId === trackerId) {
+            this.closeHistoryDialog({ restoreFocus: false });
+        }
         this.openInstructionIds.delete(trackerId);
         this.clearPendingHistoryDeletes(trackerId);
         this.syncAlertConfig(tracker, tracker.alert, { remove: true });
@@ -2004,13 +2330,38 @@ export class CustomTrackersModule {
             return;
         }
 
+        const deletedDate = history[historyIndex];
         history.splice(historyIndex, 1);
         this.clearPendingHistoryDeletes(trackerId);
         this.registry.histories[trackerId] = history;
         this.mirrorLegacyTracker(tracker);
         this.persistRegistry();
-        this.openHistoryIds.add(trackerId);
-        this.renderSection(tracker.section);
+        this.renderHistoryDialog();
+        if (this.app.showUndo) {
+            this.app.showUndo('El registro fue borrado.', () => {
+                this.restoreHistoryEntry(trackerId, deletedDate);
+            });
+        } else {
+            this.showRuntimeFeedback('El registro fue borrado.');
+        }
+        return true;
+    }
+
+    restoreHistoryEntry(trackerId, dateValue) {
+        const tracker = this.getTracker(trackerId);
+        const restoredDate = new Date(dateValue);
+        if (!tracker || tracker.deleted || Number.isNaN(restoredDate.getTime())) return false;
+
+        const history = [...this.getHistory(trackerId)];
+        if (!history.includes(dateValue)) history.push(restoredDate.toISOString());
+        this.registry.histories[trackerId] = history
+            .sort((a, b) => Date.parse(b) - Date.parse(a))
+            .slice(0, 1000);
+        this.mirrorLegacyTracker(tracker);
+        this.persistRegistry();
+        if (this.historyDialogTrackerId === trackerId) this.renderHistoryDialog();
+        this.showRuntimeFeedback('El registro volvió al historial.');
+        return true;
     }
 
     showManagerFeedback(message, action = null) {
@@ -2050,18 +2401,55 @@ export class CustomTrackersModule {
         this.app.grooming?.render();
         this.app.lenses?.loadDatesAndStock();
         this.app.health?.render();
+        if (
+            this.historyDialogTrackerId
+            && !this.historyDialog?.classList.contains('hidden')
+        ) {
+            this.renderHistoryDialog();
+        }
+    }
+
+    normalizeManagerSearchText(value) {
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLocaleLowerCase('es')
+            .trim();
+    }
+
+    matchesManagerTrackerSearch(tracker, section, query) {
+        if (!query) return true;
+        const subsection = section?.subsections?.[tracker.subsection];
+        return this.normalizeManagerSearchText([
+            tracker.name,
+            tracker.actionLabel,
+            section?.label,
+            subsection?.label
+        ].filter(Boolean).join(' ')).includes(query);
     }
 
     renderManager() {
         if (!this.managerSummary) return;
         const isReordering = this.reorderContext?.scope === 'manager';
-        if (!this.activeCategoryFilter) this.activeCategoryFilter = 'all';
+        const validFilters = new Set([
+            'all',
+            'vehicle',
+            ...Object.keys(CUSTOM_TRACKER_SECTIONS)
+        ]);
+        if (!validFilters.has(this.activeCategoryFilter)) {
+            this.activeCategoryFilter = 'all';
+        }
 
+        const searchQuery = isReordering
+            ? ''
+            : this.normalizeManagerSearchText(this.managerSearchQuery);
         const vehicleCards = this.app.vehicle?.cards?.getCards?.({
             includeArchived: false
         }) || [];
-        const totalActiveAll = this.registry.trackers.filter(t => !t.archived && !t.deleted).length
-            + vehicleCards.length;
+        const allVehicleCards = this.app.vehicle?.cards?.getCards?.() || [];
+        const totalActiveAll = this.registry.trackers.filter(
+            tracker => !tracker.archived && !tracker.deleted
+        ).length + vehicleCards.length;
         const filterBarHtml = `
             <div class="tracker-category-filter-bar" role="group" aria-label="Filtrar tarjetas por sección">
                 <button type="button"
@@ -2069,12 +2457,16 @@ export class CustomTrackersModule {
                         data-tracker-category-filter="all"
                         ${isReordering ? 'disabled' : ''}
                         aria-pressed="${this.activeCategoryFilter === 'all' ? 'true' : 'false'}">
-                    <i class="ph ph-squares-four"></i>
+                    <i class="ph ph-squares-four" aria-hidden="true"></i>
                     <span>Todas</span>
                     <span class="count-pill">${totalActiveAll}</span>
                 </button>
                 ${Object.entries(CUSTOM_TRACKER_SECTIONS).map(([sectionKey, section]) => {
-                    const activeCount = this.registry.trackers.filter(t => t.section === sectionKey && !t.archived && !t.deleted).length;
+                    const activeCount = this.registry.trackers.filter(tracker => (
+                        tracker.section === sectionKey
+                        && !tracker.archived
+                        && !tracker.deleted
+                    )).length;
                     const isActive = this.activeCategoryFilter === sectionKey;
                     return `
                         <button type="button"
@@ -2082,7 +2474,7 @@ export class CustomTrackersModule {
                                 data-tracker-category-filter="${sectionKey}"
                                 ${isReordering ? 'disabled' : ''}
                                 aria-pressed="${isActive ? 'true' : 'false'}">
-                            <i class="ph ${section.defaultIcon}"></i>
+                            <i class="ph ${section.defaultIcon}" aria-hidden="true"></i>
                             <span>${escapeHtml(section.label)}</span>
                             <span class="count-pill">${activeCount}</span>
                         </button>
@@ -2093,112 +2485,195 @@ export class CustomTrackersModule {
                         data-tracker-category-filter="vehicle"
                         ${isReordering ? 'disabled' : ''}
                         aria-pressed="${this.activeCategoryFilter === 'vehicle' ? 'true' : 'false'}">
-                    <i class="ph ph-car"></i>
+                    <i class="ph ph-car" aria-hidden="true"></i>
                     <span>Vehículo</span>
                     <span class="count-pill">${vehicleCards.length}</span>
                 </button>
             </div>
         `;
 
-        const visibleSections = Object.entries(CUSTOM_TRACKER_SECTIONS).filter(([sectionKey]) => {
-            return this.activeCategoryFilter === 'all' || this.activeCategoryFilter === sectionKey;
+        const visibleSections = Object.entries(CUSTOM_TRACKER_SECTIONS).filter(
+            ([sectionKey]) => (
+                this.activeCategoryFilter === 'all'
+                || this.activeCategoryFilter === sectionKey
+            )
+        );
+        let matchingCount = 0;
+        const sectionsHtml = visibleSections.map(([sectionKey, section]) => {
+            const allActive = this.registry.trackers
+                .filter(tracker => (
+                    tracker.section === sectionKey
+                    && !tracker.archived
+                    && !tracker.deleted
+                ))
+                .sort((a, b) => (
+                    a.subsection.localeCompare(b.subsection)
+                    || a.order - b.order
+                    || a.name.localeCompare(b.name, 'es')
+                ));
+            const allArchived = this.registry.trackers
+                .filter(tracker => (
+                    tracker.section === sectionKey
+                    && tracker.archived
+                    && !tracker.deleted
+                ))
+                .sort((a, b) => a.name.localeCompare(b.name, 'es'));
+            const active = allActive.filter(tracker => (
+                this.matchesManagerTrackerSearch(tracker, section, searchQuery)
+            ));
+            const archived = allArchived.filter(tracker => (
+                this.matchesManagerTrackerSearch(tracker, section, searchQuery)
+            ));
+            matchingCount += active.length + archived.length;
+
+            const activeGroups = Object.entries(section.subsections)
+                .map(([subsectionKey, subsection]) => ({
+                    key: subsectionKey,
+                    label: subsection.label,
+                    trackers: active.filter(
+                        tracker => tracker.subsection === subsectionKey
+                    )
+                }))
+                .filter(group => group.trackers.length > 0);
+            const activeLabel = `${allActive.length} ${allActive.length === 1 ? 'activa' : 'activas'}`;
+            const archivedLabel = allArchived.length > 0
+                ? ` · ${allArchived.length} ${allArchived.length === 1 ? 'archivada' : 'archivadas'}`
+                : '';
+            const filteredLabel = searchQuery
+                ? ` · ${active.length + archived.length} ${active.length + archived.length === 1 ? 'coincidencia' : 'coincidencias'}`
+                : '';
+
+            if (searchQuery && active.length + archived.length === 0) return '';
+
+            return `
+                <section class="custom-manager-section" data-manager-section="${sectionKey}">
+                    <div class="custom-manager-section-header">
+                        <div>
+                            <span class="custom-manager-section-icon">
+                                <i class="ph ${section.defaultIcon}" aria-hidden="true"></i>
+                            </span>
+                            <span>
+                                <h3>${escapeHtml(section.label)}</h3>
+                                <small>${activeLabel}${archivedLabel}${filteredLabel}</small>
+                            </span>
+                        </div>
+                        <button type="button" class="custom-manager-add ${isReordering ? 'hidden' : ''}" data-custom-manager-action="new" data-section="${sectionKey}" aria-label="Crear tarjeta en ${escapeHtml(section.label)}" data-tooltip="Crear tarjeta en ${escapeHtml(section.label)}">
+                            <i class="ph ph-plus" aria-hidden="true"></i>
+                        </button>
+                    </div>
+                    <div class="custom-manager-list">
+                        ${activeGroups.length > 0
+                            ? activeGroups.map(group => `
+                                <div class="custom-manager-group">
+                                    <div class="custom-manager-group-label">
+                                        <span>${escapeHtml(group.label)}</span>
+                                        <small>${group.trackers.length}</small>
+                                    </div>
+                                    <div
+                                        class="custom-manager-sortable-list"
+                                        ${isReordering ? `data-reorder-list data-reorder-group="${sectionKey}:${group.key}"` : ''}
+                                    >
+                                        ${group.trackers.map(tracker => (
+                                            this.renderManagerActiveRow(tracker, isReordering)
+                                        )).join('')}
+                                    </div>
+                                </div>
+                            `).join('')
+                            : `
+                                <p class="custom-manager-empty">
+                                    ${searchQuery
+                                        ? 'No hay tarjetas activas que coincidan con la búsqueda.'
+                                        : 'No hay tarjetas activas en esta sección.'}
+                                </p>
+                            `}
+                        ${archived.length > 0 ? `
+                            <details class="custom-manager-archived" ${
+                                searchQuery
+                                || archived.some(tracker => this.pendingDeleteIds.has(tracker.id))
+                                    ? 'open'
+                                    : ''
+                            }>
+                                <summary>
+                                    <span><i class="ph ph-archive" aria-hidden="true"></i> Archivadas</span>
+                                    <span class="custom-manager-archived-count">${archived.length}</span>
+                                </summary>
+                                <div class="custom-manager-archived-grid">
+                                    ${archived.map(tracker => (
+                                        this.renderManagerArchivedRow(tracker)
+                                    )).join('')}
+                                </div>
+                            </details>
+                        ` : ''}
+                    </div>
+                </section>
+            `;
         });
 
-        const sectionsHtml = visibleSections
-            .map(([sectionKey, section]) => {
-                const active = this.registry.trackers
-                    .filter(tracker => (
-                        tracker.section === sectionKey
-                        && !tracker.archived
-                        && !tracker.deleted
-                    ))
-                    .sort((a, b) => (
-                        a.subsection.localeCompare(b.subsection)
-                        || a.order - b.order
-                        || a.name.localeCompare(b.name, 'es')
-                    ));
-                const activeGroups = Object.entries(section.subsections)
-                    .map(([subsectionKey, subsection]) => ({
-                        key: subsectionKey,
-                        label: subsection.label,
-                        trackers: active.filter(
-                            tracker => tracker.subsection === subsectionKey
-                        )
-                    }))
-                    .filter(group => group.trackers.length > 0);
-                const archived = this.registry.trackers
-                    .filter(tracker => (
-                        tracker.section === sectionKey
-                        && tracker.archived
-                        && !tracker.deleted
-                    ))
-                    .sort((a, b) => a.name.localeCompare(b.name, 'es'));
-                const activeLabel = `${active.length} ${active.length === 1 ? 'activa' : 'activas'}`;
-                const archivedLabel = archived.length > 0
-                    ? ` · ${archived.length} ${archived.length === 1 ? 'archivada' : 'archivadas'}`
-                    : '';
-
-                return `
-                    <section class="custom-manager-section" data-manager-section="${sectionKey}">
-                        <div class="custom-manager-section-header">
-                            <div>
-                                <span class="custom-manager-section-icon">
-                                    <i class="ph ${section.defaultIcon}"></i>
-                                </span>
-                                <span>
-                                    <h3>${escapeHtml(section.label)}</h3>
-                                    <small>${activeLabel}${archivedLabel}</small>
-                                </span>
-                            </div>
-                            <button type="button" class="custom-manager-add ${isReordering ? 'hidden' : ''}" data-custom-manager-action="new" data-section="${sectionKey}" aria-label="Crear tarjeta en ${escapeHtml(section.label)}" data-tooltip="Crear tarjeta en ${escapeHtml(section.label)}">
-                                <i class="ph ph-plus"></i>
-                            </button>
-                        </div>
-                        <div class="custom-manager-list">
-                            ${activeGroups.length > 0
-                                ? activeGroups.map(group => `
-                                    <div class="custom-manager-group">
-                                        <div class="custom-manager-group-label">
-                                            <span>${escapeHtml(group.label)}</span>
-                                            <small>${group.trackers.length}</small>
-                                        </div>
-                                        <div
-                                            class="custom-manager-sortable-list"
-                                            ${isReordering ? `data-reorder-list data-reorder-group="${sectionKey}:${group.key}"` : ''}
-                                        >
-                                            ${group.trackers.map(tracker => (
-                                                this.renderManagerActiveRow(
-                                                    tracker,
-                                                    isReordering
-                                                )
-                                            )).join('')}
-                                        </div>
-                                    </div>
-                                `).join('')
-                                : `
-                                    <p class="custom-manager-empty">
-                                        No hay tarjetas activas en esta sección.
-                                    </p>
-                                `}
-                            ${archived.length > 0 ? `
-                                <div class="custom-manager-archived-label">
-                                    <i class="ph ph-archive"></i>
-                                    Archivadas
-                                </div>
-                                ${archived.map(tracker => (
-                                    this.renderManagerArchivedRow(tracker)
-                                )).join('')}
-                            ` : ''}
-                        </div>
-                    </section>
-                `;
-            });
-
-        const vehicleHtml = !isReordering
-            && (this.activeCategoryFilter === 'all' || this.activeCategoryFilter === 'vehicle')
-            ? (this.app.vehicle?.cards?.renderManagerSection?.() || '')
+        const vehicleVisible = !isReordering
+            && (this.activeCategoryFilter === 'all' || this.activeCategoryFilter === 'vehicle');
+        const matchingVehicleCards = vehicleVisible
+            ? (
+                this.app.vehicle?.cards?.getManagerCardsMatching?.(
+                    this.managerSearchQuery
+                )
+                || allVehicleCards.filter(card => (
+                    !searchQuery
+                    || this.normalizeManagerSearchText([
+                        card.name,
+                        card.type,
+                        card.section
+                    ].join(' ')).includes(searchQuery)
+                ))
+            )
+            : [];
+        matchingCount += matchingVehicleCards.length;
+        const vehicleHtml = vehicleVisible
+            ? (this.app.vehicle?.cards?.renderManagerSection?.({
+                query: this.managerSearchQuery
+            }) || '')
             : '';
-        this.managerSummary.innerHTML = filterBarHtml + sectionsHtml.join('') + vehicleHtml;
+        const resultLabel = searchQuery
+            ? `${matchingCount} ${matchingCount === 1 ? 'coincidencia' : 'coincidencias'} para “${escapeHtml(this.managerSearchQuery.trim())}”`
+            : 'Elegí una sección o buscá una tarjeta por nombre.';
+        const contentHtml = searchQuery && matchingCount === 0
+            ? `
+                <div class="custom-manager-no-results">
+                    <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                    <strong>No encontramos esa tarjeta</strong>
+                    <span>Probá con otro nombre o limpiá la búsqueda para volver a ver todas.</span>
+                    <button type="button" class="btn btn-secondary" data-custom-manager-action="clear-search">Limpiar búsqueda</button>
+                </div>
+            `
+            : sectionsHtml.join('') + vehicleHtml;
+
+        this.managerSummary.innerHTML = `
+            <div class="custom-manager-browser">
+                ${filterBarHtml}
+                <div class="custom-manager-search-row">
+                    <label class="custom-manager-search-field">
+                        <i class="ph ph-magnifying-glass" aria-hidden="true"></i>
+                        <input
+                            type="search"
+                            value="${escapeHtml(this.managerSearchQuery)}"
+                            maxlength="80"
+                            placeholder="Buscar una tarjeta"
+                            aria-label="Buscar una tarjeta por nombre"
+                            data-custom-manager-search
+                            ${isReordering ? 'disabled' : ''}
+                        >
+                        ${this.managerSearchQuery ? `
+                            <button type="button" data-custom-manager-action="clear-search" aria-label="Limpiar búsqueda" data-tooltip="Limpiar búsqueda">
+                                <i class="ph ph-x" aria-hidden="true"></i>
+                            </button>
+                        ` : ''}
+                    </label>
+                    <span class="custom-manager-search-result" role="status">${resultLabel}</span>
+                </div>
+            </div>
+            <div class="custom-manager-content-grid ${this.activeCategoryFilter === 'all' ? 'is-all' : 'is-focused'}">
+                ${contentHtml}
+            </div>
+        `;
 
         const managerNote = this.managerRoot.querySelector(
             '.custom-trackers-manager-note'
@@ -2213,7 +2688,7 @@ export class CustomTrackersModule {
         if (managerNoteText) {
             managerNoteText.textContent = isReordering
                 ? 'Mantené presionada una fila y arrastrala dentro de su categoría. También podés enfocar el control de agarre y usar las flechas del teclado.'
-                : 'Cada tarjeta conserva su historial y su comportamiento. Al archivarla desaparece del uso diario, pero podés restaurarla cuando quieras.';
+                : 'Cada tarjeta conserva su historial y su comportamiento. Al archivarla desaparece del uso diario, pero podés restaurarla cuando quieras. Recordatorios usa esta misma configuración de avisos: no mantiene una copia separada.';
         }
         this.managerRoot.classList.toggle('is-custom-reordering', isReordering);
         this.orderTrackersButton?.classList.toggle('hidden', isReordering);
@@ -2383,7 +2858,6 @@ export class CustomTrackersModule {
         const safeName = escapeHtml(tracker.name);
         const safeAction = escapeHtml(tracker.actionLabel);
         const instructionsOpen = this.openInstructionIds.has(tracker.id);
-        const historyOpen = this.openHistoryIds.has(tracker.id);
         const latestLabel = state.latest
             ? DateUtils.formatFriendlyDate(state.latest)
             : 'Nunca';
@@ -2452,9 +2926,9 @@ export class CustomTrackersModule {
                                     <i class="ph ph-pencil-simple" aria-hidden="true"></i>
                                     Editar configuración
                                 </button>
-                                <button type="button" role="menuitem" data-custom-runtime-action="toggle-history" data-tracker-id="${tracker.id}">
+                                <button type="button" role="menuitem" data-custom-runtime-action="open-history" data-tracker-id="${tracker.id}">
                                     <i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i>
-                                    ${historyOpen ? 'Ocultar historial' : 'Ver historial'}
+                                    Ver historial (${history.length})
                                 </button>
                                 <button type="button" role="menuitem" class="danger" data-custom-runtime-action="archive" data-tracker-id="${tracker.id}">
                                     <i class="ph ph-archive" aria-hidden="true"></i>
@@ -2487,50 +2961,6 @@ export class CustomTrackersModule {
                         ${escapeHtml(tracker.instructions).replace(/\n/g, '<br>')}
                     </div>
                 ` : ''}
-                <button type="button" class="custom-tracker-secondary-action" data-custom-runtime-action="toggle-history" data-tracker-id="${tracker.id}" aria-expanded="${historyOpen}">
-                    <i class="ph ph-clock-counter-clockwise"></i>
-                    Historial (${history.length})
-                </button>
-                <div class="custom-tracker-history ${historyOpen ? '' : 'hidden'}">
-                    ${history.length > 0 ? `
-                        <div class="custom-tracker-history-toolbar">
-                            <span>Últimos registros</span>
-                            <button type="button" data-custom-runtime-action="edit-latest" data-tracker-id="${tracker.id}">
-                                Editar última fecha
-                            </button>
-                        </div>
-                        <ol>
-                            ${history.slice(0, 10).map((date, historyIndex) => {
-                                const confirmationKey = this.getHistoryDeleteKey(
-                                    tracker.id,
-                                    historyIndex
-                                );
-                                const awaitingConfirmation = (
-                                    this.pendingHistoryDeleteKeys.has(confirmationKey)
-                                );
-                                return `
-                                    <li class="${awaitingConfirmation ? 'custom-history-delete-pending' : ''}">
-                                        <span>${escapeHtml(DateUtils.formatDateTime(date))}</span>
-                                        ${awaitingConfirmation ? `
-                                            <span class="custom-history-delete-actions">
-                                                <button type="button" data-custom-runtime-action="cancel-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}">
-                                                    Cancelar
-                                                </button>
-                                                <button type="button" class="danger" data-custom-runtime-action="confirm-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}">
-                                                    Borrar
-                                                </button>
-                                            </span>
-                                        ` : `
-                                            <button type="button" data-custom-runtime-action="request-delete-history" data-tracker-id="${tracker.id}" data-history-index="${historyIndex}" aria-label="Borrar registro de ${safeName}" data-tooltip="Borrar registro">
-                                                <i class="ph ph-trash"></i>
-                                            </button>
-                                        `}
-                                    </li>
-                                `;
-                            }).join('')}
-                        </ol>
-                    ` : '<p>Sin registros todavía.</p>'}
-                </div>
                 <button type="button" class="btn btn-primary custom-tracker-record" data-custom-runtime-action="record" data-tracker-id="${tracker.id}">
                     <i class="ph ph-check-circle"></i>
                     ${safeAction}

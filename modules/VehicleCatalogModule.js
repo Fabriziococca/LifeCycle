@@ -354,6 +354,7 @@ export class VehicleCatalogModule {
         if (!card || card.archived || card.deleted || !manager) return false;
 
         manager.activeCategoryFilter = 'vehicle';
+        manager.managerSearchQuery = '';
         this.app.saveUiState?.({ trackerManagerFilter: 'vehicle' });
         if (!this.app.openProfileTab?.('seguimientos')) return false;
 
@@ -524,17 +525,48 @@ export class VehicleCatalogModule {
         `;
     }
 
-    renderManagerSection() {
-        const active = this.getCards({ includeArchived: false });
-        const archived = this.getCards().filter(card => card.archived);
+    normalizeManagerSearchText(value) {
+        return String(value || '')
+            .normalize('NFD')
+            .replace(/[\u0300-\u036f]/g, '')
+            .toLocaleLowerCase('es')
+            .trim();
+    }
+
+    getManagerCardsMatching(query = '') {
+        const normalizedQuery = this.normalizeManagerSearchText(query);
+        return this.getCards().filter(card => {
+            if (!normalizedQuery) return true;
+            return this.normalizeManagerSearchText([
+                card.name,
+                typeLabel(card),
+                VEHICLE_CARD_SECTIONS[card.section]?.label
+            ].filter(Boolean).join(' ')).includes(normalizedQuery);
+        });
+    }
+
+    renderManagerSection({ query = '' } = {}) {
+        const normalizedQuery = this.normalizeManagerSearchText(query);
+        const allActive = this.getCards({ includeArchived: false });
+        const allArchived = this.getCards().filter(card => card.archived);
+        const matchingIds = new Set(
+            this.getManagerCardsMatching(query).map(card => card.id)
+        );
+        const active = allActive.filter(card => matchingIds.has(card.id));
+        const archived = allArchived.filter(card => matchingIds.has(card.id));
         const groups = Object.entries(VEHICLE_CARD_SECTIONS).map(([sectionKey, section]) => ({
             key: sectionKey,
             label: section.label,
             cards: active.filter(card => card.section === sectionKey)
         })).filter(group => group.cards.length > 0);
-        const archivedLabel = archived.length
-            ? ` · ${archived.length} ${archived.length === 1 ? 'archivada' : 'archivadas'}`
+        const archivedLabel = allArchived.length
+            ? ` · ${allArchived.length} ${allArchived.length === 1 ? 'archivada' : 'archivadas'}`
             : '';
+        const filteredLabel = normalizedQuery
+            ? ` · ${active.length + archived.length} ${active.length + archived.length === 1 ? 'coincidencia' : 'coincidencias'}`
+            : '';
+
+        if (normalizedQuery && active.length + archived.length === 0) return '';
 
         return `
             <section class="custom-manager-section" data-manager-section="vehicle">
@@ -543,7 +575,7 @@ export class VehicleCatalogModule {
                         <span class="custom-manager-section-icon"><i class="ph ph-car"></i></span>
                         <span>
                             <h3>Vehículo</h3>
-                            <small>${active.length} ${active.length === 1 ? 'activa' : 'activas'}${archivedLabel}</small>
+                            <small>${allActive.length} ${allActive.length === 1 ? 'activa' : 'activas'}${archivedLabel}${filteredLabel}</small>
                         </span>
                     </div>
                     <button type="button" class="custom-manager-add" data-vehicle-manager-action="new" aria-label="Crear tarjeta de vehículo" data-tooltip="Crear tarjeta de vehículo">
@@ -557,12 +589,32 @@ export class VehicleCatalogModule {
                                 <span>${escapeHtml(group.label)}</span>
                                 <small>${group.cards.length}</small>
                             </div>
-                            ${group.cards.map(card => this.renderManagerRow(card)).join('')}
+                            <div class="custom-manager-sortable-list">
+                                ${group.cards.map(card => this.renderManagerRow(card)).join('')}
+                            </div>
                         </div>
-                    `).join('') : '<p class="custom-manager-empty">No hay tarjetas activas en Vehículo.</p>'}
+                    `).join('') : `
+                        <p class="custom-manager-empty">
+                            ${normalizedQuery
+                                ? 'No hay tarjetas activas que coincidan con la búsqueda.'
+                                : 'No hay tarjetas activas en Vehículo.'}
+                        </p>
+                    `}
                     ${archived.length ? `
-                        <div class="custom-manager-archived-label"><i class="ph ph-archive"></i> Archivadas</div>
-                        ${archived.map(card => this.renderManagerRow(card, true)).join('')}
+                        <details class="custom-manager-archived" ${
+                            normalizedQuery
+                            || archived.some(card => this.pendingDeleteIds.has(card.id))
+                                ? 'open'
+                                : ''
+                        }>
+                            <summary>
+                                <span><i class="ph ph-archive" aria-hidden="true"></i> Archivadas</span>
+                                <span class="custom-manager-archived-count">${archived.length}</span>
+                            </summary>
+                            <div class="custom-manager-archived-grid">
+                                ${archived.map(card => this.renderManagerRow(card, true)).join('')}
+                            </div>
+                        </details>
                     ` : ''}
                 </div>
             </section>

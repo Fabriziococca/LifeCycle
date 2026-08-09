@@ -320,6 +320,30 @@ test('the second discoverability batch avoids duplicate branding and reuses card
     assert.match(trackersSource, /Ya alcanzó o superó el plazo definido\./);
 });
 
+test('configurable card history opens from the action menu in one reusable dialog', async () => {
+    const trackersSource = await readFile(
+        path.join(ROOT, 'modules', 'CustomTrackersModule.js'),
+        'utf8'
+    );
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+    const cardRenderer = trackersSource.match(
+        /renderTrackerCard\(tracker\)[\s\S]*?\n    getBeardPrediction\(/
+    )?.[0] || '';
+
+    assert.match(trackersSource, /id = 'custom-tracker-history-dialog'/);
+    assert.match(trackersSource, /aria-modal/);
+    assert.match(trackersSource, /openHistoryDialog\(trackerId, menuTrigger\)/);
+    assert.match(trackersSource, /data-history-dialog-action="edit-latest"/);
+    assert.match(trackersSource, /data-history-dialog-action="confirm-delete"/);
+    assert.match(trackersSource, /this\.app\.showUndo\('El registro fue borrado\.'/);
+    assert.match(cardRenderer, /data-custom-runtime-action="open-history"/);
+    assert.match(cardRenderer, /Ver historial \(\$\{history\.length\}\)/);
+    assert.doesNotMatch(cardRenderer, /data-custom-runtime-action="toggle-history"/);
+    assert.doesNotMatch(cardRenderer, /class="custom-tracker-history/);
+    assert.match(styles, /\.custom-history-dialog-list\s*{[\s\S]*?overflow-y:\s*auto/);
+    assert.match(styles, /\.custom-history-dialog-summary\s*{[\s\S]*?grid-template-columns/);
+});
+
 test('the third compact-layout batch preserves vehicle and health histories behind disclosures', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
@@ -432,6 +456,8 @@ test('the sixth Trading batch stays inside Finance and schedules idempotent prog
     assert.match(index, /id="trading-event-notice-days"/);
     assert.match(index, /60, 30, 15, 7, 1/);
     assert.match(index, /independientes del recordatorio semanal/);
+    assert.match(index, /<strong>Enviar avisos<\/strong>/);
+    assert.match(index, /seguirá visible como pausado, pero no enviará notificaciones/);
 
     assert.match(financeSource, /tradingEvents: \[\]/);
     assert.match(financeSource, /activateFinanceView\(viewId/);
@@ -527,16 +553,31 @@ test('profile identity remains intact and long email addresses can wrap', async 
     assert.match(styles, /#profile-email[\s\S]*overflow-wrap:\s*anywhere/);
 });
 
-test('tracker manager filters sections and remembers the selected filter', async () => {
+test('tracker manager uses compact category navigation, search and collapsed archives', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const source = await readFile(
         path.join(ROOT, 'modules', 'CustomTrackersModule.js'),
         'utf8'
     );
+    const vehicleSource = await readFile(
+        path.join(ROOT, 'modules', 'VehicleCatalogModule.js'),
+        'utf8'
+    );
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
     const stateSource = await readFile(path.join(ROOT, 'ui-state.mjs'), 'utf8');
 
     assert.match(source, /data-tracker-category-filter="all"/);
+    assert.match(source, /data-custom-manager-search/);
+    assert.match(source, /class="custom-manager-content-grid/);
+    assert.match(source, /<details class="custom-manager-archived"/);
+    assert.match(source, /normalizeManagerSearchText/);
     assert.match(source, /trackerManagerFilter/);
     assert.match(source, /aria-pressed=/);
+    assert.match(vehicleSource, /getManagerCardsMatching\(query/);
+    assert.match(vehicleSource, /renderManagerSection\(\{ query = '' \} = \{\}\)/);
+    assert.match(styles, /#custom-trackers-manager-summary\s*{[\s\S]*?flex-direction:\s*column/);
+    assert.match(styles, /\.custom-manager-sortable-list\s*{[\s\S]*?repeat\(2,/);
+    assert.match(index, /Recordatorios usa esta misma[\s\S]*?no mantiene una copia separada/);
     assert.match(stateSource, /trackerManagerFilter:\s*'all'/);
 });
 
