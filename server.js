@@ -43,7 +43,9 @@ const {
 const {
     TRADING_ALERT_PREFIX,
     getDueTradingEventNotice,
-    normalizeTradingEvents
+    isMissingTradingPersistenceSchema,
+    normalizeTradingEvents,
+    tradingEventFromDatabaseRow
 } = require('./trading-event-utils');
 
 // Búfer en memoria para depuración de logs en Render
@@ -119,6 +121,8 @@ const transientDeliveryState = {
 };
 let pushMetadataSchemaAvailable = null;
 let notificationHistorySchemaAvailable = null;
+let tradingProjectionSchemaAvailable = null;
+let tradingDispatchSchemaAvailable = null;
 const reportedOptionalSchemaWarnings = new Set();
 const PUSH_PROVIDER_TIMEOUT_MS = 12000;
 const NOTIFICATION_HISTORY_RETENTION_DAYS = 90;
@@ -439,6 +443,111 @@ function reportOptionalSchemaWarning(key, message) {
     console.warn(message);
 }
 
+async function loadTradingEventProjection() {
+    if (!supabase || tradingProjectionSchemaAvailable === false) return null;
+
+    const { data, error } = await supabase
+        .from('trading_events')
+        .select([
+            'user_id',
+            'id',
+            'company',
+            'ticker',
+            'name',
+            'scheduled_at',
+            'notes',
+            'source_url',
+            'notice_days',
+            'status',
+            'created_at',
+            'updated_at'
+        ].join(','))
+        .eq('status', 'active');
+
+    if (error) {
+        if (isMissingTradingPersistenceSchema(error)) {
+            tradingProjectionSchemaAvailable = false;
+            reportOptionalSchemaWarning(
+                'trading-projection',
+                '[Trading] La proyección relacional todavía no está aplicada; se usa el JSON compatible.'
+            );
+        } else {
+            console.error('[Trading] No se pudo leer la proyección relacional:', error.message);
+        }
+        return null;
+    }
+
+    tradingProjectionSchemaAvailable = true;
+    const byUser = new Map();
+    (data || []).forEach(row => {
+        const event = tradingEventFromDatabaseRow(row);
+        const userId = String(row?.user_id || '');
+        if (!event || !userId) return;
+        if (!byUser.has(userId)) byUser.set(userId, []);
+        byUser.get(userId).push(event);
+    });
+    return byUser;
+}
+
+async function claimTradingNotificationDispatch({ userId, notice, forceAll }) {
+    if (forceAll || !supabase || tradingDispatchSchemaAvailable === false) return true;
+
+    const { data, error } = await supabase.rpc('claim_trading_notification_dispatch', {
+        p_user_id: userId,
+        p_alert_key: notice.alertKey,
+        p_event_id: notice.event.id,
+        p_scheduled_at: notice.event.scheduledAt,
+        p_notice_days: notice.noticeDays
+    });
+
+    if (error) {
+        if (isMissingTradingPersistenceSchema(error)) {
+            tradingDispatchSchemaAvailable = false;
+            reportOptionalSchemaWarning(
+                'trading-dispatch',
+                '[Trading] La idempotencia persistente todavía no está aplicada; continúa activa la protección compatible.'
+            );
+        } else {
+            console.error('[Trading] No se pudo reservar el aviso persistente:', error.message);
+        }
+        return true;
+    }
+
+    tradingDispatchSchemaAvailable = true;
+    return data === true;
+}
+
+async function completeTradingNotificationDispatch({
+    userId,
+    notice,
+    status,
+    errorMessage = null,
+    forceAll
+}) {
+    if (forceAll || !supabase || tradingDispatchSchemaAvailable === false) return;
+
+    const { error } = await supabase.rpc('complete_trading_notification_dispatch', {
+        p_user_id: userId,
+        p_alert_key: notice.alertKey,
+        p_status: status,
+        p_error: errorMessage
+    });
+
+    if (!error) {
+        tradingDispatchSchemaAvailable = true;
+        return;
+    }
+    if (isMissingTradingPersistenceSchema(error)) {
+        tradingDispatchSchemaAvailable = false;
+        reportOptionalSchemaWarning(
+            'trading-dispatch',
+            '[Trading] La idempotencia persistente todavía no está aplicada; continúa activa la protección compatible.'
+        );
+        return;
+    }
+    console.error('[Trading] No se pudo cerrar el aviso persistente:', error.message);
+}
+
 async function updatePushDeviceDeliveryState(rowIds, status, attemptedAt) {
     if (!supabase || pushMetadataSchemaAvailable === false) return;
     const uniqueIds = [...new Set((rowIds || []).filter(Boolean))];
@@ -710,12 +819,15 @@ function formatTradingEventSchedule(value) {
 async function sendDueTradingEventAlerts({
     userId,
     userData,
+    tradingEvents: projectedTradingEvents = null,
     subscriptions,
     forceAll = false,
     now = new Date()
 }) {
     const financeData = parseJsonValue(userData.finanzasData, {});
-    const tradingEvents = normalizeTradingEvents(financeData?.tradingEvents);
+    const tradingEvents = Array.isArray(projectedTradingEvents)
+        ? normalizeTradingEvents(projectedTradingEvents)
+        : normalizeTradingEvents(financeData?.tradingEvents);
     if (tradingEvents.length === 0) return {};
 
     const sentLog = userData.alerts_sent_log && typeof userData.alerts_sent_log === 'object'
@@ -737,6 +849,13 @@ async function sendDueTradingEventAlerts({
     const sentLogUpdates = {};
 
     for (const notice of dueNotices) {
+        const claimed = await claimTradingNotificationDispatch({
+            userId,
+            notice,
+            forceAll
+        });
+        if (!claimed) continue;
+
         const companyLabel = notice.event.ticker
             ? `${notice.event.company} (${notice.event.ticker})`
             : notice.event.company;
@@ -748,13 +867,40 @@ async function sendDueTradingEventAlerts({
             body: `${companyLabel} · ${leadLabel} · ${formatTradingEventSchedule(notice.event.scheduledAt)}.`,
             url: '/'
         });
-        const result = await sendPushToSubscriptions({
+        let result;
+        try {
+            result = await sendPushToSubscriptions({
+                userId,
+                subscriptions,
+                payload,
+                context: `evento de Trading ${notice.event.id}`,
+                alertKey: notice.alertKey,
+                delayMs: 250
+            });
+        } catch (error) {
+            await completeTradingNotificationDispatch({
+                userId,
+                notice,
+                status: 'failed',
+                errorMessage: error?.message || String(error),
+                forceAll
+            });
+            throw error;
+        }
+
+        const dispatchStatus = result.successCount > 0
+            ? 'sent'
+            : (Array.isArray(subscriptions) && subscriptions.length > 0
+                ? 'failed'
+                : 'no_devices');
+        await completeTradingNotificationDispatch({
             userId,
-            subscriptions,
-            payload,
-            context: `evento de Trading ${notice.event.id}`,
-            alertKey: notice.alertKey,
-            delayMs: 250
+            notice,
+            status: dispatchStatus,
+            errorMessage: dispatchStatus === 'failed'
+                ? `Push sin entregas${result.lastFailureStatus ? ` (HTTP ${result.lastFailureStatus})` : ''}.`
+                : null,
+            forceAll
         });
 
         if (!forceAll && result.successCount > 0) {
@@ -1583,6 +1729,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
         if (dbError) throw dbError;
         if (subError) throw subError;
 
+        const tradingEventsByUser = await loadTradingEventProjection();
+
         console.log(`[Notification Engine] Tick: checking configured notifications (forceAll: ${forceAll}). Time in Argentina: ${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}, Day: ${dayOfWeek}, Date: ${dateStr}. Subscriptions found: ${subs ? subs.length : 0}`);
 
         if (!usersData || usersData.length === 0) return;
@@ -1642,6 +1790,9 @@ async function checkAndSendAllAlerts(forceAll = false) {
             const tradingSentLogUpdates = await sendDueTradingEventAlerts({
                 userId,
                 userData: data,
+                tradingEvents: tradingEventsByUser instanceof Map
+                    ? (tradingEventsByUser.get(userId) || [])
+                    : null,
                 subscriptions: userSubs,
                 forceAll
             });

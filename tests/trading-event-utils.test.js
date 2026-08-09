@@ -5,10 +5,12 @@ const {
     DEFAULT_TRADING_NOTICE_DAYS,
     buildTradingEventAlertKey,
     getDueTradingEventNotice,
+    isMissingTradingPersistenceSchema,
     normalizeTradingEvent,
     normalizeTradingEvents,
     parseTradingEventAlertKey,
-    parseTradingNoticeDays
+    parseTradingNoticeDays,
+    tradingEventFromDatabaseRow
 } = require('../trading-event-utils');
 
 function buildEvent(overrides = {}) {
@@ -107,4 +109,38 @@ test('the registry rejects malformed or duplicated events', () => {
     const normalized = normalizeTradingEvents([valid, malformed, duplicate]);
     assert.equal(normalized.length, 1);
     assert.equal(normalized[0].name, 'Resultados Q3');
+});
+
+test('database projection rows normalize back to the client event contract', () => {
+    const event = tradingEventFromDatabaseRow({
+        id: 'trade_nvidia_q3',
+        company: 'NVIDIA',
+        ticker: 'nvda',
+        name: 'Resultados Q3',
+        scheduled_at: '2026-10-30T20:00:00.000Z',
+        notes: 'Balance trimestral',
+        source_url: 'https://investor.nvidia.com/',
+        notice_days: [60, 30, 7, 1],
+        status: 'active',
+        created_at: '2026-08-08T20:00:00.000Z',
+        updated_at: '2026-08-09T20:00:00.000Z'
+    });
+
+    assert.equal(event.ticker, 'NVDA');
+    assert.equal(event.scheduledAt, '2026-10-30T20:00:00.000Z');
+    assert.deepEqual(event.noticeDays, [60, 30, 7, 1]);
+    assert.equal(event.updatedAt, '2026-08-09T20:00:00.000Z');
+});
+
+test('missing optional Trading persistence is detected without hiding unrelated errors', () => {
+    assert.equal(isMissingTradingPersistenceSchema({ code: '42P01' }), true);
+    assert.equal(isMissingTradingPersistenceSchema({ code: 'PGRST202' }), true);
+    assert.equal(isMissingTradingPersistenceSchema({
+        code: 'XX000',
+        message: 'relation trading_events does not exist'
+    }), true);
+    assert.equal(isMissingTradingPersistenceSchema({
+        code: '42501',
+        message: 'permission denied for relation unrelated_table'
+    }), false);
 });

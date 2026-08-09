@@ -113,6 +113,34 @@
         return normalized;
     }
 
+    function tradingEventFromDatabaseRow(value) {
+        if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+        return normalizeTradingEvent({
+            id: value.id,
+            company: value.company,
+            ticker: value.ticker,
+            name: value.name,
+            scheduledAt: value.scheduled_at,
+            notes: value.notes,
+            sourceUrl: value.source_url,
+            noticeDays: value.notice_days,
+            status: value.status,
+            createdAt: value.created_at,
+            updatedAt: value.updated_at
+        });
+    }
+
+    function isMissingTradingPersistenceSchema(error) {
+        const code = String(error?.code || '');
+        const message = String(error?.message || '').toLowerCase();
+        return ['42P01', '42883', '42703', 'PGRST202', 'PGRST204', 'PGRST205']
+            .includes(code)
+            || message.includes('trading_events')
+            || message.includes('trading_notification_dispatch')
+            || message.includes('claim_trading_notification_dispatch')
+            || message.includes('complete_trading_notification_dispatch');
+    }
+
     function createTradingEventId(now = Date.now(), random = Math.random()) {
         const timePart = Math.max(0, Number(now) || Date.now()).toString(36);
         const randomPart = Math.floor(Math.max(0, Number(random) || 0) * 0xFFFFFF)
@@ -204,11 +232,13 @@
         buildTradingEventAlertKey,
         createTradingEventId,
         getDueTradingEventNotice,
+        isMissingTradingPersistenceSchema,
         normalizeTradingEvent,
         normalizeTradingEvents,
         normalizeTradingNoticeDays,
         normalizeTradingSourceUrl,
         parseTradingEventAlertKey,
-        parseTradingNoticeDays
+        parseTradingNoticeDays,
+        tradingEventFromDatabaseRow
     });
 });

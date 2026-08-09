@@ -28,7 +28,7 @@ graph TD
 ## 🔒 Security & Data Integrity Best Practices
 
 *   **Zero Credentials Exposed:** All sensitive data (database connection strings, service role keys, VAPID private keys) are stored as encrypted environment variables in Render and never checked into the code.
-*   **Row-Level Security (RLS):** Supabase database tables enforce strict RLS policies ensuring that users can only read and write their own data, even when utilizing public anon keys.
+*   **Row-Level Security (RLS):** Supabase database tables isolate every user's rows. Authenticated document writes pass through an allowlisted atomic RPC instead of direct table mutation.
 *   **Private Medical Attachments:** Blood-test files are stored in a private Supabase bucket, restricted to the authenticated user's folder and opened through short-lived signed URLs.
 *   **Database-Level Constraints:** Implemented custom check constraints (`check_no_object_string`) at the Postgres level to reject malformed serialization attempts, safeguarding data integrity.
 *   **Safe Client Parsing:** The application features robust cache parsers with isolated try/catch boundaries, ensuring that parsing anomalies in one module never disrupt the main application loop.

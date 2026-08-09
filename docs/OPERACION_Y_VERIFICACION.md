@@ -90,20 +90,30 @@ Esta segunda migración agrega `projectPulseTemplates` a la lista de claves que 
 
 ## Trading
 
-Los eventos financieros se guardan dentro de `finanzasData.tradingEvents`, por
-lo que usan el mismo flujo autenticado de sincronización y backup que Finanzas.
-No se creó una tabla ni una política RLS adicional.
+Los eventos financieros continúan guardándose dentro de
+`finanzasData.tradingEvents`, por lo que conservan el flujo offline-first, la
+sincronización autenticada y el backup JSON de Finanzas. La base proyecta ese
+arreglo de forma transaccional en `public.trading_events`: el backend obtiene
+filas tipadas e indexadas, mientras que el JSON original se mantiene como
+fuente compatible y vía de reversión.
+
+`public.trading_events` habilita RLS y solo permite lectura de filas propias a
+usuarios autenticados. Las escrituras no se exponen al navegador: un trigger
+privado actualiza la proyección cuando cambia el documento sincronizado.
 
 Cada evento conserva empresa, ticker opcional, nombre, fecha y hora, notas,
 fuente opcional, estado e intervalos de aviso. Los valores iniciales son 60,
 30, 15, 7 y 1 día, pero pueden editarse entre 1 y 365 días.
 
 El motor configurado del backend evalúa los eventos activos cada cinco minutos.
-Cada envío usa una clave formada por evento, fecha programada y umbral. La clave
-se persiste en `alerts_sent_log` después de una aceptación de Push, de modo que
-un reinicio normal de Render no repite el mismo aviso. Si cambia la fecha del
-evento se genera una serie nueva de claves; editar solamente el texto no duplica
-avisos ya enviados.
+Cada envío usa una clave formada por evento, fecha programada y umbral. Antes de
+enviar, el backend reserva esa clave de forma atómica en
+`private.trading_notification_dispatches`; así, dos procesos o un reinicio de
+Render no pueden emitir simultáneamente el mismo aviso. Los estados fallidos y
+sin dispositivos admiten reintentos con espera, mientras que un envío aceptado
+queda cerrado. `alerts_sent_log` se conserva temporalmente como compatibilidad
+con versiones anteriores. Si cambia la fecha del evento se genera una serie
+nueva de claves; editar solamente el texto no duplica avisos ya enviados.
 
 La pestaña Trading consulta el historial existente mediante
 `GET /api/push/history?scope=trading`. El endpoint sigue requiriendo la sesión
@@ -126,6 +136,10 @@ Los adjuntos médicos nuevos permanecen como binarios privados en Supabase Stora
 - una exportación portátil futura deberá generar un paquete con JSON, manifiesto y binarios descargados de Storage.
 
 Ambas modalidades son útiles y no deberían sustituirse entre sí.
+
+Antes de cambios estructurales, la base también conserva snapshots inmutables
+en `private.user_data_snapshots`. Son puntos de recuperación internos y no
+sustituyen una exportación externa periódica ni el backup JSON descargable.
 
 ## Render y despliegue automático
 
@@ -154,7 +168,23 @@ Las migraciones de dispositivos Push, historial, endurecimiento del snapshot pri
 - `20260801193348_complete_push_diagnostics_and_retention.sql`;
 - `20260801201540_grant_push_subscription_updates.sql`.
 
+La Tanda 8 agrega dos migraciones aditivas:
+
+- `20260809060236_tanda_8_data_foundation.sql`: snapshot previo, revisión
+  monotónica de documentos, borrado en cascada al eliminar una cuenta, permisos
+  mínimos y escritura autenticada exclusivamente mediante la RPC allowlisted;
+- `20260809060251_tanda_8_trading_projection.sql`: proyección relacional de
+  Trading con RLS e idempotencia persistente de sus notificaciones.
+
+La proyección no elimina ni transforma el JSON original. Esto permite volver al
+lector compatible sin reconstruir información si fuera necesario.
+
 Después de cualquier ampliación del historial se debe ejecutar nuevamente `supabase/verification/20260801_operation_security_check.sql`: cada fila debe devolver `passed = true` y la primera no debe listar columnas faltantes. La última ampliación fue comprobada también mediante consulta directa y los asesores de seguridad y rendimiento.
+
+Después de la Tanda 8 también se ejecuta
+`supabase/verification/20260809_tanda_8_security_check.sql`. Todas sus filas
+deben devolver `passed = true`; además comprueba que la proyección de Trading y
+el JSON compatible contengan los mismos identificadores.
 
 La protección contra contraseñas filtradas requiere un plan pago de Supabase. Como este proyecto utiliza el plan Free y el registro público está cerrado, se documenta como una defensa opcional futura y no como un pendiente de esta etapa.
 

@@ -11,6 +11,13 @@ import {
 } from '../sync-utils.mjs';
 import { PushManagementModule } from './PushManagementModule.js?v=20260801-push-diagnostics';
 
+function isMissingCloudRevisionSchema(error) {
+    const code = String(error?.code || '');
+    const message = String(error?.message || '').toLowerCase();
+    return ['42703', 'PGRST204'].includes(code)
+        || (message.includes('revision') && message.includes('user_data'));
+}
+
 export class AuthSyncModule {
     constructor(appController) {
         this.app = appController;
@@ -59,6 +66,7 @@ export class AuthSyncModule {
         this.syncFlushTimer = null;
         this.syncRetryTimer = null;
         this.realtimeRefreshTimer = null;
+        this.cloudRevision = null;
         this.pushSyncPromise = null;
         this.pushManagement = new PushManagementModule(this);
         this.setupAccessGateListeners();
@@ -353,6 +361,7 @@ export class AuthSyncModule {
             this.realtimeRefreshTimer = null;
             CLOUD_LOCAL_CLEAR_KEYS.forEach(key => localStorage.removeItem(key));
             this.pendingSyncKeys.clear();
+            this.cloudRevision = null;
             localStorage.removeItem(SYNC_PENDING_STORAGE_KEY);
             localStorage.removeItem('has_unsynced_local_changes');
             sessionStorage.removeItem('is_explicit_login');
@@ -445,6 +454,9 @@ export class AuthSyncModule {
                 if (error) throw error;
 
                 if (!isCurrentSession()) return false;
+                if (Number.isSafeInteger(this.cloudRevision)) {
+                    this.cloudRevision += 1;
+                }
                 localStorage.removeItem('has_unsynced_local_changes');
                 this.updateSyncBadge('synced', 'Sincronizado');
                 return true;
@@ -501,20 +513,37 @@ export class AuthSyncModule {
                 if (!pendingSaved) return false;
             }
 
-            const { data, error } = await this.supabase
+            let revisionAvailable = true;
+            let { data, error } = await this.supabase
                 .from('user_data')
-                .select('data')
+                .select('data, updated_at, revision')
                 .eq('user_id', this.user.id)
                 .maybeSingle();
+
+            if (error && isMissingCloudRevisionSchema(error)) {
+                revisionAvailable = false;
+                ({ data, error } = await this.supabase
+                    .from('user_data')
+                    .select('data, updated_at')
+                    .eq('user_id', this.user.id)
+                    .maybeSingle());
+            }
             if (error) throw error;
 
+            const parsedRevision = Number(data?.revision);
+            this.cloudRevision = revisionAvailable && Number.isSafeInteger(parsedRevision)
+                ? parsedRevision
+                : null;
+
             let cloudData = data?.data;
-            if (!cloudData) {
-                const { error: insertError } = await this.supabase
-                    .from('user_data')
-                    .insert({ user_id: this.user.id, data: {} });
-                if (insertError) throw insertError;
+            if (!data) {
+                const { error: createError } = await this.supabase.rpc('merge_user_data_keys', {
+                    p_updates: {},
+                    p_delete_keys: []
+                });
+                if (createError) throw createError;
                 cloudData = {};
+                this.cloudRevision = revisionAvailable ? 1 : null;
             }
 
             // Internal scheduler state belongs only to the backend and should not remain cached.
@@ -821,6 +850,10 @@ export class AuthSyncModule {
                 filter: `user_id=eq.${this.user.id}`
             }, payload => {
                 const newCloudData = payload.new?.data;
+                const realtimeRevision = Number(payload.new?.revision);
+                if (Number.isSafeInteger(realtimeRevision)) {
+                    this.cloudRevision = realtimeRevision;
+                }
                 if (newCloudData) {
                     if (this.isSyncing || this.pendingSyncKeys.size > 0) {
                         clearTimeout(this.realtimeRefreshTimer);
