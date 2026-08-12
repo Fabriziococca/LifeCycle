@@ -392,6 +392,47 @@ function getCustomTrackerRegistry(hygieneData = {}) {
     return registry;
 }
 
+function getCustomTrackerAlertKey(tracker) {
+    return typeof tracker?.alertKey === 'string'
+        && /^[a-z0-9:_-]{3,120}$/.test(tracker.alertKey)
+        ? tracker.alertKey
+        : `${CUSTOM_ALERT_PREFIX}${tracker?.id || ''}`;
+}
+
+function getStateReminderEntries(hygieneData = {}) {
+    const registry = getCustomTrackerRegistry(hygieneData);
+    if (!registry) return [];
+
+    return registry.trackers
+        .filter(tracker => (
+            tracker
+            && !tracker.archived
+            && !tracker.deleted
+            && tracker.template === 'state-reminder'
+            && typeof tracker.id === 'string'
+            && /^(?:ct|trk)_[a-z0-9_-]{3,96}$/.test(tracker.id)
+        ))
+        .map(tracker => {
+            const activatedAt = tracker.state?.active === true
+                && Number.isFinite(Date.parse(tracker.state?.activatedAt))
+                ? new Date(tracker.state.activatedAt).toISOString()
+                : null;
+            return {
+                trackerId: tracker.id,
+                alertKey: getCustomTrackerAlertKey(tracker),
+                name: typeof tracker.name === 'string'
+                    ? tracker.name.replace(/\s+/g, ' ').trim().slice(0, 80)
+                    : 'Recordatorio',
+                active: Boolean(activatedAt),
+                activatedAt,
+                intervalHours: normalizeIntervalHours(
+                    tracker.behavior?.intervalHours,
+                    6
+                )
+            };
+        });
+}
+
 function ensureCustomTrackerAlertConfigs(alertsConfig, hygieneData = {}) {
     const registry = getCustomTrackerRegistry(hygieneData);
     if (!registry || !alertsConfig || typeof alertsConfig !== 'object') return false;
@@ -408,10 +449,11 @@ function ensureCustomTrackerAlertConfigs(alertsConfig, hygieneData = {}) {
             return;
         }
 
-        const key = typeof tracker.alertKey === 'string'
-            && /^[a-z0-9:_-]{3,120}$/.test(tracker.alertKey)
-            ? tracker.alertKey
-            : `${CUSTOM_ALERT_PREFIX}${tracker.id}`;
+        const key = getCustomTrackerAlertKey(tracker);
+        const isStateReminder = tracker.template === 'state-reminder';
+        const intervalHours = isStateReminder
+            ? normalizeIntervalHours(tracker.behavior?.intervalHours, 6)
+            : null;
         if (!alertsConfig[key]) {
             const time = typeof tracker.alert?.time === 'string'
                 && /^([01]\d|2[0-3]):([0-5]\d)$/.test(tracker.alert.time)
@@ -420,8 +462,15 @@ function ensureCustomTrackerAlertConfigs(alertsConfig, hygieneData = {}) {
             alertsConfig[key] = {
                 enabled: tracker.alert?.enabled === true,
                 time,
-                days: []
+                days: [],
+                ...(isStateReminder ? { interval_hours: intervalHours } : {})
             };
+            changed = true;
+        } else if (
+            isStateReminder
+            && alertsConfig[key].interval_hours !== intervalHours
+        ) {
+            alertsConfig[key].interval_hours = intervalHours;
             changed = true;
         }
     });
@@ -452,6 +501,12 @@ function buildCustomTrackerNotification(
     ));
     if (!tracker) return null;
     if (tracker.archived || tracker.deleted) {
+        return {
+            handled: true,
+            shouldNotify: false
+        };
+    }
+    if (tracker.template === 'state-reminder') {
         return {
             handled: true,
             shouldNotify: false
@@ -513,6 +568,7 @@ module.exports = {
     ensureVehicleCatalogAlertConfigs,
     formatExpiryStatus,
     getDuplicateSubscriptionRowIds,
+    getStateReminderEntries,
     getLatestValidDate,
     getPendingVeryUrgentTasks,
     groupSubscriptionsByUser,

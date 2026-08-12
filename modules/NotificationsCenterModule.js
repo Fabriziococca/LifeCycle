@@ -7,7 +7,10 @@ import {
     parseDateLocal
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
-import { getCustomTrackerState } from '../custom-tracker-utils.mjs?v=20260729-trackers-v2';
+import {
+    getCustomTrackerState,
+    isStateReminderTracker
+} from '../custom-tracker-utils.mjs?v=20260811-special-trackers';
 
 const COMPLETABLE_MODULES = new Set([
     'hygiene',
@@ -72,6 +75,19 @@ export class NotificationsCenterModule {
                             now
                         );
                         if (state.status !== 'red') return;
+                        if (isStateReminderTracker(tracker)) {
+                            const elapsedText = state.elapsedHours >= 24
+                                ? `${state.elapsedDays} ${state.elapsedDays === 1 ? 'día' : 'días'}`
+                                : `${state.elapsedHours} ${state.elapsedHours === 1 ? 'hora' : 'horas'}`;
+                            items.push({
+                                module: 'custom_tracker',
+                                id: tracker.id,
+                                name: tracker.name,
+                                icon: tracker.icon,
+                                desc: `Pendiente hace ${elapsedText}; los avisos continúan hasta resolverlo.`
+                            });
+                            return;
+                        }
                         const cadenceText = state.cadence.unit === 'months'
                             ? `${state.cadence.value} ${state.cadence.value === 1 ? 'mes' : 'meses'}`
                             : `${state.dueValue} días`;
@@ -108,7 +124,17 @@ export class NotificationsCenterModule {
                     });
                 }
                 // Robot aspiradora
-                if (hData.robot_cleaner && hData.robot_cleaner.status === 'dirty') {
+                const hasUnifiedRobot = hasUnifiedTrackers
+                    && this.app.customTrackers.registry.trackers.some(tracker => (
+                        isStateReminderTracker(tracker)
+                        && (tracker.alertKey === 'robot' || tracker.id === 'trk_hygiene_robot_cleaner')
+                        && !tracker.deleted
+                    ));
+                if (
+                    !hasUnifiedRobot
+                    && hData.robot_cleaner
+                    && hData.robot_cleaner.status === 'dirty'
+                ) {
                     let timeText = 'Robot Sucio';
                     if (hData.robot_cleaner.marked_dirty_at) {
                         const elapsedMs = now - new Date(hData.robot_cleaner.marked_dirty_at);

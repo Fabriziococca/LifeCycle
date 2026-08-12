@@ -7,6 +7,8 @@ export const CUSTOM_TRACKER_FIELD = '__trackers_v2';
 export const LEGACY_CUSTOM_TRACKER_FIELD = '__custom_trackers_v1';
 export const CUSTOM_TRACKER_SCHEMA_VERSION = 2;
 export const CUSTOM_ALERT_PREFIX = 'custom_tracker:';
+export const DEFAULT_ROBOT_TRACKER_ID = 'trk_hygiene_robot_cleaner';
+export const DEFAULT_BLOOD_STUDY_TRACKER_ID = 'trk_health_blood_analysis';
 
 export const CUSTOM_TRACKER_TEMPLATES = Object.freeze({
     routine: Object.freeze({
@@ -28,6 +30,16 @@ export const CUSTOM_TRACKER_TEMPLATES = Object.freeze({
         label: 'Control médico',
         description: 'Consultas y controles cuya frecuencia se expresa en meses.',
         cadenceUnit: 'months'
+    }),
+    'medical-study': Object.freeze({
+        label: 'Estudio médico con archivos',
+        description: 'Estudios periódicos que permiten guardar un archivo y un enlace por registro.',
+        cadenceUnit: 'days'
+    }),
+    'state-reminder': Object.freeze({
+        label: 'Aviso hasta resolver',
+        description: 'Activa avisos repetitivos al marcar algo como pendiente y los detiene al resolverlo.',
+        cadenceUnit: 'days'
     })
 });
 
@@ -154,7 +166,9 @@ export const CUSTOM_TRACKER_ICONS = Object.freeze([
     'ph-drop-half',
     'ph-user',
     'ph-user-focus',
-    'ph-arrows-clockwise'
+    'ph-arrows-clockwise',
+    'ph-robot',
+    'ph-test-tube'
 ]);
 
 const SECTION_KEYS = new Set(Object.keys(CUSTOM_TRACKER_SECTIONS));
@@ -385,7 +399,56 @@ function normalizeBehavior(value, { strict = false } = {}) {
     if (value.prediction === 'beard') result.prediction = 'beard';
     if (value.stockKey === 'lensStock') result.stockKey = 'lensStock';
     if (value.decrementStock === true) result.decrementStock = true;
+    if (value.startActionLabel !== undefined) {
+        result.startActionLabel = normalizeText(value.startActionLabel, {
+            field: 'behavior.startActionLabel',
+            maxLength: 60,
+            required: true,
+            strict
+        });
+    }
+    if (value.intervalHours !== undefined) {
+        result.intervalHours = normalizeInteger(value.intervalHours, {
+            field: 'behavior.intervalHours',
+            min: 1,
+            max: 48,
+            fallback: 6,
+            strict
+        });
+    }
     return result;
+}
+
+function normalizeTrackerState(value, { template, strict = false } = {}) {
+    if (template !== 'state-reminder') return null;
+    if (strict && value !== undefined && !isRecord(value)) {
+        throw new CustomTrackerValidationError('"state" debe ser un objeto.');
+    }
+
+    const candidate = isRecord(value) ? value : {};
+    if (
+        strict
+        && candidate.active !== undefined
+        && typeof candidate.active !== 'boolean'
+    ) {
+        throw new CustomTrackerValidationError('"state.active" debe ser verdadero o falso.');
+    }
+
+    const active = candidate.active === true;
+    const activatedAt = normalizeIsoTimestamp(candidate.activatedAt, {
+        field: 'state.activatedAt',
+        strict
+    });
+    if (strict && active && !activatedAt) {
+        throw new CustomTrackerValidationError(
+            'Un aviso activo debe conservar la fecha en que comenzó.'
+        );
+    }
+
+    return {
+        active,
+        activatedAt: active ? activatedAt : null
+    };
 }
 
 function normalizeMigrationMeta(value) {
@@ -590,6 +653,11 @@ function normalizeTracker(rawTracker, { strict = false } = {}) {
                 : icon
         }
         : null;
+    const behavior = normalizeBehavior(rawTracker.behavior, { strict });
+    if (template === 'state-reminder') {
+        behavior.startActionLabel ||= 'Marcar como pendiente';
+        behavior.intervalHours ||= 6;
+    }
 
     return {
         id,
@@ -604,7 +672,8 @@ function normalizeTracker(rawTracker, { strict = false } = {}) {
         icon,
         instructions,
         group,
-        behavior: normalizeBehavior(rawTracker.behavior, { strict }),
+        behavior,
+        state: normalizeTrackerState(rawTracker.state, { template, strict }),
         legacySource: normalizeLegacySource(rawTracker.legacySource, { strict }),
         alertKey,
         archived: deleted || rawTracker.archived === true,
@@ -657,6 +726,57 @@ export function createDefaultModulePreferences() {
     return Object.fromEntries(
         Object.keys(APP_MODULES).map(moduleId => [moduleId, { visible: true }])
     );
+}
+
+export function createDefaultFeaturedPreferences() {
+    return Object.fromEntries(
+        Object.keys(CUSTOM_TRACKER_SECTIONS).map(sectionKey => [sectionKey, null])
+    );
+}
+
+function normalizeFeaturedBySection(value, trackers, { strict = false } = {}) {
+    if (strict && value !== undefined && !isRecord(value)) {
+        throw new CustomTrackerValidationError(
+            '"featuredBySection" debe ser un objeto.'
+        );
+    }
+
+    const candidate = isRecord(value) ? value : {};
+    const result = createDefaultFeaturedPreferences();
+    Object.keys(candidate).forEach(sectionKey => {
+        if (!SECTION_KEYS.has(sectionKey)) {
+            if (strict) {
+                throw new CustomTrackerValidationError(
+                    `La sección destacada "${sectionKey}" no es compatible.`
+                );
+            }
+            return;
+        }
+
+        const trackerId = candidate[sectionKey];
+        if (trackerId === null || trackerId === undefined || trackerId === '') return;
+        if (strict && typeof trackerId !== 'string') {
+            throw new CustomTrackerValidationError(
+                `La tarjeta destacada de "${sectionKey}" no es válida.`
+            );
+        }
+        const tracker = trackers.find(item => item.id === trackerId);
+        if (
+            !tracker
+            || tracker.section !== sectionKey
+            || tracker.archived
+            || tracker.deleted
+        ) {
+            if (strict) {
+                throw new CustomTrackerValidationError(
+                    `La tarjeta destacada de "${sectionKey}" no está activa en esa sección.`
+                );
+            }
+            return;
+        }
+        result[sectionKey] = tracker.id;
+    });
+    return result;
 }
 
 function normalizeModulePreferences(value, { strict = false } = {}) {
@@ -725,6 +845,7 @@ export function createEmptyCustomTrackerRegistry() {
         version: CUSTOM_TRACKER_SCHEMA_VERSION,
         trackers: [],
         histories: {},
+        featuredBySection: createDefaultFeaturedPreferences(),
         modulePreferences: createDefaultModulePreferences(),
         navigationPreferences: createDefaultNavigationPreferences(),
         todayPreferences: createDefaultTodayPreferences(),
@@ -816,6 +937,11 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
         version: CUSTOM_TRACKER_SCHEMA_VERSION,
         trackers,
         histories,
+        featuredBySection: normalizeFeaturedBySection(
+            value.featuredBySection,
+            trackers,
+            { strict }
+        ),
         modulePreferences: normalizeModulePreferences(value.modulePreferences, { strict }),
         navigationPreferences: normalizeNavigationPreferences(value.navigationPreferences, { strict }),
         todayPreferences: normalizeTodayPreferences(value.todayPreferences, { strict }),
@@ -896,6 +1022,14 @@ export function getCustomAlertKey(trackerOrId) {
     return `${CUSTOM_ALERT_PREFIX}${trackerId}`;
 }
 
+export function isMedicalStudyTracker(tracker) {
+    return tracker?.template === 'medical-study';
+}
+
+export function isStateReminderTracker(tracker) {
+    return tracker?.template === 'state-reminder';
+}
+
 export function buildCustomAlertDefinitions(registryValue) {
     const registry = normalizeCustomTrackerRegistry(registryValue);
     return registry.trackers
@@ -907,7 +1041,13 @@ export function buildCustomAlertDefinitions(registryValue) {
             type: 'interval',
             defaultEnabled: tracker.alert.enabled === true,
             defaultTime: tracker.alert.time,
-            defaultDays: []
+            defaultDays: [],
+            ...(isStateReminderTracker(tracker)
+                ? {
+                    repeatWhileActive: true,
+                    intervalHours: tracker.behavior.intervalHours
+                }
+                : {})
         }));
 }
 
@@ -935,6 +1075,31 @@ export function getCustomTrackerState(tracker, history, now = new Date()) {
     const normalizedHistory = normalizeHistory(history, {
         trackerId: tracker?.id || 'desconocido'
     });
+    if (isStateReminderTracker(tracker)) {
+        const reference = now instanceof Date ? new Date(now) : new Date(now);
+        const active = tracker?.state?.active === true;
+        const activatedAt = active && tracker?.state?.activatedAt
+            ? new Date(tracker.state.activatedAt)
+            : null;
+        const hasValidActivation = activatedAt && !Number.isNaN(activatedAt.getTime());
+        const elapsedHours = hasValidActivation && !Number.isNaN(reference.getTime())
+            ? Math.max(0, Math.floor((reference - activatedAt) / 3_600_000))
+            : 0;
+        return {
+            latest: normalizedHistory[0] || null,
+            elapsedDays: Math.floor(elapsedHours / 24),
+            elapsedHours,
+            nextDate: null,
+            status: active ? 'red' : 'green',
+            progress: active ? 100 : 0,
+            cadence: { unit: 'days', value: 1 },
+            dueValue: 1,
+            dueUnit: 'days',
+            remainingDays: null,
+            active,
+            activatedAt: hasValidActivation ? activatedAt.toISOString() : null
+        };
+    }
     const latest = normalizedHistory[0] || null;
     const elapsedDays = latest ? getCalendarDaysElapsedAt(latest, now) : null;
     const cadence = tracker?.cadence?.unit === 'months'

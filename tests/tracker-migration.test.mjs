@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 
 import {
     CUSTOM_TRACKER_FIELD,
+    DEFAULT_BLOOD_STUDY_TRACKER_ID,
+    DEFAULT_ROBOT_TRACKER_ID,
     LEGACY_CUSTOM_TRACKER_FIELD
 } from '../custom-tracker-utils.mjs';
 import {
@@ -45,7 +47,7 @@ test('empty serialized cloud objects are still recognized as a fresh account', (
     assert.equal(result.registry.trackers.length, 0);
 });
 
-test('the legacy personal account migrates all 32 recurring cards and preserves state', () => {
+test('the legacy personal account migrates recurring cards plus the annual study and preserves state', () => {
     const result = migrateLegacyTrackerRegistry({
         hygieneData: {
             celular: [
@@ -81,12 +83,12 @@ test('the legacy personal account migrates all 32 recurring cards and preserves 
         now: NOW
     });
 
-    assert.equal(result.registry.trackers.length, 32);
+    assert.equal(result.registry.trackers.length, 33);
     assert.deepEqual(result.report.bySection, {
         hygiene: 14,
         grooming: 10,
         lenses: 6,
-        health: 2
+        health: 3
     });
 
     const phone = result.registry.trackers.find(item => item.id === 'trk_hygiene_celular');
@@ -103,6 +105,35 @@ test('the legacy personal account migrates all 32 recurring cards and preserves 
     const lenses = result.registry.trackers.find(item => item.id === 'trk_lenses_lenses');
     assert.equal(lenses.behavior.decrementStock, true);
     assert.equal(lenses.legacySource.key, 'lensDate');
+
+    const bloodStudy = result.registry.trackers.find(
+        item => item.id === DEFAULT_BLOOD_STUDY_TRACKER_ID
+    );
+    assert.equal(bloodStudy.template, 'medical-study');
+    assert.equal(bloodStudy.thresholds.red, 360);
+});
+
+test('a legacy robot becomes a normal creatable state reminder without being featured', () => {
+    const result = migrateLegacyTrackerRegistry({
+        hygieneData: {
+            robot_cleaner: {
+                status: 'dirty',
+                marked_dirty_at: '2026-07-28T08:00:00.000Z'
+            }
+        },
+        alertsConfig: {
+            robot: { enabled: true, time: '23:00', interval_hours: 8 }
+        },
+        hasLegacyAccountData: true,
+        now: NOW
+    });
+    const robot = result.registry.trackers.find(item => item.id === DEFAULT_ROBOT_TRACKER_ID);
+
+    assert.equal(robot.template, 'state-reminder');
+    assert.equal(robot.state.active, true);
+    assert.equal(robot.behavior.intervalHours, 8);
+    assert.equal(robot.alertKey, 'robot');
+    assert.equal(result.registry.featuredBySection.hygiene, null);
 });
 
 test('V1 personalized cards join the same V2 registry without losing archive or history', () => {

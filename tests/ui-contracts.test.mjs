@@ -337,7 +337,11 @@ test('configurable card history opens from the action menu in one reusable dialo
     assert.match(trackersSource, /data-history-dialog-action="confirm-delete"/);
     assert.match(trackersSource, /this\.app\.showUndo\('El registro fue borrado\.'/);
     assert.match(cardRenderer, /data-custom-runtime-action="open-history"/);
-    assert.match(cardRenderer, /Ver historial \(\$\{history\.length\}\)/);
+    assert.match(cardRenderer, /Ver historial \(\$\{historyCount\}\)/);
+    assert.match(cardRenderer, /data-custom-runtime-action="open-instructions"/);
+    assert.doesNotMatch(cardRenderer, /class="custom-tracker-instructions"/);
+    assert.match(cardRenderer, /data-custom-feature-action="toggle"/);
+    assert.match(cardRenderer, /is-featured/);
     assert.doesNotMatch(cardRenderer, /data-custom-runtime-action="toggle-history"/);
     assert.doesNotMatch(cardRenderer, /class="custom-tracker-history/);
     assert.match(styles, /\.custom-history-dialog-list\s*{[\s\S]*?overflow-y:\s*auto/);
@@ -362,8 +366,10 @@ test('the third compact-layout batch preserves vehicle and health histories behi
     assert.match(index, /summary class="btn btn-history" role="button" aria-expanded="false"/);
     assert.match(index, /id="blood-history-count"/);
     assert.match(index, /id="blood-tests-list"/);
-    assert.match(healthSource, /statusText = 'Atención'/);
-    assert.match(healthSource, /statusText = 'Próximo'/);
+    assert.match(healthSource, /text: 'Atención'/);
+    assert.match(healthSource, /text: 'Próximo'/);
+    assert.match(healthSource, /getCustomTrackerState\(tracker, trackerHistory\)/);
+    assert.match(healthSource, /getStudyEntries\(trackerId\)/);
     assert.match(healthSource, /this\.bloodHistoryCount\.textContent/);
     assert.match(healthSource, /String\(this\.bloodHistoryDisclosure\.open\)/);
 
@@ -377,7 +383,7 @@ test('the third compact-layout batch preserves vehicle and health histories behi
     assert.match(vehicleSource, /String\(this\.issueComposer\.open\)/);
     assert.match(vehicleSource, /activeIssues\.some\(issue => issue\.urgency === 'alta'\)/);
 
-    assert.match(styles, /\.health-controls-grid\s*{[\s\S]*?grid-template-columns:/);
+    assert.match(styles, /\.health-tracker-host\s*{[\s\S]*?repeat\(3, minmax\(0, 1fr\)\)/);
     assert.match(styles, /\.vehicle-fluid-grid\s*{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
     assert.match(styles, /\.vehicle-issue-composer:not\(\[open\]\) > \.vehicle-add-issue-form\s*{[\s\S]*?display: none/);
     assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.vehicle-fluid-grid/);

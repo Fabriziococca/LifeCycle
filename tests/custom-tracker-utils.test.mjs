@@ -11,6 +11,8 @@ import {
     DEFAULT_NAVIGATION_FAVORITES,
     getCustomAlertKey,
     getCustomTrackerState,
+    isMedicalStudyTracker,
+    isStateReminderTracker,
     normalizeNavigationPreferences,
     normalizeCustomTrackerRegistry,
     validateCustomTrackerRegistry
@@ -157,6 +159,75 @@ test('custom tracker alerts use stable unique keys and section categories', () =
         defaultTime: '20:30',
         defaultDays: []
     });
+});
+
+test('state reminders remain inactive until started and expose repeat configuration', () => {
+    const tracker = createTracker({
+        id: 'ct_pending_001',
+        template: 'state-reminder',
+        behavior: {
+            startActionLabel: 'Marcar como pendiente',
+            intervalHours: 4
+        },
+        state: {
+            active: true,
+            activatedAt: '2026-07-28T08:00:00.000Z'
+        }
+    });
+    const registry = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        trackers: [tracker],
+        histories: { [tracker.id]: [] },
+        featuredBySection: { hygiene: tracker.id }
+    });
+    const state = getCustomTrackerState(
+        registry.trackers[0],
+        [],
+        new Date('2026-07-28T13:30:00.000Z')
+    );
+
+    assert.equal(isStateReminderTracker(registry.trackers[0]), true);
+    assert.equal(state.active, true);
+    assert.equal(state.elapsedHours, 5);
+    assert.equal(state.status, 'red');
+    assert.equal(registry.featuredBySection.hygiene, tracker.id);
+    assert.deepEqual(buildCustomAlertDefinitions(registry)[0], {
+        key: 'custom_tracker:ct_pending_001',
+        name: 'Lavar sillones',
+        category: 'higiene',
+        type: 'interval',
+        defaultEnabled: true,
+        defaultTime: '20:30',
+        defaultDays: [],
+        repeatWhileActive: true,
+        intervalHours: 4
+    });
+});
+
+test('medical study cards use the common cadence model and can be featured', () => {
+    const tracker = createTracker({
+        id: 'ct_study_001',
+        section: 'health',
+        subsection: 'controles',
+        template: 'medical-study',
+        name: 'Análisis anual',
+        actionLabel: 'Agregar estudio',
+        cadence: { unit: 'days', value: 360 },
+        intervalDays: 360,
+        thresholds: { yellow: 270, orange: 330, red: 360 },
+        icon: 'ph-test-tube'
+    });
+
+    assert.equal(isMedicalStudyTracker(tracker), true);
+    assert.equal(tracker.thresholds.red, 360);
+    assert.equal(
+        getCustomTrackerState(
+            tracker,
+            ['2025-08-03T12:00:00.000Z'],
+            new Date('2026-08-11T12:00:00.000Z')
+        ).status,
+        'red'
+    );
 });
 
 test('defensive normalization ignores broken optional entries', () => {

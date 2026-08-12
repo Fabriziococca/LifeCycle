@@ -74,7 +74,9 @@ export class AlertsModule {
                     time: def.defaultTime,
                     days: def.defaultDays || []
                 };
-                if (def.key === 'robot') config.interval_hours = 6;
+                if (def.key === 'robot' || def.repeatWhileActive) {
+                    config.interval_hours = def.intervalHours || 6;
+                }
                 if (def.key === 'very_urgent_tasks') config.interval_hours = 4;
                 defaultConfigs[def.key] = config;
             });
@@ -477,11 +479,11 @@ export class AlertsModule {
                     </div>
                 </div>
                 <div class="alert-card-controls">
-                    ${(def.key === 'robot' || def.key === 'very_urgent_tasks') ? `
+                    ${(def.key === 'robot' || def.key === 'very_urgent_tasks' || def.repeatWhileActive) ? `
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);" title="Frecuencia de repetición dinámica mientras esté pendiente/sucio">Repetir cada:</span>
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <input type="number" class="alert-interval-input" min="1" max="48" value="${conf.interval_hours || (def.key === 'robot' ? 6 : 4)}" aria-label="Horas entre alertas de ${safeName}" style="width: 60px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem; text-align: center;">
+                            <input type="number" class="alert-interval-input" min="1" max="48" value="${conf.interval_hours || def.intervalHours || (def.key === 'very_urgent_tasks' ? 4 : 6)}" aria-label="Horas entre alertas de ${safeName}" style="width: 60px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem; text-align: center;">
                             <span style="font-size: 0.8rem; color: var(--text-secondary);">hs</span>
                         </div>
                     </div>

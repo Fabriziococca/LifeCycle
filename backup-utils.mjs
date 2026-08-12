@@ -588,6 +588,7 @@ function validateBackupDataShape(key, value) {
                 assertOptionalId(item, path);
                 assertOptionalTextFields(item, path, [
                     'date',
+                    'trackerId',
                     'portalUrl',
                     'storagePath',
                     'fileName'

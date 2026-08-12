@@ -17,6 +17,7 @@ const {
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
     getPendingVeryUrgentTasks,
+    getStateReminderEntries,
     groupSubscriptionsByUser,
     isExpiredPushError,
     isIntervalReminderDue,
@@ -1765,6 +1766,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
             const gymSupplements = parseJsonValue(data.gym_supplements, {});
             const oldReminders = gymSupplements?.custom_reminders || {};
+            const hygieneTrackerData = parseJsonValue(data.hygiene_tracker_data, {});
             ensureAlertConfigs(alertsConfig, oldReminders);
             const recurringReminderMap = ensureRecurringReminderConfigs(
                 alertsConfig,
@@ -1772,7 +1774,11 @@ async function checkAndSendAllAlerts(forceAll = false) {
             );
             ensureCustomTrackerAlertConfigs(
                 alertsConfig,
-                parseJsonValue(data.hygiene_tracker_data, {})
+                hygieneTrackerData
+            );
+            const stateReminderAlertKeys = new Set(
+                getStateReminderEntries(hygieneTrackerData)
+                    .map(entry => entry.alertKey)
             );
             ensureVehicleCatalogAlertConfigs(
                 alertsConfig,
@@ -1806,9 +1812,13 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 if (key === RECURRING_REMINDERS_FIELD) continue;
                 const conf = alertsConfig[key];
                 if (!conf || !conf.enabled) continue;
-                // Estas dos alertas dependen de intervalos desde el último envío,
+                // Estas alertas dependen de intervalos desde el último envío,
                 // no de una hora diaria. Se procesan en el motor repetitivo.
-                if (key === 'robot' || key === 'very_urgent_tasks') continue;
+                if (
+                    key === 'robot'
+                    || key === 'very_urgent_tasks'
+                    || stateReminderAlertKeys.has(key)
+                ) continue;
 
                 // Definir los candidatos a evaluar (ayer y hoy para tolerancia a medianoche y reinicios)
                 const [remHour, remMin] = (conf.time || '23:00').split(':').map(Number);
@@ -1885,7 +1895,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         return field;
                     };
 
-                    const hygieneData = parseJSONField(data.hygiene_tracker_data, {});
+                    const hygieneData = hygieneTrackerData;
                     const groomingData = parseJSONField(data.groomingData_v2, {});
                     const healthData = parseJSONField(data.health_medical_data, {});
                     const dentista = healthData.dentista || {};
@@ -2531,7 +2541,7 @@ function getDaysUntil(dateString) {
 }
 
 // ==========================================================================
-// Recordatorios del Robot Aspiradora (cada 6 horas)
+// Recordatorios repetitivos (tarjetas pendientes y tareas muy urgentes)
 // ==========================================================================
 async function checkAndSendRobotReminders(forceAll = false) {
     if (!supabase) {
@@ -2545,7 +2555,7 @@ async function checkAndSendRobotReminders(forceAll = false) {
         if (dbError) throw dbError;
         if (subError) throw subError;
         
-        console.log(`[Robot Reminder Engine] Tick: checking robot status. Subscriptions found: ${subs ? subs.length : 0}`);
+        console.log(`[Interval Reminder Engine] Tick: checking pending states. Subscriptions found: ${subs ? subs.length : 0}`);
         
         if (!usersData || usersData.length === 0) return;
         
@@ -2559,10 +2569,68 @@ async function checkAndSendRobotReminders(forceAll = false) {
             
             const hygieneData = parseJsonValue(data.hygiene_tracker_data, {});
             const alertsConfig = parseJsonValue(data.alerts_config, {});
-            
+            ensureCustomTrackerAlertConfigs(alertsConfig, hygieneData);
+
+            const sentLog = data.alerts_sent_log && typeof data.alerts_sent_log === 'object'
+                ? data.alerts_sent_log
+                : {};
+            const sentLogUpdates = {};
+            let robotDeliveryTimestamp = null;
+            const stateReminders = getStateReminderEntries(hygieneData);
+            const hasUnifiedRobot = stateReminders.some(reminder => reminder.alertKey === 'robot');
+
+            for (const reminder of stateReminders) {
+                if (!reminder.active || alertsConfig[reminder.alertKey]?.enabled === false) continue;
+
+                const intervalHours = normalizeIntervalHours(
+                    alertsConfig[reminder.alertKey]?.interval_hours,
+                    reminder.intervalHours
+                );
+                const activatedAt = new Date(reminder.activatedAt);
+                if (!Number.isFinite(activatedAt.getTime())) continue;
+
+                const logKey = `interval:${reminder.alertKey}`;
+                const timeToCheck = getLatestValidDate([
+                    activatedAt,
+                    sentLog[logKey],
+                    reminder.alertKey === 'robot' ? data.robot_last_notified_at : null,
+                    getLastIntervalDelivery(userId, reminder.alertKey)
+                ]) || activatedAt;
+                if (!isIntervalReminderDue({
+                    now,
+                    lastNotifiedAt: timeToCheck,
+                    intervalHours,
+                    force: forceAll
+                })) continue;
+
+                const elapsedHours = Math.max(0, Math.floor((now - activatedAt) / 3_600_000));
+                const elapsedText = elapsedHours >= 24
+                    ? `${Math.floor(elapsedHours / 24)} día(s)`
+                    : `${elapsedHours} hora(s)`;
+                const result = await sendPushToSubscriptions({
+                    userId,
+                    subscriptions: subsByUser[userId] || [],
+                    payload: JSON.stringify({
+                        title: `⏰ ${reminder.name}`,
+                        body: `Sigue pendiente desde hace ${elapsedText}. Marcá la tarjeta como resuelta para detener los avisos.`,
+                        url: '/'
+                    }),
+                    context: `tarjeta pendiente ${reminder.trackerId}`,
+                    alertKey: reminder.alertKey,
+                    delayMs: 250
+                });
+
+                if (!forceAll && result.successCount > 0) {
+                    const deliveredAt = now.toISOString();
+                    rememberIntervalDelivery(userId, reminder.alertKey, deliveredAt);
+                    sentLogUpdates[logKey] = deliveredAt;
+                    if (reminder.alertKey === 'robot') robotDeliveryTimestamp = deliveredAt;
+                }
+            }
+
             const robot = hygieneData.robot_cleaner;
             const isRobotEnabled = alertsConfig.robot?.enabled !== false;
-            if (isRobotEnabled && robot && robot.status === 'dirty') {
+            if (!hasUnifiedRobot && isRobotEnabled && robot && robot.status === 'dirty') {
                 const intervalHours = normalizeIntervalHours(alertsConfig.robot?.interval_hours, 6);
 
                 const markedDirtyAt = new Date(robot.marked_dirty_at);
@@ -2602,16 +2670,25 @@ async function checkAndSendRobotReminders(forceAll = false) {
                         });
 
                         if (!forceAll && result.successCount > 0) {
-                            rememberIntervalDelivery(userId, 'robot', now.toISOString());
-                            try {
-                                await mergeServerUserDataKeys(userId, {
-                                    robot_last_notified_at: now.toISOString()
-                                });
-                            } catch (updateErr) {
-                                console.error(`[Robot Reminder] Error al actualizar base de datos para usuario ${userId}:`, updateErr);
-                            }
+                            const deliveredAt = now.toISOString();
+                            rememberIntervalDelivery(userId, 'robot', deliveredAt);
+                            sentLogUpdates['interval:robot'] = deliveredAt;
+                            robotDeliveryTimestamp = deliveredAt;
                         }
                     }
+                }
+            }
+
+            if (!forceAll && Object.keys(sentLogUpdates).length > 0) {
+                try {
+                    await mergeServerUserDataKeys(userId, {
+                        alerts_sent_log: sentLogUpdates,
+                        ...(robotDeliveryTimestamp
+                            ? { robot_last_notified_at: robotDeliveryTimestamp }
+                            : {})
+                    });
+                } catch (updateErr) {
+                    console.error(`[Interval Reminder] Error al guardar el último envío para usuario ${userId}:`, updateErr);
                 }
             }
 
@@ -2670,7 +2747,7 @@ async function checkAndSendRobotReminders(forceAll = false) {
             }
         }
     } catch(err) {
-        console.error("Error en checkAndSendRobotReminders:", err);
+        console.error("Error en el motor de recordatorios repetitivos:", err);
         throw err;
     }
 }

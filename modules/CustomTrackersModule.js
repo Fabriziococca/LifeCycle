@@ -7,15 +7,19 @@ import {
     CUSTOM_TRACKER_ICONS,
     CUSTOM_TRACKER_SECTIONS,
     CUSTOM_TRACKER_TEMPLATES,
+    DEFAULT_BLOOD_STUDY_TRACKER_ID,
+    DEFAULT_ROBOT_TRACKER_ID,
     getCustomAlertKey,
     getCustomTrackerState,
+    isMedicalStudyTracker,
+    isStateReminderTracker,
     normalizeCustomTrackerRegistry,
     normalizeNavigationPreferences
-} from '../custom-tracker-utils.mjs?v=20260801-adaptive-navigation';
+} from '../custom-tracker-utils.mjs?v=20260811-special-trackers';
 import {
     migrateLegacyTrackerRegistry,
     readLegacyTrackerSnapshot
-} from '../tracker-migration.mjs?v=20260729-trackers-v2';
+} from '../tracker-migration.mjs?v=20260811-special-trackers';
 import {
     combineLocalDateWithTime,
     DateUtils,
@@ -88,12 +92,13 @@ export class CustomTrackersModule {
         this.app = appController;
         this.app.customTrackers = this;
         this.registry = this.loadRegistry();
-        this.openInstructionIds = new Set();
         this.pendingDeleteIds = new Set();
         this.pendingHistoryDeleteKeys = new Set();
         this.historyDialogTrackerId = null;
         this.historyDialogTrigger = null;
         this.historyEditMode = false;
+        this.instructionsDialogTrackerId = null;
+        this.instructionsDialogTrigger = null;
         this.editingId = null;
         this.lastDialogTrigger = null;
         this.toastTimer = null;
@@ -118,12 +123,14 @@ export class CustomTrackersModule {
 
         this.ensureRuntimeOrderControls();
         this.ensureHistoryDialog();
+        this.ensureInstructionsDialog();
         this.ensureEditorDialog();
         this.setupManagerListeners();
         this.setupModuleListeners();
         this.setupRuntimeListeners();
         this.renderAll();
         this.applyModuleVisibility();
+        this.app.health?.bindLegacyStudiesToTracker?.(DEFAULT_BLOOD_STUDY_TRACKER_ID);
     }
 
     loadRegistry() {
@@ -167,6 +174,14 @@ export class CustomTrackersModule {
         return this.registry.histories[trackerId] || [];
     }
 
+    isTrackerTemplateLocked(tracker) {
+        if (!tracker) return false;
+        if (this.getHistory(tracker.id).length > 0) return true;
+        if (isStateReminderTracker(tracker) && tracker.state?.active === true) return true;
+        return isMedicalStudyTracker(tracker)
+            && (this.app.health?.getStudyEntries?.(tracker.id)?.length || 0) > 0;
+    }
+
     getEffectiveAlertConfig(tracker) {
         if (!tracker) {
             return { enabled: false, time: '23:00' };
@@ -177,7 +192,16 @@ export class CustomTrackersModule {
             enabled: stored
                 ? stored.enabled === true
                 : tracker.alert?.enabled === true,
-            time: stored?.time || tracker.alert?.time || '23:00'
+            time: stored?.time || tracker.alert?.time || '23:00',
+            intervalHours: Math.min(
+                48,
+                Math.max(
+                    1,
+                    Number(stored?.interval_hours)
+                    || Number(tracker.behavior?.intervalHours)
+                    || 6
+                )
+            )
         };
     }
 
@@ -264,8 +288,8 @@ export class CustomTrackersModule {
                     <span>
                         <i class="ph ph-hand-grabbing"></i>
                         <span>
-                            <strong>Modo de ordenamiento</strong>
-                            <small>Mantené presionada una tarjeta y arrastrala dentro de su categoría.</small>
+                            <strong>Orden y tarjeta destacada</strong>
+                            <small>Arrastrá para ordenar. La estrella deja una sola tarjeta destacada; también podés no elegir ninguna.</small>
                         </span>
                     </span>
                     <div class="custom-order-actions">
@@ -274,7 +298,7 @@ export class CustomTrackersModule {
                         </button>
                         <button type="button" class="btn btn-primary" data-custom-order-action="save">
                             <i class="ph ph-floppy-disk"></i>
-                            Guardar orden
+                            Guardar cambios
                         </button>
                     </div>
                 </div>
@@ -315,12 +339,14 @@ export class CustomTrackersModule {
             toolbar.classList.toggle('is-active', isActive);
             toolbar.classList.toggle('is-bulk-active', isBulkActive);
             if (enterButton) {
-                enterButton.disabled = !this.hasReorderableGroup(
-                    this.getRuntimeTrackers(key)
-                );
+                enterButton.disabled = this.getRuntimeTrackers(key).length === 0;
             }
             if (bulkEnterButton) {
-                bulkEnterButton.disabled = this.getRuntimeTrackers(key).length < 2;
+                bulkEnterButton.disabled = this.getRuntimeTrackers(key)
+                    .filter(tracker => (
+                        !isMedicalStudyTracker(tracker)
+                        && !isStateReminderTracker(tracker)
+                    )).length < 2;
             }
             if (bulkRecordButton) {
                 bulkRecordButton.disabled = selectedCount === 0;
@@ -824,6 +850,12 @@ export class CustomTrackersModule {
                 return;
             }
 
+            const featureButton = event.target.closest('[data-custom-feature-action]');
+            if (featureButton) {
+                this.toggleDraftFeaturedTracker(featureButton.dataset.trackerId);
+                return;
+            }
+
             const bulkCard = event.target.closest(
                 '.custom-tracker-card.is-bulk-selectable[data-tracker-id]'
             );
@@ -858,16 +890,15 @@ export class CustomTrackersModule {
             } else if (action === 'archive') {
                 this.archiveTracker(trackerId, { showGlobalUndo: true });
             } else if (action === 'record') {
-                this.recordTracker(trackerId);
+                this.recordTracker(trackerId, { trigger: button });
             } else if (action === 'open-history') {
-                this.openHistoryDialog(trackerId, menuTrigger);
-            } else if (action === 'toggle-instructions') {
-                if (this.openInstructionIds.has(trackerId)) {
-                    this.openInstructionIds.delete(trackerId);
+                if (isMedicalStudyTracker(tracker)) {
+                    this.app.health?.openStudyHistory?.(trackerId, menuTrigger);
                 } else {
-                    this.openInstructionIds.add(trackerId);
+                    this.openHistoryDialog(trackerId, menuTrigger);
                 }
-                this.renderSection(tracker.section);
+            } else if (action === 'open-instructions') {
+                this.openInstructionsDialog(trackerId, menuTrigger);
             }
         });
 
@@ -1022,6 +1053,116 @@ export class CustomTrackersModule {
                 event.preventDefault();
                 first.focus();
             }
+        });
+    }
+
+    ensureInstructionsDialog() {
+        document.getElementById('custom-tracker-instructions-dialog')?.remove();
+
+        const dialog = document.createElement('div');
+        dialog.id = 'custom-tracker-instructions-dialog';
+        dialog.className = 'custom-tracker-dialog custom-tracker-instructions-dialog hidden';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-labelledby', 'custom-tracker-instructions-dialog-title');
+        dialog.innerHTML = `
+            <div class="custom-tracker-dialog-card custom-tracker-instructions-dialog-card">
+                <div class="custom-tracker-dialog-header">
+                    <div>
+                        <span class="custom-trackers-eyebrow">Instrucciones de la tarjeta</span>
+                        <h2 id="custom-tracker-instructions-dialog-title">Instrucciones</h2>
+                        <p id="custom-tracker-instructions-dialog-subtitle"></p>
+                    </div>
+                    <button type="button" class="custom-dialog-close" data-instructions-dialog-action="close" aria-label="Cerrar instrucciones" data-tooltip="Cerrar">
+                        <i class="ph ph-x" aria-hidden="true"></i>
+                    </button>
+                </div>
+                <div class="custom-tracker-instructions-dialog-body"></div>
+                <div class="custom-tracker-dialog-actions">
+                    <button type="button" class="btn btn-secondary" data-instructions-dialog-action="close">Cerrar</button>
+                </div>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+        this.instructionsDialog = dialog;
+
+        dialog.addEventListener('click', event => {
+            if (
+                event.target === dialog
+                || event.target.closest('[data-instructions-dialog-action="close"]')
+            ) {
+                this.closeInstructionsDialog();
+            }
+        });
+        document.addEventListener('keydown', event => {
+            if (
+                event.key === 'Escape'
+                && this.instructionsDialog
+                && !this.instructionsDialog.classList.contains('hidden')
+            ) {
+                event.preventDefault();
+                this.closeInstructionsDialog();
+            }
+        });
+    }
+
+    openInstructionsDialog(trackerId, trigger = null) {
+        const tracker = this.getTracker(trackerId);
+        if (
+            !tracker
+            || tracker.archived
+            || tracker.deleted
+            || !tracker.instructions
+            || !this.instructionsDialog
+        ) return false;
+
+        this.instructionsDialogTrackerId = tracker.id;
+        this.instructionsDialogTrigger = trigger instanceof HTMLElement ? trigger : null;
+        const section = CUSTOM_TRACKER_SECTIONS[tracker.section];
+        const subsection = section?.subsections?.[tracker.subsection];
+        this.instructionsDialog.querySelector(
+            '#custom-tracker-instructions-dialog-title'
+        ).textContent = tracker.name;
+        this.instructionsDialog.querySelector(
+            '#custom-tracker-instructions-dialog-subtitle'
+        ).textContent = [section?.label, subsection?.label].filter(Boolean).join(' · ');
+        const body = this.instructionsDialog.querySelector(
+            '.custom-tracker-instructions-dialog-body'
+        );
+        body.replaceChildren();
+        tracker.instructions.split(/\n{2,}/).filter(Boolean).forEach(blockText => {
+            const paragraph = document.createElement('p');
+            paragraph.textContent = blockText;
+            body.appendChild(paragraph);
+        });
+        if (body.childElementCount === 0) body.textContent = tracker.instructions;
+
+        this.instructionsDialog.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        requestAnimationFrame(() => {
+            this.instructionsDialog
+                ?.querySelector('[data-instructions-dialog-action="close"]')
+                ?.focus();
+        });
+        return true;
+    }
+
+    closeInstructionsDialog({ restoreFocus = true } = {}) {
+        if (!this.instructionsDialog || this.instructionsDialog.classList.contains('hidden')) return;
+        const trackerId = this.instructionsDialogTrackerId;
+        const previousTrigger = this.instructionsDialogTrigger;
+        this.instructionsDialog.classList.add('hidden');
+        this.instructionsDialogTrackerId = null;
+        this.instructionsDialogTrigger = null;
+        document.body.classList.remove('modal-open');
+        if (!restoreFocus) return;
+        const fallbackTrigger = trackerId
+            ? document.querySelector(
+                `.custom-tracker-card[data-tracker-id="${CSS.escape(trackerId)}"] .custom-tracker-menu summary`
+            )
+            : null;
+        requestAnimationFrame(() => {
+            (previousTrigger?.isConnected ? previousTrigger : fallbackTrigger)?.focus?.();
         });
     }
 
@@ -1279,7 +1420,7 @@ export class CustomTrackersModule {
                             <label for="custom-tracker-action-other">Texto de la acción</label>
                             <input id="custom-tracker-action-other" class="text-input" type="text" maxlength="60" autocomplete="off" placeholder="Ej: Aspiré los sillones">
                         </div>
-                        <div class="input-group">
+                        <div class="input-group custom-cadence-field">
                             <label id="custom-tracker-interval-label" for="custom-tracker-interval">Marcar como vencida después de</label>
                             <div class="custom-number-with-unit">
                                 <input id="custom-tracker-interval" class="number-input" type="number" min="1" max="3650" inputmode="numeric" required>
@@ -1312,6 +1453,19 @@ export class CustomTrackersModule {
                                 <span>días</span>
                             </div>
                         </div>
+                        <div class="custom-state-reminder-fields custom-form-wide hidden">
+                            <div class="input-group">
+                                <label for="custom-tracker-start-action">Acción para iniciar los avisos</label>
+                                <input id="custom-tracker-start-action" class="text-input" type="text" maxlength="60" autocomplete="off" value="Marcar como pendiente">
+                            </div>
+                            <div class="input-group">
+                                <label for="custom-tracker-repeat-hours">Repetir el aviso cada</label>
+                                <div class="custom-number-with-unit">
+                                    <input id="custom-tracker-repeat-hours" class="number-input" type="number" min="1" max="48" inputmode="numeric" value="6">
+                                    <span>horas</span>
+                                </div>
+                            </div>
+                        </div>
                         <div class="custom-threshold-help custom-form-wide" aria-label="Cómo funcionan los estados de una tarjeta">
                             <span>
                                 <i class="ph ph-clock-countdown" aria-hidden="true"></i>
@@ -1329,7 +1483,7 @@ export class CustomTrackersModule {
                         <div class="input-group custom-form-wide">
                             <label for="custom-tracker-instructions">Instrucciones opcionales</label>
                             <textarea id="custom-tracker-instructions" class="text-input custom-tracker-textarea" maxlength="2000" placeholder="Materiales, pasos o cualquier detalle que quieras consultar al realizarlo."></textarea>
-                            <small>Se mostrarán colapsadas y solo se abrirán cuando las necesites.</small>
+                            <small>Se consultan desde el menú de los tres puntos de la tarjeta.</small>
                         </div>
                     </div>
                     <div class="custom-tracker-alert-block">
@@ -1406,10 +1560,25 @@ export class CustomTrackersModule {
         templateSelect.addEventListener('change', () => {
             if (!this.editingId) {
                 const isMedical = templateSelect.value === 'medical';
-                dialog.querySelector('#custom-tracker-interval').value = isMedical ? 6 : 30;
-                dialog.querySelector('#custom-tracker-yellow').value = 21;
-                dialog.querySelector('#custom-tracker-orange').value = 25;
+                const isStudy = templateSelect.value === 'medical-study';
+                const isStateReminder = templateSelect.value === 'state-reminder';
+                dialog.querySelector('#custom-tracker-interval').value = isMedical
+                    ? 6
+                    : (isStudy ? 360 : (isStateReminder ? 1 : 30));
+                dialog.querySelector('#custom-tracker-yellow').value = isStudy ? 270 : 21;
+                dialog.querySelector('#custom-tracker-orange').value = isStudy ? 330 : 25;
                 dialog.querySelector('#custom-tracker-warning-days').value = 30;
+                if (isStudy) {
+                    dialog.querySelector('#custom-tracker-action').value = '__custom__';
+                    dialog.querySelector('#custom-tracker-action-other').value = 'Agregar estudio';
+                    dialog.querySelector('#custom-tracker-icon').value = 'ph-test-tube';
+                } else if (isStateReminder) {
+                    dialog.querySelector('#custom-tracker-action').value = '__custom__';
+                    dialog.querySelector('#custom-tracker-action-other').value = 'Marcar como resuelto';
+                    dialog.querySelector('#custom-tracker-start-action').value = 'Marcar como pendiente';
+                    dialog.querySelector('#custom-tracker-repeat-hours').value = '6';
+                    dialog.querySelector('#custom-tracker-icon').value = 'ph-robot';
+                }
             }
             this.updateEditorConditionalFields();
         });
@@ -1507,14 +1676,14 @@ export class CustomTrackersModule {
         customActionGroup.classList.toggle('hidden', !isCustomAction);
         customActionInput.required = isCustomAction;
 
-        const alertEnabled = this.dialog.querySelector('#custom-tracker-alert-enabled').checked;
-        this.dialog.querySelector('.custom-tracker-alert-time-wrap')
-            .classList.toggle('hidden', !alertEnabled);
-
         const templateKey = this.dialog.querySelector('#custom-tracker-template').value;
         const template = CUSTOM_TRACKER_TEMPLATES[templateKey]
             || CUSTOM_TRACKER_TEMPLATES.routine;
         const isMedical = template.cadenceUnit === 'months';
+        const isStateReminder = templateKey === 'state-reminder';
+        const alertEnabled = this.dialog.querySelector('#custom-tracker-alert-enabled').checked;
+        this.dialog.querySelector('.custom-tracker-alert-time-wrap')
+            .classList.toggle('hidden', !alertEnabled || isStateReminder);
         const intervalInput = this.dialog.querySelector('#custom-tracker-interval');
         const yellowInput = this.dialog.querySelector('#custom-tracker-yellow');
         const orangeInput = this.dialog.querySelector('#custom-tracker-orange');
@@ -1527,13 +1696,27 @@ export class CustomTrackersModule {
         );
         intervalInput.max = isMedical ? '120' : '3650';
         this.dialog.querySelectorAll('.custom-day-thresholds').forEach(element => {
-            element.classList.toggle('hidden', isMedical);
+            element.classList.toggle('hidden', isMedical || isStateReminder);
         });
         this.dialog.querySelector('.custom-month-warning')
-            .classList.toggle('hidden', !isMedical);
-        yellowInput.required = !isMedical;
-        orangeInput.required = !isMedical;
-        warningInput.required = isMedical;
+            .classList.toggle('hidden', !isMedical || isStateReminder);
+        this.dialog.querySelector('.custom-cadence-field')
+            .classList.toggle('hidden', isStateReminder);
+        this.dialog.querySelector('.custom-threshold-help')
+            .classList.toggle('hidden', isStateReminder);
+        this.dialog.querySelector('.custom-state-reminder-fields')
+            .classList.toggle('hidden', !isStateReminder);
+        this.dialog.querySelector('#custom-tracker-start-action').required = isStateReminder;
+        this.dialog.querySelector('#custom-tracker-repeat-hours').required = isStateReminder;
+        yellowInput.required = !isMedical && !isStateReminder;
+        orangeInput.required = !isMedical && !isStateReminder;
+        warningInput.required = isMedical && !isStateReminder;
+        const alertHelp = this.dialog.querySelector('.custom-alert-copy small');
+        if (alertHelp) {
+            alertHelp.textContent = isStateReminder
+                ? 'Repetir el aviso mientras la tarjeta siga pendiente.'
+                : 'Avisarme una vez al día mientras la tarjeta esté vencida.';
+        }
         this.dialog.querySelector('#custom-tracker-template-help').textContent = (
             template.description
         );
@@ -1557,9 +1740,7 @@ export class CustomTrackersModule {
         this.populateSubsectionOptions(selectedSectionKey, tracker?.subsection);
         const templateSelect = this.dialog.querySelector('#custom-tracker-template');
         templateSelect.value = tracker?.template || section.defaultTemplate;
-        templateSelect.disabled = Boolean(
-            tracker && this.getHistory(tracker.id).length > 0
-        );
+        templateSelect.disabled = this.isTrackerTemplateLocked(tracker);
         this.dialog.querySelector('#custom-tracker-name').value = tracker?.name || '';
         this.dialog.querySelector('#custom-tracker-interval').value = (
             tracker?.cadence?.value
@@ -1575,6 +1756,12 @@ export class CustomTrackersModule {
         );
         this.dialog.querySelector('#custom-tracker-warning-days').value = (
             tracker?.thresholds?.warningDays || 30
+        );
+        this.dialog.querySelector('#custom-tracker-start-action').value = (
+            tracker?.behavior?.startActionLabel || 'Marcar como pendiente'
+        );
+        this.dialog.querySelector('#custom-tracker-repeat-hours').value = (
+            tracker?.behavior?.intervalHours || 6
         );
         this.dialog.querySelector('#custom-tracker-icon').value = tracker?.icon || section.defaultIcon;
         this.dialog.querySelector('#custom-tracker-instructions').value = (
@@ -1606,7 +1793,7 @@ export class CustomTrackersModule {
         this.updateEditorConditionalFields();
         if (templateSelect.disabled) {
             this.dialog.querySelector('#custom-tracker-template-help').textContent = (
-                'El tipo se conserva porque la tarjeta ya tiene historial. Podés editar el resto de la configuración.'
+                'El tipo se conserva porque la tarjeta ya tiene actividad asociada. Podés editar el resto de la configuración.'
             );
         }
 
@@ -1643,14 +1830,17 @@ export class CustomTrackersModule {
         const alertEnabled = this.dialog.querySelector('#custom-tracker-alert-enabled').checked;
         const alertTime = this.dialog.querySelector('#custom-tracker-alert-time').value || '23:00';
         const existing = this.editingId ? this.getTracker(this.editingId) : null;
-        const template = existing && this.getHistory(existing.id).length > 0
+        const template = this.isTrackerTemplateLocked(existing)
             ? existing.template
             : this.dialog.querySelector('#custom-tracker-template').value;
         const cadenceUnit = CUSTOM_TRACKER_TEMPLATES[template]?.cadenceUnit || 'days';
         const cadenceValue = Number(
             this.dialog.querySelector('#custom-tracker-interval').value
         );
-        const thresholds = cadenceUnit === 'months'
+        const isStateReminder = template === 'state-reminder';
+        const thresholds = isStateReminder
+            ? { yellow: 1, orange: 1, red: 1 }
+            : cadenceUnit === 'months'
             ? {
                 warningDays: Number(
                     this.dialog.querySelector('#custom-tracker-warning-days').value
@@ -1699,7 +1889,17 @@ export class CustomTrackersModule {
                 thresholds,
                 icon: this.dialog.querySelector('#custom-tracker-icon').value,
                 instructions: this.dialog.querySelector('#custom-tracker-instructions').value,
-                behavior: existing?.behavior || {},
+                behavior: isStateReminder
+                    ? {
+                        startActionLabel: this.dialog.querySelector('#custom-tracker-start-action').value,
+                        intervalHours: Number(
+                            this.dialog.querySelector('#custom-tracker-repeat-hours').value
+                        )
+                    }
+                    : (existing?.behavior || {}),
+                state: isStateReminder
+                    ? (existing?.state || { active: false, activatedAt: null })
+                    : null,
                 legacySource: existing?.legacySource || null,
                 group: existing?.group || null,
                 alertKey: existing?.alertKey,
@@ -1746,11 +1946,26 @@ export class CustomTrackersModule {
         if (remove) {
             delete this.app.alerts.configs[key];
         } else {
-            this.app.alerts.configs[key] = {
+            const nextConfig = {
                 enabled: disabled ? false : alertConfig.enabled === true,
                 time: alertConfig.time || '23:00',
                 days: []
             };
+            const tracker = typeof trackerOrId === 'object'
+                ? trackerOrId
+                : this.getTracker(trackerOrId);
+            if (isStateReminderTracker(tracker)) {
+                nextConfig.interval_hours = Math.min(
+                    48,
+                    Math.max(
+                        1,
+                        Number(alertConfig.intervalHours)
+                        || Number(tracker.behavior?.intervalHours)
+                        || 6
+                    )
+                );
+            }
+            this.app.alerts.configs[key] = nextConfig;
         }
         this.app.alerts.saveData();
 
@@ -1760,17 +1975,90 @@ export class CustomTrackersModule {
         }
     }
 
-    recordTracker(trackerId, when = new Date()) {
+    recordTracker(trackerId, whenOrOptions = new Date()) {
+        const tracker = this.getTracker(trackerId);
+        if (!tracker || tracker.archived || tracker.deleted) return false;
+        if (isMedicalStudyTracker(tracker)) {
+            const trigger = whenOrOptions?.trigger instanceof HTMLElement
+                ? whenOrOptions.trigger
+                : null;
+            return this.app.health?.openStudyForm?.(trackerId, trigger) === true;
+        }
+        if (isStateReminderTracker(tracker)) {
+            return this.setStateReminderActive(trackerId, tracker.state?.active !== true);
+        }
+        const when = whenOrOptions instanceof Date || typeof whenOrOptions === 'string'
+            ? whenOrOptions
+            : new Date();
         return this.recordTrackers([trackerId], when);
+    }
+
+    setStateReminderActive(trackerId, active, when = new Date()) {
+        let tracker = this.getTracker(trackerId);
+        if (!tracker || tracker.archived || tracker.deleted || !isStateReminderTracker(tracker)) {
+            return false;
+        }
+        const nextActive = active === true;
+        if (tracker.state?.active === nextActive) return true;
+
+        const date = when instanceof Date ? new Date(when) : new Date(when);
+        if (Number.isNaN(date.getTime())) return false;
+        if (!nextActive) {
+            const result = appendCustomTrackerRecords(this.registry, [trackerId], date);
+            this.registry = result.registry;
+            tracker = this.getTracker(trackerId);
+        }
+        tracker.state = {
+            active: nextActive,
+            activatedAt: nextActive ? date.toISOString() : null
+        };
+        tracker.updatedAt = date.toISOString();
+
+        if (tracker.id === DEFAULT_ROBOT_TRACKER_ID || tracker.alertKey === 'robot') {
+            this.app.hygiene.data.robot_cleaner = {
+                status: nextActive ? 'dirty' : 'clean',
+                marked_dirty_at: nextActive ? date.toISOString() : null,
+                last_notified_at: null
+            };
+        }
+
+        this.persistRegistry();
+        if (navigator.vibrate) navigator.vibrate(40);
+        this.showRuntimeFeedback(
+            nextActive
+                ? `${tracker.name}: avisos iniciados.`
+                : `${tracker.name}: marcado como resuelto.`
+        );
+        return true;
+    }
+
+    replaceTrackerHistory(trackerId, values, { silent = false } = {}) {
+        const tracker = this.getTracker(trackerId);
+        if (!tracker || tracker.deleted || !Array.isArray(values)) return false;
+        const normalized = [...new Set(values.map(value => {
+            const date = new Date(value);
+            return Number.isNaN(date.getTime()) ? null : date.toISOString();
+        }).filter(Boolean))].sort((left, right) => Date.parse(right) - Date.parse(left));
+        this.registry.histories[trackerId] = normalized;
+        tracker.updatedAt = new Date().toISOString();
+        this.persistRegistry();
+        if (!silent) this.showRuntimeFeedback(`${tracker.name}: historial actualizado.`);
+        return true;
     }
 
     recordTrackers(trackerIds, when = new Date()) {
         const date = when instanceof Date ? when : new Date(when);
         if (Number.isNaN(date.getTime())) return false;
 
+        const standardTrackerIds = trackerIds.filter(trackerId => {
+            const tracker = this.getTracker(trackerId);
+            return tracker
+                && !isMedicalStudyTracker(tracker)
+                && !isStateReminderTracker(tracker);
+        });
         const result = appendCustomTrackerRecords(
             this.registry,
-            trackerIds,
+            standardTrackerIds,
             date
         );
         if (result.recordedIds.length === 0) return false;
@@ -1908,7 +2196,12 @@ export class CustomTrackersModule {
         if (this.historyDialogTrackerId === trackerId) {
             this.closeHistoryDialog({ restoreFocus: false });
         }
-        this.openInstructionIds.delete(trackerId);
+        if (this.instructionsDialogTrackerId === trackerId) {
+            this.closeInstructionsDialog({ restoreFocus: false });
+        }
+        if (this.registry.featuredBySection[tracker.section] === trackerId) {
+            this.registry.featuredBySection[tracker.section] = null;
+        }
         this.clearPendingHistoryDeletes(trackerId);
         this.syncAlertConfig(tracker, tracker.alert, { disabled: true });
         this.persistRegistry();
@@ -1957,6 +2250,17 @@ export class CustomTrackersModule {
         ) {
             return;
         }
+        const studyCount = isMedicalStudyTracker(tracker)
+            ? (this.app.health?.getStudyEntries?.(trackerId)?.length || 0)
+            : 0;
+        if (studyCount > 0) {
+            this.pendingDeleteIds.delete(trackerId);
+            this.showManagerFeedback(
+                `Antes de borrar ${tracker.name}, eliminá sus ${studyCount} ${studyCount === 1 ? 'estudio adjunto' : 'estudios adjuntos'} desde el historial.`
+            );
+            this.renderManager();
+            return;
+        }
 
         tracker.deleted = true;
         tracker.deletedAt = new Date().toISOString();
@@ -1971,7 +2275,12 @@ export class CustomTrackersModule {
         if (this.historyDialogTrackerId === trackerId) {
             this.closeHistoryDialog({ restoreFocus: false });
         }
-        this.openInstructionIds.delete(trackerId);
+        if (this.instructionsDialogTrackerId === trackerId) {
+            this.closeInstructionsDialog({ restoreFocus: false });
+        }
+        if (this.registry.featuredBySection[tracker.section] === trackerId) {
+            this.registry.featuredBySection[tracker.section] = null;
+        }
         this.clearPendingHistoryDeletes(trackerId);
         this.syncAlertConfig(tracker, tracker.alert, { remove: true });
         this.persistRegistry();
@@ -2007,7 +2316,10 @@ export class CustomTrackersModule {
 
     enterBulkMode(sectionKey) {
         if (!CUSTOM_TRACKER_SECTIONS[sectionKey]) return false;
-        const trackers = this.getRuntimeTrackers(sectionKey);
+        const trackers = this.getRuntimeTrackers(sectionKey).filter(tracker => (
+            !isMedicalStudyTracker(tracker)
+            && !isStateReminderTracker(tracker)
+        ));
         if (trackers.length < 2) {
             this.showRuntimeFeedback(
                 'Necesitás al menos dos tarjetas visibles para usar el registro múltiple.'
@@ -2036,6 +2348,10 @@ export class CustomTrackersModule {
         const tracker = this.getTracker(trackerId);
         const visibleIds = new Set(
             this.getRuntimeTrackers(this.bulkContext.sectionKey)
+                .filter(item => (
+                    !isMedicalStudyTracker(item)
+                    && !isStateReminderTracker(item)
+                ))
                 .map(item => item.id)
         );
         if (
@@ -2113,8 +2429,10 @@ export class CustomTrackersModule {
         const trackers = isManager
             ? this.getActiveTrackers()
             : this.getRuntimeTrackers(sectionKey);
-        if (!this.hasReorderableGroup(trackers)) {
-            const message = 'Necesitás al menos dos tarjetas en una misma categoría para ordenarlas.';
+        if ((isManager && !this.hasReorderableGroup(trackers)) || (!isManager && trackers.length === 0)) {
+            const message = isManager
+                ? 'Necesitás al menos dos tarjetas en una misma categoría para ordenarlas.'
+                : 'No hay tarjetas visibles para ordenar o destacar.';
             if (isManager) this.showManagerFeedback(message);
             else this.showRuntimeFeedback(message);
             return false;
@@ -2130,7 +2448,11 @@ export class CustomTrackersModule {
         this.reorderContext = {
             scope,
             sectionKey: isManager ? null : sectionKey,
-            changed: false
+            changed: false,
+            draftOrders: new Map(),
+            draftFeaturedId: isManager
+                ? null
+                : (this.registry.featuredBySection[sectionKey] || null)
         };
         document.body.classList.add('custom-reorder-active');
 
@@ -2140,6 +2462,48 @@ export class CustomTrackersModule {
             this.renderSection(sectionKey);
         }
         return true;
+    }
+
+    getFeaturedTrackerId(sectionKey) {
+        if (
+            this.reorderContext?.scope === 'runtime'
+            && this.reorderContext.sectionKey === sectionKey
+        ) {
+            return this.reorderContext.draftFeaturedId || null;
+        }
+        return this.registry.featuredBySection?.[sectionKey] || null;
+    }
+
+    toggleDraftFeaturedTracker(trackerId) {
+        const context = this.reorderContext;
+        const tracker = this.getTracker(trackerId);
+        if (
+            context?.scope !== 'runtime'
+            || !tracker
+            || tracker.section !== context.sectionKey
+            || tracker.archived
+            || tracker.deleted
+        ) return false;
+
+        context.draftOrders = this.collectDraftOrders();
+        context.draftFeaturedId = context.draftFeaturedId === trackerId
+            ? null
+            : trackerId;
+        context.changed = true;
+        this.renderSection(context.sectionKey);
+        requestAnimationFrame(() => {
+            document.querySelector(
+                `.custom-tracker-card[data-tracker-id="${CSS.escape(trackerId)}"] [data-custom-feature-action]`
+            )?.focus({ preventScroll: true });
+        });
+        return true;
+    }
+
+    getDraftTrackerOrder(tracker) {
+        if (!tracker) return Number.MAX_SAFE_INTEGER;
+        return this.reorderContext?.draftOrders?.has(tracker.id)
+            ? this.reorderContext.draftOrders.get(tracker.id)
+            : tracker.order;
     }
 
     destroySortableInstances() {
@@ -2185,6 +2549,7 @@ export class CustomTrackersModule {
                     event.item?.setAttribute('aria-grabbed', 'false');
                     if (event.oldIndex !== event.newIndex && this.reorderContext) {
                         this.reorderContext.changed = true;
+                        this.reorderContext.draftOrders = this.collectDraftOrders();
                     }
                 }
             });
@@ -2279,6 +2644,14 @@ export class CustomTrackersModule {
             tracker.updatedAt = timestamp;
             changed = true;
         });
+        if (context?.scope === 'runtime' && context.sectionKey) {
+            const previousFeatured = this.registry.featuredBySection[context.sectionKey] || null;
+            const nextFeatured = context.draftFeaturedId || null;
+            if (previousFeatured !== nextFeatured) {
+                this.registry.featuredBySection[context.sectionKey] = nextFeatured;
+                changed = true;
+            }
+        }
 
         if (changed) {
             this.persistRegistry();
@@ -2287,8 +2660,8 @@ export class CustomTrackersModule {
         }
 
         const message = changed
-            ? 'El nuevo orden quedó guardado y sincronizado.'
-            : 'El orden no tenía cambios para guardar.';
+            ? 'El orden y la tarjeta destacada quedaron guardados y sincronizados.'
+            : 'No había cambios para guardar.';
         if (context?.scope === 'manager') this.showManagerFeedback(message);
         else this.showRuntimeFeedback(message);
     }
@@ -2825,6 +3198,7 @@ export class CustomTrackersModule {
                 result[tracker.subsection].push(tracker);
                 return result;
             }, {});
+        const featuredTrackerId = this.getFeaturedTrackerId(sectionKey);
 
         Object.entries(grouped).forEach(([subsectionKey, trackers]) => {
             const hostId = section.subsections[subsectionKey]?.hostId;
@@ -2837,7 +3211,14 @@ export class CustomTrackersModule {
             }
 
             trackers
-                .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'es'))
+                .sort((a, b) => {
+                    if (!isReordering) {
+                        if (a.id === featuredTrackerId && b.id !== featuredTrackerId) return -1;
+                        if (b.id === featuredTrackerId && a.id !== featuredTrackerId) return 1;
+                    }
+                    return this.getDraftTrackerOrder(a) - this.getDraftTrackerOrder(b)
+                        || a.name.localeCompare(b.name, 'es');
+                })
                 .forEach(tracker => {
                     host.insertAdjacentHTML('beforeend', this.renderTrackerCard(tracker));
                 });
@@ -2854,10 +3235,24 @@ export class CustomTrackersModule {
     renderTrackerCard(tracker) {
         const history = this.getHistory(tracker.id);
         const state = getCustomTrackerState(tracker, history);
-        const status = STATUS_META[state.status] || STATUS_META.new;
+        const isStateReminder = isStateReminderTracker(tracker);
+        const isMedicalStudy = isMedicalStudyTracker(tracker);
+        const status = isStateReminder
+            ? (state.active
+                ? { label: 'Pendiente', color: 'var(--status-red)' }
+                : { label: 'Al día', color: 'var(--status-green)' })
+            : (STATUS_META[state.status] || STATUS_META.new);
         const safeName = escapeHtml(tracker.name);
-        const safeAction = escapeHtml(tracker.actionLabel);
-        const instructionsOpen = this.openInstructionIds.has(tracker.id);
+        const actionLabel = isStateReminder && !state.active
+            ? tracker.behavior.startActionLabel
+            : tracker.actionLabel;
+        const safeAction = escapeHtml(actionLabel);
+        const studyEntries = isMedicalStudy
+            ? this.app.health?.getStudyEntries?.(tracker.id)
+            : null;
+        const historyCount = Array.isArray(studyEntries)
+            ? studyEntries.length
+            : history.length;
         const latestLabel = state.latest
             ? DateUtils.formatFriendlyDate(state.latest)
             : 'Nunca';
@@ -2875,12 +3270,14 @@ export class CustomTrackersModule {
             && this.reorderContext.sectionKey === tracker.section
         );
         const isBulkSelecting = this.bulkContext?.sectionKey === tracker.section;
-        const isBulkSelected = isBulkSelecting
+        const canBulkSelect = !isStateReminder && !isMedicalStudy;
+        const isBulkSelected = isBulkSelecting && canBulkSelect
             && this.bulkContext.selectedIds.has(tracker.id);
+        const isFeatured = this.getFeaturedTrackerId(tracker.section) === tracker.id;
 
         return `
             <article
-                class="custom-tracker-card status-${state.status} ${isReordering ? 'is-reorderable' : ''} ${isBulkSelecting ? 'is-bulk-selectable' : ''} ${isBulkSelected ? 'is-bulk-selected' : ''}"
+                class="custom-tracker-card status-${state.status} ${isFeatured ? 'is-featured' : ''} ${isReordering ? 'is-reorderable' : ''} ${isBulkSelecting && canBulkSelect ? 'is-bulk-selectable' : ''} ${isBulkSelected ? 'is-bulk-selected' : ''}"
                 data-tracker-id="${tracker.id}"
                 data-custom-runtime-section="${tracker.section}"
                 ${isReordering ? 'data-reorder-item aria-grabbed="false"' : ''}
@@ -2892,30 +3289,46 @@ export class CustomTrackersModule {
                         <div>
                             <h3>${safeName}</h3>
                             <span class="custom-tracker-status">${status.label}</span>
+                            ${isFeatured ? '<span class="custom-tracker-featured-label"><i class="ph ph-star-fill"></i> Destacada</span>' : ''}
                         </div>
                     </div>
                     ${isReordering ? `
-                        <button
-                            type="button"
-                            class="custom-card-reorder-handle"
-                            data-reorder-keyboard-handle
-                            aria-label="Reubicar ${safeName} con las flechas del teclado"
-                            data-tooltip="Arrastrá la tarjeta o usá las flechas del teclado"
-                        >
-                            <i class="ph ph-dots-six-vertical"></i>
-                        </button>
+                        <div class="custom-card-reorder-actions">
+                            <button
+                                type="button"
+                                class="custom-card-feature-toggle ${isFeatured ? 'is-active' : ''}"
+                                data-custom-feature-action="toggle"
+                                data-tracker-id="${tracker.id}"
+                                aria-pressed="${isFeatured}"
+                                aria-label="${isFeatured ? 'Quitar tarjeta destacada' : 'Destacar'} ${safeName}"
+                                data-tooltip="${isFeatured ? 'Quitar destacada' : 'Destacar tarjeta'}"
+                            >
+                                <i class="ph ${isFeatured ? 'ph-star-fill' : 'ph-star'}"></i>
+                            </button>
+                            <button
+                                type="button"
+                                class="custom-card-reorder-handle"
+                                data-reorder-keyboard-handle
+                                aria-label="Reubicar ${safeName} con las flechas del teclado"
+                                data-tooltip="Arrastrá la tarjeta o usá las flechas del teclado"
+                            >
+                                <i class="ph ph-dots-six-vertical"></i>
+                            </button>
+                        </div>
                     ` : (isBulkSelecting ? `
-                        <button
-                            type="button"
-                            class="custom-card-bulk-toggle"
-                            data-custom-runtime-action="toggle-bulk"
-                            data-tracker-id="${tracker.id}"
-                            aria-label="${isBulkSelected ? 'Quitar' : 'Seleccionar'} ${safeName} del registro múltiple"
-                            data-tooltip="${isBulkSelected ? 'Quitar selección' : 'Seleccionar tarjeta'}"
-                            aria-pressed="${isBulkSelected}"
-                        >
-                            <i class="ph ${isBulkSelected ? 'ph-check' : 'ph-circle'}"></i>
-                        </button>
+                        ${canBulkSelect ? `
+                            <button
+                                type="button"
+                                class="custom-card-bulk-toggle"
+                                data-custom-runtime-action="toggle-bulk"
+                                data-tracker-id="${tracker.id}"
+                                aria-label="${isBulkSelected ? 'Quitar' : 'Seleccionar'} ${safeName} del registro múltiple"
+                                data-tooltip="${isBulkSelected ? 'Quitar selección' : 'Seleccionar tarjeta'}"
+                                aria-pressed="${isBulkSelected}"
+                            >
+                                <i class="ph ${isBulkSelected ? 'ph-check' : 'ph-circle'}"></i>
+                            </button>
+                        ` : '<span class="custom-card-individual-only">Individual</span>'}
                     ` : `
                         <details class="custom-tracker-menu">
                             <summary role="button" aria-haspopup="menu" aria-expanded="false" aria-label="Abrir acciones de ${safeName}" data-tooltip="Acciones de la tarjeta">
@@ -2926,9 +3339,15 @@ export class CustomTrackersModule {
                                     <i class="ph ph-pencil-simple" aria-hidden="true"></i>
                                     Editar configuración
                                 </button>
+                                ${tracker.instructions ? `
+                                    <button type="button" role="menuitem" data-custom-runtime-action="open-instructions" data-tracker-id="${tracker.id}">
+                                        <i class="ph ph-book-open" aria-hidden="true"></i>
+                                        Ver instrucciones
+                                    </button>
+                                ` : ''}
                                 <button type="button" role="menuitem" data-custom-runtime-action="open-history" data-tracker-id="${tracker.id}">
                                     <i class="ph ph-clock-counter-clockwise" aria-hidden="true"></i>
-                                    Ver historial (${history.length})
+                                    Ver historial (${historyCount})
                                 </button>
                                 <button type="button" role="menuitem" class="danger" data-custom-runtime-action="archive" data-tracker-id="${tracker.id}">
                                     <i class="ph ph-archive" aria-hidden="true"></i>
@@ -2938,31 +3357,36 @@ export class CustomTrackersModule {
                         </details>
                     `)}
                 </div>
-                <div class="custom-tracker-metric">
-                    <strong>${state.elapsedDays === null ? '--' : state.elapsedDays}</strong>
-                    <span>${escapeHtml(cadenceLabel)}</span>
-                </div>
-                <div class="custom-tracker-dates">
-                    <span>Último <strong>${escapeHtml(latestLabel)}</strong></span>
-                    <span>Próximo <strong>${escapeHtml(nextLabel)}</strong></span>
-                </div>
-                <div class="custom-tracker-progress" aria-hidden="true">
-                    <span style="width: ${state.progress}%"></span>
-                </div>
-                ${prediction ? `
-                    <p class="custom-tracker-prediction">${escapeHtml(prediction)}</p>
-                ` : ''}
-                ${tracker.instructions ? `
-                    <button type="button" class="custom-tracker-secondary-action" data-custom-runtime-action="toggle-instructions" data-tracker-id="${tracker.id}" aria-expanded="${instructionsOpen}">
-                        <i class="ph ph-book-open"></i>
-                        ${instructionsOpen ? 'Ocultar instrucciones' : 'Ver instrucciones'}
-                    </button>
-                    <div class="custom-tracker-instructions ${instructionsOpen ? '' : 'hidden'}">
-                        ${escapeHtml(tracker.instructions).replace(/\n/g, '<br>')}
+                ${isStateReminder ? `
+                    <div class="custom-tracker-metric custom-state-reminder-metric">
+                        <strong>${state.active ? state.elapsedHours : '✓'}</strong>
+                        <span>${state.active ? (state.elapsedHours === 1 ? 'hora pendiente' : 'horas pendientes') : 'sin avisos activos'}</span>
                     </div>
-                ` : ''}
+                    <div class="custom-tracker-dates">
+                        <span>Estado <strong>${state.active ? 'Avisos activos' : 'Resuelto'}</strong></span>
+                        <span>Frecuencia <strong>cada ${tracker.behavior.intervalHours} h</strong></span>
+                    </div>
+                    <div class="custom-tracker-progress" aria-hidden="true">
+                        <span style="width: ${state.active ? 100 : 0}%"></span>
+                    </div>
+                ` : `
+                    <div class="custom-tracker-metric">
+                        <strong>${state.elapsedDays === null ? '--' : state.elapsedDays}</strong>
+                        <span>${escapeHtml(cadenceLabel)}</span>
+                    </div>
+                    <div class="custom-tracker-dates">
+                        <span>Último <strong>${escapeHtml(latestLabel)}</strong></span>
+                        <span>Próximo <strong>${escapeHtml(nextLabel)}</strong></span>
+                    </div>
+                    <div class="custom-tracker-progress" aria-hidden="true">
+                        <span style="width: ${state.progress}%"></span>
+                    </div>
+                    ${prediction ? `
+                        <p class="custom-tracker-prediction">${escapeHtml(prediction)}</p>
+                    ` : ''}
+                `}
                 <button type="button" class="btn btn-primary custom-tracker-record" data-custom-runtime-action="record" data-tracker-id="${tracker.id}">
-                    <i class="ph ph-check-circle"></i>
+                    <i class="ph ${isStateReminder && !state.active ? 'ph-warning' : (isMedicalStudy ? 'ph-plus-circle' : 'ph-check-circle')}"></i>
                     ${safeAction}
                 </button>
             </article>

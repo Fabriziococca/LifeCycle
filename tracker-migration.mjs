@@ -2,12 +2,14 @@ import {
     createCustomTracker,
     createEmptyCustomTrackerRegistry,
     CUSTOM_ALERT_PREFIX,
+    DEFAULT_BLOOD_STUDY_TRACKER_ID,
+    DEFAULT_ROBOT_TRACKER_ID,
     CUSTOM_TRACKER_FIELD,
     CUSTOM_TRACKER_SCHEMA_VERSION,
     CUSTOM_TRACKER_SECTIONS,
     LEGACY_CUSTOM_TRACKER_FIELD,
     normalizeCustomTrackerRegistry
-} from './custom-tracker-utils.mjs?v=20260729-trackers-v2';
+} from './custom-tracker-utils.mjs?v=20260811-special-trackers';
 import {
     GROOMING_RULES,
     itemsConfig,
@@ -469,6 +471,99 @@ function migrateV1CustomTrackers(registry, {
     });
 }
 
+function migrateSpecialTrackers(registry, {
+    hygieneData,
+    bloodTests,
+    alertsConfig,
+    hasLegacyAccountData,
+    now
+}) {
+    let added = 0;
+    const hasRobotTracker = registry.trackers.some(
+        tracker => tracker.id === DEFAULT_ROBOT_TRACKER_ID
+    );
+    const legacyRobot = isRecord(hygieneData?.robot_cleaner)
+        ? hygieneData.robot_cleaner
+        : null;
+    if (!hasRobotTracker && legacyRobot) {
+        const robotAlert = getAlertConfig(alertsConfig, 'robot');
+        const isRobotPending = legacyRobot.status === 'dirty';
+        const legacyActivationIsValid = Number.isFinite(
+            Date.parse(legacyRobot.marked_dirty_at)
+        );
+        const intervalHours = Math.min(
+            48,
+            Math.max(1, Number(alertsConfig?.robot?.interval_hours) || 6)
+        );
+        appendTracker(
+            registry,
+            createMigratedTracker({
+                section: 'hygiene',
+                subsection: 'tecnologia',
+                template: 'state-reminder',
+                name: 'Robot Aspiradora',
+                actionLabel: 'Listo, ya lo lavé',
+                cadence: { unit: 'days', value: 1 },
+                thresholds: { yellow: 1, orange: 1, red: 1 },
+                icon: 'ph-robot',
+                instructions: 'Cuando el robot quede pendiente de lavado, iniciá los avisos. Al lavarlo, marcá la tarea como resuelta para detenerlos.',
+                behavior: {
+                    startActionLabel: 'Marcar como sucio',
+                    intervalHours
+                },
+                state: {
+                    active: isRobotPending,
+                    activatedAt: isRobotPending
+                        ? (legacyActivationIsValid
+                            ? legacyRobot.marked_dirty_at
+                            : now.toISOString())
+                        : null
+                },
+                alertKey: 'robot',
+                alert: robotAlert
+            }, {
+                id: DEFAULT_ROBOT_TRACKER_ID,
+                now,
+                order: getNextOrder(registry, 'hygiene', 'tecnologia')
+            }),
+            []
+        );
+        added += 1;
+    }
+
+    const safeBloodTests = Array.isArray(bloodTests) ? bloodTests : [];
+    const hasBloodTracker = registry.trackers.some(
+        tracker => tracker.id === DEFAULT_BLOOD_STUDY_TRACKER_ID
+    );
+    if (!hasBloodTracker && (hasLegacyAccountData || safeBloodTests.length > 0)) {
+        const alertKey = `${CUSTOM_ALERT_PREFIX}${DEFAULT_BLOOD_STUDY_TRACKER_ID}`;
+        appendTracker(
+            registry,
+            createMigratedTracker({
+                section: 'health',
+                subsection: 'controles',
+                template: 'medical-study',
+                name: 'Análisis de Sangre',
+                actionLabel: 'Agregar estudio',
+                cadence: { unit: 'days', value: 360 },
+                thresholds: { yellow: 270, orange: 330, red: 360 },
+                icon: 'ph-test-tube',
+                instructions: '',
+                alertKey,
+                alert: getAlertConfig(alertsConfig, alertKey)
+            }, {
+                id: DEFAULT_BLOOD_STUDY_TRACKER_ID,
+                now,
+                order: getNextOrder(registry, 'health', 'controles')
+            }),
+            safeBloodTests.map(entry => entry?.date).filter(Boolean)
+        );
+        added += 1;
+    }
+
+    return added;
+}
+
 export function readLegacyTrackerSnapshot(storage) {
     const hygieneData = parseStoredJson(
         storage?.getItem?.('hygiene_tracker_data'),
@@ -486,6 +581,10 @@ export function readLegacyTrackerSnapshot(storage) {
         storage?.getItem?.('alerts_config'),
         {}
     );
+    const bloodTests = parseStoredJson(
+        storage?.getItem?.('health_blood_tests'),
+        []
+    );
     const lensData = Object.fromEntries(
         LENS_TRACKERS.map(item => [item.key, storage?.getItem?.(item.key)])
     );
@@ -494,6 +593,7 @@ export function readLegacyTrackerSnapshot(storage) {
         hygieneData,
         groomingData,
         healthData,
+        bloodTests,
         alertsConfig,
         lensData,
         hasLegacyAccountData: Boolean(
@@ -503,6 +603,7 @@ export function readLegacyTrackerSnapshot(storage) {
             ])
             || hasStoredRecordData(groomingData)
             || hasStoredRecordData(healthData)
+            || (Array.isArray(bloodTests) && bloodTests.length > 0)
             || Object.values(lensData).some(Boolean)
         )
     };
@@ -512,6 +613,7 @@ export function migrateLegacyTrackerRegistry({
     hygieneData = null,
     groomingData = null,
     healthData = null,
+    bloodTests = [],
     lensData = {},
     alertsConfig = {},
     hasLegacyAccountData = false,
@@ -524,14 +626,21 @@ export function migrateLegacyTrackerRegistry({
 
     const existingV2 = hygieneData?.[CUSTOM_TRACKER_FIELD];
     if (isRecord(existingV2) && existingV2.version === CUSTOM_TRACKER_SCHEMA_VERSION) {
+        const registry = normalizeCustomTrackerRegistry(existingV2);
+        const specialsAdded = migrateSpecialTrackers(registry, {
+            hygieneData,
+            bloodTests,
+            alertsConfig,
+            hasLegacyAccountData,
+            now: timestamp
+        });
         return {
-            registry: normalizeCustomTrackerRegistry(existingV2),
-            migrated: false,
+            registry: normalizeCustomTrackerRegistry(registry),
+            migrated: specialsAdded > 0,
             report: {
                 source: 'v2',
-                total: Array.isArray(existingV2.trackers)
-                    ? existingV2.trackers.length
-                    : 0
+                total: registry.trackers.length,
+                specialsAdded
             }
         };
     }
@@ -546,6 +655,13 @@ export function migrateLegacyTrackerRegistry({
     migrateV1CustomTrackers(registry, {
         legacyRegistry: hygieneData?.[LEGACY_CUSTOM_TRACKER_FIELD],
         alertsConfig,
+        now: timestamp
+    });
+    migrateSpecialTrackers(registry, {
+        hygieneData,
+        bloodTests,
+        alertsConfig,
+        hasLegacyAccountData,
         now: timestamp
     });
 

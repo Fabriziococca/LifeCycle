@@ -15,6 +15,7 @@ const {
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
     getPendingVeryUrgentTasks,
+    getStateReminderEntries,
     groupSubscriptionsByUser,
     isExpiredPushError,
     isIntervalReminderDue,
@@ -448,5 +449,51 @@ test('custom tracker notifications are emitted only when active and overdue', ()
             handled: true,
             shouldNotify: false
         }
+    );
+});
+
+test('state reminder cards use interval alerts and never enter the daily tracker engine', () => {
+    const hygieneData = {
+        __trackers_v2: {
+            version: 2,
+            trackers: [{
+                id: 'ct_robot_001',
+                name: '  Limpiar   robot  ',
+                template: 'state-reminder',
+                archived: false,
+                alert: { enabled: true, time: '22:00' },
+                behavior: { intervalHours: 8 },
+                state: {
+                    active: true,
+                    activatedAt: '2026-08-11T08:00:00.000Z'
+                }
+            }],
+            histories: { ct_robot_001: [] }
+        }
+    };
+    const alertsConfig = {};
+
+    assert.equal(ensureCustomTrackerAlertConfigs(alertsConfig, hygieneData), true);
+    assert.deepEqual(alertsConfig['custom_tracker:ct_robot_001'], {
+        enabled: true,
+        time: '22:00',
+        days: [],
+        interval_hours: 8
+    });
+    assert.deepEqual(getStateReminderEntries(hygieneData), [{
+        trackerId: 'ct_robot_001',
+        alertKey: 'custom_tracker:ct_robot_001',
+        name: 'Limpiar robot',
+        active: true,
+        activatedAt: '2026-08-11T08:00:00.000Z',
+        intervalHours: 8
+    }]);
+    assert.deepEqual(
+        buildCustomTrackerNotification(
+            'custom_tracker:ct_robot_001',
+            hygieneData,
+            () => 99
+        ),
+        { handled: true, shouldNotify: false }
     );
 });

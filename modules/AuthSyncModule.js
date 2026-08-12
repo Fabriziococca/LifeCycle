@@ -634,7 +634,9 @@ export class AuthSyncModule {
                         const rawMed = localStorage.getItem('health_medical_data');
                         this.app.health.medicalData = rawMed ? JSON.parse(rawMed) : { dentista: { lastVisit: null, frequencyMonths: 6, history: [] }, oculista: { lastVisit: null, frequencyMonths: 6, history: [] } };
                         const rawBlood = localStorage.getItem('health_blood_tests');
-                        this.app.health.bloodTests = rawBlood ? JSON.parse(rawBlood) : [];
+                        const parsedBlood = rawBlood ? JSON.parse(rawBlood) : [];
+                        this.app.health.bloodTests = Array.isArray(parsedBlood) ? parsedBlood : [];
+                        this.app.health.bindLegacyStudiesToTracker?.();
                     } catch (e) { console.error("Error parsing health data in sync:", e); }
                 }
                 if (this.app.vehicle) {

@@ -230,6 +230,7 @@ test('legacy embedded medical attachments remain compatible', () => {
         appName: 'LifeCycle',
         health_blood_tests: [{
             id: 'blood_1',
+            trackerId: 'trk_health_blood_analysis',
             date: '2026-07-27',
             fileName: 'estudio.pdf',
             fileData: legacyAttachment
@@ -240,6 +241,10 @@ test('legacy embedded medical attachments remain compatible', () => {
     assert.match(
         plan.entries.find(([key]) => key === 'health_blood_tests')[1],
         /data:application\/pdf/
+    );
+    assert.match(
+        plan.entries.find(([key]) => key === 'health_blood_tests')[1],
+        /trk_health_blood_analysis/
     );
 });
 

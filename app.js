@@ -28,6 +28,13 @@ import {
 } from './utils.js';
 import { TooltipController } from './tooltip-controller.mjs?v=20260729-tooltips';
 import { FeedbackController } from './feedback-controller.mjs?v=20260730-feedback';
+import {
+    EXCHANGE_RATE_PROVIDERS,
+    getExchangeRateRetryDelay,
+    parseExchangeRate,
+    readCachedExchangeRate,
+    writeCachedExchangeRate
+} from './exchange-rate-utils.mjs?v=20260811-resilient-rates';
 
 const FINANCIAL_AMOUNTS_HIDDEN_KEY = 'lifecycle_financial_amounts_hidden';
 
@@ -44,6 +51,9 @@ class AppController {
         this.tooltips.init();
         this.feedback = new FeedbackController(document);
         this.feedback.init();
+        this.currencyRateRequest = null;
+        this.currencyRateRetryTimer = null;
+        this.currencyRateRetryAttempt = 0;
 
         this.modal = document.getElementById('edit-modal');
         this.modalTitle = document.getElementById('modal-title');
@@ -68,87 +78,161 @@ class AppController {
     initCurrencyPreference() {
         const btnUsd = document.getElementById('btn-currency-usd');
         const btnArs = document.getElementById('btn-currency-ars');
-        const rateInfo = document.getElementById('currency-rate-info');
 
         const activeCurrency = localStorage.getItem('preferred_currency') || 'USD';
         this.updateCurrencyUI(activeCurrency);
 
         btnUsd?.addEventListener('click', () => {
             localStorage.setItem('preferred_currency', 'USD');
+            this.clearCurrencyRateRetry();
             this.updateCurrencyUI('USD');
             this.refreshFinancialViews();
         });
 
-        btnArs?.addEventListener('click', async () => {
+        btnArs?.addEventListener('click', () => {
             localStorage.setItem('preferred_currency', 'ARS');
             this.updateCurrencyUI('ARS');
-            await this.fetchLemonRate();
             this.refreshFinancialViews();
+            void this.fetchLemonRate({ force: true });
         });
 
         if (activeCurrency === 'ARS') {
-            this.fetchLemonRate().then(() => this.refreshFinancialViews());
+            const cached = this.getCachedExchangeRate();
+            this.renderCurrencyRateInfo(cached, {
+                status: cached?.isFresh ? 'ready' : 'refreshing'
+            });
+            void this.fetchLemonRate();
         }
+
+        window.addEventListener('online', () => {
+            if ((localStorage.getItem('preferred_currency') || 'USD') === 'ARS') {
+                void this.fetchLemonRate({ force: true });
+            }
+        });
+        document.addEventListener('visibilitychange', () => {
+            if (
+                document.visibilityState === 'visible'
+                && (localStorage.getItem('preferred_currency') || 'USD') === 'ARS'
+                && !this.getCachedExchangeRate()?.isFresh
+            ) {
+                void this.fetchLemonRate({ force: true });
+            }
+        });
     }
 
-    async fetchLemonRate() {
-        const rateInfo = document.getElementById('currency-rate-info');
-        const cachedRate = this.getValidCachedLemonRate();
-
-        // Una cotización reciente evita llamadas innecesarias sin inventar valores.
-        if (cachedRate !== null) {
-            if (rateInfo) {
-                rateInfo.style.display = 'block';
-                rateInfo.innerHTML = `Cotización Lemon Cash USDT (Venta): <strong>$${cachedRate.toLocaleString('es-AR')} ARS</strong>`;
-            }
-            return cachedRate;
-        }
-
-        try {
-            const res = await fetch('https://criptoya.com/api/lemoncash/usdt/ars/1');
-            if (!res.ok) {
-                throw new Error(`CriptoYa respondió HTTP ${res.status}`);
-            }
-
-            const data = await res.json();
-            const rate = Number(data.bid);
-            if (!Number.isFinite(rate) || rate <= 0) {
-                throw new Error('CriptoYa devolvió una cotización inválida');
-            }
-
-            localStorage.setItem('lemon_usdt_ars_rate', rate.toString());
-            localStorage.setItem('lemon_usdt_ars_time', Date.now().toString());
-            if (rateInfo) {
-                rateInfo.style.display = 'block';
-                rateInfo.innerHTML = `Cotización Lemon Cash USDT (Venta): <strong>$${rate.toLocaleString('es-AR')} ARS</strong>`;
-            }
-            return rate;
-        } catch (e) {
-            console.error("Error fetching Lemon rate from CriptoYa:", e);
-        }
-
-        if (rateInfo) {
-            rateInfo.style.display = 'block';
-            rateInfo.textContent = 'Cotización no disponible. No se realizará una conversión estimada.';
-        }
-        return null;
+    getCachedExchangeRate() {
+        return readCachedExchangeRate(localStorage);
     }
 
     getValidCachedLemonRate() {
-        const rate = Number(localStorage.getItem('lemon_usdt_ars_rate'));
-        const timestamp = Number(localStorage.getItem('lemon_usdt_ars_time'));
-        const age = Date.now() - timestamp;
-        const maxAge = 1000 * 60 * 30;
+        return this.getCachedExchangeRate()?.rate ?? null;
+    }
 
-        if (!Number.isFinite(rate) || rate <= 0 || !Number.isFinite(timestamp) || timestamp <= 0) {
-            return null;
+    async fetchExchangeRateProvider(provider) {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 8_000);
+        try {
+            const response = await fetch(provider.url, {
+                signal: controller.signal,
+                cache: 'no-store',
+                headers: { Accept: 'application/json' }
+            });
+            if (!response.ok) {
+                throw new Error(`${provider.label} respondió HTTP ${response.status}`);
+            }
+            return parseExchangeRate(provider.key, await response.json());
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    }
+
+    async fetchLemonRate({ force = false } = {}) {
+        const cached = this.getCachedExchangeRate();
+        if (cached?.isFresh && !force) {
+            this.renderCurrencyRateInfo(cached, { status: 'ready' });
+            return cached.rate;
+        }
+        if (this.currencyRateRequest) return this.currencyRateRequest;
+        if (cached) this.renderCurrencyRateInfo(cached, { status: 'refreshing' });
+
+        this.currencyRateRequest = (async () => {
+            const failures = [];
+            for (const provider of EXCHANGE_RATE_PROVIDERS) {
+                try {
+                    const rate = await this.fetchExchangeRateProvider(provider);
+                    const timestamp = Date.now();
+                    writeCachedExchangeRate(localStorage, {
+                        rate,
+                        source: provider.key,
+                        timestamp
+                    });
+                    this.clearCurrencyRateRetry();
+                    const fresh = this.getCachedExchangeRate();
+                    this.renderCurrencyRateInfo(fresh, { status: 'ready' });
+                    if ((localStorage.getItem('preferred_currency') || 'USD') === 'ARS') {
+                        this.refreshFinancialViews();
+                    }
+                    return rate;
+                } catch (error) {
+                    failures.push(`${provider.key}: ${error.message}`);
+                }
+            }
+
+            console.warn('No se pudo actualizar la cotización USD/ARS.', failures.join(' | '));
+            const stale = this.getCachedExchangeRate();
+            this.renderCurrencyRateInfo(stale, { status: 'retrying' });
+            this.scheduleCurrencyRateRetry();
+            return stale?.rate ?? null;
+        })();
+
+        try {
+            return await this.currencyRateRequest;
+        } finally {
+            this.currencyRateRequest = null;
+        }
+    }
+
+    scheduleCurrencyRateRetry() {
+        if (
+            this.currencyRateRetryTimer
+            || (localStorage.getItem('preferred_currency') || 'USD') !== 'ARS'
+        ) return;
+        const delay = getExchangeRateRetryDelay(this.currencyRateRetryAttempt);
+        this.currencyRateRetryAttempt += 1;
+        this.currencyRateRetryTimer = setTimeout(() => {
+            this.currencyRateRetryTimer = null;
+            void this.fetchLemonRate({ force: true });
+        }, delay);
+    }
+
+    clearCurrencyRateRetry() {
+        if (this.currencyRateRetryTimer) clearTimeout(this.currencyRateRetryTimer);
+        this.currencyRateRetryTimer = null;
+        this.currencyRateRetryAttempt = 0;
+    }
+
+    renderCurrencyRateInfo(cache, { status = 'ready' } = {}) {
+        const rateInfo = document.getElementById('currency-rate-info');
+        if (!rateInfo) return;
+        const isArsSelected = (localStorage.getItem('preferred_currency') || 'USD') === 'ARS';
+        rateInfo.style.display = isArsSelected ? 'block' : 'none';
+        rateInfo.replaceChildren();
+
+        if (!cache) {
+            rateInfo.textContent = 'Cotización temporalmente no disponible. Reintentando en segundo plano; mientras tanto se muestran USD.';
+            return;
         }
 
-        if (age < 0 || age >= maxAge) {
-            return null;
-        }
-
-        return rate;
+        const provider = EXCHANGE_RATE_PROVIDERS.find(item => item.key === cache.source);
+        const prefix = status === 'ready'
+            ? 'Cotización de referencia'
+            : 'Última cotización disponible';
+        rateInfo.append(`${prefix} (${provider?.label || 'guardada'}): `);
+        const strong = document.createElement('strong');
+        strong.textContent = `$${cache.rate.toLocaleString('es-AR')} ARS`;
+        rateInfo.appendChild(strong);
+        if (status === 'refreshing') rateInfo.append(' · Actualizando…');
+        if (status === 'retrying') rateInfo.append(' · Reintentando en segundo plano');
     }
 
     updateCurrencyUI(curr) {
@@ -181,7 +265,7 @@ class AppController {
         if (curr === 'ARS') {
             const rate = this.getCurrencyMultiplier();
             if (rate === null) {
-                return `USD ${num.toFixed(2)} (ARS sin cotización)`;
+                return `USD ${num.toFixed(2)}`;
             }
             const totalArs = num * rate;
             return `ARS $${totalArs.toLocaleString('es-AR', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}`;

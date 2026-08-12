@@ -191,11 +191,6 @@
                 <button class="tab-btn" data-category="cuidado_personal">Cuidado Personal</button>
             </nav>
 
-            <!-- Tarjeta del Robot Aspiradora (Recordatorios) -->
-            <div id="robot-cleaner-card" class="card" style="margin-bottom: 2rem; border-color: rgba(255,255,255,0.05); transition: border-color 0.3s ease;">
-                <!-- Renderizado dinámico desde app.js -->
-            </div>
-
             <div class="cards-grid" id="tracker-container">
                 <!-- Tarjetas generadas dinámicamente por JS -->
             </div>
@@ -339,11 +334,11 @@
                         <div class="date-info-container health-card-dates">
                             <div class="date-info">
                                 <i class="ph ph-clock-counter-clockwise"></i>
-                                <span>Último análisis: <strong id="blood-last-date">Nunca</strong></span>
+                                <span>Último estudio: <strong id="blood-last-date">Nunca</strong></span>
                             </div>
                             <div class="date-info">
                                 <i class="ph ph-calendar"></i>
-                                <span>Próximo análisis: <strong id="blood-next-date">N/A</strong></span>
+                                <span>Próximo estudio: <strong id="blood-next-date">N/A</strong></span>
                             </div>
                         </div>
 
@@ -353,7 +348,7 @@
 
                         <!-- Formulario agregar estudio (oculto por defecto) -->
                         <div id="blood-test-form" class="migration-guide health-blood-form hidden">
-                            <h4>Registrar estudio de sangre</h4>
+                            <h4>Registrar estudio médico</h4>
                             <div class="health-blood-form-fields">
                                 <div class="input-group">
                                     <label for="blood-form-date">Fecha del estudio</label>

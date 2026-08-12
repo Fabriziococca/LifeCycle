@@ -1,10 +1,15 @@
 import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import {
+    DEFAULT_BLOOD_STUDY_TRACKER_ID,
+    getCustomTrackerState
+} from '../custom-tracker-utils.mjs?v=20260811-special-trackers';
 
 export class HealthModule {
     constructor(controller) {
         this.controller = controller;
         this.gridContainer = document.getElementById('salud-grid-section');
+        this.bloodCard = document.getElementById('blood-tests-card');
         this.bloodDaysCount = document.getElementById('blood-days-count');
         this.bloodLastDate = document.getElementById('blood-last-date');
         this.bloodNextDate = document.getElementById('blood-next-date');
@@ -25,6 +30,8 @@ export class HealthModule {
         this.bloodFormFileName = document.getElementById('blood-form-file-name');
         this.attachedFileName = null;
         this.attachedFile = null;
+        this.activeStudyTrackerId = DEFAULT_BLOOD_STUDY_TRACKER_ID;
+        this.studyDialogTrigger = null;
 
         // Configuración médica
         try {
@@ -44,8 +51,9 @@ export class HealthModule {
         } catch (e) {
             console.error("Error parsing health_blood_tests:", e);
         }
-        this.bloodTests = this.bloodTests || [];
+        this.bloodTests = Array.isArray(this.bloodTests) ? this.bloodTests : [];
 
+        this.ensureStudyDialog();
         this.init();
     }
 
@@ -55,6 +63,139 @@ export class HealthModule {
 
     saveBloodTests() {
         localStorage.setItem('health_blood_tests', JSON.stringify(this.bloodTests));
+    }
+
+    ensureStudyDialog() {
+        if (!this.bloodCard) return;
+        document.getElementById('medical-study-dialog')?.remove();
+
+        const dialog = document.createElement('div');
+        dialog.id = 'medical-study-dialog';
+        dialog.className = 'custom-tracker-dialog medical-study-dialog hidden';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-labelledby', 'medical-study-dialog-title');
+        this.bloodCard.classList.add('custom-tracker-dialog-card', 'medical-study-dialog-card');
+        this.bloodCard.querySelector('h3')?.setAttribute('id', 'medical-study-dialog-title');
+
+        const header = this.bloodCard.querySelector('.health-card-header');
+        const closeButton = document.createElement('button');
+        closeButton.type = 'button';
+        closeButton.className = 'icon-btn medical-study-dialog-close';
+        closeButton.dataset.medicalStudyDialogAction = 'close';
+        closeButton.setAttribute('aria-label', 'Cerrar estudio médico');
+        closeButton.dataset.tooltip = 'Cerrar';
+        closeButton.innerHTML = '<i class="ph ph-x" aria-hidden="true"></i>';
+        header?.appendChild(closeButton);
+
+        dialog.appendChild(this.bloodCard);
+        document.body.appendChild(dialog);
+        this.studyDialog = dialog;
+
+        dialog.addEventListener('click', event => {
+            if (
+                event.target === dialog
+                || event.target.closest('[data-medical-study-dialog-action="close"]')
+            ) {
+                this.closeStudyDialog();
+            }
+        });
+        document.addEventListener('keydown', event => {
+            if (
+                event.key === 'Escape'
+                && this.studyDialog
+                && !this.studyDialog.classList.contains('hidden')
+            ) {
+                event.preventDefault();
+                this.closeStudyDialog();
+            }
+        });
+    }
+
+    getStudyEntries(trackerId = this.activeStudyTrackerId) {
+        if (!Array.isArray(this.bloodTests)) return [];
+        return this.bloodTests
+            .filter(entry => {
+                const entryTrackerId = entry?.trackerId || DEFAULT_BLOOD_STUDY_TRACKER_ID;
+                return entryTrackerId === trackerId;
+            })
+            .sort((left, right) => Date.parse(right.date) - Date.parse(left.date));
+    }
+
+    bindLegacyStudiesToTracker(trackerId = DEFAULT_BLOOD_STUDY_TRACKER_ID) {
+        if (!this.controller.customTrackers?.getTracker?.(trackerId)) return false;
+        let changed = false;
+        this.bloodTests.forEach(entry => {
+            if (entry && !entry.trackerId) {
+                entry.trackerId = trackerId;
+                changed = true;
+            }
+        });
+        if (changed) this.saveBloodTests();
+        this.syncStudyHistory(trackerId);
+        return true;
+    }
+
+    syncStudyHistory(trackerId) {
+        const dates = this.getStudyEntries(trackerId)
+            .map(entry => {
+                const date = parseDateLocal(entry.date);
+                if (!date) return null;
+                date.setHours(12, 0, 0, 0);
+                return date.toISOString();
+            })
+            .filter(Boolean);
+        return this.controller.customTrackers?.replaceTrackerHistory?.(
+            trackerId,
+            dates,
+            { silent: true }
+        ) === true;
+    }
+
+    openStudyForm(trackerId, trigger = null) {
+        const tracker = this.controller.customTrackers?.getTracker?.(trackerId);
+        if (!tracker || !this.studyDialog) return false;
+        this.activeStudyTrackerId = trackerId;
+        this.studyDialogTrigger = trigger instanceof HTMLElement ? trigger : null;
+        const title = this.bloodCard?.querySelector('h3');
+        if (title) title.textContent = tracker.name;
+        this.renderBloodTestsCard();
+        this.bloodHistoryDisclosure?.removeAttribute('open');
+        if (this.bloodForm) this.bloodForm.classList.remove('hidden');
+        this.btnAddBlood?.setAttribute('aria-expanded', 'true');
+        if (this.bloodFormDate) this.bloodFormDate.value = getLocalISODate();
+        this.studyDialog.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        requestAnimationFrame(() => this.bloodFormDate?.focus());
+        return true;
+    }
+
+    openStudyHistory(trackerId, trigger = null) {
+        const tracker = this.controller.customTrackers?.getTracker?.(trackerId);
+        if (!tracker || !this.studyDialog) return false;
+        this.activeStudyTrackerId = trackerId;
+        this.studyDialogTrigger = trigger instanceof HTMLElement ? trigger : null;
+        const title = this.bloodCard?.querySelector('h3');
+        if (title) title.textContent = tracker.name;
+        this.clearBloodForm();
+        this.renderBloodTestsCard();
+        if (this.bloodHistoryDisclosure) this.bloodHistoryDisclosure.open = true;
+        this.studyDialog.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        requestAnimationFrame(() => {
+            this.studyDialog?.querySelector('[data-medical-study-dialog-action="close"]')?.focus();
+        });
+        return true;
+    }
+
+    closeStudyDialog({ restoreFocus = true } = {}) {
+        if (!this.studyDialog || this.studyDialog.classList.contains('hidden')) return;
+        const trigger = this.studyDialogTrigger;
+        this.clearBloodForm();
+        this.studyDialog.classList.add('hidden');
+        this.studyDialogTrigger = null;
+        document.body.classList.remove('modal-open');
+        if (restoreFocus) requestAnimationFrame(() => trigger?.focus?.());
     }
 
     init() {
@@ -230,6 +371,7 @@ export class HealthModule {
         try {
             const entry = {
                 id: 'blood_' + Date.now(),
+                trackerId: this.activeStudyTrackerId,
                 date: dateVal,
                 portalUrl,
                 fileName: this.attachedFileName || null
@@ -244,10 +386,11 @@ export class HealthModule {
             this.bloodTests.push(entry);
             this.bloodTests.sort((a, b) => new Date(b.date) - new Date(a.date));
             this.saveBloodTests();
+            this.syncStudyHistory(this.activeStudyTrackerId);
             this.clearBloodForm({ restoreFocus: true });
             this.render();
         } catch (error) {
-            console.error("Error guardando el análisis de sangre:", error);
+            console.error("Error guardando el estudio médico:", error);
             await this.controller.showMessage({
                 title: 'No se pudo guardar el estudio',
                 message: error.message,
@@ -286,8 +429,10 @@ export class HealthModule {
             }
         }
 
+        const trackerId = test.trackerId || DEFAULT_BLOOD_STUDY_TRACKER_ID;
         this.bloodTests = this.bloodTests.filter(item => item.id !== id);
         this.saveBloodTests();
+        this.syncStudyHistory(trackerId);
         this.render();
     }
 
@@ -566,74 +711,86 @@ export class HealthModule {
     }
 
     renderBloodTestsCard() {
-        const lastTest = this.bloodTests[0];
-        const daysElapsed = this.calculateDaysElapsed(lastTest?.date);
-        const elCard = document.getElementById('blood-tests-card');
-
-        let statusColor = 'var(--text-secondary)';
-        let statusText = 'Sin datos';
-        let statusTone = 'gray';
-        if (daysElapsed !== null) {
-            if (daysElapsed >= 365) {
-                statusColor = 'var(--status-red)';
-                statusText = 'Vencido';
-                statusTone = 'red';
-            } else if (daysElapsed >= 330) {
-                statusColor = 'var(--status-orange)';
-                statusText = 'Atención';
-                statusTone = 'orange';
-            } else if (daysElapsed >= 270) {
-                statusColor = 'var(--status-yellow)';
-                statusText = 'Próximo';
-                statusTone = 'yellow';
-            } else {
-                statusColor = 'var(--status-green)';
-                statusText = 'Al día';
-                statusTone = 'green';
+        const trackerId = this.activeStudyTrackerId || DEFAULT_BLOOD_STUDY_TRACKER_ID;
+        const tracker = this.controller.customTrackers?.getTracker?.(trackerId) || null;
+        const studyEntries = this.getStudyEntries(trackerId);
+        const lastTest = studyEntries[0] || null;
+        const trackerHistory = tracker
+            ? this.controller.customTrackers.getHistory(trackerId)
+            : [];
+        const state = tracker
+            ? getCustomTrackerState(tracker, trackerHistory)
+            : {
+                elapsedDays: null,
+                nextDate: null,
+                status: 'new'
+            };
+        const statusPresentation = {
+            red: {
+                color: 'var(--status-red)',
+                text: 'Vencido',
+                tone: 'red'
+            },
+            orange: {
+                color: 'var(--status-orange)',
+                text: 'Atención',
+                tone: 'orange'
+            },
+            yellow: {
+                color: 'var(--status-yellow)',
+                text: 'Próximo',
+                tone: 'yellow'
+            },
+            green: {
+                color: 'var(--status-green)',
+                text: 'Al día',
+                tone: 'green'
+            },
+            new: {
+                color: 'var(--text-secondary)',
+                text: 'Sin datos',
+                tone: 'gray'
             }
-        }
+        }[state.status] || {
+            color: 'var(--text-secondary)',
+            text: 'Sin datos',
+            tone: 'gray'
+        };
 
-        if (elCard) {
-            elCard.style.borderColor = daysElapsed !== null ? statusColor : 'var(--surface-border)';
-            elCard.dataset.tone = statusTone;
+        if (this.bloodCard) {
+            this.bloodCard.style.borderColor = state.elapsedDays !== null
+                ? statusPresentation.color
+                : 'var(--surface-border)';
+            this.bloodCard.dataset.tone = statusPresentation.tone;
         }
         if (this.bloodStatusBadge) {
-            this.bloodStatusBadge.className = `badge ${statusTone}`;
-            this.bloodStatusBadge.textContent = statusText;
+            this.bloodStatusBadge.className = `badge ${statusPresentation.tone}`;
+            this.bloodStatusBadge.textContent = statusPresentation.text;
         }
         if (this.bloodHistoryCount) {
-            this.bloodHistoryCount.textContent = String(this.bloodTests.length);
+            this.bloodHistoryCount.textContent = String(studyEntries.length);
         }
 
         if (this.bloodDaysCount) {
-            this.bloodDaysCount.innerText = daysElapsed !== null ? daysElapsed : '--';
-            this.bloodDaysCount.style.color = daysElapsed !== null ? statusColor : 'var(--primary-color)';
+            this.bloodDaysCount.innerText = state.elapsedDays !== null ? state.elapsedDays : '--';
+            this.bloodDaysCount.style.color = state.elapsedDays !== null
+                ? statusPresentation.color
+                : 'var(--primary-color)';
         }
         if (this.bloodLastDate) {
             this.bloodLastDate.innerText = this.formatDate(lastTest?.date);
         }
         if (this.bloodNextDate) {
-            if (lastTest?.date) {
-                const nextDate = parseDateLocal(lastTest.date);
-                if (nextDate) {
-                    nextDate.setFullYear(nextDate.getFullYear() + 1);
-                    const yyyy = nextDate.getFullYear();
-                    const mm = String(nextDate.getMonth() + 1).padStart(2, '0');
-                    const dd = String(nextDate.getDate()).padStart(2, '0');
-                    this.bloodNextDate.innerText = `${dd}/${mm}/${yyyy}`;
-                } else {
-                    this.bloodNextDate.innerText = 'N/A';
-                }
-            } else {
-                this.bloodNextDate.innerText = 'N/A';
-            }
+            this.bloodNextDate.innerText = state.nextDate
+                ? DateUtils.formatFriendlyDate(state.nextDate, 'N/A')
+                : 'Después del primer registro';
         }
 
         // Render list
         if (this.bloodList) {
             this.bloodList.replaceChildren();
-            if (this.bloodTests.length > 0) {
-                this.bloodTests.forEach(test => {
+            if (studyEntries.length > 0) {
+                studyEntries.forEach(test => {
                     const li = document.createElement('li');
                     li.style.display = 'flex';
                     li.style.justifyContent = 'space-between';
@@ -724,7 +881,7 @@ export class HealthModule {
                     deleteButton.type = 'button';
                     deleteButton.className = 'btn-delete-blood icon-btn icon-btn-sm is-danger';
                     deleteButton.dataset.tooltip = 'Eliminar registro';
-                    deleteButton.setAttribute('aria-label', 'Eliminar análisis de sangre');
+                    deleteButton.setAttribute('aria-label', 'Eliminar estudio médico');
                     deleteButton.innerHTML = '<i class="ph ph-trash" aria-hidden="true"></i>';
                     deleteButton.addEventListener('click', async () => {
                         deleteButton.disabled = true;
@@ -742,7 +899,7 @@ export class HealthModule {
                 emptyState.style.color = 'var(--text-secondary)';
                 emptyState.style.fontSize = '0.85rem';
                 emptyState.style.padding = '1rem';
-                emptyState.textContent = 'No tenés análisis de sangre registrados';
+                emptyState.textContent = 'No tenés estudios registrados en esta tarjeta';
                 this.bloodList.appendChild(emptyState);
             }
         }
