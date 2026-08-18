@@ -284,12 +284,80 @@ const DEFAULT_RECURRING_REMINDERS = [
 
 const RECURRING_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{2,95}$/;
 const RECURRING_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+const RECURRING_SCHEDULE_TYPES = new Set(['weekly', 'monthly', 'yearly']);
 
 function normalizeRecurringDays(value, fallback = []) {
     const source = Array.isArray(value) ? value : fallback;
     return [...new Set(source
         .map(Number)
         .filter(day => Number.isInteger(day) && day >= 0 && day <= 6))];
+}
+
+function normalizeRecurringBoundedInteger(value, fallback, min, max) {
+    const number = Number(value);
+    return Number.isInteger(number) && number >= min && number <= max
+        ? number
+        : fallback;
+}
+
+function normalizeRecurringSchedule(value, fallback = null) {
+    const source = value && typeof value === 'object' && !Array.isArray(value)
+        ? value
+        : {};
+    const fallbackSource = fallback && typeof fallback === 'object' && !Array.isArray(fallback)
+        ? fallback
+        : {};
+    const typeCandidate = String(source.type || fallbackSource.type || 'weekly');
+    const type = RECURRING_SCHEDULE_TYPES.has(typeCandidate) ? typeCandidate : 'weekly';
+    if (type === 'monthly') {
+        return {
+            type,
+            day: normalizeRecurringBoundedInteger(
+                source.day,
+                normalizeRecurringBoundedInteger(fallbackSource.day, 1, 1, 31),
+                1,
+                31
+            ),
+            overflow: 'last-day'
+        };
+    }
+    if (type === 'yearly') {
+        return {
+            type,
+            month: normalizeRecurringBoundedInteger(
+                source.month,
+                normalizeRecurringBoundedInteger(fallbackSource.month, 1, 1, 12),
+                1,
+                12
+            ),
+            day: normalizeRecurringBoundedInteger(
+                source.day,
+                normalizeRecurringBoundedInteger(fallbackSource.day, 1, 1, 31),
+                1,
+                31
+            ),
+            overflow: 'last-day'
+        };
+    }
+    return {
+        type: 'weekly',
+        days: normalizeRecurringDays(
+            source.days,
+            normalizeRecurringDays(fallbackSource.days, [1, 2, 3, 4, 5, 6, 0])
+        )
+    };
+}
+
+function recurringScheduleMatchesCandidate(value, candidate) {
+    const schedule = normalizeRecurringSchedule(value);
+    if (schedule.type === 'weekly') {
+        return schedule.days.includes(candidate.dayOfWeek);
+    }
+    if (schedule.type === 'yearly' && candidate.month !== schedule.month) {
+        return false;
+    }
+    const lastDay = new Date(Date.UTC(candidate.year, candidate.month, 0)).getUTCDate();
+    return candidate.day === Math.min(schedule.day, lastDay);
 }
 
 function cleanRecurringText(value, maxLength, fallback = '') {
@@ -311,6 +379,13 @@ function ensureRecurringReminderConfigs(alertsConfig, oldReminders = {}) {
     candidates.slice(0, 200).forEach(candidate => {
         const id = cleanRecurringText(candidate?.id, 96).toLowerCase();
         if (!RECURRING_ID_PATTERN.test(id) || definitions.has(id)) return;
+        const defaultSchedule = normalizeRecurringSchedule(
+            candidate?.defaultSchedule || (
+                Array.isArray(candidate?.defaultDays)
+                    ? { type: 'weekly', days: candidate.defaultDays }
+                    : null
+            )
+        );
         const definition = {
             id,
             name: cleanRecurringText(candidate?.name, 90, 'Recordatorio'),
@@ -319,10 +394,8 @@ function ensureRecurringReminderConfigs(alertsConfig, oldReminders = {}) {
             defaultTime: RECURRING_TIME_PATTERN.test(candidate?.defaultTime || '')
                 ? candidate.defaultTime
                 : '09:00',
-            defaultDays: normalizeRecurringDays(
-                candidate?.defaultDays,
-                [1, 2, 3, 4, 5, 6, 0]
-            )
+            defaultSchedule,
+            defaultDays: defaultSchedule.type === 'weekly' ? [...defaultSchedule.days] : []
         };
         definitions.set(id, definition);
 
@@ -330,6 +403,16 @@ function ensureRecurringReminderConfigs(alertsConfig, oldReminders = {}) {
             ? alertsConfig[id]
             : {};
         const legacy = oldReminders?.[id] || {};
+        const schedule = normalizeRecurringSchedule(
+            current.schedule || (
+                Array.isArray(current.days) ? { type: 'weekly', days: current.days } : null
+            ),
+            legacy.schedule || (
+                Array.isArray(legacy.days)
+                    ? { type: 'weekly', days: legacy.days }
+                    : definition.defaultSchedule
+            )
+        );
         alertsConfig[id] = {
             enabled: current.enabled ?? legacy.enabled ?? true,
             time: RECURRING_TIME_PATTERN.test(current.time || '')
@@ -337,15 +420,13 @@ function ensureRecurringReminderConfigs(alertsConfig, oldReminders = {}) {
                 : (RECURRING_TIME_PATTERN.test(legacy.time || '')
                     ? legacy.time
                     : definition.defaultTime),
-            days: normalizeRecurringDays(
-                current.days,
-                normalizeRecurringDays(legacy.days, definition.defaultDays)
-            )
+            schedule,
+            days: schedule.type === 'weekly' ? [...schedule.days] : []
         };
     });
 
     alertsConfig[RECURRING_REMINDERS_FIELD] = {
-        version: 1,
+        version: 2,
         reminders: [...definitions.values()]
     };
     return definitions;
@@ -1834,6 +1915,9 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 const schedYesterday = new Date(yesterdayDate.getFullYear(), yesterdayDate.getMonth(), yesterdayDate.getDate(), remHour, remMin, 0);
                 candidates.push({
                     dateStr: yesterdayDateStr,
+                    year: yesterdayYear,
+                    month: yesterdayDate.getMonth() + 1,
+                    day: yesterdayDate.getDate(),
                     dayOfWeek: yesterdayDayOfWeek,
                     schedDateObj: schedYesterday
                 });
@@ -1842,6 +1926,9 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 const schedToday = new Date(year, month - 1, day, remHour, remMin, 0);
                 candidates.push({
                     dateStr: dateStr,
+                    year,
+                    month,
+                    day,
                     dayOfWeek: dayOfWeek,
                     schedDateObj: schedToday
                 });
@@ -1865,7 +1952,14 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
                     // Si es una alerta periódica/recurrente, verificar día de la semana
                     const isRecurring = recurringReminderMap.has(key);
-                    if (isRecurring && !forceAll && (!conf.days || !conf.days.includes(candidate.dayOfWeek))) continue;
+                    if (
+                        isRecurring
+                        && !forceAll
+                        && !recurringScheduleMatchesCandidate(
+                            conf.schedule || { type: 'weekly', days: conf.days || [] },
+                            candidate
+                        )
+                    ) continue;
 
                     // Verificar si ya pasó la hora programada en Argentina
                     const timePassed = nowArg >= candidate.schedDateObj;

@@ -6,7 +6,10 @@ import {
     buildRecurringReminderDefinitions,
     createRecurringReminderId,
     DEFAULT_RECURRING_REMINDERS,
+    describeRecurringSchedule,
+    matchesRecurringSchedule,
     migrateRecurringReminderConfigs,
+    normalizeRecurringSchedule,
     RECURRING_REMINDERS_FIELD,
     removeRecurringReminder,
     upsertRecurringReminder
@@ -50,6 +53,97 @@ test('custom recurring reminders can be created, edited and removed', () => {
     const removed = removeRecurringReminder(created, id);
     assert.equal(removed[id], undefined);
     assert.equal(buildRecurringReminderDefinitions(removed).some(definition => definition.key === id), false);
+});
+
+test('monthly schedules use the last valid day when a month is shorter', () => {
+    const schedule = normalizeRecurringSchedule({ type: 'monthly', day: 31 });
+
+    assert.deepEqual(schedule, {
+        type: 'monthly',
+        day: 31,
+        overflow: 'last-day'
+    });
+    assert.equal(matchesRecurringSchedule(schedule, {
+        year: 2026,
+        month: 2,
+        day: 28,
+        dayOfWeek: 6
+    }), true);
+    assert.equal(matchesRecurringSchedule(schedule, {
+        year: 2026,
+        month: 4,
+        day: 30,
+        dayOfWeek: 4
+    }), true);
+    assert.equal(matchesRecurringSchedule(schedule, {
+        year: 2026,
+        month: 4,
+        day: 29,
+        dayOfWeek: 3
+    }), false);
+    assert.match(describeRecurringSchedule(schedule), /Mensual · día 31/);
+});
+
+test('yearly schedules preserve leap-day intent without skipping non-leap years', () => {
+    const schedule = normalizeRecurringSchedule({
+        type: 'yearly',
+        month: 2,
+        day: 29
+    });
+
+    assert.equal(matchesRecurringSchedule(schedule, {
+        year: 2028,
+        month: 2,
+        day: 29,
+        dayOfWeek: 2
+    }), true);
+    assert.equal(matchesRecurringSchedule(schedule, {
+        year: 2027,
+        month: 2,
+        day: 28,
+        dayOfWeek: 0
+    }), true);
+    assert.equal(matchesRecurringSchedule(schedule, {
+        year: 2027,
+        month: 3,
+        day: 1,
+        dayOfWeek: 1
+    }), false);
+    assert.match(describeRecurringSchedule(schedule), /Anual · 29 de febrero/);
+});
+
+test('monthly and yearly reminder schedules survive registry updates', () => {
+    const monthly = upsertRecurringReminder({}, {
+        id: 'reminder_cierre_mensual',
+        name: 'Cierre mensual',
+        category: 'otros',
+        title: 'Cierre mensual',
+        body: 'Revisar el cierre.',
+        time: '20:00',
+        schedule: { type: 'monthly', day: 31 }
+    }, { now: new Date('2026-08-17T12:00:00Z') });
+    const yearly = upsertRecurringReminder(monthly, {
+        id: 'reminder_balances_q1',
+        name: 'Temporada Q1',
+        category: 'trading',
+        title: 'Temporada de balances',
+        body: 'Revisar balances.',
+        time: '10:00',
+        schedule: { type: 'yearly', month: 1, day: 15 }
+    }, { now: new Date('2026-08-17T12:00:00Z') });
+
+    assert.deepEqual(yearly.reminder_cierre_mensual.schedule, {
+        type: 'monthly',
+        day: 31,
+        overflow: 'last-day'
+    });
+    assert.deepEqual(yearly.reminder_balances_q1.schedule, {
+        type: 'yearly',
+        month: 1,
+        day: 15,
+        overflow: 'last-day'
+    });
+    assert.deepEqual(yearly.reminder_balances_q1.days, []);
 });
 
 test('the backend sends the same configurable recurring catalog, including Trading', async () => {

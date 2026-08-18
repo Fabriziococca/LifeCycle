@@ -3,13 +3,19 @@ import {
     appendCustomTrackerRecords,
     buildCustomAlertDefinitions,
     createCustomTracker,
+    CUSTOM_MODULE_COLORS,
+    CUSTOM_MODULE_ICONS,
+    MAX_CUSTOM_MODULES,
     CUSTOM_TRACKER_FIELD,
     CUSTOM_TRACKER_ICONS,
-    CUSTOM_TRACKER_SECTIONS,
     CUSTOM_TRACKER_TEMPLATES,
     DEFAULT_BLOOD_STUDY_TRACKER_ID,
     DEFAULT_ROBOT_TRACKER_ID,
+    getAppModules,
     getCustomAlertKey,
+    getCustomModuleHostId,
+    getCustomModuleSectionId,
+    getCustomTrackerSections,
     getCustomTrackerState,
     isMedicalStudyTracker,
     isStateReminderTracker,
@@ -99,6 +105,8 @@ export class CustomTrackersModule {
         this.historyEditMode = false;
         this.instructionsDialogTrackerId = null;
         this.instructionsDialogTrigger = null;
+        this.editingModuleId = null;
+        this.lastModuleDialogTrigger = null;
         this.editingId = null;
         this.lastDialogTrigger = null;
         this.toastTimer = null;
@@ -117,14 +125,19 @@ export class CustomTrackersModule {
         this.modulesRoot = document.getElementById('tab-modulos');
         this.modulesSummary = document.getElementById('module-visibility-summary');
         this.modulesFeedback = document.getElementById('module-visibility-feedback');
+        this.customModulesSummary = document.getElementById('custom-modules-summary');
+        this.customModulesFeedback = document.getElementById('custom-modules-feedback');
+        this.newModuleButton = document.getElementById('btn-new-custom-module');
         this.todayActionsSummary = document.getElementById('today-actions-summary');
         this.todayActionsCount = document.getElementById('today-actions-count');
         this.todayActionsFeedback = document.getElementById('today-actions-feedback');
 
+        this.ensureCustomModuleRuntime();
         this.ensureRuntimeOrderControls();
         this.ensureHistoryDialog();
         this.ensureInstructionsDialog();
         this.ensureEditorDialog();
+        this.ensureModuleEditorDialog();
         this.setupManagerListeners();
         this.setupModuleListeners();
         this.setupRuntimeListeners();
@@ -149,6 +162,8 @@ export class CustomTrackersModule {
 
     reload() {
         this.registry = this.loadRegistry();
+        this.ensureCustomModuleRuntime();
+        this.ensureRuntimeOrderControls();
         this.renderAll();
         this.applyModuleVisibility();
         return this.lastMigration?.migrated === true;
@@ -209,6 +224,8 @@ export class CustomTrackersModule {
         this.registry = normalizeCustomTrackerRegistry(this.registry);
         this.app.hygiene.data[CUSTOM_TRACKER_FIELD] = this.registry;
         this.app.hygiene.saveData();
+        this.ensureCustomModuleRuntime();
+        this.ensureRuntimeOrderControls();
         this.renderAll();
         this.applyModuleVisibility();
         this.app.notificationsCenter?.updateBadge();
@@ -226,8 +243,131 @@ export class CustomTrackersModule {
         return `ct_${Date.now().toString(36)}_${randomPart}`.slice(0, 67);
     }
 
+    generateModuleId() {
+        let randomPart = '';
+        if (globalThis.crypto?.getRandomValues) {
+            const values = new Uint32Array(2);
+            globalThis.crypto.getRandomValues(values);
+            randomPart = Array.from(values, value => value.toString(36)).join('');
+        } else {
+            randomPart = Math.random().toString(36).slice(2, 14);
+        }
+        return `cm_${Date.now().toString(36)}_${randomPart}`.slice(0, 66);
+    }
+
+    getSections() {
+        return getCustomTrackerSections(this.registry.customModules);
+    }
+
+    getAppModules({ includeArchived = false } = {}) {
+        return getAppModules(this.registry.customModules, { includeArchived });
+    }
+
+    getCustomModule(moduleId) {
+        return this.registry.customModules.find(module => module.id === moduleId) || null;
+    }
+
+    getCustomModuleBySectionId(sectionId) {
+        return this.registry.customModules.find(module => (
+            getCustomModuleSectionId(module.id) === sectionId
+        )) || null;
+    }
+
+    ensureCustomModuleRuntime() {
+        const mainNav = document.getElementById('main-nav');
+        const container = document.querySelector('main.container');
+        const activeModules = this.registry.customModules.filter(module => !module.archived);
+        const activeIds = new Set(activeModules.map(module => module.id));
+
+        document.querySelectorAll('[data-custom-module-nav]').forEach(button => {
+            if (!activeIds.has(button.dataset.customModuleNav)) button.remove();
+        });
+        document.querySelectorAll('[data-custom-module-runtime]').forEach(section => {
+            if (!activeIds.has(section.dataset.customModuleRuntime)) section.remove();
+        });
+
+        activeModules.forEach(module => {
+            const sectionId = getCustomModuleSectionId(module.id);
+            const hostId = getCustomModuleHostId(module.id);
+            const color = CUSTOM_MODULE_COLORS[module.color] || CUSTOM_MODULE_COLORS.blue;
+            let navButton = mainNav?.querySelector(`.nav-btn[data-section="${sectionId}"]`);
+            if (!navButton && mainNav) {
+                navButton = document.createElement('button');
+                navButton.type = 'button';
+                navButton.className = 'nav-btn';
+                navButton.dataset.section = sectionId;
+                navButton.dataset.customModuleNav = module.id;
+                const moreButton = mainNav.querySelector('.adaptive-nav-more');
+                mainNav.insertBefore(navButton, moreButton || null);
+            }
+            if (navButton) {
+                navButton.style.setProperty('--custom-module-color', color);
+                navButton.innerHTML = `
+                    <i class="ph ${module.icon}" aria-hidden="true"></i>
+                    <span class="nav-label">${escapeHtml(module.name)}</span>
+                `;
+                navButton.setAttribute('data-tooltip', module.name);
+            }
+
+            let section = document.getElementById(sectionId);
+            if (!section && container) {
+                section = document.createElement('section');
+                section.id = sectionId;
+                section.className = 'main-section hidden custom-module-runtime-section';
+                section.dataset.customModuleRuntime = module.id;
+                const profileSection = document.getElementById('perfil-section');
+                container.insertBefore(section, profileSection || null);
+            }
+            if (section) {
+                section.style.setProperty('--custom-module-color', color);
+                let heading = section.querySelector('.custom-module-runtime-heading');
+                if (!heading) {
+                    section.insertAdjacentHTML('beforeend', `
+                        <header class="custom-module-runtime-heading">
+                            <span class="custom-module-runtime-icon" aria-hidden="true">
+                                <i class="ph ${module.icon}"></i>
+                            </span>
+                            <span>
+                                <span class="custom-trackers-eyebrow">MÓDULO PERSONALIZADO</span>
+                                <h2>${escapeHtml(module.name)}</h2>
+                                <p>${escapeHtml(module.description || 'Tus tarjetas y seguimientos, reunidos en un solo lugar.')}</p>
+                            </span>
+                            <button type="button" class="btn btn-primary custom-module-runtime-new" data-custom-module-runtime-action="new-card" data-module-id="${module.id}">
+                                <i class="ph ph-plus"></i> Nueva tarjeta
+                            </button>
+                        </header>
+                        <div id="${hostId}" class="cards-grid custom-module-runtime-grid"></div>
+                    `);
+                    heading = section.querySelector('.custom-module-runtime-heading');
+                }
+                const headingIcon = heading?.querySelector('.custom-module-runtime-icon i');
+                const headingTitle = heading?.querySelector('h2');
+                const headingDescription = heading?.querySelector('p');
+                const newCardButton = heading?.querySelector('[data-custom-module-runtime-action="new-card"]');
+                if (headingIcon) headingIcon.className = `ph ${module.icon}`;
+                if (headingTitle) headingTitle.textContent = module.name;
+                if (headingDescription) {
+                    headingDescription.textContent = module.description
+                        || 'Tus tarjetas y seguimientos, reunidos en un solo lugar.';
+                }
+                if (newCardButton) newCardButton.dataset.moduleId = module.id;
+            }
+        });
+
+        if (mainNav) {
+            const moreButton = mainNav.querySelector('.adaptive-nav-more');
+            activeModules.forEach(module => {
+                const button = mainNav.querySelector(
+                    `[data-custom-module-nav="${module.id}"]`
+                );
+                if (button) mainNav.insertBefore(button, moreButton || null);
+            });
+        }
+    }
+
     ensureRuntimeOrderControls() {
-        Object.entries(CUSTOM_TRACKER_SECTIONS).forEach(([sectionKey, section]) => {
+        Object.entries(this.getSections()).forEach(([sectionKey, section]) => {
+            if (section.archived) return;
             const root = document.getElementById(section.mainSectionId);
             if (!root || root.querySelector(`[data-runtime-order-section="${sectionKey}"]`)) {
                 return;
@@ -303,12 +443,17 @@ export class CustomTrackersModule {
                     </div>
                 </div>
             `;
-            root.insertBefore(toolbar, root.firstChild);
+            const customHeading = section.customModule
+                ? root.querySelector('.custom-module-runtime-heading')
+                : null;
+            if (customHeading) customHeading.insertAdjacentElement('afterend', toolbar);
+            else root.insertBefore(toolbar, root.firstChild);
         });
     }
 
     updateRuntimeOrderControls(sectionKey = null) {
-        Object.entries(CUSTOM_TRACKER_SECTIONS).forEach(([key, section]) => {
+        Object.entries(this.getSections()).forEach(([key, section]) => {
+            if (section.archived) return;
             if (sectionKey && key !== sectionKey) return;
             const toolbar = document.querySelector(
                 `[data-runtime-order-section="${key}"]`
@@ -532,7 +677,32 @@ export class CustomTrackersModule {
     }
 
     setupModuleListeners() {
+        this.newModuleButton?.addEventListener('click', event => {
+            this.openModuleEditor(null, event.currentTarget);
+        });
         this.modulesRoot?.addEventListener('click', event => {
+            const customModuleButton = event.target.closest('[data-custom-module-action]');
+            if (customModuleButton) {
+                const action = customModuleButton.dataset.customModuleAction;
+                const moduleId = customModuleButton.dataset.moduleId;
+                if (action === 'new') {
+                    this.openModuleEditor(null, customModuleButton);
+                } else if (action === 'edit') {
+                    this.openModuleEditor(moduleId, customModuleButton);
+                } else if (action === 'new-card') {
+                    this.openEditor(moduleId, null, customModuleButton);
+                } else if (action === 'move-up') {
+                    this.moveCustomModule(moduleId, -1);
+                } else if (action === 'move-down') {
+                    this.moveCustomModule(moduleId, 1);
+                } else if (action === 'archive') {
+                    void this.archiveCustomModule(moduleId);
+                } else if (action === 'restore') {
+                    this.restoreCustomModule(moduleId);
+                }
+                return;
+            }
+
             const quickActionButton = event.target.closest(
                 '[data-today-preference-action="toggle"]'
             );
@@ -550,23 +720,25 @@ export class CustomTrackersModule {
             const button = event.target.closest('[data-module-visibility-action]');
             if (!button) return;
             const moduleId = button.dataset.moduleId;
-            if (!APP_MODULES[moduleId]) return;
+            if (!this.getAppModules()[moduleId]) return;
             this.toggleModuleVisibility(moduleId);
         });
     }
 
     isModuleVisible(moduleId) {
+        if (!this.getAppModules()[moduleId]) return false;
         return this.registry.modulePreferences?.[moduleId]?.visible !== false;
     }
 
     getFirstVisibleModuleId() {
-        return Object.keys(APP_MODULES).find(moduleId => this.isModuleVisible(moduleId))
+        return Object.keys(this.getAppModules()).find(moduleId => this.isModuleVisible(moduleId))
             || null;
     }
 
     getNavigationPreferences() {
         this.registry.navigationPreferences = normalizeNavigationPreferences(
-            this.registry.navigationPreferences
+            this.registry.navigationPreferences,
+            { customModules: this.registry.customModules }
         );
         return this.registry.navigationPreferences;
     }
@@ -576,7 +748,8 @@ export class CustomTrackersModule {
     }
 
     toggleNavigationFavorite(moduleId) {
-        if (!APP_MODULES[moduleId]) return false;
+        const modules = this.getAppModules();
+        if (!modules[moduleId]) return false;
         const preferences = this.getNavigationPreferences();
         const favorites = new Set(preferences.favoriteModules);
         const wasFavorite = favorites.has(moduleId);
@@ -595,19 +768,21 @@ export class CustomTrackersModule {
         }
         this.registry.navigationPreferences = normalizeNavigationPreferences({
             favoriteModules: [...favorites]
-        });
+        }, { customModules: this.registry.customModules });
         this.persistRegistry();
         this.showModulesFeedback(
             wasFavorite
-                ? `${APP_MODULES[moduleId].label} se quitó de la barra del celular.`
-                : `${APP_MODULES[moduleId].label} se agregó a la barra del celular.`
+                ? `${modules[moduleId].label} se quitó de la barra del celular.`
+                : `${modules[moduleId].label} se agregó a la barra del celular.`
         );
         return true;
     }
 
     toggleModuleVisibility(moduleId) {
+        const modules = this.getAppModules();
+        if (!modules[moduleId]) return false;
         const current = this.isModuleVisible(moduleId);
-        const visibleCount = Object.keys(APP_MODULES)
+        const visibleCount = Object.keys(modules)
             .filter(id => this.isModuleVisible(id))
             .length;
         if (current && visibleCount <= 1) {
@@ -623,15 +798,17 @@ export class CustomTrackersModule {
         this.persistRegistry();
         this.showModulesFeedback(
             !current
-                ? `${APP_MODULES[moduleId].label} volvió a la navegación.`
-                : `${APP_MODULES[moduleId].label} quedó oculto sin borrar sus datos.`
+                ? `${modules[moduleId].label} volvió a la navegación.`
+                : `${modules[moduleId].label} quedó oculto sin borrar sus datos.`
         );
         return true;
     }
 
     applyModuleVisibility() {
+        this.ensureCustomModuleRuntime();
+        this.ensureRuntimeOrderControls();
         const mainNav = document.getElementById('main-nav');
-        Object.keys(APP_MODULES).forEach(moduleId => {
+        Object.keys(this.getAppModules()).forEach(moduleId => {
             const visible = this.isModuleVisible(moduleId);
             const navButton = mainNav?.querySelector(
                 `.nav-btn[data-section="${moduleId}"]`
@@ -651,8 +828,9 @@ export class CustomTrackersModule {
 
     renderModulesManager() {
         if (!this.modulesSummary) return;
+        this.renderCustomModulesManager();
         const favorites = new Set(this.getFavoriteModuleIds());
-        this.modulesSummary.innerHTML = Object.entries(APP_MODULES)
+        this.modulesSummary.innerHTML = Object.entries(this.getAppModules())
             .map(([moduleId, module]) => {
                 const visible = this.isModuleVisible(moduleId);
                 const favorite = favorites.has(moduleId);
@@ -692,6 +870,135 @@ export class CustomTrackersModule {
             })
             .join('');
         this.renderTodayActionsManager();
+    }
+
+    renderCustomModulesManager() {
+        if (!this.customModulesSummary) return;
+        const active = this.registry.customModules.filter(module => !module.archived);
+        const archived = this.registry.customModules.filter(module => module.archived);
+        const activeHtml = active.length > 0
+            ? active.map((module, index) => {
+                const cardCount = this.registry.trackers.filter(tracker => (
+                    tracker.section === module.id
+                    && !tracker.archived
+                    && !tracker.deleted
+                )).length;
+                const color = CUSTOM_MODULE_COLORS[module.color] || CUSTOM_MODULE_COLORS.blue;
+                return `
+                    <article class="custom-module-manager-card" style="--custom-module-color:${color}">
+                        <span class="custom-module-manager-icon"><i class="ph ${module.icon}"></i></span>
+                        <span class="custom-module-manager-copy">
+                            <strong>${escapeHtml(module.name)}</strong>
+                            <small>${cardCount} ${cardCount === 1 ? 'tarjeta activa' : 'tarjetas activas'}${module.description ? ` · ${escapeHtml(module.description)}` : ''}</small>
+                        </span>
+                        <span class="custom-module-manager-actions">
+                            <button type="button" data-custom-module-action="move-up" data-module-id="${module.id}" ${index === 0 ? 'disabled' : ''} aria-label="Mover ${escapeHtml(module.name)} hacia arriba" data-tooltip="Mover arriba"><i class="ph ph-arrow-up"></i></button>
+                            <button type="button" data-custom-module-action="move-down" data-module-id="${module.id}" ${index === active.length - 1 ? 'disabled' : ''} aria-label="Mover ${escapeHtml(module.name)} hacia abajo" data-tooltip="Mover abajo"><i class="ph ph-arrow-down"></i></button>
+                            <button type="button" data-custom-module-action="new-card" data-module-id="${module.id}" aria-label="Crear tarjeta en ${escapeHtml(module.name)}" data-tooltip="Nueva tarjeta"><i class="ph ph-plus"></i></button>
+                            <button type="button" data-custom-module-action="edit" data-module-id="${module.id}" aria-label="Editar módulo ${escapeHtml(module.name)}" data-tooltip="Editar módulo"><i class="ph ph-pencil-simple"></i></button>
+                            <button type="button" class="danger" data-custom-module-action="archive" data-module-id="${module.id}" aria-label="Archivar módulo ${escapeHtml(module.name)}" data-tooltip="Archivar módulo"><i class="ph ph-archive"></i></button>
+                        </span>
+                    </article>
+                `;
+            }).join('')
+            : `
+                <div class="custom-modules-empty">
+                    <i class="ph ph-squares-four"></i>
+                    <span><strong>Todavía no creaste módulos propios</strong><small>Por ejemplo: Mascotas, Plantas, Hogar o Estudios.</small></span>
+                    <button type="button" class="btn btn-secondary" data-custom-module-action="new">Crear el primero</button>
+                </div>
+            `;
+        const archivedHtml = archived.length > 0
+            ? `
+                <details class="custom-modules-archived">
+                    <summary><span><i class="ph ph-archive"></i> Archivados</span><small>${archived.length}</small></summary>
+                    <div>
+                        ${archived.map(module => `
+                            <article class="custom-module-manager-card is-archived">
+                                <span class="custom-module-manager-icon"><i class="ph ${module.icon}"></i></span>
+                                <span class="custom-module-manager-copy"><strong>${escapeHtml(module.name)}</strong><small>Tarjetas e historiales conservados; alertas pausadas.</small></span>
+                                <span class="custom-module-manager-actions">
+                                    <button type="button" data-custom-module-action="restore" data-module-id="${module.id}" aria-label="Restaurar módulo ${escapeHtml(module.name)}" data-tooltip="Restaurar"><i class="ph ph-arrow-counter-clockwise"></i></button>
+                                </span>
+                            </article>
+                        `).join('')}
+                    </div>
+                </details>
+            `
+            : '';
+        this.customModulesSummary.innerHTML = `<div class="custom-modules-list">${activeHtml}</div>${archivedHtml}`;
+
+    }
+
+    showCustomModulesFeedback(message, { tone = 'success' } = {}) {
+        if (!this.customModulesFeedback) return;
+        this.customModulesFeedback.textContent = message;
+        this.customModulesFeedback.dataset.tone = tone;
+        this.customModulesFeedback.classList.remove('hidden');
+        clearTimeout(this.customModulesFeedbackTimer);
+        this.customModulesFeedbackTimer = setTimeout(() => {
+            this.customModulesFeedback?.classList.add('hidden');
+        }, 4200);
+    }
+
+    moveCustomModule(moduleId, direction) {
+        const active = this.registry.customModules.filter(module => !module.archived);
+        const index = active.findIndex(module => module.id === moduleId);
+        const targetIndex = index + direction;
+        if (index < 0 || targetIndex < 0 || targetIndex >= active.length) return false;
+        [active[index], active[targetIndex]] = [active[targetIndex], active[index]];
+        active.forEach((module, order) => {
+            const stored = this.getCustomModule(module.id);
+            if (stored) stored.order = order;
+        });
+        this.persistRegistry();
+        this.showCustomModulesFeedback('Orden de módulos actualizado.');
+        return true;
+    }
+
+    async archiveCustomModule(moduleId) {
+        const module = this.getCustomModule(moduleId);
+        if (!module || module.archived) return false;
+        const cardCount = this.registry.trackers.filter(tracker => (
+            tracker.section === module.id && !tracker.deleted
+        )).length;
+        const confirmed = await this.app.confirmAction({
+            title: `Archivar ${module.name}`,
+            message: cardCount > 0
+                ? `El módulo desaparecerá de la navegación. Sus ${cardCount} ${cardCount === 1 ? 'tarjeta e historial quedarán conservados' : 'tarjetas e historiales quedarán conservados'} y sus avisos se pausarán hasta restaurarlo.`
+                : 'El módulo desaparecerá de la navegación y podrás restaurarlo cuando quieras.',
+            confirmLabel: 'Archivar módulo',
+            cancelLabel: 'Cancelar',
+            tone: 'warning'
+        });
+        if (!confirmed) return false;
+
+        const sectionId = getCustomModuleSectionId(module.id);
+        const wasActive = this.app.lastActiveSectionId === sectionId;
+        module.archived = true;
+        module.updatedAt = new Date().toISOString();
+        this.registry.navigationPreferences.favoriteModules = this.registry.navigationPreferences.favoriteModules
+            .filter(id => id !== sectionId);
+        this.persistRegistry();
+        if (wasActive) {
+            this.app.activateSection(this.getFirstVisibleModuleId(), {
+                persist: true,
+                render: true
+            });
+        }
+        this.showCustomModulesFeedback(`${module.name} quedó archivado con sus datos conservados.`);
+        return true;
+    }
+
+    restoreCustomModule(moduleId) {
+        const module = this.getCustomModule(moduleId);
+        if (!module || !module.archived) return false;
+        module.archived = false;
+        module.updatedAt = new Date().toISOString();
+        this.registry.modulePreferences[getCustomModuleSectionId(module.id)] = { visible: true };
+        this.persistRegistry();
+        this.showCustomModulesFeedback(`${module.name} volvió a estar disponible.`);
+        return true;
     }
 
     getTodayPreferences() {
@@ -816,6 +1123,18 @@ export class CustomTrackersModule {
             document.querySelectorAll('.custom-tracker-menu[open]').forEach(menu => {
                 if (!menu.contains(event.target)) menu.removeAttribute('open');
             });
+
+            const customModuleButton = event.target.closest(
+                '[data-custom-module-runtime-action="new-card"]'
+            );
+            if (customModuleButton) {
+                this.openEditor(
+                    customModuleButton.dataset.moduleId,
+                    null,
+                    customModuleButton
+                );
+                return;
+            }
 
             const bulkButton = event.target.closest(
                 '.custom-runtime-order-toolbar [data-custom-bulk-action]'
@@ -1118,7 +1437,7 @@ export class CustomTrackersModule {
 
         this.instructionsDialogTrackerId = tracker.id;
         this.instructionsDialogTrigger = trigger instanceof HTMLElement ? trigger : null;
-        const section = CUSTOM_TRACKER_SECTIONS[tracker.section];
+        const section = this.getSections()[tracker.section];
         const subsection = section?.subsections?.[tracker.subsection];
         this.instructionsDialog.querySelector(
             '#custom-tracker-instructions-dialog-title'
@@ -1218,7 +1537,7 @@ export class CustomTrackersModule {
         const history = this.getHistory(tracker.id);
         const state = getCustomTrackerState(tracker, history);
         const status = STATUS_META[state.status] || STATUS_META.new;
-        const section = CUSTOM_TRACKER_SECTIONS[tracker.section];
+        const section = this.getSections()[tracker.section];
         const subsection = section?.subsections?.[tracker.subsection];
         const latestLabel = state.latest
             ? DateUtils.formatFriendlyDate(state.latest)
@@ -1372,6 +1691,250 @@ export class CustomTrackersModule {
         return true;
     }
 
+    ensureModuleEditorDialog() {
+        document.getElementById('custom-module-dialog')?.remove();
+
+        const dialog = document.createElement('div');
+        dialog.id = 'custom-module-dialog';
+        dialog.className = 'custom-tracker-dialog custom-module-dialog hidden';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-labelledby', 'custom-module-dialog-title');
+        dialog.innerHTML = `
+            <div class="custom-tracker-dialog-card custom-module-dialog-card">
+                <div class="custom-tracker-dialog-header">
+                    <div>
+                        <span class="custom-trackers-eyebrow">Constructor de módulos</span>
+                        <h2 id="custom-module-dialog-title">Nuevo módulo</h2>
+                        <p>Creá un espacio que agrupe tarjetas configurables.</p>
+                    </div>
+                    <button type="button" class="custom-dialog-close" data-module-dialog-action="close" aria-label="Cerrar editor de módulo" data-tooltip="Cerrar">
+                        <i class="ph ph-x"></i>
+                    </button>
+                </div>
+                <form id="custom-module-form" novalidate>
+                    <div class="custom-module-preview" aria-live="polite">
+                        <span class="custom-module-preview-icon"><i class="ph ph-paw-print"></i></span>
+                        <span>
+                            <small>MÓDULO PERSONALIZADO</small>
+                            <strong>Nombre del módulo</strong>
+                        </span>
+                    </div>
+                    <div class="custom-tracker-form-grid">
+                        <div class="input-group custom-form-wide">
+                            <label for="custom-module-name">Nombre</label>
+                            <input id="custom-module-name" class="text-input" type="text" maxlength="48" autocomplete="off" placeholder="Ej: Mascotas" required>
+                        </div>
+                        <div class="input-group custom-form-wide">
+                            <label for="custom-module-description">Descripción opcional</label>
+                            <textarea id="custom-module-description" class="text-input custom-module-description" maxlength="180" placeholder="Ej: Controles, cuidados y compras de mis mascotas"></textarea>
+                        </div>
+                        <div class="input-group">
+                            <label for="custom-module-icon">Icono</label>
+                            <select id="custom-module-icon" class="text-input"></select>
+                        </div>
+                        <div class="input-group">
+                            <label for="custom-module-color">Color</label>
+                            <select id="custom-module-color" class="text-input"></select>
+                        </div>
+                    </div>
+                    <div class="custom-trackers-manager-note custom-module-scope-note">
+                        <i class="ph ph-info"></i>
+                        <span>Este constructor crea módulos de seguimientos. Vehículo, Finanzas, Proyectos y otros módulos especializados conservan sus herramientas propias.</span>
+                    </div>
+                    <div id="custom-module-form-error" class="custom-tracker-form-error hidden" role="alert"></div>
+                    <div class="custom-tracker-dialog-actions">
+                        <button type="button" class="btn btn-secondary" data-module-dialog-action="close">Cancelar</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="ph ph-floppy-disk"></i> Guardar módulo
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+        this.moduleDialog = dialog;
+
+        const iconLabels = {
+            'ph-paw-print': 'Mascotas',
+            'ph-plant': 'Plantas',
+            'ph-house': 'Hogar',
+            'ph-book-open': 'Estudio',
+            'ph-briefcase': 'Trabajo',
+            'ph-calendar-check': 'Agenda',
+            'ph-heart': 'Bienestar',
+            'ph-star': 'Favoritos',
+            'ph-package': 'Inventario',
+            'ph-airplane-tilt': 'Viajes',
+            'ph-game-controller': 'Entretenimiento',
+            'ph-music-notes': 'Música',
+            'ph-camera': 'Fotografía',
+            'ph-bicycle': 'Actividad',
+            'ph-check-circle': 'Seguimientos',
+            'ph-sparkle': 'General'
+        };
+        dialog.querySelector('#custom-module-icon').innerHTML = CUSTOM_MODULE_ICONS
+            .map(icon => `<option value="${icon}">${escapeHtml(iconLabels[icon] || icon)}</option>`)
+            .join('');
+        const colorLabels = {
+            blue: 'Azul',
+            cyan: 'Celeste',
+            teal: 'Turquesa',
+            green: 'Verde',
+            amber: 'Ámbar',
+            orange: 'Naranja',
+            rose: 'Rosa',
+            violet: 'Violeta'
+        };
+        dialog.querySelector('#custom-module-color').innerHTML = Object.entries(CUSTOM_MODULE_COLORS)
+            .map(([key, color]) => `<option value="${key}" style="color:${color}">${escapeHtml(colorLabels[key] || key)}</option>`)
+            .join('');
+
+        const updatePreview = () => this.updateModuleEditorPreview();
+        dialog.querySelector('#custom-module-name').addEventListener('input', updatePreview);
+        dialog.querySelector('#custom-module-icon').addEventListener('change', updatePreview);
+        dialog.querySelector('#custom-module-color').addEventListener('change', updatePreview);
+        dialog.addEventListener('click', event => {
+            if (
+                event.target === dialog
+                || event.target.closest('[data-module-dialog-action="close"]')
+            ) {
+                this.closeModuleEditor();
+            }
+        });
+        dialog.querySelector('#custom-module-form').addEventListener('submit', event => {
+            event.preventDefault();
+            this.saveModuleEditor();
+        });
+        document.addEventListener('keydown', event => {
+            if (this.moduleDialog?.classList.contains('hidden')) return;
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                this.closeModuleEditor();
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = Array.from(this.moduleDialog.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled])'
+            ));
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
+    }
+
+    updateModuleEditorPreview() {
+        if (!this.moduleDialog) return;
+        const name = this.moduleDialog.querySelector('#custom-module-name').value.trim()
+            || 'Nombre del módulo';
+        const icon = this.moduleDialog.querySelector('#custom-module-icon').value
+            || CUSTOM_MODULE_ICONS[0];
+        const colorKey = this.moduleDialog.querySelector('#custom-module-color').value || 'blue';
+        const color = CUSTOM_MODULE_COLORS[colorKey] || CUSTOM_MODULE_COLORS.blue;
+        const preview = this.moduleDialog.querySelector('.custom-module-preview');
+        preview?.style.setProperty('--custom-module-color', color);
+        const previewIcon = preview?.querySelector('i');
+        if (previewIcon) previewIcon.className = `ph ${icon}`;
+        const previewName = preview?.querySelector('strong');
+        if (previewName) previewName.textContent = name;
+    }
+
+    openModuleEditor(moduleId = null, trigger = null) {
+        const module = moduleId ? this.getCustomModule(moduleId) : null;
+        if (moduleId && (!module || module.archived)) return false;
+        this.editingModuleId = module?.id || null;
+        this.lastModuleDialogTrigger = trigger instanceof HTMLElement ? trigger : null;
+        this.moduleDialog.querySelector('#custom-module-dialog-title').textContent = module
+            ? `Editar ${module.name}`
+            : 'Nuevo módulo';
+        this.moduleDialog.querySelector('#custom-module-name').value = module?.name || '';
+        this.moduleDialog.querySelector('#custom-module-description').value = module?.description || '';
+        this.moduleDialog.querySelector('#custom-module-icon').value = module?.icon || CUSTOM_MODULE_ICONS[0];
+        this.moduleDialog.querySelector('#custom-module-color').value = module?.color || 'blue';
+        this.moduleDialog.querySelector('#custom-module-form-error').classList.add('hidden');
+        this.updateModuleEditorPreview();
+        this.moduleDialog.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        requestAnimationFrame(() => {
+            this.moduleDialog.querySelector('#custom-module-name')?.focus();
+        });
+        return true;
+    }
+
+    closeModuleEditor() {
+        if (!this.moduleDialog || this.moduleDialog.classList.contains('hidden')) return;
+        this.moduleDialog.classList.add('hidden');
+        document.body.classList.remove('modal-open');
+        this.editingModuleId = null;
+        const trigger = this.lastModuleDialogTrigger;
+        this.lastModuleDialogTrigger = null;
+        requestAnimationFrame(() => trigger?.focus?.());
+    }
+
+    saveModuleEditor() {
+        if (!this.moduleDialog) return false;
+        const name = this.moduleDialog.querySelector('#custom-module-name').value.trim();
+        const description = this.moduleDialog.querySelector('#custom-module-description').value.trim();
+        const icon = this.moduleDialog.querySelector('#custom-module-icon').value;
+        const color = this.moduleDialog.querySelector('#custom-module-color').value;
+        const error = this.moduleDialog.querySelector('#custom-module-form-error');
+        const duplicate = this.registry.customModules.find(module => (
+            !module.archived
+            && module.id !== this.editingModuleId
+            && module.name.localeCompare(name, 'es', { sensitivity: 'base' }) === 0
+        ));
+
+        if (!name) {
+            error.textContent = 'Escribí un nombre para el módulo.';
+            error.classList.remove('hidden');
+            return false;
+        }
+        if (duplicate) {
+            error.textContent = 'Ya existe un módulo personalizado con ese nombre.';
+            error.classList.remove('hidden');
+            return false;
+        }
+        if (!this.editingModuleId && this.registry.customModules.length >= MAX_CUSTOM_MODULES) {
+            error.textContent = `Podés crear hasta ${MAX_CUSTOM_MODULES} módulos personalizados.`;
+            error.classList.remove('hidden');
+            return false;
+        }
+
+        const now = new Date().toISOString();
+        const existing = this.editingModuleId
+            ? this.getCustomModule(this.editingModuleId)
+            : null;
+        if (existing) {
+            Object.assign(existing, { name, description, icon, color, updatedAt: now });
+        } else {
+            this.registry.customModules.push({
+                id: this.generateModuleId(),
+                name,
+                description,
+                icon,
+                color,
+                order: this.registry.customModules.filter(module => !module.archived).length,
+                archived: false,
+                createdAt: now,
+                updatedAt: now
+            });
+        }
+
+        this.closeModuleEditor();
+        this.persistRegistry();
+        this.showCustomModulesFeedback(
+            existing ? `Módulo ${name} actualizado.` : `Módulo ${name} creado. Ya podés agregarle tarjetas.`
+        );
+        return true;
+    }
+
     ensureEditorDialog() {
         document.getElementById('custom-tracker-dialog')?.remove();
 
@@ -1518,11 +2081,7 @@ export class CustomTrackersModule {
         this.dialog = dialog;
 
         const sectionSelect = dialog.querySelector('#custom-tracker-section');
-        sectionSelect.innerHTML = Object.entries(CUSTOM_TRACKER_SECTIONS)
-            .map(([key, section]) => (
-                `<option value="${key}">${escapeHtml(section.label)}</option>`
-            ))
-            .join('');
+        this.populateSectionOptions();
 
         const templateSelect = dialog.querySelector('#custom-tracker-template');
         templateSelect.innerHTML = Object.entries(CUSTOM_TRACKER_TEMPLATES)
@@ -1622,8 +2181,23 @@ export class CustomTrackersModule {
         });
     }
 
+    populateSectionOptions(selectedValue = null) {
+        const select = this.dialog?.querySelector('#custom-tracker-section');
+        if (!select) return;
+        const sections = Object.entries(this.getSections())
+            .filter(([, section]) => !section.archived);
+        select.innerHTML = sections
+            .map(([key, section]) => (
+                `<option value="${key}">${escapeHtml(section.label)}</option>`
+            ))
+            .join('');
+        select.value = sections.some(([key]) => key === selectedValue)
+            ? selectedValue
+            : (sections[0]?.[0] || 'hygiene');
+    }
+
     populateSubsectionOptions(sectionKey, selectedValue = null) {
-        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
+        const section = this.getSections()[sectionKey];
         const select = this.dialog.querySelector('#custom-tracker-subsection');
         if (!section || !select) return;
 
@@ -1638,7 +2212,7 @@ export class CustomTrackersModule {
     }
 
     applySectionDefaults(sectionKey) {
-        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
+        const section = this.getSections()[sectionKey];
         if (!section) return;
         const templateSelect = this.dialog.querySelector('#custom-tracker-template');
         templateSelect.value = section.defaultTemplate;
@@ -1659,7 +2233,7 @@ export class CustomTrackersModule {
     updateEditorDestinationLabel() {
         const sectionKey = this.dialog.querySelector('#custom-tracker-section').value;
         const subsectionKey = this.dialog.querySelector('#custom-tracker-subsection').value;
-        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
+        const section = this.getSections()[sectionKey];
         const subsection = section?.subsections?.[subsectionKey];
         this.dialog.querySelector('#custom-tracker-dialog-section').textContent = (
             section && subsection
@@ -1726,16 +2300,18 @@ export class CustomTrackersModule {
         const tracker = trackerId ? this.getTracker(trackerId) : null;
         if (trackerId && (!tracker || tracker.deleted)) return;
 
+        const sections = this.getSections();
         const selectedSectionKey = tracker?.section || (
-            CUSTOM_TRACKER_SECTIONS[sectionKey] ? sectionKey : 'hygiene'
+            sections[sectionKey] && !sections[sectionKey].archived ? sectionKey : 'hygiene'
         );
-        const section = CUSTOM_TRACKER_SECTIONS[selectedSectionKey];
+        const section = sections[selectedSectionKey];
 
         this.editingId = tracker?.id || null;
         this.lastDialogTrigger = trigger instanceof HTMLElement ? trigger : null;
         this.dialog.querySelector('#custom-tracker-dialog-title').textContent = tracker
             ? 'Editar tarjeta'
             : 'Nueva tarjeta';
+        this.populateSectionOptions(selectedSectionKey);
         this.dialog.querySelector('#custom-tracker-section').value = selectedSectionKey;
         this.populateSubsectionOptions(selectedSectionKey, tracker?.subsection);
         const templateSelect = this.dialog.querySelector('#custom-tracker-template');
@@ -1910,7 +2486,8 @@ export class CustomTrackersModule {
             }, {
                 id: existing?.id || this.generateTrackerId(),
                 now: new Date(),
-                order
+                order,
+                customModules: this.registry.customModules
             });
 
             if (existing) {
@@ -2299,7 +2876,7 @@ export class CustomTrackersModule {
         let trackers = this.getActiveTrackers(sectionKey);
         if (sectionKey === 'hygiene') {
             const currentCategory = this.app.hygiene?.currentCategory
-                || CUSTOM_TRACKER_SECTIONS.hygiene.defaultSubsection;
+                || this.getSections().hygiene.defaultSubsection;
             trackers = trackers.filter(tracker => tracker.subsection === currentCategory);
         }
         return trackers;
@@ -2315,7 +2892,7 @@ export class CustomTrackersModule {
     }
 
     enterBulkMode(sectionKey) {
-        if (!CUSTOM_TRACKER_SECTIONS[sectionKey]) return false;
+        if (!this.getSections()[sectionKey]) return false;
         const trackers = this.getRuntimeTrackers(sectionKey).filter(tracker => (
             !isMedicalStudyTracker(tracker)
             && !isStateReminderTracker(tracker)
@@ -2398,7 +2975,7 @@ export class CustomTrackersModule {
         this.bulkContext = null;
         document.body.classList.remove('custom-bulk-active');
         document.getElementById(
-            CUSTOM_TRACKER_SECTIONS[context.sectionKey]?.mainSectionId
+            this.getSections()[context.sectionKey]?.mainSectionId
         )?.classList.remove('is-custom-bulk');
         return context;
     }
@@ -2423,7 +3000,7 @@ export class CustomTrackersModule {
 
     enterReorderMode(scope, sectionKey = null) {
         const isManager = scope === 'manager';
-        const section = sectionKey ? CUSTOM_TRACKER_SECTIONS[sectionKey] : null;
+        const section = sectionKey ? this.getSections()[sectionKey] : null;
         if (!isManager && !section) return false;
 
         const trackers = isManager
@@ -2595,7 +3172,7 @@ export class CustomTrackersModule {
         const root = this.reorderContext.scope === 'manager'
             ? this.managerRoot
             : document.getElementById(
-                CUSTOM_TRACKER_SECTIONS[this.reorderContext.sectionKey]?.mainSectionId
+                this.getSections()[this.reorderContext.sectionKey]?.mainSectionId
             );
         const updates = new Map();
 
@@ -2623,7 +3200,7 @@ export class CustomTrackersModule {
         this.destroySortableInstances();
         this.reorderContext = null;
         document.body.classList.remove('custom-reorder-active');
-        Object.values(CUSTOM_TRACKER_SECTIONS).forEach(section => {
+        Object.values(this.getSections()).forEach(section => {
             const root = document.getElementById(section.mainSectionId);
             root?.classList.remove('is-custom-reordering');
         });
@@ -2774,6 +3351,9 @@ export class CustomTrackersModule {
         this.app.grooming?.render();
         this.app.lenses?.loadDatesAndStock();
         this.app.health?.render();
+        this.registry.customModules
+            .filter(module => !module.archived)
+            .forEach(module => this.renderSection(module.id));
         if (
             this.historyDialogTrackerId
             && !this.historyDialog?.classList.contains('hidden')
@@ -2804,10 +3384,13 @@ export class CustomTrackersModule {
     renderManager() {
         if (!this.managerSummary) return;
         const isReordering = this.reorderContext?.scope === 'manager';
+        const sections = Object.fromEntries(
+            Object.entries(this.getSections()).filter(([, section]) => !section.archived)
+        );
         const validFilters = new Set([
             'all',
             'vehicle',
-            ...Object.keys(CUSTOM_TRACKER_SECTIONS)
+            ...Object.keys(sections)
         ]);
         if (!validFilters.has(this.activeCategoryFilter)) {
             this.activeCategoryFilter = 'all';
@@ -2834,7 +3417,7 @@ export class CustomTrackersModule {
                     <span>Todas</span>
                     <span class="count-pill">${totalActiveAll}</span>
                 </button>
-                ${Object.entries(CUSTOM_TRACKER_SECTIONS).map(([sectionKey, section]) => {
+                ${Object.entries(sections).map(([sectionKey, section]) => {
                     const activeCount = this.registry.trackers.filter(tracker => (
                         tracker.section === sectionKey
                         && !tracker.archived
@@ -2865,7 +3448,7 @@ export class CustomTrackersModule {
             </div>
         `;
 
-        const visibleSections = Object.entries(CUSTOM_TRACKER_SECTIONS).filter(
+        const visibleSections = Object.entries(sections).filter(
             ([sectionKey]) => (
                 this.activeCategoryFilter === 'all'
                 || this.activeCategoryFilter === sectionKey
@@ -3078,7 +3661,7 @@ export class CustomTrackersModule {
     }
 
     renderManagerActiveRow(tracker, isReordering) {
-        const subsection = CUSTOM_TRACKER_SECTIONS[tracker.section]
+        const subsection = this.getSections()[tracker.section]
             ?.subsections?.[tracker.subsection];
         return `
             <div
@@ -3150,7 +3733,7 @@ export class CustomTrackersModule {
     }
 
     clearRuntimeCards(sectionKey) {
-        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
+        const section = this.getSections()[sectionKey];
         if (!section) return;
         const hostIds = new Set(
             Object.values(section.subsections).map(subsection => subsection.hostId)
@@ -3163,7 +3746,7 @@ export class CustomTrackersModule {
     }
 
     renderSection(sectionKey) {
-        const section = CUSTOM_TRACKER_SECTIONS[sectionKey];
+        const section = this.getSections()[sectionKey];
         if (!section) return;
         const sectionRoot = document.getElementById(section.mainSectionId);
         const isReordering = (

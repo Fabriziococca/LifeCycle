@@ -172,7 +172,7 @@ test('V1 personalized cards join the same V2 registry without losing archive or 
     );
 });
 
-test('an existing V2 registry is authoritative and migration is idempotent', () => {
+test('an existing current registry is authoritative and migration is idempotent', () => {
     const first = migrateLegacyTrackerRegistry({
         hygieneData: { celular: '2026-07-25' },
         hasLegacyAccountData: true,
@@ -193,7 +193,7 @@ test('an existing V2 registry is authoritative and migration is idempotent', () 
     });
 
     assert.equal(second.migrated, false);
-    assert.equal(second.report.source, 'v2');
+    assert.equal(second.report.source, 'v3');
     assert.equal(second.registry.trackers[0].deleted, true);
     assert.deepEqual(second.registry.histories[first.registry.trackers[0].id], []);
 });

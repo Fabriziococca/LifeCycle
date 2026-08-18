@@ -8,6 +8,7 @@ import { ProjectsModule } from './modules/ProjectsModule.js';
 import { BackupModule } from './modules/BackupModule.js';
 import { AuthSyncModule } from './modules/AuthSyncModule.js';
 import { FinanzasModule } from './modules/FinanzasModule.js';
+import { TradingModule } from './modules/TradingModule.js';
 import { TareasModule } from './modules/TareasModule.js';
 import { AlertsModule } from './modules/AlertsModule.js';
 import { NotificationsCenterModule } from './modules/NotificationsCenterModule.js';
@@ -16,6 +17,7 @@ import { TodayModule } from './modules/TodayModule.js';
 import { GlobalSearchModule } from './modules/GlobalSearchModule.js';
 import { KeyboardShortcutsModule } from './modules/KeyboardShortcutsModule.js';
 import { AdaptiveNavigationModule } from './modules/AdaptiveNavigationModule.js';
+import { ThemeModule } from './modules/ThemeModule.js';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260729-project-templates';
 import {
     readUiState,
@@ -514,8 +516,15 @@ class AppController {
             this.projects?.render();
         } else if (sectionId === 'finanzas-section') {
             this.finanzas?.render();
+        } else if (sectionId === 'trading-section') {
+            this.trading?.activate();
         } else if (sectionId === 'tareas-section') {
             this.tareas?.render();
+        } else {
+            const customModule = this.customTrackers?.getCustomModuleBySectionId?.(sectionId);
+            if (customModule && !customModule.archived) {
+                this.customTrackers.renderSection(customModule.id);
+            }
         }
     }
 
@@ -863,6 +872,7 @@ class AppController {
     }
 
     start() {
+        this.theme = new ThemeModule(this);
         this.hygiene = new HygieneModule(this);
         this.grooming = new GroomingModule(this);
         this.lenses = new LensModule(this);
@@ -871,6 +881,7 @@ class AppController {
         this.gym = new GymModule(this);
         this.projects = new ProjectsModule(this);
         this.finanzas = new FinanzasModule(this);
+        this.trading = new TradingModule(this);
         this.tareas = new TareasModule(this);
         this.customTrackers = new CustomTrackersModule(this);
         this.backups = new BackupModule(this);
@@ -896,7 +907,16 @@ class AppController {
                 else if (activeSection.id === 'gym-section') this.gym.render();
                 else if (activeSection.id === 'projects-section') this.projects.render();
                 else if (activeSection.id === 'finanzas-section') this.finanzas.render();
+                else if (activeSection.id === 'trading-section') this.trading.render();
                 else if (activeSection.id === 'tareas-section') this.tareas.render();
+                else {
+                    const customModule = this.customTrackers?.getCustomModuleBySectionId?.(
+                        activeSection.id
+                    );
+                    if (customModule && !customModule.archived) {
+                        this.customTrackers.renderSection(customModule.id);
+                    }
+                }
             }
         }, 1000 * 60 * 60);
     }

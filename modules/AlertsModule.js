@@ -3,12 +3,49 @@ import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import {
     buildRecurringReminderDefinitions,
     createRecurringReminderId,
+    describeRecurringSchedule,
     migrateRecurringReminderConfigs,
+    normalizeRecurringSchedule,
     normalizeRecurringReminderRegistry,
     RECURRING_REMINDERS_FIELD,
     removeRecurringReminder,
     upsertRecurringReminder
 } from '../recurring-reminder-utils.mjs?v=20260801-recurring-reminders';
+
+const EARNINGS_SEASON_REMINDER_PRESET = Object.freeze([
+    Object.freeze({
+        id: 'earnings_season_q4',
+        name: 'Temporada de balances Q4 / Cierre anual',
+        title: '📊 Temporada de balances Q4',
+        body: 'Comienza la ventana orientativa de resultados Q4 y cierres anuales. Revisá las fechas oficiales de cada empresa.',
+        month: 1,
+        day: 15
+    }),
+    Object.freeze({
+        id: 'earnings_season_q1',
+        name: 'Temporada de balances Q1',
+        title: '📊 Temporada de balances Q1',
+        body: 'Comienza la ventana orientativa de resultados Q1. Revisá las fechas oficiales de cada empresa.',
+        month: 4,
+        day: 15
+    }),
+    Object.freeze({
+        id: 'earnings_season_q2',
+        name: 'Temporada de balances Q2',
+        title: '📊 Temporada de balances Q2',
+        body: 'Comienza la ventana orientativa de resultados Q2. Revisá las fechas oficiales de cada empresa.',
+        month: 7,
+        day: 15
+    }),
+    Object.freeze({
+        id: 'earnings_season_q3',
+        name: 'Temporada de balances Q3',
+        title: '📊 Temporada de balances Q3',
+        body: 'Comienza la ventana orientativa de resultados Q3. Revisá las fechas oficiales de cada empresa.',
+        month: 10,
+        day: 15
+    })
+]);
 
 export class AlertsModule {
     constructor(appController) {
@@ -72,6 +109,11 @@ export class AlertsModule {
                 const config = {
                     enabled: def.defaultEnabled !== false,
                     time: def.defaultTime,
+                    schedule: def.type === 'recurring'
+                        ? normalizeRecurringSchedule(
+                            def.defaultSchedule || { type: 'weekly', days: def.defaultDays || [] }
+                        )
+                        : undefined,
                     days: def.defaultDays || []
                 };
                 if (def.key === 'robot' || def.repeatWhileActive) {
@@ -87,6 +129,16 @@ export class AlertsModule {
                 this.configs[key] = {
                     ...defaultConfigs[key],
                     ...storedConfig,
+                    schedule: defaultConfigs[key].schedule
+                        ? normalizeRecurringSchedule(
+                            storedConfig.schedule || (
+                                Array.isArray(storedConfig.days)
+                                    ? { type: 'weekly', days: storedConfig.days }
+                                    : null
+                            ),
+                            defaultConfigs[key].schedule
+                        )
+                        : storedConfig.schedule,
                     days: Array.isArray(storedConfig.days)
                         ? storedConfig.days
                         : defaultConfigs[key].days
@@ -155,6 +207,12 @@ export class AlertsModule {
         if (newReminderButton) {
             newReminderButton.onclick = () => this.openRecurringReminderEditor(null, newReminderButton);
         }
+        const earningsSeasonButton = document.getElementById('btn-add-earnings-season-reminders');
+        if (earningsSeasonButton) {
+            earningsSeasonButton.onclick = () => {
+                void this.addEarningsSeasonReminderPreset(earningsSeasonButton);
+            };
+        }
 
         const reminderModal = document.getElementById('recurring-reminder-modal');
         const reminderForm = document.getElementById('recurring-reminder-form');
@@ -203,6 +261,12 @@ export class AlertsModule {
                 dayButton.setAttribute('aria-pressed', String(dayButton.classList.contains('active')));
             };
         }
+        const reminderFrequency = document.getElementById('recurring-reminder-frequency');
+        if (reminderFrequency) {
+            reminderFrequency.onchange = () => {
+                this.updateRecurringScheduleFields(reminderFrequency.value);
+            };
+        }
         if (reminderForm) {
             reminderForm.onsubmit = event => {
                 event.preventDefault();
@@ -220,6 +284,98 @@ export class AlertsModule {
     getRecurringReminder(reminderId) {
         return this.getRecurringReminderRegistry().reminders
             .find(reminder => reminder.id === reminderId) || null;
+    }
+
+    updateRecurringScheduleFields(type) {
+        const normalizedType = ['weekly', 'monthly', 'yearly'].includes(type)
+            ? type
+            : 'weekly';
+        document.querySelectorAll('[data-recurring-schedule-fields]').forEach(element => {
+            element.classList.toggle(
+                'hidden',
+                element.dataset.recurringScheduleFields !== normalizedType
+            );
+        });
+    }
+
+    readRecurringScheduleFromEditor() {
+        const type = document.getElementById('recurring-reminder-frequency')?.value || 'weekly';
+        if (type === 'monthly') {
+            return normalizeRecurringSchedule({
+                type,
+                day: Number(document.getElementById('recurring-reminder-month-day')?.value)
+            });
+        }
+        if (type === 'yearly') {
+            return normalizeRecurringSchedule({
+                type,
+                month: Number(document.getElementById('recurring-reminder-year-month')?.value),
+                day: Number(document.getElementById('recurring-reminder-year-day')?.value)
+            });
+        }
+        return normalizeRecurringSchedule({
+            type: 'weekly',
+            days: [...document.querySelectorAll('#recurring-reminder-days .day-btn.active')]
+                .map(button => Number(button.dataset.day))
+        });
+    }
+
+    async addEarningsSeasonReminderPreset(trigger = null) {
+        this.saveCurrentCategoryUIState();
+        const existingIds = new Set(
+            this.getRecurringReminderRegistry().reminders.map(reminder => reminder.id)
+        );
+        const missing = EARNINGS_SEASON_REMINDER_PRESET.filter(item => !existingIds.has(item.id));
+        if (missing.length === 0) {
+            this.activeCategory = 'trading';
+            this.app.saveUiState?.({ alertsCategory: 'trading' });
+            this.render();
+            this.app.showToast?.('Las cuatro temporadas de balances ya están configuradas.');
+            return;
+        }
+
+        const confirmed = await this.app.confirmAction({
+            title: 'Agregar temporadas de balances',
+            message: 'Se crearán avisos anuales orientativos. Podrás editar sus fechas y mensajes individualmente desde Recordatorios.',
+            tone: 'info',
+            details: missing.map(item => ({
+                label: item.name,
+                value: `${String(item.day).padStart(2, '0')}/${String(item.month).padStart(2, '0')} · 10:00`
+            })),
+            cancelLabel: 'Cancelar',
+            confirmLabel: missing.length === 4 ? 'Crear 4 recordatorios' : `Crear ${missing.length} pendientes`,
+            closeOnBackdrop: false
+        });
+        if (!confirmed) {
+            trigger?.focus?.();
+            return;
+        }
+
+        missing.forEach(item => {
+            this.configs = upsertRecurringReminder(this.configs, {
+                id: item.id,
+                name: item.name,
+                category: 'trading',
+                title: item.title,
+                body: item.body,
+                time: '10:00',
+                schedule: {
+                    type: 'yearly',
+                    month: item.month,
+                    day: item.day
+                }
+            });
+        });
+        this.activeCategory = 'trading';
+        this.app.saveUiState?.({ alertsCategory: 'trading' });
+        this.saveData();
+        this.app.triggerDataSync?.('alerts_config');
+        this.render();
+        this.app.showToast?.(
+            missing.length === 4
+                ? 'Temporadas de balances agregadas.'
+                : 'Se agregaron las temporadas que faltaban.'
+        );
     }
 
     openRecurringReminderEditor(reminderId = null, trigger = null) {
@@ -242,7 +398,29 @@ export class AlertsModule {
         document.getElementById('recurring-reminder-body').value = reminder?.body || '';
         document.getElementById('recurring-reminder-time').value = config.time || reminder?.defaultTime || '09:00';
         document.getElementById('recurring-reminder-enabled').checked = config.enabled ?? true;
-        const selectedDays = new Set(config.days || reminder?.defaultDays || [1, 2, 3, 4, 5, 6, 0]);
+        const schedule = normalizeRecurringSchedule(
+            config.schedule || (
+                Array.isArray(config.days) ? { type: 'weekly', days: config.days } : null
+            ),
+            reminder?.defaultSchedule || {
+                type: 'weekly',
+                days: reminder?.defaultDays || [1, 2, 3, 4, 5, 6, 0]
+            }
+        );
+        document.getElementById('recurring-reminder-frequency').value = schedule.type;
+        document.getElementById('recurring-reminder-month-day').value = String(
+            schedule.type === 'monthly' ? schedule.day : 1
+        );
+        document.getElementById('recurring-reminder-year-month').value = String(
+            schedule.type === 'yearly' ? schedule.month : 1
+        );
+        document.getElementById('recurring-reminder-year-day').value = String(
+            schedule.type === 'yearly' ? schedule.day : 1
+        );
+        this.updateRecurringScheduleFields(schedule.type);
+        const selectedDays = new Set(
+            schedule.type === 'weekly' ? schedule.days : [1, 2, 3, 4, 5, 6, 0]
+        );
         document.querySelectorAll('#recurring-reminder-days .day-btn[data-day]').forEach(button => {
             const selected = selectedDays.has(Number(button.dataset.day));
             button.classList.toggle('active', selected);
@@ -284,9 +462,30 @@ export class AlertsModule {
             name,
             registry.reminders.map(reminder => reminder.id)
         );
-        const days = [...document.querySelectorAll('#recurring-reminder-days .day-btn.active')]
-            .map(button => Number(button.dataset.day));
-        if (days.length === 0) {
+        const frequency = document.getElementById('recurring-reminder-frequency')?.value || 'weekly';
+        const monthlyDay = Number(document.getElementById('recurring-reminder-month-day')?.value);
+        const yearlyMonth = Number(document.getElementById('recurring-reminder-year-month')?.value);
+        const yearlyDay = Number(document.getElementById('recurring-reminder-year-day')?.value);
+        if (
+            (frequency === 'monthly' && (!Number.isInteger(monthlyDay) || monthlyDay < 1 || monthlyDay > 31))
+            || (
+                frequency === 'yearly'
+                && (
+                    !Number.isInteger(yearlyMonth)
+                    || yearlyMonth < 1
+                    || yearlyMonth > 12
+                    || !Number.isInteger(yearlyDay)
+                    || yearlyDay < 1
+                    || yearlyDay > 31
+                )
+            )
+        ) {
+            error.textContent = 'Elegí una fecha válida para la frecuencia seleccionada.';
+            error.classList.remove('hidden');
+            return;
+        }
+        const schedule = this.readRecurringScheduleFromEditor();
+        if (schedule.type === 'weekly' && schedule.days.length === 0) {
             error.textContent = 'Elegí al menos un día activo.';
             error.classList.remove('hidden');
             return;
@@ -301,7 +500,7 @@ export class AlertsModule {
             title: document.getElementById('recurring-reminder-title').value.trim() || `⏰ ${name}`,
             body,
             time,
-            days
+            schedule
         });
         this.configs[reminderId].enabled = document.getElementById('recurring-reminder-enabled').checked;
         this.activeCategory = category;
@@ -350,11 +549,21 @@ export class AlertsModule {
 
             const days = Array.from(dayBtns).map(btn => parseInt(btn.dataset.day));
             const prevConfig = this.configs[key] || {};
+            const scheduleType = row.dataset.recurringScheduleType;
+            const previousSchedule = scheduleType
+                ? normalizeRecurringSchedule(
+                    prevConfig.schedule || { type: 'weekly', days: prevConfig.days || [] }
+                )
+                : null;
+            const schedule = previousSchedule?.type === 'weekly'
+                ? normalizeRecurringSchedule({ type: 'weekly', days })
+                : previousSchedule;
 
             const nextConfig = {
                 enabled: enabledInput ? enabledInput.checked : false,
                 time: timeInput ? timeInput.value : (prevConfig.time || '23:00'),
-                days: days
+                ...(schedule ? { schedule } : {}),
+                days: schedule?.type === 'weekly' ? [...schedule.days] : days
             };
             if (intervalInput) {
                 const fallback = key === 'very_urgent_tasks' ? 4 : 6;
@@ -432,6 +641,12 @@ export class AlertsModule {
         list.forEach(def => {
             const conf = this.configs[def.key] || { enabled: true, time: def.defaultTime, days: def.defaultDays || [] };
             const isRecurring = def.type === 'recurring';
+            const schedule = isRecurring
+                ? normalizeRecurringSchedule(
+                    conf.schedule || { type: 'weekly', days: conf.days || def.defaultDays || [] },
+                    def.defaultSchedule
+                )
+                : null;
             const safeName = escapeHtml(def.name);
             const dayButtons = [
                 [1, 'L', 'Lunes'],
@@ -442,13 +657,14 @@ export class AlertsModule {
                 [6, 'S', 'Sábado'],
                 [0, 'D', 'Domingo']
             ].map(([day, shortName, fullName]) => {
-                const isActive = conf.days.includes(day);
+                const isActive = schedule?.type === 'weekly' && schedule.days.includes(day);
                 return `<button type="button" class="day-btn ${isActive ? 'active' : ''}" data-day="${day}" aria-label="${fullName}" aria-pressed="${isActive}">${shortName}</button>`;
             }).join('');
 
             const card = document.createElement('div');
             card.className = 'alert-card-item';
             card.dataset.alertKey = def.key;
+            if (schedule) card.dataset.recurringScheduleType = schedule.type;
 
             card.innerHTML = `
                 <div class="alert-card-header">
@@ -493,14 +709,19 @@ export class AlertsModule {
                         <input type="time" class="alert-time-input" value="${conf.time}" aria-label="Hora de alerta de ${safeName}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem;">
                     </div>
                     `}
-                    ${isRecurring ? `
+                    ${isRecurring && schedule.type === 'weekly' ? `
                     <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 4px;">
                         <span style="font-size: 0.78rem; color: var(--text-secondary);">Días activos:</span>
                         <div class="day-selectors">
                             ${dayButtons}
                         </div>
                     </div>
-                    ` : ''}
+                    ` : (isRecurring ? `
+                    <div class="alert-recurring-schedule-summary">
+                        <i class="ph ph-calendar-dots" aria-hidden="true"></i>
+                        <span>${escapeHtml(describeRecurringSchedule(schedule))}</span>
+                    </div>
+                    ` : '')}
                 </div>
             `;
 

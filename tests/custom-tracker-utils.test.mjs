@@ -9,7 +9,9 @@ import {
     CUSTOM_TRACKER_FIELD,
     CUSTOM_TRACKER_SCHEMA_VERSION,
     DEFAULT_NAVIGATION_FAVORITES,
+    getAppModules,
     getCustomAlertKey,
+    getCustomTrackerSections,
     getCustomTrackerState,
     isMedicalStudyTracker,
     isStateReminderTracker,
@@ -56,6 +58,83 @@ test('custom tracker registry normalizes trackers and their histories', () => {
         registry.histories[tracker.id][0],
         '2026-07-25T12:00:00.000Z'
     );
+});
+
+test('custom modules become navigable tracker destinations without changing the card model', () => {
+    const customModule = {
+        id: 'cm_mascotas',
+        name: 'Mascotas',
+        description: 'Cuidados y controles de Robert.',
+        icon: 'ph-paw-print',
+        color: 'green',
+        order: 0,
+        archived: false,
+        createdAt: '2026-08-17T12:00:00.000Z',
+        updatedAt: '2026-08-17T12:00:00.000Z'
+    };
+    const tracker = createCustomTracker({
+        section: customModule.id,
+        subsection: 'general',
+        name: 'Vacunación',
+        actionLabel: 'Registrar vacuna',
+        intervalDays: 365,
+        icon: 'ph-first-aid',
+        alert: { enabled: true, time: '20:30' }
+    }, {
+        id: 'ct_mascotas_vacuna',
+        now: new Date('2026-08-17T12:00:00.000Z'),
+        order: 0,
+        customModules: [customModule]
+    });
+    const registry = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        customModules: [customModule],
+        trackers: [tracker],
+        histories: { [tracker.id]: [] }
+    });
+    const sections = getCustomTrackerSections(registry.customModules);
+    const modules = getAppModules(registry.customModules);
+
+    assert.equal(registry.version, 3);
+    assert.equal(sections.cm_mascotas.mainSectionId, 'cm_mascotas-section');
+    assert.equal(sections.cm_mascotas.subsections.general.hostId, 'cm_mascotas-trackers');
+    assert.equal(modules['cm_mascotas-section'].label, 'Mascotas');
+    assert.equal(modules['cm_mascotas-section'].custom, true);
+    assert.equal(registry.trackers[0].section, 'cm_mascotas');
+    assert.equal(buildCustomAlertDefinitions(registry)[0].category, 'otros');
+});
+
+test('archiving a custom module preserves its cards but pauses their active alerts', () => {
+    const customModule = {
+        id: 'cm_hogar',
+        name: 'Hogar',
+        icon: 'ph-house',
+        color: 'blue',
+        order: 0,
+        archived: true
+    };
+    const tracker = createCustomTracker({
+        section: customModule.id,
+        subsection: 'general',
+        name: 'Cambiar filtro',
+        actionLabel: 'Registrar cambio',
+        intervalDays: 90,
+        icon: 'ph-arrows-clockwise',
+        alert: { enabled: true, time: '20:30' }
+    }, {
+        id: 'ct_hogar_filtro',
+        customModules: [customModule]
+    });
+    const registry = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        customModules: [customModule],
+        trackers: [tracker],
+        histories: { [tracker.id]: [] }
+    });
+
+    assert.equal(registry.trackers.length, 1);
+    assert.equal(getAppModules(registry.customModules)['cm_hogar-section'], undefined);
+    assert.deepEqual(buildCustomAlertDefinitions(registry), []);
 });
 
 test('strict custom tracker validation rejects unsafe or malformed data', () => {

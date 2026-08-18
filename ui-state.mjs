@@ -25,6 +25,7 @@ const VALID_SECTIONS = new Set([
     'gym-section',
     'projects-section',
     'finanzas-section',
+    'trading-section',
     'tareas-section'
 ]);
 
@@ -61,6 +62,7 @@ const VALID_ALERT_CATEGORIES = new Set([
     'salud',
     'vehiculo',
     'gym',
+    'trading',
     'otros'
 ]);
 const VALID_TRACKER_MANAGER_FILTERS = new Set([
@@ -72,6 +74,8 @@ const VALID_TRACKER_MANAGER_FILTERS = new Set([
     'vehicle'
 ]);
 const UNSAFE_DYNAMIC_VALUES = new Set(['__proto__', 'prototype', 'constructor']);
+const CUSTOM_MODULE_SECTION_PATTERN = /^cm_[a-z0-9_-]{3,64}-section$/;
+const CUSTOM_MODULE_FILTER_PATTERN = /^cm_[a-z0-9_-]{3,64}$/;
 
 function normalizeFinanceMonth(value) {
     const month = typeof value === 'string' ? value.trim() : '';
@@ -103,9 +107,15 @@ export function normalizeUiState(value) {
         ? value
         : {};
 
+    const migratedSection = candidate.section === 'finanzas-section'
+        && candidate.financeView === 'trading'
+        ? 'trading-section'
+        : candidate.section;
+
     return {
-        section: VALID_SECTIONS.has(candidate.section)
-            ? candidate.section
+        section: VALID_SECTIONS.has(migratedSection)
+            || CUSTOM_MODULE_SECTION_PATTERN.test(String(migratedSection || ''))
+            ? migratedSection
             : DEFAULT_UI_STATE.section,
         profileTab: VALID_PROFILE_TABS.has(candidate.profileTab)
             ? candidate.profileTab
@@ -131,9 +141,8 @@ export function normalizeUiState(value) {
         alertsCategory: VALID_ALERT_CATEGORIES.has(candidate.alertsCategory)
             ? candidate.alertsCategory
             : DEFAULT_UI_STATE.alertsCategory,
-        trackerManagerFilter: VALID_TRACKER_MANAGER_FILTERS.has(
-            candidate.trackerManagerFilter
-        )
+        trackerManagerFilter: VALID_TRACKER_MANAGER_FILTERS.has(candidate.trackerManagerFilter)
+            || CUSTOM_MODULE_FILTER_PATTERN.test(String(candidate.trackerManagerFilter || ''))
             ? candidate.trackerManagerFilter
             : DEFAULT_UI_STATE.trackerManagerFilter
     };

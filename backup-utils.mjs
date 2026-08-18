@@ -714,6 +714,46 @@ function validateBackupDataShape(key, value) {
                         throw new BackupValidationError(`"${path}.days" debería ser una lista de días.`);
                     }
                 }
+                if (Object.hasOwn(config, 'schedule')) {
+                    assertRecord(config.schedule, `${path}.schedule`);
+                    const type = config.schedule.type;
+                    if (!['weekly', 'monthly', 'yearly'].includes(type)) {
+                        throw new BackupValidationError(`"${path}.schedule.type" no es compatible.`);
+                    }
+                    if (
+                        type === 'weekly'
+                        && (
+                            !Array.isArray(config.schedule.days)
+                            || config.schedule.days.some(day => (
+                                !Number.isInteger(Number(day))
+                                || Number(day) < 0
+                                || Number(day) > 6
+                            ))
+                        )
+                    ) {
+                        throw new BackupValidationError(`"${path}.schedule.days" debería contener días semanales válidos.`);
+                    }
+                    if (
+                        ['monthly', 'yearly'].includes(type)
+                        && (
+                            !Number.isInteger(Number(config.schedule.day))
+                            || Number(config.schedule.day) < 1
+                            || Number(config.schedule.day) > 31
+                        )
+                    ) {
+                        throw new BackupValidationError(`"${path}.schedule.day" debería estar entre 1 y 31.`);
+                    }
+                    if (
+                        type === 'yearly'
+                        && (
+                            !Number.isInteger(Number(config.schedule.month))
+                            || Number(config.schedule.month) < 1
+                            || Number(config.schedule.month) > 12
+                        )
+                    ) {
+                        throw new BackupValidationError(`"${path}.schedule.month" debería estar entre 1 y 12.`);
+                    }
+                }
             });
             break;
         case 'finanzasData':

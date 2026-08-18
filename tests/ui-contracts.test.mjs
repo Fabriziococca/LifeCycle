@@ -440,10 +440,11 @@ test('the fourth projects and finance batch protects money actions and separates
     assert.match(styles, /@media \(max-width: 760px\)[\s\S]*?\.finance-annual-mobile-list/);
 });
 
-test('the sixth Trading batch stays inside Finance and schedules idempotent progressive alerts', async () => {
+test('Trading is an independent module with a responsive editor and idempotent progressive alerts', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
-    const financeSource = await readFile(
-        path.join(ROOT, 'modules', 'FinanzasModule.js'),
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+    const tradingSource = await readFile(
+        path.join(ROOT, 'modules', 'TradingModule.js'),
         'utf8'
     );
     const tradingUtils = await readFile(
@@ -455,23 +456,26 @@ test('the sixth Trading batch stays inside Finance and schedules idempotent prog
     const stateSource = await readFile(path.join(ROOT, 'ui-state.mjs'), 'utf8');
     const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
 
-    assert.match(index, /id="btnFinanceViewPersonal"[\s\S]*?Mis finanzas/);
-    assert.match(index, /id="btnFinanceViewTrading"[\s\S]*?Trading/);
-    assert.match(index, /id="finance-trading-view"/);
+    assert.match(index, /data-section="trading-section"[\s\S]*?Trading/);
+    assert.match(index, /<section id="trading-section"/);
+    assert.doesNotMatch(index, /id="btnFinanceViewTrading"/);
     assert.match(index, /id="trading-event-form"/);
+    assert.match(index, /id="trading-event-date"[\s\S]*?type="date"/);
+    assert.match(index, /id="trading-event-time"[\s\S]*?type="time"/);
     assert.match(index, /id="trading-event-notice-days"/);
     assert.match(index, /60, 30, 15, 7, 1/);
     assert.match(index, /independientes del recordatorio semanal/);
     assert.match(index, /<strong>Enviar avisos<\/strong>/);
     assert.match(index, /seguirá visible como pausado, pero no enviará notificaciones/);
 
-    assert.match(financeSource, /tradingEvents: \[\]/);
-    assert.match(financeSource, /activateFinanceView\(viewId/);
-    assert.match(financeSource, /parseTradingNoticeDays/);
-    assert.match(financeSource, /scope=trading/);
-    assert.match(financeSource, /async deleteTradingEvent/);
-    assert.match(financeSource, /statusPriority === currentPriority[\s\S]{0,120}attemptedAt > currentAttemptedAt/);
+    assert.match(appSource, /new TradingModule\(this\)/);
+    assert.match(tradingSource, /tradingEvents/);
+    assert.match(tradingSource, /parseTradingNoticeDays/);
+    assert.match(tradingSource, /scope=trading/);
+    assert.match(tradingSource, /async deleteEvent/);
+    assert.match(tradingSource, /statusPriority === currentPriority[\s\S]{0,120}attemptedAt > currentAttemptedAt/);
     assert.match(stateSource, /financeView: 'personal'/);
+    assert.match(stateSource, /'trading-section'/);
     assert.match(syncSource, /'finanzasData'/);
 
     assert.match(tradingUtils, /DEFAULT_TRADING_NOTICE_DAYS = Object\.freeze\(\[60, 30, 15, 7, 1\]\)/);
@@ -482,10 +486,49 @@ test('the sixth Trading batch stays inside Finance and schedules idempotent prog
     assert.match(serverSource, /query\.like\('alert_key', `\$\{TRADING_ALERT_PREFIX\}%`\)/);
     assert.doesNotMatch(serverSource, /DEFAULT_RECURRING_REMINDERS[\s\S]{0,400}sendDueTradingEventAlerts/);
 
-    assert.match(styles, /\.finance-view-tab\s*{[\s\S]*?min-height: 44px/);
+    assert.match(styles, /\.trading-event-dialog\s*{[\s\S]*?grid-template-rows: auto minmax\(0, 1fr\) auto/);
+    assert.match(styles, /\.trading-event-dialog-body\s*{[\s\S]*?overflow-y: auto/);
+    assert.match(styles, /\.trading-event-form-grid\s*{[\s\S]*?repeat\(2, minmax\(0, 1fr\)\)/);
     assert.match(styles, /\.trading-event-actions \.btn\s*{[\s\S]*?min-height: 44px/);
-    assert.match(styles, /input\[type="datetime-local"\][\s\S]*?color-scheme: dark/);
-    assert.match(styles, /@media \(max-width: 520px\)[\s\S]*?\.trading-event-actions/);
+    assert.match(styles, /@media \(max-width: 720px\)[\s\S]*?\.trading-event-form-grid\s*{[\s\S]*?grid-template-columns: 1fr/);
+});
+
+test('appearance, recurring schedules and lightweight custom modules expose their UI contracts', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
+    const trackerSource = await readFile(
+        path.join(ROOT, 'modules', 'CustomTrackersModule.js'),
+        'utf8'
+    );
+    const alertsSource = await readFile(
+        path.join(ROOT, 'modules', 'AlertsModule.js'),
+        'utf8'
+    );
+    const serverSource = await readFile(path.join(ROOT, 'server.js'), 'utf8');
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+
+    assert.match(index, /lifecycle_theme_preference[\s\S]*?document\.documentElement\.dataset\.theme/);
+    assert.match(index, /data-theme-choice="dark"/);
+    assert.match(index, /data-theme-choice="light"/);
+    assert.match(appSource, /new ThemeModule\(this\)/);
+    assert.match(styles, /html\[data-theme="light"\]/);
+
+    assert.match(index, /id="recurring-reminder-frequency"/);
+    assert.match(index, /value="monthly"/);
+    assert.match(index, /value="yearly"/);
+    assert.match(index, /id="btn-add-earnings-season-reminders"/);
+    assert.match(alertsSource, /addEarningsSeasonReminderPreset/);
+    assert.match(alertsSource, /schedule:[\s\S]{0,120}type: 'yearly'/);
+    assert.match(serverSource, /function recurringScheduleMatchesCandidate/);
+    assert.match(serverSource, /Math\.min\(schedule\.day, lastDay\)/);
+
+    assert.match(index, /id="btn-new-custom-module"/);
+    assert.match(index, /id="custom-modules-summary"/);
+    assert.match(trackerSource, /openModuleEditor/);
+    assert.match(trackerSource, /archiveCustomModule/);
+    assert.match(trackerSource, /ensureCustomModuleRuntime/);
+    assert.match(trackerSource, /data-custom-module-runtime-action="new-card"/);
+    assert.match(styles, /\.custom-module-runtime-section/);
 });
 
 test('Today reuses critical items and links back to their source modules', async () => {

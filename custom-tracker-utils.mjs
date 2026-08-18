@@ -5,10 +5,41 @@ import {
 
 export const CUSTOM_TRACKER_FIELD = '__trackers_v2';
 export const LEGACY_CUSTOM_TRACKER_FIELD = '__custom_trackers_v1';
-export const CUSTOM_TRACKER_SCHEMA_VERSION = 2;
+export const CUSTOM_TRACKER_SCHEMA_VERSION = 3;
 export const CUSTOM_ALERT_PREFIX = 'custom_tracker:';
 export const DEFAULT_ROBOT_TRACKER_ID = 'trk_hygiene_robot_cleaner';
 export const DEFAULT_BLOOD_STUDY_TRACKER_ID = 'trk_health_blood_analysis';
+export const MAX_CUSTOM_MODULES = 30;
+
+export const CUSTOM_MODULE_COLORS = Object.freeze({
+    blue: '#3b82f6',
+    cyan: '#06b6d4',
+    teal: '#14b8a6',
+    green: '#22c55e',
+    amber: '#f59e0b',
+    orange: '#f97316',
+    rose: '#f43f5e',
+    violet: '#8b5cf6'
+});
+
+export const CUSTOM_MODULE_ICONS = Object.freeze([
+    'ph-paw-print',
+    'ph-plant',
+    'ph-house',
+    'ph-book-open',
+    'ph-briefcase',
+    'ph-calendar-check',
+    'ph-heart',
+    'ph-star',
+    'ph-package',
+    'ph-airplane-tilt',
+    'ph-game-controller',
+    'ph-music-notes',
+    'ph-camera',
+    'ph-bicycle',
+    'ph-check-circle',
+    'ph-sparkle'
+]);
 
 export const CUSTOM_TRACKER_TEMPLATES = Object.freeze({
     routine: Object.freeze({
@@ -128,8 +159,60 @@ export const APP_MODULES = Object.freeze({
     'gym-section': Object.freeze({ label: 'Gimnasio', icon: 'ph-barbell' }),
     'projects-section': Object.freeze({ label: 'Proyectos', icon: 'ph-briefcase' }),
     'finanzas-section': Object.freeze({ label: 'Finanzas', icon: 'ph-wallet' }),
+    'trading-section': Object.freeze({ label: 'Trading', icon: 'ph-chart-line-up' }),
     'tareas-section': Object.freeze({ label: 'Tareas', icon: 'ph-check-square' })
 });
+
+export function getCustomModuleSectionId(moduleId) {
+    return `${moduleId}-section`;
+}
+
+export function getCustomModuleHostId(moduleId) {
+    return `${moduleId}-trackers`;
+}
+
+export function getCustomTrackerSections(customModules = []) {
+    const sections = { ...CUSTOM_TRACKER_SECTIONS };
+    customModules.forEach(module => {
+        if (!module) return;
+        sections[module.id] = Object.freeze({
+            label: module.name,
+            mainSectionId: getCustomModuleSectionId(module.id),
+            alertCategory: 'otros',
+            defaultAction: 'Registrar',
+            defaultIcon: module.icon,
+            defaultTemplate: 'routine',
+            defaultSubsection: 'general',
+            customModule: true,
+            archived: module.archived === true,
+            color: CUSTOM_MODULE_COLORS[module.color] || CUSTOM_MODULE_COLORS.blue,
+            subsections: Object.freeze({
+                general: Object.freeze({
+                    label: 'Tarjetas',
+                    hostId: getCustomModuleHostId(module.id)
+                })
+            })
+        });
+    });
+    return sections;
+}
+
+export function getAppModules(customModules = [], { includeArchived = false } = {}) {
+    const modules = { ...APP_MODULES };
+    customModules.forEach(module => {
+        if (!module || (!includeArchived && module.archived === true)) return;
+        const sectionId = getCustomModuleSectionId(module.id);
+        modules[sectionId] = Object.freeze({
+            label: module.name,
+            icon: module.icon,
+            color: CUSTOM_MODULE_COLORS[module.color] || CUSTOM_MODULE_COLORS.blue,
+            custom: true,
+            customModuleId: module.id,
+            order: module.order
+        });
+    });
+    return modules;
+}
 
 export const DEFAULT_NAVIGATION_FAVORITES = Object.freeze([
     'hoy-section',
@@ -168,14 +251,14 @@ export const CUSTOM_TRACKER_ICONS = Object.freeze([
     'ph-user-focus',
     'ph-arrows-clockwise',
     'ph-robot',
-    'ph-test-tube'
+    'ph-test-tube',
+    ...CUSTOM_MODULE_ICONS
 ]);
 
-const SECTION_KEYS = new Set(Object.keys(CUSTOM_TRACKER_SECTIONS));
 const TEMPLATE_KEYS = new Set(Object.keys(CUSTOM_TRACKER_TEMPLATES));
 const ICON_KEYS = new Set(CUSTOM_TRACKER_ICONS);
-const MODULE_KEYS = new Set(Object.keys(APP_MODULES));
 const TRACKER_ID_PATTERN = /^(?:ct|trk)_[a-z0-9_-]{3,96}$/;
+const CUSTOM_MODULE_ID_PATTERN = /^cm_[a-z0-9_-]{3,64}$/;
 const ALERT_KEY_PATTERN = /^[a-z0-9:_-]{3,120}$/;
 const LEGACY_KEY_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
@@ -265,6 +348,97 @@ function normalizeIsoTimestamp(value, {
         return fallback;
     }
     return new Date(timestamp).toISOString();
+}
+
+export function normalizeCustomModules(value, { strict = false } = {}) {
+    if (!Array.isArray(value)) {
+        if (strict && value !== undefined) {
+            throw new CustomTrackerValidationError('"customModules" debe ser una lista.');
+        }
+        return [];
+    }
+    if (strict && value.length > MAX_CUSTOM_MODULES) {
+        throw new CustomTrackerValidationError(
+            `No se pueden importar más de ${MAX_CUSTOM_MODULES} módulos personalizados.`
+        );
+    }
+
+    const modules = [];
+    const ids = new Set();
+    for (const candidate of value.slice(0, MAX_CUSTOM_MODULES)) {
+        try {
+            assert(isRecord(candidate), 'Cada módulo personalizado debe ser un objeto.');
+            const id = normalizeText(candidate.id, {
+                field: 'customModules.id',
+                maxLength: 70,
+                required: true,
+                strict
+            });
+            assert(CUSTOM_MODULE_ID_PATTERN.test(id), `El identificador de módulo "${id}" no es válido.`);
+            if (ids.has(id)) {
+                throw new CustomTrackerValidationError(`El módulo "${id}" está duplicado.`);
+            }
+            const name = normalizeText(candidate.name, {
+                field: 'customModules.name',
+                maxLength: 48,
+                required: true,
+                strict
+            });
+            const description = normalizeText(candidate.description, {
+                field: 'customModules.description',
+                maxLength: 180,
+                strict
+            });
+            const icon = typeof candidate.icon === 'string'
+                && CUSTOM_MODULE_ICONS.includes(candidate.icon)
+                ? candidate.icon
+                : CUSTOM_MODULE_ICONS[0];
+            if (strict && candidate.icon !== undefined && !CUSTOM_MODULE_ICONS.includes(candidate.icon)) {
+                throw new CustomTrackerValidationError(`El icono del módulo "${name}" no es válido.`);
+            }
+            const color = typeof candidate.color === 'string'
+                && Object.hasOwn(CUSTOM_MODULE_COLORS, candidate.color)
+                ? candidate.color
+                : 'blue';
+            if (strict && candidate.color !== undefined && !Object.hasOwn(CUSTOM_MODULE_COLORS, candidate.color)) {
+                throw new CustomTrackerValidationError(`El color del módulo "${name}" no es válido.`);
+            }
+            if (strict && candidate.archived !== undefined && typeof candidate.archived !== 'boolean') {
+                throw new CustomTrackerValidationError(`El estado del módulo "${name}" no es válido.`);
+            }
+
+            ids.add(id);
+            modules.push({
+                id,
+                name,
+                description,
+                icon,
+                color,
+                order: normalizeInteger(candidate.order, {
+                    field: 'customModules.order',
+                    min: 0,
+                    max: Number.MAX_SAFE_INTEGER,
+                    fallback: modules.length,
+                    strict
+                }),
+                archived: candidate.archived === true,
+                createdAt: normalizeIsoTimestamp(candidate.createdAt, {
+                    field: 'customModules.createdAt',
+                    strict
+                }),
+                updatedAt: normalizeIsoTimestamp(candidate.updatedAt, {
+                    field: 'customModules.updatedAt',
+                    strict
+                })
+            });
+        } catch (error) {
+            if (strict) throw error;
+        }
+    }
+
+    return modules.sort((a, b) => (
+        a.order - b.order || a.name.localeCompare(b.name, 'es')
+    ));
 }
 
 function normalizeCadence(rawTracker, template, { strict = false } = {}) {
@@ -475,7 +649,10 @@ function normalizeMigrationMeta(value) {
     };
 }
 
-function normalizeTracker(rawTracker, { strict = false } = {}) {
+function normalizeTracker(rawTracker, {
+    strict = false,
+    sections = CUSTOM_TRACKER_SECTIONS
+} = {}) {
     assert(isRecord(rawTracker), 'Cada tarjeta configurable debe ser un objeto.');
 
     const id = normalizeText(rawTracker.id, {
@@ -488,12 +665,12 @@ function normalizeTracker(rawTracker, { strict = false } = {}) {
 
     const section = normalizeText(rawTracker.section, {
         field: 'section',
-        maxLength: 20,
+        maxLength: 70,
         required: true,
         strict
     });
-    assert(SECTION_KEYS.has(section), `La sección "${section}" no es compatible.`);
-    const sectionConfig = CUSTOM_TRACKER_SECTIONS[section];
+    assert(Object.hasOwn(sections, section), `La sección "${section}" no es compatible.`);
+    const sectionConfig = sections[section];
 
     const subsectionKeys = new Set(Object.keys(sectionConfig.subsections));
     const subsectionCandidate = typeof rawTracker.subsection === 'string'
@@ -722,19 +899,24 @@ function normalizeHistory(history, { trackerId, strict = false } = {}) {
     return normalized;
 }
 
-export function createDefaultModulePreferences() {
+export function createDefaultModulePreferences(customModules = []) {
     return Object.fromEntries(
-        Object.keys(APP_MODULES).map(moduleId => [moduleId, { visible: true }])
+        Object.keys(getAppModules(customModules, { includeArchived: true }))
+            .map(moduleId => [moduleId, { visible: true }])
     );
 }
 
-export function createDefaultFeaturedPreferences() {
+export function createDefaultFeaturedPreferences(customModules = []) {
     return Object.fromEntries(
-        Object.keys(CUSTOM_TRACKER_SECTIONS).map(sectionKey => [sectionKey, null])
+        Object.keys(getCustomTrackerSections(customModules))
+            .map(sectionKey => [sectionKey, null])
     );
 }
 
-function normalizeFeaturedBySection(value, trackers, { strict = false } = {}) {
+function normalizeFeaturedBySection(value, trackers, {
+    strict = false,
+    customModules = []
+} = {}) {
     if (strict && value !== undefined && !isRecord(value)) {
         throw new CustomTrackerValidationError(
             '"featuredBySection" debe ser un objeto.'
@@ -742,9 +924,10 @@ function normalizeFeaturedBySection(value, trackers, { strict = false } = {}) {
     }
 
     const candidate = isRecord(value) ? value : {};
-    const result = createDefaultFeaturedPreferences();
+    const sections = getCustomTrackerSections(customModules);
+    const result = createDefaultFeaturedPreferences(customModules);
     Object.keys(candidate).forEach(sectionKey => {
-        if (!SECTION_KEYS.has(sectionKey)) {
+        if (!Object.hasOwn(sections, sectionKey)) {
             if (strict) {
                 throw new CustomTrackerValidationError(
                     `La sección destacada "${sectionKey}" no es compatible.`
@@ -779,17 +962,21 @@ function normalizeFeaturedBySection(value, trackers, { strict = false } = {}) {
     return result;
 }
 
-function normalizeModulePreferences(value, { strict = false } = {}) {
+function normalizeModulePreferences(value, {
+    strict = false,
+    customModules = []
+} = {}) {
     if (strict && value !== undefined && !isRecord(value)) {
         throw new CustomTrackerValidationError(
             '"modulePreferences" debe ser un objeto.'
         );
     }
     const candidate = isRecord(value) ? value : {};
-    const result = createDefaultModulePreferences();
+    const modules = getAppModules(customModules, { includeArchived: true });
+    const result = createDefaultModulePreferences(customModules);
 
     Object.entries(candidate).forEach(([moduleId, preference]) => {
-        if (!MODULE_KEYS.has(moduleId)) {
+        if (!Object.hasOwn(modules, moduleId)) {
             if (strict) {
                 throw new CustomTrackerValidationError(
                     `El módulo "${moduleId}" no es compatible.`
@@ -815,7 +1002,10 @@ export function createDefaultNavigationPreferences() {
     };
 }
 
-export function normalizeNavigationPreferences(value, { strict = false } = {}) {
+export function normalizeNavigationPreferences(value, {
+    strict = false,
+    customModules = []
+} = {}) {
     if (strict && value !== undefined && !isRecord(value)) {
         throw new CustomTrackerValidationError(
             '"navigationPreferences" debe ser un objeto.'
@@ -830,8 +1020,9 @@ export function normalizeNavigationPreferences(value, { strict = false } = {}) {
     const requested = Array.isArray(candidate.favoriteModules)
         ? candidate.favoriteModules
         : DEFAULT_NAVIGATION_FAVORITES;
+    const modules = getAppModules(customModules, { includeArchived: true });
     const favoriteModules = [...new Set(requested)]
-        .filter(moduleId => MODULE_KEYS.has(moduleId))
+        .filter(moduleId => Object.hasOwn(modules, moduleId))
         .slice(0, 4);
     return {
         favoriteModules: favoriteModules.length > 0
@@ -843,6 +1034,7 @@ export function normalizeNavigationPreferences(value, { strict = false } = {}) {
 export function createEmptyCustomTrackerRegistry() {
     return {
         version: CUSTOM_TRACKER_SCHEMA_VERSION,
+        customModules: [],
         trackers: [],
         histories: {},
         featuredBySection: createDefaultFeaturedPreferences(),
@@ -862,11 +1054,14 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
         }
         return createEmptyCustomTrackerRegistry();
     }
-    if (strict && value.version !== CUSTOM_TRACKER_SCHEMA_VERSION) {
+    if (strict && ![2, CUSTOM_TRACKER_SCHEMA_VERSION].includes(value.version)) {
         throw new CustomTrackerValidationError(
             `La versión de tarjetas configurables "${value.version}" no es compatible.`
         );
     }
+
+    const customModules = normalizeCustomModules(value.customModules, { strict });
+    const sections = getCustomTrackerSections(customModules);
 
     const trackerCandidates = Array.isArray(value.trackers) ? value.trackers : [];
     if (strict && !Array.isArray(value.trackers)) {
@@ -883,7 +1078,7 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
     const alertKeys = new Set();
     for (const candidate of trackerCandidates.slice(0, MAX_TRACKERS)) {
         try {
-            const tracker = normalizeTracker(candidate, { strict });
+            const tracker = normalizeTracker(candidate, { strict, sections });
             if (ids.has(tracker.id)) {
                 if (strict) {
                     throw new CustomTrackerValidationError(
@@ -935,15 +1130,22 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
 
     return {
         version: CUSTOM_TRACKER_SCHEMA_VERSION,
+        customModules,
         trackers,
         histories,
         featuredBySection: normalizeFeaturedBySection(
             value.featuredBySection,
             trackers,
-            { strict }
+            { strict, customModules }
         ),
-        modulePreferences: normalizeModulePreferences(value.modulePreferences, { strict }),
-        navigationPreferences: normalizeNavigationPreferences(value.navigationPreferences, { strict }),
+        modulePreferences: normalizeModulePreferences(value.modulePreferences, {
+            strict,
+            customModules
+        }),
+        navigationPreferences: normalizeNavigationPreferences(value.navigationPreferences, {
+            strict,
+            customModules
+        }),
         todayPreferences: normalizeTodayPreferences(value.todayPreferences, { strict }),
         migration: normalizeMigrationMeta(value.migration)
     };
@@ -992,7 +1194,8 @@ export function appendCustomTrackerRecords(
 export function createCustomTracker(input, {
     id,
     now = new Date(),
-    order = 0
+    order = 0,
+    customModules = []
 } = {}) {
     const timestamp = now instanceof Date ? now : new Date(now);
     assert(!Number.isNaN(timestamp.getTime()), 'La fecha de creación no es válida.');
@@ -1006,7 +1209,10 @@ export function createCustomTracker(input, {
         deletedAt: null,
         createdAt: input?.createdAt || timestamp.toISOString(),
         updatedAt: timestamp.toISOString()
-    }, { strict: true });
+    }, {
+        strict: true,
+        sections: getCustomTrackerSections(customModules)
+    });
 }
 
 export function getCustomAlertKey(trackerOrId) {
@@ -1032,12 +1238,17 @@ export function isStateReminderTracker(tracker) {
 
 export function buildCustomAlertDefinitions(registryValue) {
     const registry = normalizeCustomTrackerRegistry(registryValue);
+    const sections = getCustomTrackerSections(registry.customModules);
     return registry.trackers
-        .filter(tracker => !tracker.archived && !tracker.deleted)
+        .filter(tracker => (
+            !tracker.archived
+            && !tracker.deleted
+            && sections[tracker.section]?.archived !== true
+        ))
         .map(tracker => ({
             key: getCustomAlertKey(tracker),
             name: tracker.name,
-            category: CUSTOM_TRACKER_SECTIONS[tracker.section].alertCategory,
+            category: sections[tracker.section]?.alertCategory || 'otros',
             type: 'interval',
             defaultEnabled: tracker.alert.enabled === true,
             defaultTime: tracker.alert.time,

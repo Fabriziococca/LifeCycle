@@ -84,6 +84,21 @@ test('UI state accepts only known navigation values', () => {
         normalizeUiState({ section: 'hoy-section' }).section,
         'hoy-section'
     );
+    assert.equal(
+        normalizeUiState({ section: 'cm_mascotas-section' }).section,
+        'cm_mascotas-section'
+    );
+    assert.equal(
+        normalizeUiState({ trackerManagerFilter: 'cm_mascotas' }).trackerManagerFilter,
+        'cm_mascotas'
+    );
+    assert.equal(
+        normalizeUiState({
+            section: 'finanzas-section',
+            financeView: 'trading'
+        }).section,
+        'trading-section'
+    );
 });
 
 test('UI state survives malformed storage without blocking startup', () => {
@@ -94,7 +109,7 @@ test('UI state survives malformed storage without blocking startup', () => {
 test('UI state updates one preference without losing the others', () => {
     const storage = new MemoryStorage();
     const current = {
-        section: 'finanzas-section',
+        section: 'trading-section',
         profileTab: 'cuenta',
         hygieneCategory: 'tecnologia',
         financeView: 'trading',
@@ -110,7 +125,7 @@ test('UI state updates one preference without losing the others', () => {
 
     const next = writeUiState(storage, current, { profileTab: 'alertas' });
     assert.deepEqual(next, {
-        section: 'finanzas-section',
+        section: 'trading-section',
         profileTab: 'alertas',
         hygieneCategory: 'tecnologia',
         financeView: 'trading',

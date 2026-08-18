@@ -91,13 +91,9 @@ export class FinanzasModule {
         tabIncome?.classList.toggle('active', isIncome);
         tabExpense?.classList.toggle('active', !isIncome);
         if (tabIncome) {
-            tabIncome.style.background = isIncome ? 'rgba(255,255,255,0.05)' : 'none';
-            tabIncome.style.color = isIncome ? 'white' : 'var(--text-secondary)';
             tabIncome.setAttribute('aria-pressed', String(isIncome));
         }
         if (tabExpense) {
-            tabExpense.style.background = isIncome ? 'none' : 'rgba(255,255,255,0.05)';
-            tabExpense.style.color = isIncome ? 'var(--text-secondary)' : 'white';
             tabExpense.setAttribute('aria-pressed', String(!isIncome));
         }
 
@@ -673,11 +669,14 @@ export class FinanzasModule {
         );
     }
 
-    toTradingDateTimeInputValue(value) {
+    toTradingDateTimeInputParts(value) {
         const date = new Date(value);
-        if (!Number.isFinite(date.getTime())) return '';
+        if (!Number.isFinite(date.getTime())) return { date: '', time: '' };
         const pad = number => String(number).padStart(2, '0');
-        return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+        return {
+            date: `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}`,
+            time: `${pad(date.getHours())}:${pad(date.getMinutes())}`
+        };
     }
 
     formatTradingDateTime(value) {
@@ -739,7 +738,8 @@ export class FinanzasModule {
         const company = document.getElementById('trading-event-company');
         const ticker = document.getElementById('trading-event-ticker');
         const name = document.getElementById('trading-event-name');
-        const scheduledAt = document.getElementById('trading-event-datetime');
+        const scheduledDate = document.getElementById('trading-event-date');
+        const scheduledTime = document.getElementById('trading-event-time');
         const noticeDays = document.getElementById('trading-event-notice-days');
         const notes = document.getElementById('trading-event-notes');
         const sourceUrl = document.getElementById('trading-event-source');
@@ -749,11 +749,11 @@ export class FinanzasModule {
         if (company) company.value = event?.company || '';
         if (ticker) ticker.value = event?.ticker || '';
         if (name) name.value = event?.name || '';
-        if (scheduledAt) {
-            scheduledAt.value = this.toTradingDateTimeInputValue(
-                event?.scheduledAt || defaultDate
-            );
-        }
+        const scheduleParts = this.toTradingDateTimeInputParts(
+            event?.scheduledAt || defaultDate
+        );
+        if (scheduledDate) scheduledDate.value = scheduleParts.date;
+        if (scheduledTime) scheduledTime.value = scheduleParts.time;
         if (noticeDays) {
             noticeDays.value = (event?.noticeDays || DEFAULT_TRADING_NOTICE_DAYS).join(', ');
         }
@@ -763,11 +763,15 @@ export class FinanzasModule {
 
         this.showTradingFormError('');
         document.getElementById('trading-event-modal')?.classList.remove('hidden');
+        document.body.classList.add('modal-open');
         requestAnimationFrame(() => company?.focus());
     }
 
     closeTradingEventModal({ restoreFocus = true } = {}) {
         document.getElementById('trading-event-modal')?.classList.add('hidden');
+        if (!document.querySelector('.modal:not(.hidden), .custom-tracker-dialog:not(.hidden)')) {
+            document.body.classList.remove('modal-open');
+        }
         this.showTradingFormError('');
         const returnFocus = this.tradingModalReturnFocus;
         this.tradingModalReturnFocus = null;
@@ -779,13 +783,14 @@ export class FinanzasModule {
         const company = document.getElementById('trading-event-company')?.value.trim() || '';
         const ticker = document.getElementById('trading-event-ticker')?.value.trim() || '';
         const name = document.getElementById('trading-event-name')?.value.trim() || '';
-        const dateValue = document.getElementById('trading-event-datetime')?.value || '';
+        const dateValue = document.getElementById('trading-event-date')?.value || '';
+        const timeValue = document.getElementById('trading-event-time')?.value || '';
         const noticeValue = document.getElementById('trading-event-notice-days')?.value || '';
         const notes = document.getElementById('trading-event-notes')?.value.trim() || '';
         const sourceValue = document.getElementById('trading-event-source')?.value.trim() || '';
         const enabled = document.getElementById('trading-event-enabled')?.checked !== false;
         const noticeDays = parseTradingNoticeDays(noticeValue);
-        const scheduledAt = new Date(dateValue);
+        const scheduledAt = new Date(`${dateValue}T${timeValue}`);
         const sourceUrl = normalizeTradingSourceUrl(sourceValue);
 
         if (!company || !name) {
@@ -1117,61 +1122,6 @@ export class FinanzasModule {
     }
 
     init() {
-        const personalViewButton = document.getElementById('btnFinanceViewPersonal');
-        const tradingViewButton = document.getElementById('btnFinanceViewTrading');
-        const financeViewSwitch = document.querySelector('.finance-view-switch');
-        personalViewButton?.addEventListener('click', () => {
-            this.activateFinanceView('personal');
-        });
-        tradingViewButton?.addEventListener('click', () => {
-            this.activateFinanceView('trading');
-        });
-        financeViewSwitch?.addEventListener('keydown', event => {
-            if (!['ArrowLeft', 'ArrowRight'].includes(event.key)) return;
-            event.preventDefault();
-            const nextView = this.activeFinanceView === 'personal' ? 'trading' : 'personal';
-            this.activateFinanceView(nextView);
-            (nextView === 'trading' ? tradingViewButton : personalViewButton)?.focus();
-        });
-
-        const tradingAddButton = document.getElementById('btnAddTradingEvent');
-        const tradingRefreshButton = document.getElementById('btnRefreshTradingHistory');
-        const tradingList = document.getElementById('trading-events-list');
-        const tradingModal = document.getElementById('trading-event-modal');
-        const tradingForm = document.getElementById('trading-event-form');
-        const tradingCloseButtons = tradingModal?.querySelectorAll('[data-trading-event-close]') || [];
-
-        tradingAddButton?.addEventListener('click', () => {
-            this.openTradingEventModal(null, tradingAddButton);
-        });
-        tradingRefreshButton?.addEventListener('click', () => {
-            this.loadTradingHistory().catch(error => {
-                console.warn('No se pudo actualizar el historial de Trading:', error);
-            });
-        });
-        tradingList?.addEventListener('click', event => {
-            this.handleTradingEventAction(event).catch(error => {
-                console.error('No se pudo completar la acción de Trading:', error);
-                this.app.showToast?.('No se pudo completar la acción.', { tone: 'error' });
-            });
-        });
-        tradingCloseButtons.forEach(button => {
-            button.addEventListener('click', () => this.closeTradingEventModal());
-        });
-        tradingModal?.addEventListener('click', event => {
-            if (event.target === tradingModal) this.closeTradingEventModal();
-        });
-        tradingModal?.addEventListener('keydown', event => {
-            if (event.key === 'Escape') {
-                event.preventDefault();
-                this.closeTradingEventModal();
-            }
-        });
-        tradingForm?.addEventListener('submit', event => {
-            event.preventDefault();
-            this.saveTradingEvent();
-        });
-
         // Pestañas (Income vs Expense)
         const tabIncome = document.getElementById('btnFinTabIncome');
         const tabExpense = document.getElementById('btnFinTabExpense');
@@ -1372,10 +1322,6 @@ export class FinanzasModule {
         });
 
         this.activateFinanceTab(this.activeTab, {
-            persist: false,
-            render: false
-        });
-        this.activateFinanceView(this.activeFinanceView, {
             persist: false,
             render: false
         });
@@ -2157,18 +2103,6 @@ export class FinanzasModule {
     }
 
     render() {
-        this.renderTradingEvents();
-        if (
-            this.activeFinanceView === 'trading'
-            && (
-                this.tradingHistoryState === 'idle'
-                || (this.tradingHistoryState === 'signed-out' && this.app.auth?.user)
-            )
-        ) {
-            this.loadTradingHistory().catch(error => {
-                console.warn('No se pudo cargar el historial de Trading:', error);
-            });
-        }
         this.renderFinanceRecurringDuePanel();
         const combined = this.getCombinedEntries();
         const expenses = this.data.expenses || [];

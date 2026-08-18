@@ -21,24 +21,7 @@ export class AdaptiveNavigationModule {
     }
 
     enhanceNavigation() {
-        this.nav.querySelectorAll('.nav-btn[data-section]').forEach(button => {
-            const moduleId = button.dataset.section;
-            const module = APP_MODULES[moduleId];
-            if (!module) return;
-            const textNodes = [...button.childNodes]
-                .filter(node => node.nodeType === Node.TEXT_NODE);
-            const fallbackLabel = textNodes.map(node => node.textContent).join(' ').trim();
-            textNodes.forEach(node => node.remove());
-            let label = button.querySelector('.nav-label');
-            if (!label) {
-                label = document.createElement('span');
-                label.className = 'nav-label';
-                label.textContent = fallbackLabel || module.label;
-                button.appendChild(label);
-            }
-            button.setAttribute('data-tooltip', module.label);
-            this.moduleButtons.set(moduleId, button);
-        });
+        this.registerModuleButtons();
 
         const shellHeader = document.createElement('div');
         shellHeader.className = 'adaptive-nav-header';
@@ -68,6 +51,35 @@ export class AdaptiveNavigationModule {
             <span class="nav-label">Más</span>
         `;
         this.nav.appendChild(this.moreButton);
+    }
+
+    getModuleCatalog() {
+        return this.app.customTrackers?.getAppModules?.() || APP_MODULES;
+    }
+
+    registerModuleButtons() {
+        const catalog = this.getModuleCatalog();
+        this.moduleButtons.forEach((button, moduleId) => {
+            if (!catalog[moduleId] || !button.isConnected) this.moduleButtons.delete(moduleId);
+        });
+        this.nav.querySelectorAll('.nav-btn[data-section]').forEach(button => {
+            const moduleId = button.dataset.section;
+            const module = catalog[moduleId];
+            if (!module) return;
+            const textNodes = [...button.childNodes]
+                .filter(node => node.nodeType === Node.TEXT_NODE);
+            const fallbackLabel = textNodes.map(node => node.textContent).join(' ').trim();
+            textNodes.forEach(node => node.remove());
+            let label = button.querySelector('.nav-label');
+            if (!label) {
+                label = document.createElement('span');
+                label.className = 'nav-label';
+                label.textContent = fallbackLabel || module.label;
+                button.appendChild(label);
+            }
+            button.setAttribute('data-tooltip', module.label);
+            this.moduleButtons.set(moduleId, button);
+        });
     }
 
     createMoreLayer() {
@@ -148,7 +160,7 @@ export class AdaptiveNavigationModule {
     }
 
     getVisibleModuleIds() {
-        return Object.keys(APP_MODULES).filter(moduleId => (
+        return Object.keys(this.getModuleCatalog()).filter(moduleId => (
             this.app.customTrackers?.isModuleVisible?.(moduleId) !== false
         ));
     }
@@ -165,6 +177,7 @@ export class AdaptiveNavigationModule {
     }
 
     refresh() {
+        this.registerModuleButtons();
         const visibleModuleIds = this.getVisibleModuleIds();
         const favorites = this.getMobileFavoriteIds(visibleModuleIds);
         const favoriteSet = new Set(favorites);
@@ -181,9 +194,11 @@ export class AdaptiveNavigationModule {
 
     renderMoreList(moduleIds) {
         if (!this.moreList) return;
+        const catalog = this.getModuleCatalog();
         this.moreList.innerHTML = '';
         moduleIds.forEach(moduleId => {
-            const module = APP_MODULES[moduleId];
+            const module = catalog[moduleId];
+            if (!module) return;
             const button = document.createElement('button');
             button.type = 'button';
             button.dataset.adaptiveNavModule = moduleId;

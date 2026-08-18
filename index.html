@@ -12,6 +12,23 @@
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script>
+        (() => {
+            const storageKey = 'lifecycle_theme_preference';
+            let theme = 'dark';
+            try {
+                theme = localStorage.getItem(storageKey) === 'light' ? 'light' : 'dark';
+            } catch (_error) {
+                // La apariencia oscura es el fallback seguro si el almacenamiento no está disponible.
+            }
+            document.documentElement.dataset.theme = theme;
+            document.documentElement.style.colorScheme = theme;
+            document.querySelector('meta[name="theme-color"]')?.setAttribute(
+                'content',
+                theme === 'light' ? '#f1f5f9' : '#0f172a'
+            );
+        })();
+    </script>
     <!-- Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -168,6 +185,9 @@
             </button>
             <button class="nav-btn" data-section="finanzas-section">
                 <i class="ph ph-trend-up"></i> Finanzas
+            </button>
+            <button class="nav-btn" data-section="trading-section">
+                <i class="ph ph-chart-line-up"></i> Trading
             </button>
             <button class="nav-btn" data-section="tareas-section">
                 <i class="ph ph-check-square"></i> Tareas
@@ -1551,18 +1571,6 @@
 
         <!-- SECCIÓN: FINANZAS (FinanzasTracker) -->
         <section id="finanzas-section" class="main-section hidden">
-            <div class="finance-view-switch" role="tablist" aria-label="Secciones de Finanzas">
-                <button id="btnFinanceViewPersonal" class="finance-view-tab active" type="button" role="tab" aria-selected="true" aria-controls="finance-personal-view" tabindex="0">
-                    <i class="ph ph-wallet"></i>
-                    Mis finanzas
-                </button>
-                <button id="btnFinanceViewTrading" class="finance-view-tab" type="button" role="tab" aria-selected="false" aria-controls="finance-trading-view" tabindex="-1">
-                    <i class="ph ph-chart-line-up"></i>
-                    Trading
-                </button>
-            </div>
-
-            <div id="finance-personal-view" role="tabpanel" aria-labelledby="btnFinanceViewPersonal">
             <!-- Dashboard Financiero (6 tarjetas) -->
             <div class="financial-summary-toolbar">
                 <span>Resumen financiero</span>
@@ -1620,11 +1628,11 @@
             </section>
 
             <!-- Control de Pestañas (Ingresos vs Gastos) -->
-            <div class="segmented-control" style="display: flex; background: rgba(255,255,255,0.03); padding: 4px; border-radius: 8px; margin-bottom: 1.5rem; border: 1px solid var(--surface-border);">
-                <button class="segment-btn active" id="btnFinTabIncome" style="flex: 1; padding: 10px; border: none; background: rgba(255,255,255,0.05); color: white; cursor: pointer; font-weight: bold; border-radius: 6px; font-size: 0.9rem; display:flex; align-items:center; justify-content:center; gap:8px; transition: background 0.2s;">
+            <div class="segmented-control finance-segmented-control">
+                <button class="segment-btn active" id="btnFinTabIncome">
                     <i class="ph ph-trend-up" style="color:var(--status-green); font-size:1.1rem;"></i> Ingresos
                 </button>
-                <button class="segment-btn" id="btnFinTabExpense" style="flex: 1; padding: 10px; border: none; background: none; color: var(--text-secondary); cursor: pointer; font-weight: bold; border-radius: 6px; font-size: 0.9rem; display:flex; align-items:center; justify-content:center; gap:8px; transition: background 0.2s;">
+                <button class="segment-btn" id="btnFinTabExpense">
                     <i class="ph ph-trend-down" style="color:var(--status-orange); font-size:1.1rem;"></i> Gastos
                 </button>
             </div>
@@ -1672,9 +1680,10 @@
             <!-- Registro de Transacciones -->
             <h3 id="fin-list-title">Transacciones del Mes</h3>
             <div id="finanzasList" style="display: flex; flex-direction: column; gap: 0.75rem; margin-top: 1rem; margin-bottom: 2rem;"></div>
-            </div>
+        </section>
 
-            <div id="finance-trading-view" class="hidden" role="tabpanel" aria-labelledby="btnFinanceViewTrading">
+        <!-- SECCIÓN: TRADING -->
+        <section id="trading-section" class="main-section hidden">
                 <div class="trading-view-header">
                     <div>
                         <span class="trading-view-eyebrow">Calendario personal</span>
@@ -1720,7 +1729,6 @@
                     </div>
                 </div>
                 <div id="trading-events-list" class="trading-events-list" aria-live="polite"></div>
-            </div>
         </section>
 
         <!-- SECCIÓN: LISTA DE TAREAS -->
@@ -1856,7 +1864,7 @@
                             <div class="card-body">
                                 <div style="display:flex; justify-content:space-between; align-items:center; gap: 1rem; padding: 0.75rem 0;">
                                     <div>
-                                        <h4 style="margin: 0; font-size: 0.95rem; color: white;">Ocultar tareas personales completadas tras 24 h</h4>
+                                        <h4 style="margin: 0; font-size: 0.95rem; color: var(--text-primary);">Ocultar tareas personales completadas tras 24 h</h4>
                                         <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">
                                             Solo las oculta de la vista diaria: no se eliminan y vuelven a aparecer al desactivar esta preferencia.
                                         </p>
@@ -1870,6 +1878,36 @@
                                         <span class="slider round"></span>
                                     </label>
                                 </div>
+                            </div>
+                        </div>
+                        <div class="card appearance-preference-card">
+                            <div class="card-header">
+                                <div class="icon-container">
+                                    <i class="ph ph-palette"></i>
+                                </div>
+                                <div>
+                                    <h3>Apariencia</h3>
+                                    <p>Elegí cómo querés ver LifeCycle en este dispositivo.</p>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div class="theme-choice-group" role="group" aria-label="Tema de la aplicación">
+                                    <button id="btn-theme-dark" class="btn btn-secondary theme-choice" type="button" data-theme-choice="dark" aria-pressed="false">
+                                        <i class="ph ph-moon-stars"></i>
+                                        <span>
+                                            <strong>Oscuro</strong>
+                                            <small>Azul noche</small>
+                                        </span>
+                                    </button>
+                                    <button id="btn-theme-light" class="btn btn-secondary theme-choice" type="button" data-theme-choice="light" aria-pressed="false">
+                                        <i class="ph ph-sun"></i>
+                                        <span>
+                                            <strong>Claro</strong>
+                                            <small>Fondos luminosos</small>
+                                        </span>
+                                    </button>
+                                </div>
+                                <p class="theme-choice-help">La elección se guarda solamente en este navegador y no modifica tus datos.</p>
                             </div>
                         </div>
                         <div class="card keyboard-shortcuts-card">
@@ -2173,12 +2211,31 @@
                         <div class="module-visibility-manager">
                             <div class="custom-trackers-manager-header">
                                 <div>
-                                    <span class="custom-trackers-eyebrow">Navegación</span>
-                                    <h2>Módulos visibles</h2>
+                                    <span class="custom-trackers-eyebrow">Constructor y navegación</span>
+                                    <h2>Tus módulos</h2>
                                     <p>
-                                        Ocultá lo que no quieras ver en el día a día. Ningún
-                                        dato ni alerta se elimina al ocultar un módulo.
+                                        Creá espacios propios para agrupar tarjetas o administrá
+                                        los módulos que ya forman parte de LifeCycle.
                                     </p>
+                                </div>
+                                <button id="btn-new-custom-module" type="button" class="btn btn-primary">
+                                    <i class="ph ph-plus"></i> Nuevo módulo
+                                </button>
+                            </div>
+                            <section class="custom-modules-builder" aria-labelledby="custom-modules-builder-title">
+                                <div class="custom-modules-builder-heading">
+                                    <div>
+                                        <h3 id="custom-modules-builder-title">Módulos personalizados</h3>
+                                        <p>Nombre, icono y color propios; las tarjetas usan el mismo motor de seguimientos e historial.</p>
+                                    </div>
+                                </div>
+                                <div id="custom-modules-summary"></div>
+                                <p id="custom-modules-feedback" class="module-visibility-feedback hidden" role="status" aria-live="polite"></p>
+                            </section>
+                            <div class="module-visibility-heading">
+                                <div>
+                                    <h3>Módulos visibles</h3>
+                                    <p>Ocultar un módulo no elimina sus datos ni sus alertas.</p>
                                 </div>
                             </div>
                             <div class="custom-trackers-manager-note">
@@ -2236,6 +2293,9 @@
                                     </button>
                                     <button id="btn-new-recurring-reminder" type="button" class="btn btn-secondary">
                                         <i class="ph ph-plus"></i> Nuevo recordatorio
+                                    </button>
+                                    <button id="btn-add-earnings-season-reminders" type="button" class="btn btn-secondary">
+                                        <i class="ph ph-calendar-dots"></i> Temporadas de balances
                                     </button>
                                     <button id="btn-save-all-alerts" class="btn btn-primary">
                                         <i class="ph ph-floppy-disk"></i> Guardar cambios
@@ -2323,7 +2383,7 @@
                 <div>
                     <span class="global-search-eyebrow">AVISO PROGRAMADO</span>
                     <h3 id="recurring-reminder-modal-title">Nuevo recordatorio</h3>
-                    <p class="modal-desc">Creá avisos semanales sin modificar código.</p>
+                    <p class="modal-desc">Creá avisos semanales, mensuales o anuales sin modificar código.</p>
                 </div>
                 <button
                     type="button"
@@ -2348,6 +2408,7 @@
                         <option value="salud">Salud</option>
                         <option value="vehiculo">Vehículo</option>
                         <option value="gym">Nutrición y Hábitos</option>
+                        <option value="trading">Trading</option>
                         <option value="otros" selected>Otros Avisos</option>
                     </select>
                 </div>
@@ -2369,7 +2430,16 @@
                 <textarea id="recurring-reminder-body" class="text-input" maxlength="240" rows="3" placeholder="Qué querés recordar cuando llegue el aviso" required></textarea>
             </div>
 
-            <fieldset class="recurring-reminder-days-fieldset">
+            <div class="input-group recurring-reminder-frequency-field">
+                <label for="recurring-reminder-frequency">Frecuencia</label>
+                <select id="recurring-reminder-frequency" class="text-input">
+                    <option value="weekly">Semanal</option>
+                    <option value="monthly">Mensual</option>
+                    <option value="yearly">Anual</option>
+                </select>
+            </div>
+
+            <fieldset id="recurring-reminder-weekly-fields" class="recurring-reminder-days-fieldset" data-recurring-schedule-fields="weekly">
                 <legend>Días activos</legend>
                 <div id="recurring-reminder-days" class="day-selectors">
                     <button type="button" class="day-btn active" data-day="1" aria-label="Lunes" aria-pressed="true">L</button>
@@ -2381,6 +2451,41 @@
                     <button type="button" class="day-btn active" data-day="0" aria-label="Domingo" aria-pressed="true">D</button>
                 </div>
             </fieldset>
+
+            <div id="recurring-reminder-monthly-fields" class="recurring-reminder-schedule-fields hidden" data-recurring-schedule-fields="monthly">
+                <div class="input-group">
+                    <label for="recurring-reminder-month-day">Día del mes</label>
+                    <input id="recurring-reminder-month-day" class="text-input" type="number" min="1" max="31" value="1" inputmode="numeric">
+                    <small class="field-help">Si el mes no tiene ese día, se usará su último día válido.</small>
+                </div>
+            </div>
+
+            <div id="recurring-reminder-yearly-fields" class="recurring-reminder-schedule-fields hidden" data-recurring-schedule-fields="yearly">
+                <div class="form-row recurring-reminder-yearly-row">
+                    <div class="input-group half">
+                        <label for="recurring-reminder-year-month">Mes</label>
+                        <select id="recurring-reminder-year-month" class="text-input">
+                            <option value="1">Enero</option>
+                            <option value="2">Febrero</option>
+                            <option value="3">Marzo</option>
+                            <option value="4">Abril</option>
+                            <option value="5">Mayo</option>
+                            <option value="6">Junio</option>
+                            <option value="7">Julio</option>
+                            <option value="8">Agosto</option>
+                            <option value="9">Septiembre</option>
+                            <option value="10">Octubre</option>
+                            <option value="11">Noviembre</option>
+                            <option value="12">Diciembre</option>
+                        </select>
+                    </div>
+                    <div class="input-group half">
+                        <label for="recurring-reminder-year-day">Día</label>
+                        <input id="recurring-reminder-year-day" class="text-input" type="number" min="1" max="31" value="1" inputmode="numeric">
+                    </div>
+                </div>
+                <small class="field-help">Se repetirá cada año. Si la fecha no existe, se usará el último día válido del mes.</small>
+            </div>
 
             <label class="recurring-reminder-enabled" for="recurring-reminder-enabled">
                 <span>
@@ -2677,45 +2782,49 @@
                 </button>
             </header>
 
-            <div class="form-row">
-                <div class="input-group half">
+            <div class="trading-event-dialog-body">
+                <div class="trading-event-form-grid">
+                <div class="input-group">
                     <label for="trading-event-company">Empresa</label>
-                    <input id="trading-event-company" class="text-input" type="text" maxlength="100" placeholder="Ej: NVIDIA" required>
+                    <input id="trading-event-company" class="text-input" type="text" maxlength="100" placeholder="Ej: NVIDIA" autocomplete="organization" required>
                 </div>
-                <div class="input-group half">
+                <div class="input-group">
                     <label for="trading-event-ticker">Ticker <span class="optional-label">opcional</span></label>
-                    <input id="trading-event-ticker" class="text-input" type="text" maxlength="20" placeholder="Ej: NVDA" autocapitalize="characters">
+                    <input id="trading-event-ticker" class="text-input" type="text" maxlength="20" placeholder="Ej: NVDA" autocapitalize="characters" autocomplete="off" spellcheck="false">
                 </div>
-            </div>
 
-            <div class="input-group">
+                <div class="input-group trading-event-field-full">
                 <label for="trading-event-name">Nombre del evento</label>
-                <input id="trading-event-name" class="text-input" type="text" maxlength="120" placeholder="Ej: Presentación de resultados Q3" required>
-            </div>
-
-            <div class="form-row">
-                <div class="input-group half">
-                    <label for="trading-event-datetime">Fecha y hora</label>
-                    <input id="trading-event-datetime" class="text-input" type="datetime-local" required>
+                    <input id="trading-event-name" class="text-input" type="text" maxlength="120" placeholder="Ej: Presentación de resultados Q3" autocomplete="off" required>
                 </div>
-                <div class="input-group half">
+
+                <div class="input-group">
+                    <label for="trading-event-date">Fecha</label>
+                    <input id="trading-event-date" class="text-input" type="date" required>
+                </div>
+                <div class="input-group">
+                    <label for="trading-event-time">Hora</label>
+                    <input id="trading-event-time" class="text-input" type="time" step="60" required>
+                </div>
+
+                <div class="input-group trading-event-field-full">
                     <label for="trading-event-notice-days">Avisar días antes</label>
                     <input id="trading-event-notice-days" class="text-input" type="text" inputmode="numeric" value="60, 30, 15, 7, 1" placeholder="60, 30, 15, 7, 1" required>
                     <small class="field-help">De 1 a 12 intervalos enteros, entre 1 y 365 días.</small>
                 </div>
-            </div>
 
-            <div class="input-group">
+                <div class="input-group trading-event-field-full">
                 <label for="trading-event-notes">Notas <span class="optional-label">opcional</span></label>
                 <textarea id="trading-event-notes" class="text-input" maxlength="800" rows="3" placeholder="Qué querés revisar cuando llegue la fecha"></textarea>
-            </div>
+                </div>
 
-            <div class="input-group">
+                <div class="input-group trading-event-field-full">
                 <label for="trading-event-source">Fuente <span class="optional-label">opcional</span></label>
                 <input id="trading-event-source" class="text-input" type="url" maxlength="500" placeholder="https://...">
-            </div>
+                </div>
+                </div>
 
-            <label class="trading-event-enabled" for="trading-event-enabled">
+                <label class="trading-event-enabled" for="trading-event-enabled">
                 <span>
                     <strong>Enviar avisos</strong>
                     <small>Desactivado: el evento seguirá visible como pausado, pero no enviará notificaciones.</small>
@@ -2724,9 +2833,10 @@
                     <input id="trading-event-enabled" type="checkbox" checked>
                     <span class="slider round"></span>
                 </span>
-            </label>
+                </label>
 
-            <p id="trading-event-form-error" class="form-error hidden" role="alert"></p>
+                <p id="trading-event-form-error" class="form-error hidden" role="alert"></p>
+            </div>
             <div class="modal-actions trading-event-form-actions">
                 <button type="button" class="btn btn-cancel" data-trading-event-close>Cancelar</button>
                 <button type="submit" class="btn btn-save"><i class="ph ph-floppy-disk"></i> Guardar evento</button>

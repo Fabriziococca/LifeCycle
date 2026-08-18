@@ -346,5 +346,6 @@ export const CATEGORY_NAMES = {
     salud: '🩺 Salud',
     vehiculo: '🚗 Vehículo',
     gym: '💪 Nutrición & Hábitos',
+    trading: '📈 Trading',
     otros: '⚙️ Otros Avisos'
 };

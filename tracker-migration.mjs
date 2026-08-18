@@ -625,7 +625,11 @@ export function migrateLegacyTrackerRegistry({
     }
 
     const existingV2 = hygieneData?.[CUSTOM_TRACKER_FIELD];
-    if (isRecord(existingV2) && existingV2.version === CUSTOM_TRACKER_SCHEMA_VERSION) {
+    if (
+        isRecord(existingV2)
+        && [2, CUSTOM_TRACKER_SCHEMA_VERSION].includes(existingV2.version)
+    ) {
+        const versionUpgraded = existingV2.version !== CUSTOM_TRACKER_SCHEMA_VERSION;
         const registry = normalizeCustomTrackerRegistry(existingV2);
         const specialsAdded = migrateSpecialTrackers(registry, {
             hygieneData,
@@ -636,11 +640,12 @@ export function migrateLegacyTrackerRegistry({
         });
         return {
             registry: normalizeCustomTrackerRegistry(registry),
-            migrated: specialsAdded > 0,
+            migrated: versionUpgraded || specialsAdded > 0,
             report: {
-                source: 'v2',
+                source: `v${existingV2.version}`,
                 total: registry.trackers.length,
-                specialsAdded
+                specialsAdded,
+                versionUpgraded
             }
         };
     }
