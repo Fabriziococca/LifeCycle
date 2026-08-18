@@ -14,11 +14,30 @@ import {
     getCustomTrackerSections,
     getCustomTrackerState,
     isMedicalStudyTracker,
+    isSupportedCustomTrackerSchemaVersion,
+    isUnifiedCustomTrackerRegistry,
     isStateReminderTracker,
     normalizeNavigationPreferences,
     normalizeCustomTrackerRegistry,
     validateCustomTrackerRegistry
 } from '../custom-tracker-utils.mjs';
+
+test('unified tracker detection keeps schema upgrades from re-enabling legacy cards', () => {
+    const v2 = {
+        ...createEmptyCustomTrackerRegistry(),
+        version: 2
+    };
+    const current = createEmptyCustomTrackerRegistry();
+
+    assert.equal(isUnifiedCustomTrackerRegistry(v2), true);
+    assert.equal(isUnifiedCustomTrackerRegistry(current), true);
+    assert.equal(isUnifiedCustomTrackerRegistry({ version: 3, trackers: [] }), false);
+    assert.equal(isUnifiedCustomTrackerRegistry(null), false);
+    assert.equal(isSupportedCustomTrackerSchemaVersion(1), false);
+    assert.equal(isSupportedCustomTrackerSchemaVersion(2), true);
+    assert.equal(isSupportedCustomTrackerSchemaVersion(CUSTOM_TRACKER_SCHEMA_VERSION), true);
+    assert.equal(isSupportedCustomTrackerSchemaVersion(CUSTOM_TRACKER_SCHEMA_VERSION + 1), false);
+});
 
 function createTracker(overrides = {}) {
     return createCustomTracker({

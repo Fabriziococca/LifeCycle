@@ -7,9 +7,10 @@ import {
     CUSTOM_TRACKER_FIELD,
     CUSTOM_TRACKER_SCHEMA_VERSION,
     CUSTOM_TRACKER_SECTIONS,
+    isSupportedCustomTrackerSchemaVersion,
     LEGACY_CUSTOM_TRACKER_FIELD,
     normalizeCustomTrackerRegistry
-} from './custom-tracker-utils.mjs?v=20260811-special-trackers';
+} from './custom-tracker-utils.mjs?v=20260818-unified-registry';
 import {
     GROOMING_RULES,
     itemsConfig,
@@ -627,7 +628,7 @@ export function migrateLegacyTrackerRegistry({
     const existingV2 = hygieneData?.[CUSTOM_TRACKER_FIELD];
     if (
         isRecord(existingV2)
-        && [2, CUSTOM_TRACKER_SCHEMA_VERSION].includes(existingV2.version)
+        && isSupportedCustomTrackerSchemaVersion(existingV2.version)
     ) {
         const versionUpgraded = existingV2.version !== CUSTOM_TRACKER_SCHEMA_VERSION;
         const registry = normalizeCustomTrackerRegistry(existingV2);

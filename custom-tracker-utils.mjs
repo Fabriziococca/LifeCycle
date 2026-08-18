@@ -276,6 +276,23 @@ function isRecord(value) {
     return value !== null && typeof value === 'object' && !Array.isArray(value);
 }
 
+export function isSupportedCustomTrackerSchemaVersion(version) {
+    return (
+        Number.isInteger(version)
+        && version >= 2
+        && version <= CUSTOM_TRACKER_SCHEMA_VERSION
+    );
+}
+
+export function isUnifiedCustomTrackerRegistry(value) {
+    return (
+        isRecord(value)
+        && isSupportedCustomTrackerSchemaVersion(value.version)
+        && Array.isArray(value.trackers)
+        && isRecord(value.histories)
+    );
+}
+
 function assert(condition, message) {
     if (!condition) throw new CustomTrackerValidationError(message);
 }
@@ -1054,7 +1071,7 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
         }
         return createEmptyCustomTrackerRegistry();
     }
-    if (strict && ![2, CUSTOM_TRACKER_SCHEMA_VERSION].includes(value.version)) {
+    if (strict && !isSupportedCustomTrackerSchemaVersion(value.version)) {
         throw new CustomTrackerValidationError(
             `La versión de tarjetas configurables "${value.version}" no es compatible.`
         );

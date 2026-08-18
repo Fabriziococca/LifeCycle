@@ -9,8 +9,9 @@ import {
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import {
     getCustomTrackerState,
+    isUnifiedCustomTrackerRegistry,
     isStateReminderTracker
-} from '../custom-tracker-utils.mjs?v=20260811-special-trackers';
+} from '../custom-tracker-utils.mjs?v=20260818-unified-registry';
 
 const COMPLETABLE_MODULES = new Set([
     'hygiene',
@@ -63,7 +64,9 @@ export class NotificationsCenterModule {
         const items = [];
         try {
             const now = new Date();
-            const hasUnifiedTrackers = this.app.customTrackers?.registry?.version === 2;
+            const hasUnifiedTrackers = isUnifiedCustomTrackerRegistry(
+                this.app.customTrackers?.registry
+            );
 
             if (hasUnifiedTrackers) {
                 this.app.customTrackers.registry.trackers

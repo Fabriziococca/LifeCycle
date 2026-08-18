@@ -531,6 +531,42 @@ test('appearance, recurring schedules and lightweight custom modules expose thei
     assert.match(styles, /\.custom-module-runtime-section/);
 });
 
+test('schema upgrades never render or count the legacy tracker catalog beside unified cards', async () => {
+    const runtimeSources = await Promise.all([
+        'HygieneModule.js',
+        'GroomingModule.js',
+        'LensModule.js',
+        'HealthModule.js',
+        'NotificationsCenterModule.js'
+    ].map(file => readFile(path.join(ROOT, 'modules', file), 'utf8')));
+
+    runtimeSources.forEach(source => {
+        assert.match(source, /isUnifiedCustomTrackerRegistry/);
+        assert.doesNotMatch(source, /registry\?\.version\s*===\s*2/);
+    });
+
+    const migrationSource = await readFile(path.join(ROOT, 'tracker-migration.mjs'), 'utf8');
+    assert.match(migrationSource, /isSupportedCustomTrackerSchemaVersion\(existingV2\.version\)/);
+    assert.doesNotMatch(migrationSource, /\[2,\s*CUSTOM_TRACKER_SCHEMA_VERSION\]\.includes/);
+});
+
+test('every configurable icon selector exposes a visual picker', async () => {
+    const [trackerManager, vehicleCatalog, picker, styles] = await Promise.all([
+        readFile(path.join(ROOT, 'modules', 'CustomTrackersModule.js'), 'utf8'),
+        readFile(path.join(ROOT, 'modules', 'VehicleCatalogModule.js'), 'utf8'),
+        readFile(path.join(ROOT, 'icon-picker-utils.mjs'), 'utf8'),
+        readFile(path.join(ROOT, 'style.css'), 'utf8')
+    ]);
+
+    assert.match(trackerManager, /createIconPicker\(\s*dialog\.querySelector\('#custom-module-icon'\)/);
+    assert.match(trackerManager, /createIconPicker\(iconSelect/);
+    assert.match(vehicleCatalog, /createIconPicker\(\s*dialog\.querySelector\('#vehicle-card-icon'\)/);
+    assert.match(picker, /pointerenter/);
+    assert.match(picker, /role', 'listbox'/);
+    assert.match(styles, /\.icon-picker-current/);
+    assert.match(styles, /\.icon-picker-grid/);
+});
+
 test('Today reuses critical items and links back to their source modules', async () => {
     const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');

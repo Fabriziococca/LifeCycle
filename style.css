@@ -8215,6 +8215,167 @@ html[data-theme="light"] .history-log[style] {
     font-size: 1rem;
 }
 
+.icon-picker-shell {
+    display: grid;
+    gap: 0.55rem;
+    margin-top: 0.55rem;
+}
+
+.icon-picker-current {
+    min-height: 58px;
+    display: flex;
+    align-items: center;
+    gap: 0.65rem;
+    padding: 0.65rem;
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    background: var(--surface-subtle);
+}
+
+.icon-picker-current-glyph {
+    width: 38px;
+    height: 38px;
+    display: grid;
+    flex: 0 0 38px;
+    place-items: center;
+    border: 1px solid color-mix(in srgb, var(--primary-color) 34%, var(--surface-border));
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--primary-color) 11%, var(--surface-muted));
+    color: var(--primary-color);
+    font-size: 1.2rem;
+}
+
+.icon-picker-current-copy {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 0.08rem;
+}
+
+.icon-picker-current-copy small {
+    color: var(--primary-color);
+    font-size: 0.58rem;
+    font-weight: 800;
+    letter-spacing: 0.09em;
+}
+
+.icon-picker-current-copy strong {
+    overflow: hidden;
+    color: var(--text-primary);
+    font-size: 0.8rem;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.icon-picker-catalog {
+    border: 1px solid var(--surface-border);
+    border-radius: 12px;
+    background: var(--surface-muted);
+}
+
+.icon-picker-catalog > summary {
+    min-height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 0.42rem;
+    padding: 0.55rem 0.7rem;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font-size: 0.74rem;
+    font-weight: 700;
+    list-style: none;
+}
+
+.icon-picker-catalog > summary::-webkit-details-marker {
+    display: none;
+}
+
+.icon-picker-catalog > summary::after {
+    margin-left: auto;
+    content: '\2304';
+    color: var(--text-secondary);
+    transition: transform 0.18s ease;
+}
+
+.icon-picker-catalog[open] > summary::after {
+    transform: rotate(180deg);
+}
+
+.icon-picker-grid {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    gap: 0.4rem;
+    max-height: 230px;
+    padding: 0.55rem;
+    overflow-y: auto;
+    border-top: 1px solid var(--surface-border);
+}
+
+.icon-picker-choice {
+    min-width: 0;
+    min-height: 66px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+    gap: 0.28rem;
+    padding: 0.45rem 0.3rem;
+    border: 1px solid transparent;
+    border-radius: 9px;
+    background: var(--surface-subtle);
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: inherit;
+}
+
+.icon-picker-choice > i {
+    color: currentColor;
+    font-size: 1.15rem;
+}
+
+.icon-picker-choice > span {
+    width: 100%;
+    overflow: hidden;
+    font-size: 0.62rem;
+    font-weight: 700;
+    text-align: center;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+
+.icon-picker-choice:hover,
+.icon-picker-choice:focus-visible {
+    border-color: color-mix(in srgb, var(--primary-color) 45%, var(--surface-border));
+    outline: none;
+    background: var(--surface-hover);
+    color: var(--primary-color);
+}
+
+.icon-picker-choice.is-selected {
+    border-color: color-mix(in srgb, var(--primary-color) 58%, var(--surface-border));
+    background: color-mix(in srgb, var(--primary-color) 14%, var(--surface-subtle));
+    color: var(--primary-color);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--primary-color) 15%, transparent);
+}
+
+.icon-picker-help {
+    display: block;
+    padding: 0 0.65rem 0.6rem;
+    color: var(--text-secondary);
+    font-size: 0.62rem;
+    line-height: 1.35;
+}
+
+@media (max-width: 520px) {
+    .icon-picker-grid {
+        grid-template-columns: repeat(3, minmax(0, 1fr));
+    }
+
+    .icon-picker-choice {
+        min-height: 60px;
+    }
+}
+
 .custom-module-scope-note {
     margin: 1rem 0 0;
 }

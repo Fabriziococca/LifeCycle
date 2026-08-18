@@ -1,5 +1,6 @@
 import { DateUtils, GROOMING_RULES, parseDateLocal, ZONES } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs';
+import { isUnifiedCustomTrackerRegistry } from '../custom-tracker-utils.mjs?v=20260818-unified-registry';
 
 export class GroomingModule {
     constructor(appController) {
@@ -169,7 +170,7 @@ export class GroomingModule {
         this.gridSection.innerHTML = '';
         this.toolsSection.innerHTML = '';
         if (this.barbaSection) this.barbaSection.innerHTML = '';
-        if (this.app.customTrackers?.registry?.version === 2) {
+        if (isUnifiedCustomTrackerRegistry(this.app.customTrackers?.registry)) {
             this.app.customTrackers.renderSection('grooming');
             return;
         }

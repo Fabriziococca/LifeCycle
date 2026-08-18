@@ -1,6 +1,9 @@
 import { DateUtils, itemsConfig, parseDateLocal } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs';
-import { DEFAULT_ROBOT_TRACKER_ID } from '../custom-tracker-utils.mjs?v=20260811-special-trackers';
+import {
+    DEFAULT_ROBOT_TRACKER_ID,
+    isUnifiedCustomTrackerRegistry
+} from '../custom-tracker-utils.mjs?v=20260818-unified-registry';
 
 export class HygieneModule {
     constructor(appController) {
@@ -150,7 +153,7 @@ export class HygieneModule {
         if (!this.container) return;
         
         this.container.innerHTML = '';
-        if (this.app.customTrackers?.registry?.version === 2) {
+        if (isUnifiedCustomTrackerRegistry(this.app.customTrackers?.registry)) {
             this.app.customTrackers.renderSection('hygiene');
             return;
         }

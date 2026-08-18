@@ -2,8 +2,9 @@ import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import {
     DEFAULT_BLOOD_STUDY_TRACKER_ID,
-    getCustomTrackerState
-} from '../custom-tracker-utils.mjs?v=20260811-special-trackers';
+    getCustomTrackerState,
+    isUnifiedCustomTrackerRegistry
+} from '../custom-tracker-utils.mjs?v=20260818-unified-registry';
 
 export class HealthModule {
     constructor(controller) {
@@ -488,7 +489,7 @@ export class HealthModule {
     renderMedicalCards() {
         if (!this.gridContainer) return;
         this.gridContainer.innerHTML = '';
-        if (this.controller.customTrackers?.registry?.version === 2) {
+        if (isUnifiedCustomTrackerRegistry(this.controller.customTrackers?.registry)) {
             this.controller.customTrackers.renderSection('health');
             return;
         }

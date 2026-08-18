@@ -21,7 +21,7 @@ import {
     isStateReminderTracker,
     normalizeCustomTrackerRegistry,
     normalizeNavigationPreferences
-} from '../custom-tracker-utils.mjs?v=20260811-special-trackers';
+} from '../custom-tracker-utils.mjs?v=20260818-unified-registry';
 import {
     migrateLegacyTrackerRegistry,
     readLegacyTrackerSnapshot
@@ -32,6 +32,7 @@ import {
     getLocalISODate
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { createIconPicker } from '../icon-picker-utils.mjs?v=20260818-icon-preview';
 import {
     normalizeTodayPreferences,
     TODAY_QUICK_ACTIONS
@@ -1776,6 +1777,13 @@ export class CustomTrackersModule {
         dialog.querySelector('#custom-module-icon').innerHTML = CUSTOM_MODULE_ICONS
             .map(icon => `<option value="${icon}">${escapeHtml(iconLabels[icon] || icon)}</option>`)
             .join('');
+        this.moduleIconPicker = createIconPicker(
+            dialog.querySelector('#custom-module-icon'),
+            {
+                labels: iconLabels,
+                catalogLabel: 'Explorar iconos del módulo'
+            }
+        );
         const colorLabels = {
             blue: 'Azul',
             cyan: 'Celeste',
@@ -1859,6 +1867,7 @@ export class CustomTrackersModule {
         this.moduleDialog.querySelector('#custom-module-icon').value = module?.icon || CUSTOM_MODULE_ICONS[0];
         this.moduleDialog.querySelector('#custom-module-color').value = module?.color || 'blue';
         this.moduleDialog.querySelector('#custom-module-form-error').classList.add('hidden');
+        this.moduleIconPicker?.refresh();
         this.updateModuleEditorPreview();
         this.moduleDialog.classList.remove('hidden');
         document.body.classList.add('modal-open');
@@ -2102,6 +2111,10 @@ export class CustomTrackersModule {
         iconSelect.innerHTML = CUSTOM_TRACKER_ICONS.map(icon => (
             `<option value="${icon}">${escapeHtml(ICON_LABELS[icon] || icon)}</option>`
         )).join('');
+        this.trackerIconPicker = createIconPicker(iconSelect, {
+            labels: ICON_LABELS,
+            catalogLabel: 'Explorar iconos de la tarjeta'
+        });
 
         dialog.addEventListener('click', event => {
             if (
@@ -2294,6 +2307,7 @@ export class CustomTrackersModule {
         this.dialog.querySelector('#custom-tracker-template-help').textContent = (
             template.description
         );
+        this.trackerIconPicker?.refresh();
     }
 
     openEditor(sectionKey = 'hygiene', trackerId = null, trigger = null) {

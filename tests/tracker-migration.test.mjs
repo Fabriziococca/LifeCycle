@@ -197,3 +197,28 @@ test('an existing current registry is authoritative and migration is idempotent'
     assert.equal(second.registry.trackers[0].deleted, true);
     assert.deepEqual(second.registry.histories[first.registry.trackers[0].id], []);
 });
+
+test('a supported older unified registry upgrades without rebuilding legacy cards', () => {
+    const first = migrateLegacyTrackerRegistry({
+        hygieneData: { computadora: '2026-07-01' },
+        hasLegacyAccountData: true,
+        now: NOW
+    });
+    const previousIds = first.registry.trackers.map(tracker => tracker.id);
+    first.registry.version = 2;
+
+    const upgraded = migrateLegacyTrackerRegistry({
+        hygieneData: {
+            computadora: '2026-07-26',
+            [CUSTOM_TRACKER_FIELD]: first.registry
+        },
+        hasLegacyAccountData: true,
+        now: new Date('2026-07-29T12:00:00.000Z')
+    });
+
+    assert.equal(upgraded.migrated, true);
+    assert.equal(upgraded.report.source, 'v2');
+    assert.equal(upgraded.report.versionUpgraded, true);
+    assert.deepEqual(upgraded.registry.trackers.map(tracker => tracker.id), previousIds);
+    assert.equal(new Set(upgraded.registry.trackers.map(tracker => tracker.id)).size, previousIds.length);
+});

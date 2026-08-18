@@ -16,6 +16,7 @@ import {
 } from '../vehicle-catalog-utils.mjs?v=20260801-vehicle-catalog';
 import { getLocalISODate } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { createIconPicker } from '../icon-picker-utils.mjs?v=20260818-icon-preview';
 
 const DEPRECATED_VEHICLE_ALERT_KEYS = Object.freeze([
     'vehicle_oil',
@@ -805,6 +806,13 @@ export class VehicleCatalogModule {
         document.body.appendChild(dialog);
         this.editorDialog = dialog;
         this.editorForm = dialog.querySelector('#vehicle-card-form');
+        this.iconPicker = createIconPicker(
+            dialog.querySelector('#vehicle-card-icon'),
+            {
+                labels: VEHICLE_CARD_ICONS,
+                catalogLabel: 'Explorar iconos de vehículo'
+            }
+        );
         dialog.addEventListener('click', event => {
             if (event.target === dialog || event.target.closest('[data-vehicle-editor-action="close"]')) {
                 this.closeEditor();
@@ -832,6 +840,7 @@ export class VehicleCatalogModule {
         this.editorDialog.querySelector('#vehicle-card-section').value = card?.section || 'maintenance';
         this.editorDialog.querySelector('#vehicle-card-action-label').value = card?.actionLabel || VEHICLE_CARD_TYPES.maintenance.defaultAction;
         this.editorDialog.querySelector('#vehicle-card-icon').value = card?.icon || VEHICLE_CARD_TYPES.maintenance.defaultIcon;
+        this.iconPicker?.refresh();
         this.editorDialog.querySelector('#vehicle-card-interval-km').value = card?.intervalKm || '';
         this.editorDialog.querySelector('#vehicle-card-warning-km').value = card?.warningKm || '';
         this.editorDialog.querySelector('#vehicle-card-interval-days').value = card?.intervalDays || '';

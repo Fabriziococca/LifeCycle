@@ -1,6 +1,7 @@
 import { DateUtils, getLocalISODate, LENS_LIMITS } from '../utils.js';
 import { resolveLensStartDate } from '../lens-time-utils.mjs?v=20260728-lens-time';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { isUnifiedCustomTrackerRegistry } from '../custom-tracker-utils.mjs?v=20260818-unified-registry';
 
 const CIRCUMFERENCE = 502; // 2 * Math.PI * 80 (basado en r=80 del SVG)
 
@@ -212,7 +213,7 @@ export class LensModule {
         if (!container) return;
 
         container.innerHTML = '';
-        if (this.app.customTrackers?.registry?.version === 2) {
+        if (isUnifiedCustomTrackerRegistry(this.app.customTrackers?.registry)) {
             this.app.customTrackers.renderSection('lenses');
             return;
         }
