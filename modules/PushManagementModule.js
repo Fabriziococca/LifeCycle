@@ -85,6 +85,31 @@ export function buildPushEnginePresentation(value = {}) {
     };
 }
 
+export function buildPushHistoryPresentation(entry = {}) {
+    if (entry.confirmed_at) {
+        return { label: 'Confirmada manualmente', icon: 'ph-user-check', className: 'success' };
+    }
+    if (entry.discarded_at) {
+        return { label: 'Descartada por vencida', icon: 'ph-clock-countdown', className: 'warning' };
+    }
+    if (entry.displayed_at) {
+        return { label: 'Mostrada por el dispositivo', icon: 'ph-device-mobile-camera', className: 'success' };
+    }
+    if (entry.received_at) {
+        return { label: 'Recibida por el dispositivo', icon: 'ph-device-mobile-check', className: 'success' };
+    }
+
+    const statusMeta = {
+        pending: { label: 'En preparación', icon: 'ph-hourglass', className: 'warning' },
+        accepted: { label: 'Aceptada por Push', icon: 'ph-check-circle', className: 'success' },
+        failed: { label: 'Falló', icon: 'ph-warning-circle', className: 'danger' },
+        expired: { label: 'Vencida sin entrega', icon: 'ph-x-circle', className: 'danger' },
+        unknown: { label: 'Resultado desconocido', icon: 'ph-question', className: 'warning' },
+        no_devices: { label: 'Sin dispositivos', icon: 'ph-device-mobile-slash', className: 'warning' }
+    };
+    return statusMeta[entry.status] || statusMeta.unknown;
+}
+
 export class PushManagementModule {
     constructor(authModule) {
         this.auth = authModule;
@@ -573,20 +598,14 @@ export class PushManagementModule {
             return;
         }
         if (this.historyNote) {
-            this.historyNote.textContent = '“Aceptada” confirma que el servicio Push recibió el envío; los navegadores no confirman si la notificación fue vista.';
+            this.historyNote.textContent = '“Aceptada” es la respuesta del proveedor; “Recibida” y “Mostrada” son reportes automáticos del dispositivo. Ningún estado prueba que la persona la haya leído.';
         }
         if (this.history.length === 0) {
             this.historyList.innerHTML = '<p class="push-manager-empty">No hay envíos para este filtro.</p>';
             return;
         }
-        const statusMeta = {
-            accepted: { label: 'Aceptada por Push', icon: 'ph-check-circle', className: 'success' },
-            failed: { label: 'Falló', icon: 'ph-warning-circle', className: 'danger' },
-            expired: { label: 'Endpoint vencido', icon: 'ph-x-circle', className: 'danger' },
-            no_devices: { label: 'Sin dispositivos', icon: 'ph-device-mobile-slash', className: 'warning' }
-        };
         this.historyList.innerHTML = this.history.map(entry => {
-            const meta = statusMeta[entry.status] || statusMeta.failed;
+            const meta = buildPushHistoryPresentation(entry);
             const device = entry.status === 'no_devices'
                 ? 'Cuenta sin dispositivos registrados'
                 : (entry.device_name || `Dispositivo ${String(entry.endpoint_fingerprint || '').slice(0, 6)}`);

@@ -18,6 +18,117 @@ const DEPRECATED_VEHICLE_ALERT_KEYS = new Set([
     'vehicle_docs_check',
     'vehicle_fluids_check'
 ]);
+const ARGENTINA_UTC_OFFSET = '-03:00';
+const TIMED_NOTIFICATION_GRACE_MINUTES = 15;
+const DEFAULT_PUSH_TTL_SECONDS = TIMED_NOTIFICATION_GRACE_MINUTES * 60;
+const MAX_WEB_PUSH_TTL_SECONDS = 28 * 24 * 60 * 60;
+const WEB_PUSH_URGENCIES = new Set(['very-low', 'low', 'normal', 'high']);
+
+function parseDateOnly(value) {
+    const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
+    if (!match) return null;
+
+    const year = Number(match[1]);
+    const month = Number(match[2]);
+    const day = Number(match[3]);
+    const timestamp = Date.UTC(year, month - 1, day);
+    const parsed = new Date(timestamp);
+    if (
+        parsed.getUTCFullYear() !== year
+        || parsed.getUTCMonth() !== month - 1
+        || parsed.getUTCDate() !== day
+    ) {
+        return null;
+    }
+    return parsed;
+}
+
+function normalizeNotificationTime(value, fallback = '23:00') {
+    const candidate = /^([01]\d|2[0-3]):([0-5]\d)$/.test(String(value || ''))
+        ? String(value)
+        : String(fallback || '');
+    return /^([01]\d|2[0-3]):([0-5]\d)$/.test(candidate)
+        ? candidate
+        : '23:00';
+}
+
+function getCalendarDayDifference(startValue, endValue) {
+    const start = parseDateOnly(String(startValue || '').split('T')[0]);
+    const end = parseDateOnly(String(endValue || '').split('T')[0]);
+    if (!start || !end) return null;
+    return Math.round((end - start) / (24 * 60 * 60 * 1000));
+}
+
+function createTimedNotificationWindow({
+    dateStr,
+    time = '23:00',
+    now = new Date(),
+    graceMinutes = TIMED_NOTIFICATION_GRACE_MINUTES,
+    force = false
+} = {}) {
+    if (!parseDateOnly(dateStr)) return null;
+
+    const safeTime = normalizeNotificationTime(time);
+    const scheduledAt = new Date(`${dateStr}T${safeTime}:00${ARGENTINA_UTC_OFFSET}`);
+    const nowDate = new Date(now);
+    if (!Number.isFinite(scheduledAt.getTime()) || !Number.isFinite(nowDate.getTime())) {
+        return null;
+    }
+
+    const parsedGrace = Number.parseInt(graceMinutes, 10);
+    const safeGrace = Number.isInteger(parsedGrace)
+        ? Math.min(60, Math.max(1, parsedGrace))
+        : TIMED_NOTIFICATION_GRACE_MINUTES;
+    const expiresAt = new Date(scheduledAt.getTime() + safeGrace * 60 * 1000);
+    const nowTime = nowDate.getTime();
+
+    return {
+        scheduledAt: scheduledAt.toISOString(),
+        expiresAt: expiresAt.toISOString(),
+        due: force || (
+            nowTime >= scheduledAt.getTime()
+            && nowTime <= expiresAt.getTime()
+        ),
+        expired: nowTime > expiresAt.getTime()
+    };
+}
+
+function createPushDeliveryPolicy({
+    scheduledAt = null,
+    expiresAt = null,
+    now = new Date(),
+    ttlSeconds = DEFAULT_PUSH_TTL_SECONDS,
+    urgency = 'normal'
+} = {}) {
+    const nowDate = new Date(now);
+    if (!Number.isFinite(nowDate.getTime())) return null;
+
+    const parsedTtl = Number.parseInt(ttlSeconds, 10);
+    const safeTtl = Number.isInteger(parsedTtl)
+        ? Math.min(MAX_WEB_PUSH_TTL_SECONDS, Math.max(1, parsedTtl))
+        : DEFAULT_PUSH_TTL_SECONDS;
+    const scheduledDate = new Date(scheduledAt || nowDate);
+    const safeScheduledDate = Number.isFinite(scheduledDate.getTime())
+        ? scheduledDate
+        : nowDate;
+    const expiresDate = new Date(expiresAt || '');
+    const safeExpiresDate = Number.isFinite(expiresDate.getTime())
+        && expiresDate.getTime() > safeScheduledDate.getTime()
+        ? expiresDate
+        : new Date(safeScheduledDate.getTime() + safeTtl * 1000);
+    const remainingMs = safeExpiresDate.getTime() - nowDate.getTime();
+
+    return {
+        scheduledAt: safeScheduledDate.toISOString(),
+        expiresAt: safeExpiresDate.toISOString(),
+        TTL: Math.min(
+            MAX_WEB_PUSH_TTL_SECONDS,
+            Math.max(1, Math.ceil(remainingMs / 1000))
+        ),
+        urgency: WEB_PUSH_URGENCIES.has(urgency) ? urgency : 'normal',
+        expired: remainingMs < 0
+    };
+}
 
 function parseJsonValue(value, fallback) {
     if (value === null || value === undefined || value === '') return fallback;
@@ -559,14 +670,19 @@ function buildCustomTrackerNotification(
 }
 
 module.exports = {
+    DEFAULT_PUSH_TTL_SECONDS,
+    TIMED_NOTIFICATION_GRACE_MINUTES,
     assertServerManagedUserDataPatch,
     buildCustomTrackerNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
     buildVehicleCatalogNotification,
+    createPushDeliveryPolicy,
+    createTimedNotificationWindow,
     ensureCustomTrackerAlertConfigs,
     ensureVehicleCatalogAlertConfigs,
     formatExpiryStatus,
+    getCalendarDayDifference,
     getDuplicateSubscriptionRowIds,
     getStateReminderEntries,
     getLatestValidDate,
@@ -574,6 +690,7 @@ module.exports = {
     groupSubscriptionsByUser,
     isExpiredPushError,
     isIntervalReminderDue,
+    normalizeNotificationTime,
     normalizeIntervalHours,
     parseJsonValue
 };

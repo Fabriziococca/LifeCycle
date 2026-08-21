@@ -1,7 +1,10 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 
-import { buildPushEnginePresentation } from '../modules/PushManagementModule.js';
+import {
+    buildPushEnginePresentation,
+    buildPushHistoryPresentation
+} from '../modules/PushManagementModule.js';
 
 test('push engine summary exposes an operational state without technical noise', () => {
     const result = buildPushEnginePresentation({
@@ -58,4 +61,29 @@ test('push engine summary distinguishes incomplete configuration', () => {
     assert.equal(result.tone, 'warning');
     assert.equal(result.title, 'Motor pendiente de configuración');
     assert.equal(result.lastError, '');
+});
+
+test('push history distinguishes provider, device display and stale discard', () => {
+    assert.equal(
+        buildPushHistoryPresentation({ status: 'accepted' }).label,
+        'Aceptada por Push'
+    );
+    assert.equal(
+        buildPushHistoryPresentation({
+            status: 'accepted',
+            displayed_at: '2026-08-21T01:03:00.000Z'
+        }).label,
+        'Mostrada por el dispositivo'
+    );
+    assert.equal(
+        buildPushHistoryPresentation({
+            status: 'accepted',
+            discarded_at: '2026-08-21T07:00:00.000Z'
+        }).label,
+        'Descartada por vencida'
+    );
+    assert.equal(
+        buildPushHistoryPresentation({ status: 'unknown' }).label,
+        'Resultado desconocido'
+    );
 });

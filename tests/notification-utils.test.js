@@ -4,14 +4,19 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+    DEFAULT_PUSH_TTL_SECONDS,
+    TIMED_NOTIFICATION_GRACE_MINUTES,
     assertServerManagedUserDataPatch,
     buildCustomTrackerNotification,
     buildVehicleCatalogNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
+    createPushDeliveryPolicy,
+    createTimedNotificationWindow,
     ensureCustomTrackerAlertConfigs,
     ensureVehicleCatalogAlertConfigs,
     formatExpiryStatus,
+    getCalendarDayDifference,
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
     getPendingVeryUrgentTasks,
@@ -19,6 +24,7 @@ const {
     groupSubscriptionsByUser,
     isExpiredPushError,
     isIntervalReminderDue,
+    normalizeNotificationTime,
     normalizeIntervalHours,
     parseJsonValue
 } = require('../notification-utils');
@@ -152,6 +158,60 @@ test('interval reminders recover from future state and support forced checks', (
         lastNotifiedAt: null,
         intervalHours: 4
     }), false);
+});
+
+test('timed notifications expire after fifteen minutes instead of recovering at 04:00', () => {
+    const fresh = createTimedNotificationWindow({
+        dateStr: '2026-08-20',
+        time: '22:00',
+        now: '2026-08-21T01:03:00.000Z'
+    });
+    const late = createTimedNotificationWindow({
+        dateStr: '2026-08-20',
+        time: '22:00',
+        now: '2026-08-21T07:00:00.000Z'
+    });
+
+    assert.equal(TIMED_NOTIFICATION_GRACE_MINUTES, 15);
+    assert.equal(fresh.due, true);
+    assert.equal(fresh.scheduledAt, '2026-08-21T01:00:00.000Z');
+    assert.equal(fresh.expiresAt, '2026-08-21T01:15:00.000Z');
+    assert.equal(late.due, false);
+    assert.equal(late.expired, true);
+});
+
+test('push delivery TTL shrinks with the remaining freshness window', () => {
+    const policy = createPushDeliveryPolicy({
+        scheduledAt: '2026-08-21T01:00:00.000Z',
+        expiresAt: '2026-08-21T01:15:00.000Z',
+        now: '2026-08-21T01:03:00.000Z',
+        urgency: 'high'
+    });
+    const expired = createPushDeliveryPolicy({
+        scheduledAt: '2026-08-21T01:00:00.000Z',
+        expiresAt: '2026-08-21T01:15:00.000Z',
+        now: '2026-08-21T07:00:00.000Z',
+        urgency: 'invalid'
+    });
+
+    assert.equal(DEFAULT_PUSH_TTL_SECONDS, 900);
+    assert.equal(policy.TTL, 720);
+    assert.equal(policy.urgency, 'high');
+    assert.equal(policy.expired, false);
+    assert.equal(expired.expired, true);
+    assert.equal(expired.urgency, 'normal');
+});
+
+test('candidate-day calculations do not make yesterday become due after midnight', () => {
+    assert.equal(
+        getCalendarDayDifference('2026-08-20T12:00:00.000Z', '2026-08-20'),
+        0
+    );
+    assert.equal(
+        getCalendarDayDifference('2026-08-20T12:00:00.000Z', '2026-08-21'),
+        1
+    );
+    assert.equal(normalizeNotificationTime('25:70', '22:30'), '22:30');
 });
 
 test('getLatestValidDate keeps a new robot cycle from using an older server timestamp', () => {

@@ -7,6 +7,9 @@ Este documento separa las comprobaciones automáticas del repositorio de aquella
 ### Comportamiento esperado
 
 - El backend ejecuta los dos motores cada cinco minutos.
+- Las alertas con hora exacta solo se recuperan durante 15 minutos; después vencen.
+- Esas alertas usan urgencia alta y un TTL que disminuye hasta el final de la ventana.
+- El Service Worker descarta cualquier payload que llegue después de `expiresAt`.
 - Las tareas muy urgentes no tienen horario silencioso.
 - El primer aviso se puede emitir en el siguiente ciclo del backend.
 - Los avisos siguientes respetan el intervalo configurado, por defecto cuatro horas.
@@ -64,9 +67,9 @@ La pantalla Perfil > Notificaciones permite:
 - ver la última actividad y si el último intento fue aceptado o rechazado;
 - ver el estado resumido del motor y su último error registrado;
 - abrir `Diagnóstico avanzado > Ver actividad técnica` cuando sea necesario;
-- filtrar los últimos intentos por aceptados, fallidos, endpoints vencidos o ausencia de dispositivos.
+- filtrar los últimos intentos por aceptados, fallidos, vencidos, resultado desconocido o ausencia de dispositivos.
 
-“Aceptada por Push” significa que el proveedor Web Push recibió correctamente el mensaje. La API del navegador no confirma de forma fiable que la persona haya visto la notificación, por lo que la interfaz ya no solicita una confirmación manual “La vi”. El backend conserva como máximo 90 días de historial técnico y elimina automáticamente los registros anteriores.
+“Aceptada por Push” significa que el proveedor Web Push recibió correctamente el mensaje. “Recibida” indica que el Service Worker procesó el evento y “Mostrada” que `showNotification` terminó correctamente. Ningún estado automático prueba que la persona haya leído el aviso. El backend conserva como máximo 90 días de historial técnico y elimina automáticamente los registros anteriores.
 
 El esquema base de estas funciones está registrado en:
 
@@ -80,7 +83,11 @@ El permiso de backend necesario para actualizar el último resultado de cada dis
 
 `supabase/migrations/20260801201540_grant_push_subscription_updates.sql`
 
-Las tres migraciones ya están aplicadas en producción. El código mantiene un fallback de compatibilidad para que una diferencia temporal de esquema nunca detenga el envío de avisos.
+La ventana de frescura, el estado pendiente/desconocido y la telemetría automática del dispositivo están registrados en:
+
+`supabase/migrations/20260821040806_notification_delivery_freshness_and_telemetry.sql`
+
+Las tres migraciones base están aplicadas en producción. La ampliación del 2026-08-21 debe aplicarse antes de considerar cerrada la telemetría automática; el código mantiene un fallback de compatibilidad para que una diferencia temporal de esquema nunca detenga el envío de avisos.
 
 La migración siguiente mantiene la base alineada con el cliente y cierra una defensa adicional:
 
@@ -179,7 +186,7 @@ La Tanda 8 agrega dos migraciones aditivas:
 La proyección no elimina ni transforma el JSON original. Esto permite volver al
 lector compatible sin reconstruir información si fuera necesario.
 
-Después de cualquier ampliación del historial se debe ejecutar nuevamente `supabase/verification/20260801_operation_security_check.sql`: cada fila debe devolver `passed = true` y la primera no debe listar columnas faltantes. La última ampliación fue comprobada también mediante consulta directa y los asesores de seguridad y rendimiento.
+Después de cualquier ampliación del historial se debe ejecutar nuevamente `supabase/verification/20260801_operation_security_check.sql`: cada fila debe devolver `passed = true` y la primera no debe listar columnas faltantes. También se deben comparar los asesores de seguridad y rendimiento antes y después de aplicar la migración.
 
 Después de la Tanda 8 también se ejecuta
 `supabase/verification/20260809_tanda_8_security_check.sql`. Todas sus filas

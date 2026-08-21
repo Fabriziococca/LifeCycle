@@ -4,12 +4,18 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+    attachPushDeliveryMetadata,
+    createPushReceiptCredential,
     endpointFingerprint,
+    hashPushReceiptToken,
+    isDuplicatePushDispatchError,
     isMissingPushManagementSchema,
+    isMissingPushTelemetrySchema,
     normalizeDeviceMetadata,
     normalizeHistoryLimit,
     normalizeHistoryStatus,
     normalizeProviderStatus,
+    normalizePushTelemetryEvent,
     parsePushPayload,
     preserveDeviceName,
     toPublicPushDevice
@@ -64,14 +70,53 @@ test('public devices never expose subscriptions or user agents', () => {
 });
 
 test('history filters and payloads are bounded', () => {
+    assert.equal(normalizeHistoryStatus('pending'), 'pending');
     assert.equal(normalizeHistoryStatus('failed'), 'failed');
+    assert.equal(normalizeHistoryStatus('unknown'), 'unknown');
     assert.equal(normalizeHistoryStatus('no_devices'), 'no_devices');
-    assert.equal(normalizeHistoryStatus('unknown'), '');
+    assert.equal(normalizeHistoryStatus('invalid'), '');
     assert.equal(normalizeHistoryLimit('999'), 100);
     assert.deepEqual(parsePushPayload(JSON.stringify({
         title: '  Aviso   importante ',
         body: 'Detalle'
     })), { title: 'Aviso importante', body: 'Detalle' });
+});
+
+test('delivery receipts are random capabilities stored only as hashes', () => {
+    const credential = createPushReceiptCredential();
+
+    assert.match(credential.token, /^[A-Za-z0-9_-]{32,128}$/);
+    assert.match(credential.tokenHash, /^[a-f0-9]{64}$/);
+    assert.equal(credential.tokenHash, hashPushReceiptToken(credential.token));
+    assert.equal(credential.tokenHash.includes(credential.token), false);
+    assert.equal(hashPushReceiptToken('short'), '');
+});
+
+test('endpoint-specific payloads carry freshness and receipt metadata', () => {
+    const credential = createPushReceiptCredential();
+    const payload = attachPushDeliveryMetadata(JSON.stringify({
+        title: 'Aviso',
+        body: 'Detalle',
+        url: '/'
+    }), {
+        id: '42',
+        receiptToken: credential.token,
+        scheduledAt: '2026-08-21T01:00:00.000Z',
+        expiresAt: '2026-08-21T01:15:00.000Z'
+    });
+    const parsed = JSON.parse(payload);
+
+    assert.equal(parsed.delivery.id, '42');
+    assert.equal(parsed.delivery.receiptToken, credential.token);
+    assert.equal(parsed.delivery.expiresAt, '2026-08-21T01:15:00.000Z');
+    assert.deepEqual(parsePushPayload(payload), { title: 'Aviso', body: 'Detalle' });
+});
+
+test('telemetry accepts only known service-worker events', () => {
+    assert.equal(normalizePushTelemetryEvent('received'), 'received');
+    assert.equal(normalizePushTelemetryEvent('displayed'), 'displayed');
+    assert.equal(normalizePushTelemetryEvent('discarded_expired'), 'discarded_expired');
+    assert.equal(normalizePushTelemetryEvent('read'), '');
 });
 
 test('provider status keeps real HTTP codes and leaves accepted sends empty', () => {
@@ -87,4 +132,11 @@ test('missing migration errors are recognized without hiding unrelated failures'
     assert.equal(isMissingPushManagementSchema({ code: '42P01' }), true);
     assert.equal(isMissingPushManagementSchema({ message: 'column device_name does not exist' }), true);
     assert.equal(isMissingPushManagementSchema({ code: '23505' }), false);
+    assert.equal(isMissingPushTelemetrySchema({ message: 'column received_at does not exist' }), true);
+    assert.equal(isMissingPushTelemetrySchema({ code: '23505' }), false);
+    assert.equal(isDuplicatePushDispatchError({
+        code: '23505',
+        message: 'duplicate key violates notification_delivery_log_dispatch_once_idx'
+    }), true);
+    assert.equal(isDuplicatePushDispatchError({ code: '23505', message: 'other_index' }), false);
 });

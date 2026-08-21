@@ -71,6 +71,20 @@ test('notification diagnostics require the admin token', async () => {
     assert.equal(result.database.uniqueEndpoints, null);
 });
 
+test('push telemetry fails closed when the trusted database client is unavailable', async () => {
+    const response = await fetch(`${baseUrl}/api/push/telemetry`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            deliveryId: '42',
+            receiptToken: 'a'.repeat(43),
+            event: 'displayed'
+        })
+    });
+
+    assert.equal(response.status, 503);
+});
+
 test('successful deliveries remain throttled in memory if database logging fails', () => {
     rememberSentForDate('user-1', 'alert-1', '2026-07-28');
     assert.equal(wasSentForDate('user-1', 'alert-1', '2026-07-28'), true);

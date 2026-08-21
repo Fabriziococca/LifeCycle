@@ -6,14 +6,19 @@ const webpush = require('web-push');
 const { createClient } = require('@supabase/supabase-js');
 const sharedRules = require('./shared_rules.json');
 const {
+    DEFAULT_PUSH_TTL_SECONDS,
+    TIMED_NOTIFICATION_GRACE_MINUTES,
     assertServerManagedUserDataPatch,
     buildCustomTrackerNotification,
     buildVehicleCatalogNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
+    createPushDeliveryPolicy,
+    createTimedNotificationWindow,
     ensureCustomTrackerAlertConfigs,
     ensureVehicleCatalogAlertConfigs,
     formatExpiryStatus,
+    getCalendarDayDifference,
     getDuplicateSubscriptionRowIds,
     getLatestValidDate,
     getPendingVeryUrgentTasks,
@@ -31,12 +36,18 @@ const {
     safeEqualStrings
 } = require('./security-utils');
 const {
+    attachPushDeliveryMetadata,
+    createPushReceiptCredential,
     endpointFingerprint,
+    hashPushReceiptToken,
+    isDuplicatePushDispatchError,
     isMissingPushManagementSchema,
+    isMissingPushTelemetrySchema,
     normalizeDeviceMetadata,
     normalizeHistoryLimit,
     normalizeHistoryStatus,
     normalizeProviderStatus,
+    normalizePushTelemetryEvent,
     parsePushPayload,
     preserveDeviceName,
     toPublicPushDevice
@@ -122,14 +133,18 @@ const transientDeliveryState = {
 };
 let pushMetadataSchemaAvailable = null;
 let notificationHistorySchemaAvailable = null;
+let notificationTelemetrySchemaAvailable = null;
 let tradingProjectionSchemaAvailable = null;
 let tradingDispatchSchemaAvailable = null;
 const reportedOptionalSchemaWarnings = new Set();
 const PUSH_PROVIDER_TIMEOUT_MS = 12000;
+const PENDING_DELIVERY_RECOVERY_MS = 2 * 60 * 1000;
+const PENDING_DELIVERY_RECOVERY_INTERVAL_MS = 60 * 1000;
 const NOTIFICATION_HISTORY_RETENTION_DAYS = 90;
 const NOTIFICATION_HISTORY_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_TRADING_NOTIFICATIONS_PER_RUN = 25;
 let lastNotificationHistoryCleanupAt = 0;
+let lastPendingDeliveryRecoveryAt = 0;
 
 function setBoundedDeliveryState(map, key, value, maxEntries = 1000) {
     if (map.has(key)) map.delete(key);
@@ -716,11 +731,13 @@ async function recordPushDelivery({
     status,
     providerStatus = null,
     errorMessage = null,
-    attemptedAt
+    attemptedAt,
+    scheduledAt = null,
+    expiresAt = null
 }) {
     if (!supabase || notificationHistorySchemaAvailable === false) return;
     const parsedPayload = parsePushPayload(payload);
-    const row = {
+    const baseRow = {
         user_id: userId,
         alert_key: String(alertKey || context || 'notification').slice(0, 160),
         context: String(context || '').slice(0, 240) || null,
@@ -736,13 +753,33 @@ async function recordPushDelivery({
         error_message: String(errorMessage || '').slice(0, 500) || null,
         attempted_at: attemptedAt
     };
-    if (!row.endpoint_fingerprint && status !== 'no_devices') return;
+    if (!baseRow.endpoint_fingerprint && status !== 'no_devices') return;
 
-    const { error } = await supabase
+    const extendedRow = notificationTelemetrySchemaAvailable === false
+        ? baseRow
+        : {
+            ...baseRow,
+            scheduled_at: scheduledAt,
+            expires_at: expiresAt
+        };
+    let { error } = await supabase
         .from('notification_delivery_log')
-        .insert(row);
+        .insert(extendedRow);
+    if (
+        error
+        && extendedRow !== baseRow
+        && isMissingPushTelemetrySchema(error)
+    ) {
+        notificationTelemetrySchemaAvailable = false;
+        ({ error } = await supabase
+            .from('notification_delivery_log')
+            .insert(baseRow));
+    }
     if (!error) {
         notificationHistorySchemaAvailable = true;
+        if (extendedRow !== baseRow) {
+            notificationTelemetrySchemaAvailable = true;
+        }
         return;
     }
     if (isMissingPushManagementSchema(error)) {
@@ -754,6 +791,151 @@ async function recordPushDelivery({
         return;
     }
     console.error('[Push] No se pudo guardar el historial de envío:', error.message);
+}
+
+async function preparePushDelivery({
+    userId,
+    alertKey,
+    context,
+    payload,
+    subscriptionItem,
+    attemptedAt,
+    scheduledAt,
+    expiresAt
+}) {
+    if (
+        !supabase
+        || notificationHistorySchemaAvailable === false
+        || notificationTelemetrySchemaAvailable === false
+    ) {
+        return null;
+    }
+
+    const parsedPayload = parsePushPayload(payload);
+    const credential = createPushReceiptCredential();
+    const row = {
+        user_id: userId,
+        alert_key: String(alertKey || context || 'notification').slice(0, 160),
+        context: String(context || '').slice(0, 240) || null,
+        title: parsedPayload.title || null,
+        body: parsedPayload.body || null,
+        subscription_row_id: subscriptionItem?.activeRowId
+            ? String(subscriptionItem.activeRowId)
+            : null,
+        endpoint_fingerprint: endpointFingerprint(subscriptionItem?.subscription?.endpoint) || null,
+        device_name: String(subscriptionItem?.deviceName || '').slice(0, 80) || null,
+        status: 'pending',
+        provider_status: null,
+        error_message: null,
+        attempted_at: attemptedAt,
+        scheduled_at: scheduledAt,
+        expires_at: expiresAt,
+        receipt_token_hash: credential.tokenHash
+    };
+    if (!row.endpoint_fingerprint) return null;
+
+    const { data, error } = await supabase
+        .from('notification_delivery_log')
+        .insert(row)
+        .select('id')
+        .single();
+    if (!error && data?.id) {
+        notificationHistorySchemaAvailable = true;
+        notificationTelemetrySchemaAvailable = true;
+        return {
+            id: String(data.id),
+            receiptToken: credential.token
+        };
+    }
+    if (isDuplicatePushDispatchError(error)) {
+        const existing = await supabase
+            .from('notification_delivery_log')
+            .select('id, status')
+            .eq('user_id', userId)
+            .eq('alert_key', row.alert_key)
+            .eq('scheduled_at', scheduledAt)
+            .eq('endpoint_fingerprint', row.endpoint_fingerprint)
+            .in('status', ['pending', 'accepted'])
+            .order('attempted_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+        if (existing.error) {
+            console.error('[Push] No se pudo comprobar el envío ya reservado:', existing.error.message);
+        }
+        return {
+            id: existing.data?.id ? String(existing.data.id) : null,
+            duplicate: true,
+            status: existing.data?.status || 'pending'
+        };
+    }
+    if (isMissingPushTelemetrySchema(error)) {
+        notificationTelemetrySchemaAvailable = false;
+        reportOptionalSchemaWarning(
+            'push-telemetry',
+            '[Push] La ampliación de telemetría todavía no está aplicada; los envíos continúan con historial básico.'
+        );
+        return null;
+    }
+    if (isMissingPushManagementSchema(error)) {
+        notificationHistorySchemaAvailable = false;
+        return null;
+    }
+    console.error('[Push] No se pudo preparar la telemetría del envío:', error?.message || error);
+    return null;
+}
+
+async function finalizePushDelivery({
+    delivery,
+    status,
+    providerStatus = null,
+    errorMessage = null
+}) {
+    if (!supabase || !delivery?.id) return;
+    const { error } = await supabase
+        .from('notification_delivery_log')
+        .update({
+            status,
+            provider_status: normalizeProviderStatus(providerStatus),
+            error_message: String(errorMessage || '').slice(0, 500) || null
+        })
+        .eq('id', delivery.id)
+        .eq('status', 'pending');
+    if (error) {
+        console.error(`[Push] No se pudo cerrar el historial del envío ${delivery.id}:`, error.message);
+    }
+}
+
+async function recoverStalePendingDeliveries(now = Date.now()) {
+    if (!supabase || notificationTelemetrySchemaAvailable === false) return 0;
+    if (now - lastPendingDeliveryRecoveryAt < PENDING_DELIVERY_RECOVERY_INTERVAL_MS) {
+        return 0;
+    }
+    lastPendingDeliveryRecoveryAt = now;
+    const cutoff = new Date(now - PENDING_DELIVERY_RECOVERY_MS).toISOString();
+    const { data, error } = await supabase
+        .from('notification_delivery_log')
+        .update({
+            status: 'unknown',
+            error_message: 'El proceso se interrumpió antes de confirmar la respuesta del proveedor.'
+        })
+        .eq('status', 'pending')
+        .lt('attempted_at', cutoff)
+        .select('id');
+    if (!error) {
+        notificationTelemetrySchemaAvailable = true;
+        const recovered = data?.length || 0;
+        if (recovered > 0) {
+            console.warn(`[Push] ${recovered} envío(s) pendientes quedaron con resultado desconocido tras una interrupción.`);
+        }
+        return recovered;
+    }
+    if (isMissingPushTelemetrySchema(error)) {
+        notificationTelemetrySchemaAvailable = false;
+        return 0;
+    }
+    lastPendingDeliveryRecoveryAt = 0;
+    console.error('[Push] No se pudieron recuperar envíos pendientes:', error.message);
+    return 0;
 }
 
 async function cleanupNotificationHistory(now = Date.now()) {
@@ -793,12 +975,27 @@ async function sendPushToSubscriptions({
     payload,
     context,
     alertKey = context,
-    delayMs = 0
+    delayMs = 0,
+    scheduledAt = null,
+    expiresAt = null,
+    ttlSeconds = DEFAULT_PUSH_TTL_SECONDS,
+    urgency = 'normal'
 }) {
     let successCount = 0;
     let failureCount = 0;
     let staleCount = 0;
+    let expiredCount = 0;
+    let duplicateCount = 0;
     let lastFailureStatus = null;
+    const initialPolicy = createPushDeliveryPolicy({
+        scheduledAt,
+        expiresAt,
+        ttlSeconds,
+        urgency
+    });
+    if (!initialPolicy) {
+        throw new Error(`La política de entrega de '${context}' no es válida.`);
+    }
 
     if (!Array.isArray(subscriptions) || subscriptions.length === 0) {
         const attemptedAt = new Date().toISOString();
@@ -816,7 +1013,9 @@ async function sendPushToSubscriptions({
                 subscriptionItem: null,
                 status: 'no_devices',
                 errorMessage: 'La cuenta no tenía dispositivos Push registrados.',
-                attemptedAt
+                attemptedAt,
+                scheduledAt: initialPolicy.scheduledAt,
+                expiresAt: initialPolicy.expiresAt
             });
         }
         console.warn(`[Push] No se envió '${context}' para usuario ${userId}: no hay dispositivos registrados.`);
@@ -824,6 +1023,8 @@ async function sendPushToSubscriptions({
             successCount,
             failureCount,
             staleCount,
+            expiredCount,
+            duplicateCount,
             lastFailureStatus,
             missingDevicesRecorded
         };
@@ -831,22 +1032,77 @@ async function sendPushToSubscriptions({
 
     for (const item of subscriptions || []) {
         const attemptedAt = new Date().toISOString();
+        const policy = createPushDeliveryPolicy({
+            scheduledAt: initialPolicy.scheduledAt,
+            expiresAt: initialPolicy.expiresAt,
+            now: attemptedAt,
+            ttlSeconds,
+            urgency
+        });
+        if (policy.expired) {
+            expiredCount++;
+            await recordPushDelivery({
+                userId,
+                alertKey,
+                context,
+                payload,
+                subscriptionItem: item,
+                status: 'expired',
+                errorMessage: 'La notificación caducó antes de contactar al proveedor Push.',
+                attemptedAt,
+                scheduledAt: policy.scheduledAt,
+                expiresAt: policy.expiresAt
+            });
+            console.warn(`[Push] Se descartó '${context}' para usuario ${userId}: la ventana de entrega ya había vencido.`);
+            continue;
+        }
+
+        const delivery = await preparePushDelivery({
+            userId,
+            alertKey,
+            context,
+            payload,
+            subscriptionItem: item,
+            attemptedAt,
+            scheduledAt: policy.scheduledAt,
+            expiresAt: policy.expiresAt
+        });
+        if (delivery?.duplicate) {
+            duplicateCount++;
+            if (delivery.status === 'accepted') successCount++;
+            console.log(`[Push] Se omitió '${context}' para usuario ${userId}: el envío programado ya estaba ${delivery.status === 'accepted' ? 'aceptado' : 'reservado'} para ese dispositivo.`);
+            continue;
+        }
+        const endpointPayload = delivery
+            ? attachPushDeliveryMetadata(payload, {
+                id: delivery.id,
+                receiptToken: delivery.receiptToken,
+                scheduledAt: policy.scheduledAt,
+                expiresAt: policy.expiresAt
+            })
+            : payload;
         try {
-            await webpush.sendNotification(item.subscription, payload, {
-                timeout: PUSH_PROVIDER_TIMEOUT_MS
+            await webpush.sendNotification(item.subscription, endpointPayload, {
+                timeout: PUSH_PROVIDER_TIMEOUT_MS,
+                TTL: policy.TTL,
+                urgency: policy.urgency
             });
             successCount++;
             await Promise.all([
                 updatePushDeviceDeliveryState(item.rowIds, 'accepted', attemptedAt),
-                recordPushDelivery({
-                    userId,
-                    alertKey,
-                    context,
-                    payload,
-                    subscriptionItem: item,
-                    status: 'accepted',
-                    attemptedAt
-                })
+                delivery
+                    ? finalizePushDelivery({ delivery, status: 'accepted' })
+                    : recordPushDelivery({
+                        userId,
+                        alertKey,
+                        context,
+                        payload,
+                        subscriptionItem: item,
+                        status: 'accepted',
+                        attemptedAt,
+                        scheduledAt: policy.scheduledAt,
+                        expiresAt: policy.expiresAt
+                    })
             ]);
         } catch (error) {
             failureCount++;
@@ -859,17 +1115,26 @@ async function sendPushToSubscriptions({
 
             await Promise.all([
                 updatePushDeviceDeliveryState(item.rowIds, 'failed', attemptedAt),
-                recordPushDelivery({
-                    userId,
-                    alertKey,
-                    context,
-                    payload,
-                    subscriptionItem: item,
-                    status: expired ? 'expired' : 'failed',
-                    providerStatus: statusCode,
-                    errorMessage: error?.message || String(error),
-                    attemptedAt
-                })
+                delivery
+                    ? finalizePushDelivery({
+                        delivery,
+                        status: expired ? 'expired' : 'failed',
+                        providerStatus: statusCode,
+                        errorMessage: error?.message || String(error)
+                    })
+                    : recordPushDelivery({
+                        userId,
+                        alertKey,
+                        context,
+                        payload,
+                        subscriptionItem: item,
+                        status: expired ? 'expired' : 'failed',
+                        providerStatus: statusCode,
+                        errorMessage: error?.message || String(error),
+                        attemptedAt,
+                        scheduledAt: policy.scheduledAt,
+                        expiresAt: policy.expiresAt
+                    })
             ]);
 
             if (expired) {
@@ -882,8 +1147,15 @@ async function sendPushToSubscriptions({
         }
     }
 
-    console.log(`[Push] Resultado '${context}' para usuario ${userId}: ${successCount} enviados, ${failureCount} fallidos, ${staleCount} filas vencidas eliminadas.`);
-    return { successCount, failureCount, staleCount, lastFailureStatus };
+    console.log(`[Push] Resultado '${context}' para usuario ${userId}: ${successCount} aceptados por proveedor, ${failureCount} fallidos, ${expiredCount} caducados sin envío, ${duplicateCount} duplicados omitidos, ${staleCount} filas de endpoint vencido eliminadas.`);
+    return {
+        successCount,
+        failureCount,
+        staleCount,
+        expiredCount,
+        duplicateCount,
+        lastFailureStatus
+    };
 }
 
 function formatTradingEventSchedule(value) {
@@ -957,7 +1229,8 @@ async function sendDueTradingEventAlerts({
                 payload,
                 context: `evento de Trading ${notice.event.id}`,
                 alertKey: notice.alertKey,
-                delayMs: 250
+                delayMs: 250,
+                urgency: 'high'
             });
         } catch (error) {
             await completeTradingNotificationDispatch({
@@ -1026,6 +1299,23 @@ app.use((req, res, next) => {
     next();
 });
 app.use(express.json({ limit: '32kb' }));
+app.use('/api', (req, res, next) => {
+    const startedAt = process.hrtime.bigint();
+    res.on('finish', () => {
+        const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
+        const pathName = `${req.baseUrl}${req.path}`;
+        if (res.statusCode < 400 && pathName === '/api/health') return;
+        const message = `[HTTP] ${req.method} ${pathName} status=${res.statusCode} duration_ms=${durationMs.toFixed(1)}`;
+        if (res.statusCode >= 500) {
+            console.error(message);
+        } else if (res.statusCode >= 400) {
+            console.warn(message);
+        } else {
+            console.log(message);
+        }
+    });
+    next();
+});
 app.use('/api/', rateLimiter);
 app.use((req, res, next) => {
     if (isBlockedStaticPath(req.path)) {
@@ -1084,6 +1374,55 @@ app.get('/api/health', (req, res) => {
             consecutiveFailures: notificationRuntimeState.consecutiveFailures
         }
     });
+});
+
+app.post('/api/push/telemetry', async (req, res) => {
+    if (!supabase || notificationTelemetrySchemaAvailable === false) {
+        return res.status(503).json({ error: 'La telemetría Push no está disponible.' });
+    }
+
+    const deliveryId = String(req.body?.deliveryId || '').trim();
+    const eventName = normalizePushTelemetryEvent(req.body?.event);
+    const receiptTokenHash = hashPushReceiptToken(req.body?.receiptToken);
+    if (!/^\d{1,20}$/.test(deliveryId) || !eventName || !receiptTokenHash) {
+        return res.status(400).json({ error: 'El evento de telemetría Push no es válido.' });
+    }
+
+    const columnByEvent = {
+        received: 'received_at',
+        displayed: 'displayed_at',
+        discarded_expired: 'discarded_at'
+    };
+    const targetColumn = columnByEvent[eventName];
+    const reportedAt = new Date().toISOString();
+    const updates = {
+        [targetColumn]: reportedAt,
+        ...(eventName === 'received' ? {} : { receipt_token_hash: null })
+    };
+
+    try {
+        const { data, error } = await supabase
+            .from('notification_delivery_log')
+            .update(updates)
+            .eq('id', deliveryId)
+            .eq('receipt_token_hash', receiptTokenHash)
+            .is(targetColumn, null)
+            .select('id, status')
+            .maybeSingle();
+        if (error) throw error;
+        notificationTelemetrySchemaAvailable = true;
+        if (data?.id) {
+            console.log(`[Push Telemetry] event=${eventName} delivery=${data.id} provider_status=${data.status}`);
+        }
+        return res.status(202).json({ accepted: true });
+    } catch (error) {
+        if (isMissingPushTelemetrySchema(error)) {
+            notificationTelemetrySchemaAvailable = false;
+            return res.status(503).json({ error: 'Falta aplicar la ampliación de telemetría Push.' });
+        }
+        console.error('[Push Telemetry] No se pudo registrar el evento:', error);
+        return res.status(500).json({ error: 'No se pudo registrar la telemetría Push.' });
+    }
 });
 
 async function requireSupabaseUser(req, res, next) {
@@ -1333,7 +1672,8 @@ app.post('/api/push/devices/:id/test', requireSupabaseUser, async (req, res) => 
             }],
             payload,
             context: `prueba del dispositivo ${target.id}`,
-            alertKey: 'test_push_device'
+            alertKey: 'test_push_device',
+            urgency: 'high'
         });
         if (result.successCount > 0) {
             return res.json({
@@ -1417,17 +1757,33 @@ app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
     const limit = normalizeHistoryLimit(req.query.limit, 50);
     const scope = req.query.scope === 'trading' ? 'trading' : '';
     try {
-        let query = supabase
-            .from('notification_delivery_log')
-            .select('id, alert_key, context, title, body, endpoint_fingerprint, device_name, status, provider_status, error_message, attempted_at, confirmed_at')
-            .eq('user_id', req.authenticatedUser.id)
-            .order('attempted_at', { ascending: false })
-            .limit(limit);
-        if (status) query = query.eq('status', status);
-        if (scope === 'trading') query = query.like('alert_key', `${TRADING_ALERT_PREFIX}%`);
-        const { data, error } = await query;
+        const baseColumns = 'id, alert_key, context, title, body, endpoint_fingerprint, device_name, status, provider_status, error_message, attempted_at, confirmed_at';
+        const telemetryColumns = `${baseColumns}, scheduled_at, expires_at, received_at, displayed_at, discarded_at`;
+        const buildHistoryQuery = columns => {
+            let query = supabase
+                .from('notification_delivery_log')
+                .select(columns)
+                .eq('user_id', req.authenticatedUser.id)
+                .order('attempted_at', { ascending: false })
+                .limit(limit);
+            if (status) query = query.eq('status', status);
+            if (scope === 'trading') query = query.like('alert_key', `${TRADING_ALERT_PREFIX}%`);
+            return query;
+        };
+
+        const telemetryRequested = notificationTelemetrySchemaAvailable !== false;
+        let { data, error } = await buildHistoryQuery(
+            telemetryRequested ? telemetryColumns : baseColumns
+        );
+        if (error && telemetryRequested && isMissingPushTelemetrySchema(error)) {
+            notificationTelemetrySchemaAvailable = false;
+            ({ data, error } = await buildHistoryQuery(baseColumns));
+        }
         if (error) throw error;
         notificationHistorySchemaAvailable = true;
+        if (telemetryRequested && notificationTelemetrySchemaAvailable !== false) {
+            notificationTelemetrySchemaAvailable = true;
+        }
         res.json({ success: true, available: true, entries: data || [] });
     } catch (error) {
         if (isMissingPushManagementSchema(error)) {
@@ -1515,7 +1871,8 @@ app.post('/api/test-push', requireSupabaseUser, async (req, res) => {
         }],
         payload,
         context: 'prueba manual desde el dispositivo',
-        alertKey: 'test_push'
+        alertKey: 'test_push',
+        urgency: 'high'
     });
 
     if (result.successCount > 0) {
@@ -1647,7 +2004,8 @@ app.get('/api/test-robot-reminder', checkAdminToken, async (req, res) => {
                     subscriptions: userSubs,
                     payload,
                     context: 'prueba de robot',
-                    alertKey: 'admin_test_robot'
+                    alertKey: 'admin_test_robot',
+                    urgency: 'high'
                 });
                 sentCount += result.successCount;
             }
@@ -1752,6 +2110,9 @@ async function runScheduledAlertChecks({
             }
         }
 
+        await recoverStalePendingDeliveries().catch(error => {
+            console.error('[Push] Falló la recuperación de envíos pendientes:', error);
+        });
         await cleanupNotificationHistory().catch(error => {
             console.error('[Push] Falló la limpieza programada del historial:', error);
         });
@@ -1804,6 +2165,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
     }
     try {
         const { year, month, day, hour, minutes, dayOfWeek, dateStr } = getArgentinaTime();
+        const schedulerNow = new Date();
 
         const { data: usersData, error: dbError } = await supabase.from('user_data').select('*');
         const { data: subs, error: subError } = await supabase.from('push_subscriptions').select('*');
@@ -1901,8 +2263,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     || stateReminderAlertKeys.has(key)
                 ) continue;
 
-                // Definir los candidatos a evaluar (ayer y hoy para tolerancia a medianoche y reinicios)
-                const [remHour, remMin] = (conf.time || '23:00').split(':').map(Number);
+                // Se conserva ayer únicamente para horarios que cruzan medianoche
+                // dentro de la ventana corta de frescura (por ejemplo 23:55 -> 00:05).
                 const candidates = [];
 
                 // 1. Ayer
@@ -1912,29 +2274,24 @@ async function checkAndSendAllAlerts(forceAll = false) {
                 const yesterdayDay = String(yesterdayDate.getDate()).padStart(2, '0');
                 const yesterdayDateStr = `${yesterdayYear}-${yesterdayMonth}-${yesterdayDay}`;
                 const yesterdayDayOfWeek = (dayOfWeek + 6) % 7;
-                const schedYesterday = new Date(yesterdayDate.getFullYear(), yesterdayDate.getMonth(), yesterdayDate.getDate(), remHour, remMin, 0);
-                candidates.push({
-                    dateStr: yesterdayDateStr,
-                    year: yesterdayYear,
-                    month: yesterdayDate.getMonth() + 1,
-                    day: yesterdayDate.getDate(),
-                    dayOfWeek: yesterdayDayOfWeek,
-                    schedDateObj: schedYesterday
-                });
+                if (!forceAll) {
+                    candidates.push({
+                        dateStr: yesterdayDateStr,
+                        year: yesterdayYear,
+                        month: yesterdayDate.getMonth() + 1,
+                        day: yesterdayDate.getDate(),
+                        dayOfWeek: yesterdayDayOfWeek
+                    });
+                }
 
                 // 2. Hoy
-                const schedToday = new Date(year, month - 1, day, remHour, remMin, 0);
                 candidates.push({
                     dateStr: dateStr,
                     year,
                     month,
                     day,
-                    dayOfWeek: dayOfWeek,
-                    schedDateObj: schedToday
+                    dayOfWeek: dayOfWeek
                 });
-
-                // Virtual Date de Argentina actual para comparación
-                const nowArg = new Date(year, month - 1, day, hour, minutes, 0);
 
                 for (const candidate of candidates) {
                     // Verificar si ya fue enviada hoy para evitar spam en el mismo día
@@ -1961,16 +2318,29 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         )
                     ) continue;
 
-                    // Verificar si ya pasó la hora programada en Argentina
-                    const timePassed = nowArg >= candidate.schedDateObj;
-                    if (!timePassed && !forceAll) continue;
-
-                    // Si es el candidato de ayer, verificar ventana de gracia de 6 horas
-                    if (candidate.dateStr !== dateStr) {
-                        const msSinceScheduled = nowArg - candidate.schedDateObj;
-                        if (msSinceScheduled > 6 * 60 * 60 * 1000) continue; // Ventana de gracia superada (6 horas)
-                        if (msSinceScheduled < 0) continue;
-                    }
+                    const timedWindow = createTimedNotificationWindow({
+                        dateStr: candidate.dateStr,
+                        time: conf.time,
+                        now: schedulerNow,
+                        graceMinutes: TIMED_NOTIFICATION_GRACE_MINUTES,
+                        force: forceAll
+                    });
+                    if (!timedWindow?.due) continue;
+                    const deliveryWindow = forceAll
+                        ? createPushDeliveryPolicy({
+                            now: schedulerNow,
+                            ttlSeconds: DEFAULT_PUSH_TTL_SECONDS,
+                            urgency: 'high'
+                        })
+                        : timedWindow;
+                    const getCandidateDaysElapsed = value => getDaysElapsed(
+                        value,
+                        candidate.dateStr
+                    );
+                    const getCandidateDaysUntil = value => getDaysUntil(
+                        value,
+                        candidate.dateStr
+                    );
 
                     let shouldNotify = false;
                     let title = '';
@@ -2005,15 +2375,15 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             key,
                             vehicleTrackerData,
                             currentOdo,
-                            getDaysElapsed,
-                            getDaysUntil
+                            getCandidateDaysElapsed,
+                            getCandidateDaysUntil
                         );
                     const customTrackerNotification = recurringReminder || vehicleCatalogNotification?.handled
                         ? null
                         : buildCustomTrackerNotification(
                             key,
                             hygieneData,
-                            getDaysElapsed
+                            getCandidateDaysElapsed
                         );
                     if (recurringReminder) {
                         shouldNotify = true;
@@ -2035,7 +2405,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const val = hygieneData.esponja_africana;
                                 const history = Array.isArray(val) ? val : [val];
                                 if (history.length > 0) {
-                                    const elapsed = getDaysElapsed(history[0]);
+                                    const elapsed = getCandidateDaysElapsed(history[0]);
                                     const limit = sharedRules.hygiene?.esponja_africana?.limits?.red || 30;
                                     if (elapsed >= limit) { shouldNotify = true; title = '🧼 Esponja Africana'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
                                 }
@@ -2043,35 +2413,35 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             break;
                         case 'toalla_mano':
                             if (hygieneData.toalla_mano) {
-                                const elapsed = getDaysElapsed(hygieneData.toalla_mano);
+                                const elapsed = getCandidateDaysElapsed(hygieneData.toalla_mano);
                                 const limit = sharedRules.hygiene?.toalla_mano?.limits?.red || 4;
                                 if (elapsed >= limit) { shouldNotify = true; title = '🧼 Toalla de Mano'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
                             }
                             break;
                         case 'toalla_cuerpo':
                             if (hygieneData.toalla_cuerpo) {
-                                const elapsed = getDaysElapsed(hygieneData.toalla_cuerpo);
+                                const elapsed = getCandidateDaysElapsed(hygieneData.toalla_cuerpo);
                                 const limit = sharedRules.hygiene?.toalla_cuerpo?.limits?.red || 8;
                                 if (elapsed >= limit) { shouldNotify = true; title = '🧼 Toalla de Cuerpo'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
                             }
                             break;
                         case 'sabanas':
                             if (hygieneData.sabanas) {
-                                const elapsed = getDaysElapsed(hygieneData.sabanas);
+                                const elapsed = getCandidateDaysElapsed(hygieneData.sabanas);
                                 const limit = sharedRules.hygiene?.sabanas?.limits?.red || 8;
                                 if (elapsed >= limit) { shouldNotify = true; title = '🧼 Sábanas'; body = `Pasaron ${elapsed} días, recordá lavarlas.`; }
                             }
                             break;
                         case 'funda_almohada':
                             if (hygieneData.funda_almohada) {
-                                const elapsed = getDaysElapsed(hygieneData.funda_almohada);
+                                const elapsed = getCandidateDaysElapsed(hygieneData.funda_almohada);
                                 const limit = sharedRules.hygiene?.funda_almohada?.limits?.red || 4;
                                 if (elapsed >= limit) { shouldNotify = true; title = '🧼 Funda de Almohada'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
                             }
                             break;
                         case 'alfombra_bano':
                             if (hygieneData.alfombra_bano) {
-                                const elapsed = getDaysElapsed(hygieneData.alfombra_bano);
+                                const elapsed = getCandidateDaysElapsed(hygieneData.alfombra_bano);
                                 const limit = sharedRules.hygiene?.alfombra_bano?.limits?.red || 15;
                                 if (elapsed >= limit) { shouldNotify = true; title = '🧼 Alfombra de Baño'; body = `Pasaron ${elapsed} días, recordá lavarla.`; }
                             }
@@ -2081,7 +2451,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const val = hygieneData.cepillo_dientes;
                                 const history = Array.isArray(val) ? val : [val];
                                 if (history.length > 0) {
-                                    const elapsed = getDaysElapsed(history[0]);
+                                    const elapsed = getCandidateDaysElapsed(history[0]);
                                     const limit = sharedRules.hygiene?.cepillo_dientes?.limits?.red || 90;
                                     if (elapsed >= limit) { shouldNotify = true; title = '🪥 Cepillo de Dientes'; body = `Pasaron ${elapsed} días, recordá cambiarlo.`; }
                                 }
@@ -2089,7 +2459,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             break;
                         case 'dentista':
                             if (dentista.lastVisit) {
-                                const elapsed = getDaysElapsed(dentista.lastVisit);
+                                const elapsed = getCandidateDaysElapsed(dentista.lastVisit);
                                 const limit = (dentista.frequencyMonths || 6) * 30;
                                 if (elapsed >= limit) { shouldNotify = true; title = '🩺 Control Dentista'; body = `Pasaron ${elapsed} días, sugerimos realizar tu visita periódica.`; }
                             }
@@ -2099,7 +2469,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const val = hygieneData.compu_limpieza_int;
                                 const history = Array.isArray(val) ? val : [val];
                                 if (history.length > 0) {
-                                    const elapsed = getDaysElapsed(history[0]);
+                                    const elapsed = getCandidateDaysElapsed(history[0]);
                                     const limit = sharedRules.hygiene?.compu_limpieza_int?.limits?.red || 180;
                                     if (elapsed >= limit) { shouldNotify = true; title = '💻 Computadora (Limpieza Int.)'; body = `Pasaron ${elapsed} días, recordá limpiar tu PC por dentro.`; }
                                 }
@@ -2110,7 +2480,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const val = hygieneData.compu_pasta_termica;
                                 const history = Array.isArray(val) ? val : [val];
                                 if (history.length > 0) {
-                                    const elapsed = getDaysElapsed(history[0]);
+                                    const elapsed = getCandidateDaysElapsed(history[0]);
                                     const limit = sharedRules.hygiene?.compu_pasta_termica?.limits?.red || 360;
                                     if (elapsed >= limit) { shouldNotify = true; title = '🧪 Computadora (Pasta Térmica)'; body = `Pasaron ${elapsed} días, recordá cambiar la pasta térmica de tu PC.`; }
                                 }
@@ -2121,7 +2491,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const val = hygieneData.botella_vidrio;
                                 const history = Array.isArray(val) ? val : [val];
                                 if (history.length > 0) {
-                                    const elapsed = getDaysElapsed(history[0]);
+                                    const elapsed = getCandidateDaysElapsed(history[0]);
                                     const limit = sharedRules.hygiene?.botella_vidrio?.limits?.red || 30;
                                     if (elapsed >= limit) {
                                         shouldNotify = true;
@@ -2137,7 +2507,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'pelo':
                             const peloHistory = groomingData.pelo || [];
                             if (peloHistory.length > 0) {
-                                const elapsed = getDaysElapsed(peloHistory[0]);
+                                const elapsed = getCandidateDaysElapsed(peloHistory[0]);
                                 const limit = sharedRules.grooming?.pelo?.limits?.red || 20;
                                 if (elapsed >= limit) { shouldNotify = true; title = '💇 Corte de Pelo'; body = `Ya pasaron ${elapsed} días, te deberías cortar el pelo.`; }
                             }
@@ -2145,7 +2515,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'barba':
                             const barbaHistory = groomingData.barba || [];
                             if (barbaHistory.length > 0) {
-                                const elapsed = getDaysElapsed(barbaHistory[0]);
+                                const elapsed = getCandidateDaysElapsed(barbaHistory[0]);
                                 const limit = sharedRules.grooming?.barba?.limits?.red || 4;
                                 if (elapsed >= limit) { shouldNotify = true; title = '🧔 Afeitado de Barba'; body = `Sugerencia de afeitado (pasaron ${elapsed} días).`; }
                             }
@@ -2153,7 +2523,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'axilas':
                             const axilasHistory = groomingData.axilas || [];
                             if (axilasHistory.length > 0) {
-                                const elapsed = getDaysElapsed(axilasHistory[0]);
+                                const elapsed = getCandidateDaysElapsed(axilasHistory[0]);
                                 const limit = sharedRules.grooming?.axilas?.limits?.red || 30;
                                 if (elapsed >= limit) { shouldNotify = true; title = '🪒 Depilación Axilas'; body = `Tiempo de rebajar el vello (hace ${elapsed} días).`; }
                             }
@@ -2161,7 +2531,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'hoja_gillette':
                             const gilletteHistory = groomingData.hoja_gillette || [];
                             if (gilletteHistory.length > 0) {
-                                const elapsed = getDaysElapsed(gilletteHistory[0]);
+                                const elapsed = getCandidateDaysElapsed(gilletteHistory[0]);
                                 const limit = sharedRules.grooming?.hoja_gillette?.limits?.red || 30;
                                 if (elapsed >= limit) { shouldNotify = true; title = '🪒 Hoja Gillette'; body = `Sugerimos cambiar la hoja (pasaron ${elapsed} días).`; }
                             }
@@ -2169,7 +2539,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'pecho_panza':
                             const ppHistory = groomingData.pecho_panza || [];
                             if (ppHistory.length > 0) {
-                                const elapsed = getDaysElapsed(ppHistory[0]);
+                                const elapsed = getCandidateDaysElapsed(ppHistory[0]);
                                 const limit = sharedRules.grooming?.pecho_panza?.limits?.red || 60;
                                 if (elapsed >= limit) { shouldNotify = true; title = '✂️ Depilación: Pecho y Panza'; body = `Ya pasaron ${elapsed} días, recordá depilarte pecho y panza.`; }
                             }
@@ -2177,7 +2547,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'brazos':
                             const brazosHistory = groomingData.brazos || [];
                             if (brazosHistory.length > 0) {
-                                const elapsed = getDaysElapsed(brazosHistory[0]);
+                                const elapsed = getCandidateDaysElapsed(brazosHistory[0]);
                                 const limit = sharedRules.grooming?.brazos?.limits?.red || 180;
                                 if (elapsed >= limit) { shouldNotify = true; title = '✂️ Depilación: Brazos'; body = `Ya pasaron ${elapsed} días, recordá depilarte los brazos.`; }
                             }
@@ -2185,7 +2555,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'piernas':
                             const piernasHistory = groomingData.piernas || [];
                             if (piernasHistory.length > 0) {
-                                const elapsed = getDaysElapsed(piernasHistory[0]);
+                                const elapsed = getCandidateDaysElapsed(piernasHistory[0]);
                                 const limit = sharedRules.grooming?.piernas?.limits?.red || 120;
                                 if (elapsed >= limit) { shouldNotify = true; title = '✂️ Depilación: Piernas'; body = `Ya pasaron ${elapsed} días, recordá depilarte las piernas.`; }
                             }
@@ -2193,7 +2563,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'intimas':
                             const intimasHistory = groomingData.intimas || [];
                             if (intimasHistory.length > 0) {
-                                const elapsed = getDaysElapsed(intimasHistory[0]);
+                                const elapsed = getCandidateDaysElapsed(intimasHistory[0]);
                                 const limit = sharedRules.grooming?.intimas?.limits?.red || 30;
                                 if (elapsed >= limit) { shouldNotify = true; title = '✂️ Depilación: Zonas Íntimas'; body = `Ya pasaron ${elapsed} días, recordá depilarte las zonas íntimas.`; }
                             }
@@ -2201,7 +2571,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'unas_manos':
                             const unasManosHistory = groomingData.unas_manos || [];
                             if (unasManosHistory.length > 0) {
-                                const elapsed = getDaysElapsed(unasManosHistory[0]);
+                                const elapsed = getCandidateDaysElapsed(unasManosHistory[0]);
                                 const limit = sharedRules.grooming?.unas_manos?.limits?.red || 18;
                                 if (elapsed >= limit) { shouldNotify = true; title = '💅 Cortar Uñas de Manos'; body = `Pasaron ${elapsed} días, recordá cortarte las uñas de las manos.`; }
                             }
@@ -2209,7 +2579,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         case 'unas_pies':
                             const unasPiesHistory = groomingData.unas_pies || [];
                             if (unasPiesHistory.length > 0) {
-                                const elapsed = getDaysElapsed(unasPiesHistory[0]);
+                                const elapsed = getCandidateDaysElapsed(unasPiesHistory[0]);
                                 const limit = sharedRules.grooming?.unas_pies?.limits?.red || 50;
                                 if (elapsed >= limit) { shouldNotify = true; title = '👣 Cortar Uñas de Pies'; body = `Pasaron ${elapsed} días, recordá cortarte las uñas de los pies.`; }
                             }
@@ -2218,42 +2588,42 @@ async function checkAndSendAllAlerts(forceAll = false) {
                         // Lentes
                         case 'lenses_droplets':
                             if (data.systaneDate) {
-                                const elapsed = getDaysElapsed(data.systaneDate);
+                                const elapsed = getCandidateDaysElapsed(data.systaneDate);
                                 const limit = sharedRules.lenses?.systane || 90;
                                 if (elapsed >= limit) { shouldNotify = true; title = '👁️ Gotas de Ojos'; body = `Systane abierta hace ${elapsed} días, sugerimos cambiarla.`; }
                             }
                             break;
                         case 'lenses_case':
                             if (data.caseDate) {
-                                const elapsed = getDaysElapsed(data.caseDate);
+                                const elapsed = getCandidateDaysElapsed(data.caseDate);
                                 const limit = sharedRules.lenses?.case || 90;
                                 if (elapsed >= limit) { shouldNotify = true; title = '👁️ Estuche de Lentes'; body = `Estuche en uso hace ${elapsed} días, sugerimos cambiarlo.`; }
                             }
                             break;
                         case 'lenses_solution':
                             if (data.solutionDate) {
-                                const elapsed = getDaysElapsed(data.solutionDate);
+                                const elapsed = getCandidateDaysElapsed(data.solutionDate);
                                 const limit = sharedRules.lenses?.solution || 90;
                                 if (elapsed >= limit) { shouldNotify = true; title = '👁️ Solución de Lentes'; body = `Solución abierta hace ${elapsed} días, sugerimos cambiarla.`; }
                             }
                             break;
                         case 'lenses_replace':
                             if (data.lensDate) {
-                                const elapsed = getDaysElapsed(data.lensDate);
+                                const elapsed = getCandidateDaysElapsed(data.lensDate);
                                 const limit = sharedRules.lenses?.lenses || 60;
                                 if (elapsed >= limit) { shouldNotify = true; title = '👁️ Reemplazo de Lentes'; body = `Lentes en uso hace ${elapsed} días, sugerimos cambiarlos.`; }
                             }
                             break;
                         case 'glasses_cloth_wash':
                             if (data.clothWashDate) {
-                                const elapsed = getDaysElapsed(data.clothWashDate);
+                                const elapsed = getCandidateDaysElapsed(data.clothWashDate);
                                 const limit = sharedRules.lenses?.clothWash || 15;
                                 if (elapsed >= limit) { shouldNotify = true; title = '👓 Lavado Paño Anteojos'; body = `Gamuza en uso hace ${elapsed} días, sugerimos lavarla.`; }
                             }
                             break;
                         case 'glasses_cloth_replace':
                             if (data.clothChangeDate) {
-                                const elapsed = getDaysElapsed(data.clothChangeDate);
+                                const elapsed = getCandidateDaysElapsed(data.clothChangeDate);
                                 const limit = sharedRules.lenses?.clothChange || 270;
                                 if (elapsed >= limit) { shouldNotify = true; title = '👓 Reemplazo Paño Anteojos'; body = `Gamuza en uso hace ${elapsed} días, sugerimos cambiarla.`; }
                             }
@@ -2266,7 +2636,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const limitKm = sharedRules.vehicle?.oil?.km || 10000;
                                 const limitDays = sharedRules.vehicle?.oil?.days || 365;
                                 const remainingKm = (lastOil.km + limitKm) - currentOdo;
-                                const daysElapsed = getDaysElapsed(lastOil.date);
+                                const daysElapsed = getCandidateDaysElapsed(lastOil.date);
                                 const remainingDays = limitDays - (daysElapsed || 0);
                                 if (remainingKm <= 0 || remainingDays <= 0) { shouldNotify = true; title = '🚗 Aceite y Filtros'; body = 'Mantenimiento urgente de Aceite y Filtros sugerido.'; }
                             }
@@ -2307,7 +2677,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             break;
                         case 'vehicle_docs_check':
                             const tracker = vehicleTrackerData;
-                            const documentReminder = buildVehicleDocumentNotification(tracker, getDaysUntil);
+                            const documentReminder = buildVehicleDocumentNotification(tracker, getCandidateDaysUntil);
                             if (documentReminder) {
                                 shouldNotify = true;
                                 title = documentReminder.title;
@@ -2319,8 +2689,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             const maintenanceReminder = buildVehicleMaintenanceNotification(
                                 trk,
                                 sharedRules,
-                                getDaysElapsed,
-                                getDaysUntil
+                                getCandidateDaysElapsed,
+                                getCandidateDaysUntil
                             );
                             if (maintenanceReminder) {
                                 shouldNotify = true;
@@ -2339,7 +2709,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                     const interval = gymSupplements.vit_d_days_interval || 30;
                                     const nextTakeDate = new Date(Date.UTC(parseInt(lastParts[0]), parseInt(lastParts[1]) - 1, parseInt(lastParts[2]) + interval));
                                     const nextTakeStr = nextTakeDate.toISOString().split('T')[0];
-                                    const remainingDays = getDaysUntil(nextTakeStr);
+                                    const remainingDays = getCandidateDaysUntil(nextTakeStr);
                                     if (remainingDays !== null && remainingDays <= 0) {
                                         shouldNotify = true;
                                         title = '💊 Vitamina D';
@@ -2364,7 +2734,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                 const start = new Date(sub.startDate + 'T12:00:00');
                                 const expiry = new Date(start);
                                 expiry.setMonth(expiry.getMonth() + parseInt(sub.cycle));
-                                const diffDays = getDaysUntil(expiry.toISOString());
+                                const diffDays = getCandidateDaysUntil(expiry.toISOString());
                                 
                                 if (diffDays <= 7 && diffDays > 2) {
                                     shouldNotify = true;
@@ -2418,7 +2788,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                                 const daysRemaining = Math.max(0, Math.floor(remainingMs / 86400000));
                                                 const projBody = `El proyecto de ${p.client} se encuentra en estado ${stateLabel}. Quedan ${daysRemaining} días.`;
                                                 
-                                                console.log(`[Alert Engine] Enviando push de proyecto '${projTitle}' a usuario ${userId}`);
+                                                console.log(`[Notification Dispatch] Preparando push de proyecto '${projTitle}' para usuario ${userId}`);
                                                 const payload = JSON.stringify({
                                                     title: projTitle,
                                                     body: projBody,
@@ -2431,7 +2801,10 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                                     payload,
                                                     context: `proyecto ${p.id}`,
                                                     alertKey: logKey,
-                                                    delayMs: 250
+                                                    delayMs: 250,
+                                                    scheduledAt: deliveryWindow.scheduledAt,
+                                                    expiresAt: deliveryWindow.expiresAt,
+                                                    urgency: 'high'
                                                 });
 
                                                 if (!forceAll && result.successCount > 0) {
@@ -2528,7 +2901,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                             && !wasSentForDate(userId, itemLogKey, candidate.dateStr)
                                         )
                                     ) {
-                                        console.log(`[Alert Engine] Enviando push individual de tarea urgente '${item.title}' a usuario ${userId}`);
+                                        console.log(`[Notification Dispatch] Preparando push individual de tarea urgente '${item.title}' para usuario ${userId}`);
                                         const payload = JSON.stringify({
                                             title: item.title,
                                             body: item.body,
@@ -2541,7 +2914,10 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                             payload,
                                             context: `tarea urgente ${item.id}`,
                                             alertKey: itemLogKey,
-                                            delayMs: 250
+                                            delayMs: 250,
+                                            scheduledAt: deliveryWindow.scheduledAt,
+                                            expiresAt: deliveryWindow.expiresAt,
+                                            urgency: 'high'
                                         });
 
                                         if (!forceAll && result.successCount > 0) {
@@ -2558,7 +2934,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     }
 
                     if (shouldNotify && title && body) {
-                        console.log(`[Alert Engine] Enviando push de '${title}' a usuario ${userId}`);
+                        console.log(`[Notification Dispatch] Preparando push de '${title}' para usuario ${userId}`);
                         const payload = JSON.stringify({
                             title: title,
                             body: body,
@@ -2571,7 +2947,10 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             payload,
                             context: key,
                             alertKey: key,
-                            delayMs: 250
+                            delayMs: 250,
+                            scheduledAt: deliveryWindow.scheduledAt,
+                            expiresAt: deliveryWindow.expiresAt,
+                            urgency: 'high'
                         });
 
                         if (!forceAll && result.successCount > 0) {
@@ -2604,34 +2983,14 @@ async function checkAndSendAllAlerts(forceAll = false) {
     }
 }
 
-function getDaysElapsed(dateString) {
+function getDaysElapsed(dateString, referenceDateStr = getArgentinaTime().dateStr) {
     if (!dateString) return null;
-    const { dateStr } = getArgentinaTime();
-    
-    const startParts = dateString.split('T')[0].split('-');
-    if (startParts.length !== 3) return null;
-    const startUTC = new Date(Date.UTC(parseInt(startParts[0]), parseInt(startParts[1]) - 1, parseInt(startParts[2])));
-    
-    const todayParts = dateStr.split('-');
-    const todayUTC = new Date(Date.UTC(parseInt(todayParts[0]), parseInt(todayParts[1]) - 1, parseInt(todayParts[2])));
-    
-    const diffTime = todayUTC - startUTC;
-    return Math.floor(diffTime / (1000 * 60 * 60 * 24));
+    return getCalendarDayDifference(dateString, referenceDateStr);
 }
 
-function getDaysUntil(dateString) {
+function getDaysUntil(dateString, referenceDateStr = getArgentinaTime().dateStr) {
     if (!dateString) return null;
-    const { dateStr } = getArgentinaTime();
-    
-    const targetParts = dateString.split('T')[0].split('-');
-    if (targetParts.length !== 3) return null;
-    const targetUTC = new Date(Date.UTC(parseInt(targetParts[0]), parseInt(targetParts[1]) - 1, parseInt(targetParts[2])));
-    
-    const todayParts = dateStr.split('-');
-    const todayUTC = new Date(Date.UTC(parseInt(todayParts[0]), parseInt(todayParts[1]) - 1, parseInt(todayParts[2])));
-    
-    const diffTime = targetUTC - todayUTC;
-    return Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return getCalendarDayDifference(referenceDateStr, dateString);
 }
 
 // ==========================================================================
@@ -2711,7 +3070,8 @@ async function checkAndSendRobotReminders(forceAll = false) {
                     }),
                     context: `tarjeta pendiente ${reminder.trackerId}`,
                     alertKey: reminder.alertKey,
-                    delayMs: 250
+                    delayMs: 250,
+                    urgency: 'high'
                 });
 
                 if (!forceAll && result.successCount > 0) {
@@ -2760,7 +3120,8 @@ async function checkAndSendRobotReminders(forceAll = false) {
                             payload,
                             context: 'robot aspiradora',
                             alertKey: 'robot',
-                            delayMs: 250
+                            delayMs: 250,
+                            urgency: 'high'
                         });
 
                         if (!forceAll && result.successCount > 0) {
@@ -2819,7 +3180,8 @@ async function checkAndSendRobotReminders(forceAll = false) {
                             payload,
                             context: 'tareas muy urgentes',
                             alertKey: 'very_urgent_tasks',
-                            delayMs: 250
+                            delayMs: 250,
+                            urgency: 'high'
                         });
 
                         if (!forceAll && result.successCount > 0) {

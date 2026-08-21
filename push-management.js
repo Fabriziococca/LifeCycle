@@ -4,7 +4,9 @@ const crypto = require('node:crypto');
 
 const DEVICE_NAME_MAX = 80;
 const DEVICE_META_MAX = 160;
-const HISTORY_STATUSES = new Set(['accepted', 'failed', 'expired', 'no_devices']);
+const HISTORY_STATUSES = new Set(['pending', 'accepted', 'failed', 'expired', 'unknown', 'no_devices']);
+const PUSH_TELEMETRY_EVENTS = new Set(['received', 'displayed', 'discarded_expired']);
+const PUSH_RECEIPT_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,128}$/;
 
 function cleanText(value, maxLength) {
     return typeof value === 'string'
@@ -113,6 +115,58 @@ function parsePushPayload(payload) {
     }
 }
 
+function createPushReceiptCredential() {
+    const token = crypto.randomBytes(32).toString('base64url');
+    return {
+        token,
+        tokenHash: hashPushReceiptToken(token)
+    };
+}
+
+function hashPushReceiptToken(value) {
+    const token = String(value || '');
+    if (!PUSH_RECEIPT_TOKEN_PATTERN.test(token)) return '';
+    return crypto.createHash('sha256').update(token).digest('hex');
+}
+
+function normalizePushTelemetryEvent(value) {
+    const event = String(value || '');
+    return PUSH_TELEMETRY_EVENTS.has(event) ? event : '';
+}
+
+function attachPushDeliveryMetadata(payload, metadata = {}) {
+    let parsed;
+    try {
+        parsed = typeof payload === 'string' ? JSON.parse(payload) : payload;
+    } catch {
+        return payload;
+    }
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) return payload;
+
+    const id = String(metadata.id || '');
+    const receiptToken = String(metadata.receiptToken || '');
+    const scheduledAt = new Date(metadata.scheduledAt || '');
+    const expiresAt = new Date(metadata.expiresAt || '');
+    if (
+        !/^\d+$/.test(id)
+        || !PUSH_RECEIPT_TOKEN_PATTERN.test(receiptToken)
+        || !Number.isFinite(scheduledAt.getTime())
+        || !Number.isFinite(expiresAt.getTime())
+    ) {
+        return payload;
+    }
+
+    return JSON.stringify({
+        ...parsed,
+        delivery: {
+            id,
+            receiptToken,
+            scheduledAt: scheduledAt.toISOString(),
+            expiresAt: expiresAt.toISOString()
+        }
+    });
+}
+
 function normalizeHistoryStatus(value) {
     return HISTORY_STATUSES.has(value) ? value : '';
 }
@@ -143,15 +197,44 @@ function isMissingPushManagementSchema(error) {
         || message.includes('confirmed_at');
 }
 
+function isMissingPushTelemetrySchema(error) {
+    const code = String(error?.code || '');
+    const message = String(error?.message || '').toLowerCase();
+    return ['42703', 'PGRST204'].includes(code)
+        || message.includes('receipt_token_hash')
+        || message.includes('scheduled_at')
+        || message.includes('expires_at')
+        || message.includes('received_at')
+        || message.includes('displayed_at')
+        || message.includes('discarded_at')
+        || (
+            code === '23514'
+            && message.includes('notification_delivery_log_status_check')
+        );
+}
+
+function isDuplicatePushDispatchError(error) {
+    const code = String(error?.code || '');
+    const message = `${error?.message || ''} ${error?.details || ''}`.toLowerCase();
+    return code === '23505'
+        && message.includes('notification_delivery_log_dispatch_once_idx');
+}
+
 module.exports = {
+    attachPushDeliveryMetadata,
+    createPushReceiptCredential,
     endpointFingerprint,
+    hashPushReceiptToken,
     inferBrowser,
     inferPlatform,
+    isDuplicatePushDispatchError,
     isMissingPushManagementSchema,
+    isMissingPushTelemetrySchema,
     normalizeDeviceMetadata,
     normalizeHistoryLimit,
     normalizeHistoryStatus,
     normalizeProviderStatus,
+    normalizePushTelemetryEvent,
     parsePushPayload,
     preserveDeviceName,
     toPublicPushDevice

@@ -31,3 +31,18 @@ test('the environment template documents every runtime secret without values', a
     }
     assert.doesNotMatch(template, /^(SUPABASE_SERVICE_ROLE_KEY|VAPID_PRIVATE_KEY|ADMIN_TOKEN)=.+$/m);
 });
+
+test('notification operations enforce freshness and emit auditable request logs', async () => {
+    const server = await readFile(path.join(ROOT, 'server.js'), 'utf8');
+
+    assert.match(server, /TIMED_NOTIFICATION_GRACE_MINUTES/);
+    assert.match(server, /TTL:\s*policy\.TTL/);
+    assert.match(server, /urgency:\s*policy\.urgency/);
+    assert.match(server, /\[Notification Dispatch\]/);
+    assert.doesNotMatch(server, /\[Alert Engine\] Enviando/);
+    assert.doesNotMatch(server, /6\s*\*\s*60\s*\*\s*60\s*\*\s*1000/);
+    assert.match(server, /PENDING_DELIVERY_RECOVERY_MS\s*=\s*2\s*\*\s*60\s*\*\s*1000/);
+    assert.match(server, /PENDING_DELIVERY_RECOVERY_INTERVAL_MS\s*=\s*60\s*\*\s*1000/);
+    assert.match(server, /telemetryRequested[\s\S]*isMissingPushTelemetrySchema[\s\S]*buildHistoryQuery\(baseColumns\)/);
+    assert.match(server, /\[HTTP\].*status=.*duration_ms=/);
+});

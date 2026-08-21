@@ -95,6 +95,33 @@ test('notification history distinguishes provider acceptance, missing devices an
     assert.match(migration, /notification_delivery_log_retention_idx/i);
 });
 
+test('notification delivery migration records freshness and automatic device telemetry safely', async () => {
+    const migration = await readFile(path.join(
+        ROOT,
+        'supabase',
+        'migrations',
+        '20260821040806_notification_delivery_freshness_and_telemetry.sql'
+    ), 'utf8');
+
+    for (const column of [
+        'scheduled_at',
+        'expires_at',
+        'received_at',
+        'displayed_at',
+        'discarded_at',
+        'receipt_token_hash'
+    ]) {
+        assert.match(migration, new RegExp(`add column if not exists ${column}`));
+    }
+    assert.match(migration, /'pending'/);
+    assert.match(migration, /'unknown'/);
+    assert.match(migration, /receipt_token_hash\)\s+where receipt_token_hash is not null/i);
+    assert.match(migration, /notification_delivery_log_dispatch_once_idx/i);
+    assert.match(migration, /where status in \('pending', 'accepted'\)/i);
+    assert.match(migration, /revoke all on table public\.notification_delivery_log from public, anon, authenticated/i);
+    assert.doesNotMatch(migration, /security definer/i);
+});
+
 test('the production verification script is read-only and checks every new contract', async () => {
     const verification = await readFile(path.join(
         ROOT,
@@ -113,6 +140,7 @@ test('the production verification script is read-only and checks every new contr
         'private_snapshot_rls',
         'notification_history_client_privileges',
         'notification_history_semantics',
+        'notification_delivery_telemetry',
         'project_templates_sync_allowlist'
     ]) {
         assert.match(verification, new RegExp(`'${checkName}'`));

@@ -1,4 +1,4 @@
--- Read-only checks to run in Supabase SQL Editor after the 2026-08-01 migrations.
+-- Read-only checks to run in Supabase SQL Editor after the 2026-08-01 and 2026-08-21 migrations.
 with expected_columns(column_name) as (
     values
         ('device_name'),
@@ -88,6 +88,28 @@ select
           and constraints.contype = 'c'
           and pg_get_constraintdef(constraints.oid) like '%no_devices%'
     ) as passed;
+
+with expected_columns(column_name) as (
+    values
+        ('scheduled_at'),
+        ('expires_at'),
+        ('received_at'),
+        ('displayed_at'),
+        ('discarded_at'),
+        ('receipt_token_hash')
+)
+select
+    'notification_delivery_telemetry' as check_name,
+    bool_and(columns.column_name is not null)
+        and to_regclass('public.notification_delivery_log_dispatch_once_idx') is not null
+        as passed,
+    string_agg(expected.column_name, ', ' order by expected.column_name)
+        filter (where columns.column_name is null) as missing
+from expected_columns as expected
+left join information_schema.columns as columns
+    on columns.table_schema = 'public'
+    and columns.table_name = 'notification_delivery_log'
+    and columns.column_name = expected.column_name;
 
 select
     'project_templates_sync_allowlist' as check_name,

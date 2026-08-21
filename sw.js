@@ -21,6 +21,54 @@ self.addEventListener('activate', (e) => {
     );
 });
 
+function getPushDeliveryMetadata(data) {
+    const delivery = data?.delivery;
+    if (!delivery || typeof delivery !== 'object') return null;
+
+    const id = String(delivery.id || '');
+    const receiptToken = String(delivery.receiptToken || '');
+    const expiresAt = new Date(delivery.expiresAt || '');
+    if (
+        !/^\d+$/.test(id)
+        || !/^[A-Za-z0-9_-]{32,128}$/.test(receiptToken)
+        || !Number.isFinite(expiresAt.getTime())
+    ) {
+        return null;
+    }
+    return {
+        id,
+        receiptToken,
+        expiresAt: expiresAt.toISOString()
+    };
+}
+
+function isPushDeliveryExpired(delivery, now = Date.now()) {
+    if (!delivery) return false;
+    const expiresAt = Date.parse(delivery.expiresAt || '');
+    return Number.isFinite(expiresAt) && now > expiresAt;
+}
+
+async function reportPushTelemetry(delivery, eventName) {
+    if (!delivery) return false;
+    try {
+        const response = await fetch('/api/push/telemetry', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                deliveryId: delivery.id,
+                receiptToken: delivery.receiptToken,
+                event: eventName
+            }),
+            cache: 'no-store',
+            credentials: 'omit'
+        });
+        return response.ok;
+    } catch (error) {
+        console.warn('[Service Worker] Push telemetry could not be reported', error);
+        return false;
+    }
+}
+
 // Escuchar notificaciones Push
 self.addEventListener('push', (event) => {
     let data = { title: 'LifeCycle', body: 'Nueva notificación' };
@@ -32,6 +80,7 @@ self.addEventListener('push', (event) => {
         }
     }
 
+    const delivery = getPushDeliveryMetadata(data);
     const options = {
         body: data.body,
         icon: '/icon-v2.png',
@@ -42,9 +91,19 @@ self.addEventListener('push', (event) => {
         }
     };
 
-    event.waitUntil(
-        self.registration.showNotification(data.title, options)
-    );
+    event.waitUntil((async () => {
+        const receivedReport = reportPushTelemetry(delivery, 'received');
+        if (isPushDeliveryExpired(delivery)) {
+            await receivedReport;
+            await reportPushTelemetry(delivery, 'discarded_expired');
+            console.warn(`[Service Worker] Discarded expired Push delivery ${delivery.id}`);
+            return;
+        }
+
+        await self.registration.showNotification(data.title, options);
+        await receivedReport;
+        await reportPushTelemetry(delivery, 'displayed');
+    })());
 });
 
 // Manejar clic en la notificación
