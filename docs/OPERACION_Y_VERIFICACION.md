@@ -177,10 +177,10 @@ Las migraciones de dispositivos Push, historial, endurecimiento del snapshot pri
 
 La Tanda 8 agrega dos migraciones aditivas:
 
-- `20260809060236_tanda_8_data_foundation.sql`: snapshot previo, revisión
+- `20260809062547_tanda_8_data_foundation.sql`: snapshot previo, revisión
   monotónica de documentos, borrado en cascada al eliminar una cuenta, permisos
   mínimos y escritura autenticada exclusivamente mediante la RPC allowlisted;
-- `20260809060251_tanda_8_trading_projection.sql`: proyección relacional de
+- `20260809062605_tanda_8_trading_projection.sql`: proyección relacional de
   Trading con RLS e idempotencia persistente de sus notificaciones.
 
 La proyección no elimina ni transforma el JSON original. Esto permite volver al

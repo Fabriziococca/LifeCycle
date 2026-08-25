@@ -11,13 +11,13 @@ const FOUNDATION_MIGRATION = path.join(
     ROOT,
     'supabase',
     'migrations',
-    '20260809060236_tanda_8_data_foundation.sql'
+    '20260809062547_tanda_8_data_foundation.sql'
 );
 const TRADING_MIGRATION = path.join(
     ROOT,
     'supabase',
     'migrations',
-    '20260809060251_tanda_8_trading_projection.sql'
+    '20260809062605_tanda_8_trading_projection.sql'
 );
 
 test('the latest client sync migration allows every cloud-owned key', async () => {
