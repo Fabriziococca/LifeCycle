@@ -38,6 +38,15 @@ export class AuthSyncModule {
         this.accessGate = document.getElementById('access-gate');
         this.accessGateLoading = document.getElementById('access-gate-loading');
         this.accessGateForm = document.getElementById('access-gate-form');
+        this.accessOpenRegistration = document.getElementById('access-open-registration');
+        this.accessRegistrationForm = document.getElementById('access-registration-form');
+        this.accessRegistrationCode = document.getElementById('access-registration-code');
+        this.accessRegistrationEmail = document.getElementById('access-registration-email');
+        this.accessRegistrationPassword = document.getElementById('access-registration-password');
+        this.accessRegistrationPasswordConfirm = document.getElementById('access-registration-password-confirm');
+        this.accessRegistrationError = document.getElementById('access-registration-error');
+        this.accessCancelRegistration = document.getElementById('access-cancel-registration');
+        this.accessSubmitRegistration = document.getElementById('access-submit-registration');
         this.accessGateUnavailable = document.getElementById('access-gate-unavailable');
         this.accessGateUnavailableMessage = document.getElementById('access-gate-unavailable-message');
         this.accessGateMessage = document.getElementById('access-gate-message');
@@ -85,6 +94,10 @@ export class AuthSyncModule {
             if (!this.config.supabaseUrl || !this.config.supabaseAnonKey) {
                 throw new Error('La autenticación cloud no está configurada.');
             }
+            this.accessOpenRegistration?.classList.toggle(
+                'hidden',
+                this.config.registrationEnabled !== true
+            );
             
             // 2. Initialize Supabase client
             if (!window.supabase?.createClient) {
@@ -128,6 +141,23 @@ export class AuthSyncModule {
         this.accessRetry?.addEventListener('click', () => {
             window.location.reload();
         });
+
+        this.accessOpenRegistration?.addEventListener('click', () => {
+            if (this.config?.registrationEnabled !== true) return;
+            this.setRegistrationError('');
+            this.setAccessGateState('register');
+            requestAnimationFrame(() => this.accessRegistrationCode?.focus());
+        });
+
+        this.accessCancelRegistration?.addEventListener('click', () => {
+            this.resetRegistrationForm();
+            this.setAccessGateState('logged-out');
+        });
+
+        this.accessRegistrationForm?.addEventListener('submit', async (event) => {
+            event.preventDefault();
+            await this.registerInvitedAccount();
+        });
     }
 
     setAccessGateState(state, message = '') {
@@ -141,6 +171,7 @@ export class AuthSyncModule {
 
         this.accessGateLoading?.classList.toggle('hidden', state !== 'loading');
         this.accessGateForm?.classList.toggle('hidden', state !== 'logged-out');
+        this.accessRegistrationForm?.classList.toggle('hidden', state !== 'register');
         this.accessGateUnavailable?.classList.toggle('hidden', state !== 'unavailable');
 
         if (this.accessGateMessage && message) {
@@ -153,6 +184,62 @@ export class AuthSyncModule {
         if (this.accessGateError) {
             this.accessGateError.textContent = state === 'logged-out' ? message : '';
             this.accessGateError.classList.toggle('hidden', state !== 'logged-out' || !message);
+        }
+    }
+
+    setRegistrationError(message = '') {
+        if (!this.accessRegistrationError) return;
+        this.accessRegistrationError.textContent = message;
+        this.accessRegistrationError.classList.toggle('hidden', !message);
+    }
+
+    resetRegistrationForm() {
+        this.accessRegistrationForm?.reset();
+        this.setRegistrationError('');
+    }
+
+    async registerInvitedAccount() {
+        const accessCode = this.accessRegistrationCode?.value || '';
+        const email = (this.accessRegistrationEmail?.value || '').trim();
+        const password = this.accessRegistrationPassword?.value || '';
+        const passwordConfirm = this.accessRegistrationPasswordConfirm?.value || '';
+
+        if (password !== passwordConfirm) {
+            this.setRegistrationError('Las contraseñas no coinciden.');
+            return;
+        }
+        if (password.length < 12) {
+            this.setRegistrationError('La contraseña debe tener al menos 12 caracteres.');
+            return;
+        }
+
+        this.setRegistrationError('');
+        if (this.accessSubmitRegistration) this.accessSubmitRegistration.disabled = true;
+
+        try {
+            const response = await fetch('/api/auth/register', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ accessCode, email, password }),
+                cache: 'no-store',
+                credentials: 'same-origin'
+            });
+            const result = await response.json().catch(() => ({}));
+            if (!response.ok) {
+                this.setRegistrationError(
+                    result.error || 'No se pudo crear la cuenta. Intentá nuevamente.'
+                );
+                return;
+            }
+
+            if (this.accessRegistrationCode) this.accessRegistrationCode.value = '';
+            if (this.accessRegistrationPasswordConfirm) this.accessRegistrationPasswordConfirm.value = '';
+            await this.login(email, password);
+        } catch (error) {
+            console.error('Error creando la cuenta invitada:', error);
+            this.setRegistrationError('No se pudo conectar con el registro. Intentá nuevamente.');
+        } finally {
+            if (this.accessSubmitRegistration) this.accessSubmitRegistration.disabled = false;
         }
     }
 

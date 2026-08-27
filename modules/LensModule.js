@@ -255,8 +255,8 @@ export class LensModule {
             const card = document.createElement('div');
             card.className = `lenses-mini-card ${statusClass}`;
             card.style.cssText = `
-                background: linear-gradient(135deg, rgba(30, 41, 59, 0.75), rgba(15, 23, 42, 0.9));
-                border: 1px solid rgba(255, 255, 255, 0.08);
+                background: var(--surface-solid);
+                border: 1px solid var(--surface-border);
                 border-top: 3px solid ${colorVar};
                 border-radius: 14px;
                 padding: 14px;
@@ -265,7 +265,7 @@ export class LensModule {
                 justify-content: space-between;
                 gap: 12px;
                 position: relative;
-                box-shadow: 0 8px 20px rgba(0,0,0,0.25);
+                box-shadow: var(--shadow-glass);
                 backdrop-filter: blur(10px);
                 transition: transform 0.2s ease, box-shadow 0.2s ease;
             `;
@@ -288,13 +288,13 @@ export class LensModule {
             card.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; gap: 8px;">
                     <div style="display: flex; align-items: center; gap: 10px; min-width: 0;">
-                        <div style="width: 32px; height: 32px; border-radius: 8px; background: rgba(255,255,255,0.05); border: 1px solid rgba(255,255,255,0.1); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
+                        <div style="width: 32px; height: 32px; border-radius: 8px; background: var(--surface-subtle); border: 1px solid var(--surface-border); display: flex; align-items: center; justify-content: center; flex-shrink: 0;">
                             <i class="ph ${item.icon}" style="font-size: 1.25rem; color: ${colorVar};"></i>
                         </div>
-                        <strong style="font-size: 0.92rem; color: white; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;">${safeName}</strong>
+                        <strong style="font-size: 0.92rem; color: var(--text-primary); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-weight: 600;">${safeName}</strong>
                     </div>
                     <div style="display: flex; align-items: center; gap: 6px; flex-shrink: 0;">
-                        <button type="button" class="btn-card-edit" style="background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); color: var(--text-secondary); cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s;" title="Editar fecha del último registro de ${safeName}" aria-label="Editar fecha del último registro de ${safeName}"><i class="ph ph-pencil"></i></button>
+                        <button type="button" class="btn-card-edit" style="background: var(--surface-subtle); border: 1px solid var(--surface-border); color: var(--text-secondary); cursor: pointer; padding: 4px 6px; border-radius: 6px; font-size: 0.85rem; transition: all 0.2s;" title="Editar fecha del último registro de ${safeName}" aria-label="Editar fecha del último registro de ${safeName}"><i class="ph ph-pencil"></i></button>
                         <span class="badge ${statusClass}" style="font-size: 0.65rem; padding: 3px 8px; font-weight: 700; border-radius: 20px; letter-spacing: 0.3px;">${statusBadge}</span>
                     </div>
                 </div>
@@ -308,15 +308,15 @@ export class LensModule {
 
                 <div style="display: flex; flex-direction: column; gap: 6px;">
                     <div style="display: flex; justify-content: space-between; font-size: 0.72rem; color: var(--text-secondary);">
-                        <span>Último: <strong style="color: rgba(255,255,255,0.85);">${lastDateStr}</strong></span>
-                        <span>Próximo: <strong style="color: rgba(255,255,255,0.85);">${nextDateStr}</strong></span>
+                        <span>Último: <strong style="color: var(--text-primary);">${lastDateStr}</strong></span>
+                        <span>Próximo: <strong style="color: var(--text-primary);">${nextDateStr}</strong></span>
                     </div>
-                    <div style="width: 100%; height: 6px; background: rgba(255,255,255,0.08); border-radius: 3px; overflow: hidden; position: relative;">
+                    <div style="width: 100%; height: 6px; background: var(--progress-track); border-radius: 3px; overflow: hidden; position: relative;">
                         <div style="width: ${progressPct}%; height: 100%; background: ${colorVar}; border-radius: 3px; transition: width 0.4s ease;"></div>
                     </div>
                 </div>
 
-                <button type="button" class="btn-mini-action btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 0.85rem; margin: 0; display: flex; align-items: center; justify-content: center; gap: 8px; height: 36px; border-radius: 8px; background: rgba(255,255,255,0.04); border: 1px solid ${colorVar}50; color: white; font-weight: 600; cursor: pointer; transition: all 0.2s;">
+                <button type="button" class="btn-mini-action btn btn-secondary" style="width: 100%; padding: 8px 12px; font-size: 0.85rem; margin: 0; display: flex; align-items: center; justify-content: center; gap: 8px; height: 36px; border-radius: 8px; background: var(--surface-subtle); border: 1px solid ${colorVar}50; color: var(--text-primary); font-weight: 600; cursor: pointer; transition: all 0.2s;">
                     <i class="ph-bold ph-check-circle" style="color: ${colorVar}; font-size: 1rem;"></i>
                     <span>${safeActionText}</span>
                 </button>

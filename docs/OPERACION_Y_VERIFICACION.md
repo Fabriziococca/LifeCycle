@@ -2,6 +2,32 @@
 
 Este documento separa las comprobaciones automáticas del repositorio de aquellas que necesitan infraestructura o un dispositivo real.
 
+## Acceso y registro por invitación
+
+El alta pública de Supabase debe permanecer desactivada. LifeCycle crea cuentas
+únicamente mediante `POST /api/auth/register`, que requiere:
+
+- un código de invitación válido;
+- una contraseña de 12 a 128 caracteres;
+- `SUPABASE_SERVICE_ROLE_KEY` disponible solo en el backend;
+- `REGISTRATION_ACCESS_CODE_SHA256` configurado en Render.
+
+`REGISTRATION_ACCESS_CODE_SHA256` es el SHA-256 hexadecimal del código que se
+comparte con las personas invitadas. El código y la Service Role nunca se
+incluyen en `/api/config`, HTML, JavaScript del navegador, logs ni commits. Si
+falta cualquiera de esas dos variables, el registro se desactiva y el endpoint
+responde de forma cerrada.
+
+Para generar el hash localmente sin guardar el código en archivos del proyecto:
+
+```powershell
+node -e "const c=require('crypto'); process.stdout.write(c.createHash('sha256').update(process.argv[1].trim()).digest('hex'))" "CODIGO-ELEGIDO"
+```
+
+Después de configurar la variable en Render hay que reiniciar o desplegar el
+servicio y comprobar que `GET /api/config` devuelva
+`registrationEnabled: true` sin exponer el hash.
+
 ## Notificaciones
 
 ### Comportamiento esperado
@@ -193,7 +219,7 @@ Después de la Tanda 8 también se ejecuta
 deben devolver `passed = true`; además comprueba que la proyección de Trading y
 el JSON compatible contengan los mismos identificadores.
 
-La protección contra contraseñas filtradas requiere un plan pago de Supabase. Como este proyecto utiliza el plan Free y el registro público está cerrado, se documenta como una defensa opcional futura y no como un pendiente de esta etapa.
+La protección contra contraseñas filtradas requiere un plan pago de Supabase. Como este proyecto utiliza el plan Free, Supabase mantiene el alta pública desactivada y LifeCycle exige invitación más una contraseña mínima de 12 caracteres. La comprobación contra filtraciones queda documentada como defensa adicional para una futura migración de plan, no como requisito para compartir la aplicación con el grupo reducido previsto.
 
 ## Criterio de cierre en producción
 

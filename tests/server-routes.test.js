@@ -55,6 +55,32 @@ test('health exposes commit and non-sensitive notification state', async () => {
     );
 });
 
+test('public config exposes only registration availability', async () => {
+    const response = await fetch(`${baseUrl}/api/config`);
+    const result = await response.json();
+
+    assert.equal(response.status, 200);
+    assert.equal(result.registrationEnabled, false);
+    assert.equal(Object.hasOwn(result, 'registrationAccessCodeHash'), false);
+    assert.equal(JSON.stringify(result).includes('REGISTRATION_ACCESS_CODE_SHA256'), false);
+});
+
+test('invited registration fails closed without backend secrets', async () => {
+    const response = await fetch(`${baseUrl}/api/auth/register`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            email: 'qa@example.com',
+            password: 'a-secure-passphrase',
+            accessCode: 'QA-Invite-Example-2026'
+        })
+    });
+    const result = await response.json();
+
+    assert.equal(response.status, 503);
+    assert.match(result.error, /no está disponible/i);
+});
+
 test('notification diagnostics require the admin token', async () => {
     const unauthorized = await fetch(`${baseUrl}/api/admin/notification-status`);
     assert.equal(unauthorized.status, 401);

@@ -183,6 +183,10 @@ test('adaptive navigation uses a desktop sidebar and four mobile favorites plus 
     assert.match(appSource, /new AdaptiveNavigationModule\(this\)/);
     assert.match(appSource, /classList\.remove\('profile-view-active'\)/);
     assert.match(appSource, /classList\.add\('profile-view-active'\)/);
+    assert.match(
+        appSource,
+        /restoreUiState\(\)\s*\{[\s\S]*?activateProfileTab\([\s\S]*?activateSection\(/
+    );
     assert.match(navigationSource, /favorites\.slice\(0, 4\)/);
     assert.match(navigationSource, /className = 'nav-btn adaptive-nav-more'/);
     assert.match(navigationSource, /data-adaptive-nav-profile="preferencias"/);
@@ -229,6 +233,14 @@ test('recurring reminders use an accessible editor and the shared destructive pa
     assert.match(alertsSource, /event\.key === 'Tab'/);
     assert.match(alertsSource, /confirmAction\(\{/);
     assert.match(alertsSource, /showUndo\?\.\('Recordatorio eliminado\.'/);
+    assert.match(
+        alertsSource,
+        /const returnFocusTarget = this\.reminderModalReturnFocus;[\s\S]*?requestAnimationFrame\(\(\) => \{[\s\S]*?returnFocusTarget\.isConnected[\s\S]*?returnFocusTarget\.focus\(\)/
+    );
+    assert.doesNotMatch(
+        alertsSource,
+        /requestAnimationFrame\(\(\) => this\.reminderModalReturnFocus\.focus\(\)/
+    );
 });
 
 test('the first visual cleanup batch uses shared controls without native white states', async () => {
@@ -316,8 +328,9 @@ test('the second discoverability batch avoids duplicate branding and reuses card
     assert.match(vehicleSource, /data-vehicle-card-action="edit-config"/);
     assert.ok(trackersSource.includes("yellow: { label: 'Próximo'"));
     assert.ok(trackersSource.includes("orange: { label: 'Atención'"));
-    assert.match(trackersSource, /Empieza a mostrarse como cercano\./);
-    assert.match(trackersSource, /Ya alcanzó o superó el plazo definido\./);
+    assert.match(trackersSource, /Es el primer aviso y usa el valor menor\./);
+    assert.match(trackersSource, /Es el segundo aviso y usa el valor mayor\./);
+    assert.match(trackersSource, /Coincide con el plazo total definido\./);
 });
 
 test('configurable card history opens from the action menu in one reusable dialog', async () => {
@@ -791,6 +804,26 @@ test('vehicle cards are configurable without losing legacy data paths', async ()
     assert.match(catalogSource, /syncCardAlertConfig/);
     assert.match(trackerManagerSource, /data-tracker-category-filter="vehicle"/);
     assert.match(serverSource, /buildVehicleCatalogNotification/);
+});
+
+test('access gate supports server-controlled invitation registration', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const authSource = await readFile(
+        path.join(ROOT, 'modules', 'AuthSyncModule.js'),
+        'utf8'
+    );
+    const serverSource = await readFile(path.join(ROOT, 'server.js'), 'utf8');
+    const envExample = await readFile(path.join(ROOT, '.env.example'), 'utf8');
+
+    assert.match(index, /id="access-open-registration"/);
+    assert.match(index, /id="access-registration-form"/);
+    assert.match(index, /Código de invitación/);
+    assert.match(authSource, /registrationEnabled/);
+    assert.match(authSource, /\/api\/auth\/register/);
+    assert.match(serverSource, /REGISTRATION_ACCESS_CODE_SHA256/);
+    assert.match(serverSource, /supabase\?\.auth\?\.admin/);
+    assert.doesNotMatch(index, /REGISTRATION_ACCESS_CODE_SHA256/);
+    assert.match(envExample, /REGISTRATION_ACCESS_CODE_SHA256=/);
 });
 
 test('push management distinguishes devices, provider acceptance and failures', async () => {

@@ -109,7 +109,10 @@ test('yearly schedules preserve leap-day intent without skipping non-leap years'
         day: 1,
         dayOfWeek: 1
     }), false);
-    assert.match(describeRecurringSchedule(schedule), /Anual · 29 de febrero/);
+    assert.match(
+        describeRecurringSchedule(schedule),
+        /Anual · 29 de febrero \(o último día válido\)/
+    );
 });
 
 test('monthly and yearly reminder schedules survive registry updates', () => {

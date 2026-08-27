@@ -343,6 +343,51 @@ function normalizeInteger(value, {
     return number;
 }
 
+export function normalizeCustomTrackerDayThresholds(rawThresholds, {
+    strict = false
+} = {}) {
+    const candidate = isRecord(rawThresholds) ? rawThresholds : {};
+    if (strict && !isRecord(rawThresholds)) {
+        throw new CustomTrackerValidationError(
+            'Los avisos progresivos deben tener valores numéricos.'
+        );
+    }
+
+    const red = normalizeInteger(candidate.red, {
+        field: 'Vencido',
+        min: 1,
+        max: 3650,
+        fallback: 30,
+        strict
+    });
+    const defaultYellow = Math.max(1, Math.floor(red * 0.7));
+    const requestedYellow = normalizeInteger(candidate.yellow, {
+        field: 'Próximo',
+        min: 1,
+        max: red,
+        fallback: defaultYellow,
+        strict
+    });
+    const defaultOrange = Math.max(defaultYellow, Math.floor(red * 0.85));
+    const requestedOrange = normalizeInteger(candidate.orange, {
+        field: 'Atención',
+        min: 1,
+        max: red,
+        fallback: defaultOrange,
+        strict
+    });
+    const reordered = requestedYellow > requestedOrange;
+
+    return {
+        thresholds: {
+            yellow: Math.min(requestedYellow, requestedOrange),
+            orange: Math.max(requestedYellow, requestedOrange),
+            red
+        },
+        reordered
+    };
+}
+
 function normalizeIsoTimestamp(value, {
     field,
     fallback = null,
@@ -521,31 +566,10 @@ function normalizeThresholds(rawThresholds, cadence, { strict = false } = {}) {
         };
     }
 
-    const red = normalizeInteger(thresholdsCandidate.red, {
-        field: 'thresholds.red',
-        min: 1,
-        max: 3650,
-        fallback: cadence.value,
-        strict
-    });
-    const defaultYellow = Math.max(1, Math.floor(red * 0.7));
-    const yellow = normalizeInteger(thresholdsCandidate.yellow, {
-        field: 'thresholds.yellow',
-        min: 1,
-        max: red,
-        fallback: defaultYellow,
-        strict
-    });
-    const defaultOrange = Math.max(yellow, Math.floor(red * 0.85));
-    const orange = normalizeInteger(thresholdsCandidate.orange, {
-        field: 'thresholds.orange',
-        min: yellow,
-        max: red,
-        fallback: defaultOrange,
-        strict
-    });
-
-    return { yellow, orange, red };
+    return normalizeCustomTrackerDayThresholds({
+        ...thresholdsCandidate,
+        red: thresholdsCandidate.red ?? cadence.value
+    }, { strict }).thresholds;
 }
 
 function normalizeLegacySource(value, { strict = false } = {}) {

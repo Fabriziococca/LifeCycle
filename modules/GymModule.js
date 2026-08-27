@@ -865,7 +865,7 @@ export class GymModule {
             card.className = 'card';
             card.innerHTML = `
                 <div class="card-header" style="justify-content: space-between;">
-                    <h3 style="color: white; font-size: 1rem; margin: 0;">🏆 ${safeName}</h3>
+                    <h3 style="color: var(--text-primary); font-size: 1rem; margin: 0;">🏆 ${safeName}</h3>
                     <button type="button" class="btn-history-delete" title="Eliminar PR" aria-label="Eliminar récord de ${safeName}"><i class="ph ph-trash" style="font-size:1.1rem;"></i></button>
                 </div>
                 <div class="card-body" style="padding-top: 5px;">
@@ -873,8 +873,8 @@ export class GymModule {
                         ${Number.isFinite(weight) ? weight : 0} <span style="font-size: 1rem; font-weight: normal; color: var(--text-secondary);">kg</span>
                     </div>
                     <div style="font-size: 0.85rem; color: var(--text-secondary); display: flex; gap: 15px;">
-                        <span><strong style="color:white;">Reps:</strong> ${Number.isFinite(reps) ? reps : 0}</span>
-                        <span><strong style="color:white;">RIR:</strong> ${Number.isFinite(rir) ? rir : '-'}</span>
+                        <span><strong style="color:var(--text-primary);">Reps:</strong> ${Number.isFinite(reps) ? reps : 0}</span>
+                        <span><strong style="color:var(--text-primary);">RIR:</strong> ${Number.isFinite(rir) ? rir : '-'}</span>
                     </div>
                     <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 10px; text-align: right;">
                         Logrado: ${safeDate}
@@ -946,7 +946,7 @@ export class GymModule {
 
                 item.innerHTML = `
                     <div style="display: flex; justify-content: space-between; align-items: center; width: 100%;">
-                        <input type="text" class="routine-name-input" data-id="${exerciseId}" value="${exerciseName}" aria-label="Nombre del ejercicio" style="background:transparent; border:none; border-bottom:1px solid transparent; color:white; font-weight:600; font-size:1rem; padding:2px 0; width:80%; outline:none; transition: border-color 0.2s;" onfocus="this.style.borderBottomColor='var(--primary-color)'" onblur="this.style.borderBottomColor='transparent'">
+                        <input type="text" class="routine-name-input" data-id="${exerciseId}" value="${exerciseName}" aria-label="Nombre del ejercicio" style="background:transparent; border:none; border-bottom:1px solid transparent; color:var(--text-primary); font-weight:600; font-size:1rem; padding:2px 0; width:80%; outline:none; transition: border-color 0.2s;" onfocus="this.style.borderBottomColor='var(--primary-color)'" onblur="this.style.borderBottomColor='transparent'">
                         <button type="button" class="btn-history-delete" data-id="${exerciseId}" style="padding:0;" title="Eliminar ejercicio" aria-label="Eliminar ejercicio ${exerciseName}"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </div>
                     <div class="routine-inputs-row">
@@ -1019,7 +1019,7 @@ export class GymModule {
             const safeExerciseName = escapeHtml(exName);
             const exDiv = document.createElement('div');
             exDiv.className = 'card';
-            exDiv.style.background = 'rgba(255, 255, 255, 0.02)';
+            exDiv.style.background = 'var(--surface-subtle)';
             exDiv.style.padding = '15px';
             exDiv.style.border = '1px solid var(--surface-border)';
 
@@ -1052,7 +1052,7 @@ export class GymModule {
 
             exDiv.innerHTML = `
                 <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 10px; border-bottom: 1px dashed var(--surface-border); padding-bottom: 5px;">
-                    <strong style="color: white; font-size: 0.95rem;">${safeExerciseName}</strong>
+                    <strong style="color: var(--text-primary); font-size: 0.95rem;">${safeExerciseName}</strong>
                     <button type="button" class="btn-history-delete" style="padding:0;" title="Quitar ejercicio" aria-label="Quitar ejercicio ${safeExerciseName}"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
                 </div>
                 <div style="display:flex; flex-direction:column;">
@@ -1093,7 +1093,7 @@ export class GymModule {
         this.sessions.forEach(s => {
             const card = document.createElement('div');
             card.className = 'card';
-            card.style.background = 'rgba(255,255,255,0.02)';
+            card.style.background = 'var(--surface-subtle)';
 
             let exHtml = '<div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">';
             Object.keys(s.exercises).forEach(ex => {
@@ -1110,8 +1110,8 @@ export class GymModule {
                     return `S${idx+1}: <strong>${escapeHtml(val.weight)}kg</strong> x ${escapeHtml(val.reps)}${suffix}`;
                 }).join(' | ');
                 exHtml += `
-                    <div style="font-size:0.85rem; background:rgba(0,0,0,0.15); padding:8px; border-radius:6px; border:1px solid var(--surface-border);">
-                        <div style="font-weight:600; color:white; margin-bottom:3px;">${safeExerciseName}</div>
+                    <div style="font-size:0.85rem; background:var(--surface-inset); padding:8px; border-radius:6px; border:1px solid var(--surface-border);">
+                        <div style="font-weight:600; color:var(--text-primary); margin-bottom:3px;">${safeExerciseName}</div>
                         <div style="color:var(--text-secondary);">${setsStr}</div>
                     </div>
                 `;
@@ -1125,7 +1125,7 @@ export class GymModule {
                 <div class="card-header" style="justify-content: space-between; border-bottom: 1px dashed var(--surface-border); padding-bottom: 0.5rem;">
                     <div style="display:flex; align-items:center; gap:8px;">
                         <i class="ph ph-calendar" style="color:var(--primary-color);"></i>
-                        <h4 style="margin: 0; color: white;">Entrenamiento del ${sessionDate}</h4>
+                        <h4 style="margin: 0; color: var(--text-primary);">Entrenamiento del ${sessionDate}</h4>
                     </div>
                     <button class="btn-history-delete" style="padding:0;" title="Eliminar Sesión"><i class="ph ph-trash" style="font-size:1.15rem;"></i></button>
                 </div>
@@ -1255,21 +1255,21 @@ export class GymModule {
                 const safeGroupName = escapeHtml(grpName);
 
                 const trHeader = document.createElement('tr');
-                trHeader.style.background = 'rgba(255,255,255,0.02)';
+                trHeader.style.background = 'var(--surface-subtle)';
                 trHeader.innerHTML = `
                     <td style="padding: 8px;">
                         <button type="button" class="btn-group-toggle" style="background:transparent; border:none; color:var(--primary-color); cursor:pointer; padding: 2px 5px; font-size:0.8rem;" title="Mostrar u ocultar grupo" aria-label="Mostrar u ocultar grupo ${safeGroupName}">
                             <i class="ph ${isCollapsed ? 'ph-caret-right' : 'ph-caret-down'}"></i>
                         </button>
-                        <strong style="color: white;">📁 ${safeGroupName}</strong>
+                        <strong style="color: var(--text-primary);">📁 ${safeGroupName}</strong>
                     </td>
                     <td style="color:var(--text-secondary);">-</td>
-                    <td style="font-weight:bold; color:white;">${grpKcal.toFixed(0)}</td>
-                    <td style="font-weight:bold; color:white;">${grpProtein.toFixed(1)}g</td>
-                    <td style="font-weight:bold; color:white;">${grpCarbs.toFixed(1)}g</td>
-                    <td style="font-weight:bold; color:white;">${grpFat.toFixed(1)}g</td>
-                    <td style="font-weight:bold; color:white;">${grpSodium.toFixed(0)}mg</td>
-                    <td style="font-weight:bold; color:white;">${grpFiber.toFixed(1)}g</td>
+                    <td style="font-weight:bold; color:var(--text-primary);">${grpKcal.toFixed(0)}</td>
+                    <td style="font-weight:bold; color:var(--text-primary);">${grpProtein.toFixed(1)}g</td>
+                    <td style="font-weight:bold; color:var(--text-primary);">${grpCarbs.toFixed(1)}g</td>
+                    <td style="font-weight:bold; color:var(--text-primary);">${grpFat.toFixed(1)}g</td>
+                    <td style="font-weight:bold; color:var(--text-primary);">${grpSodium.toFixed(0)}mg</td>
+                    <td style="font-weight:bold; color:var(--text-primary);">${grpFiber.toFixed(1)}g</td>
                     <td style="text-align:right;">
                         <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar grupo" aria-label="Eliminar grupo ${safeGroupName}"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
                     </td>
@@ -1297,12 +1297,12 @@ export class GymModule {
                         trItem.innerHTML = `
                             <td style="padding: 8px 8px 8px 24px; color: var(--text-secondary);">↳ ${safeMealName}</td>
                             <td style="color:var(--text-secondary);">${safeQuantity}${safeUnit}</td>
-                            <td style="color:white;">${mKcal.toFixed(0)}</td>
-                            <td style="color:white;">${mProtein.toFixed(1)}g</td>
-                            <td style="color:white;">${mCarbs.toFixed(1)}g</td>
-                            <td style="color:white;">${mFat.toFixed(1)}g</td>
-                            <td style="color:white;">${mSodium.toFixed(0)}mg</td>
-                            <td style="color:white;">${mFiber.toFixed(1)}g</td>
+                            <td style="color:var(--text-primary);">${mKcal.toFixed(0)}</td>
+                            <td style="color:var(--text-primary);">${mProtein.toFixed(1)}g</td>
+                            <td style="color:var(--text-primary);">${mCarbs.toFixed(1)}g</td>
+                            <td style="color:var(--text-primary);">${mFat.toFixed(1)}g</td>
+                            <td style="color:var(--text-primary);">${mSodium.toFixed(0)}mg</td>
+                            <td style="color:var(--text-primary);">${mFiber.toFixed(1)}g</td>
                             <td style="text-align:right; white-space:nowrap;">
                                 <button type="button" class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar comida" aria-label="Editar comida ${safeMealName}"><i class="ph ph-pencil" style="font-size:0.95rem;"></i></button>
                                 <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar comida" aria-label="Eliminar comida ${safeMealName}"><i class="ph ph-trash" style="font-size:0.95rem;"></i></button>
@@ -1338,14 +1338,14 @@ export class GymModule {
 
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="padding: 8px; font-weight:600; color:white;">${safeMealName}</td>
+                    <td style="padding: 8px; font-weight:600; color:var(--text-primary);">${safeMealName}</td>
                     <td>${safeQuantity}${safeUnit}</td>
-                    <td style="color:white;">${mKcal.toFixed(0)}</td>
-                    <td style="color:white;">${mProtein.toFixed(1)}g</td>
-                    <td style="color:white;">${mCarbs.toFixed(1)}g</td>
-                    <td style="color:white;">${mFat.toFixed(1)}g</td>
-                    <td style="color:white;">${mSodium.toFixed(0)}mg</td>
-                    <td style="color:white;">${mFiber.toFixed(1)}g</td>
+                    <td style="color:var(--text-primary);">${mKcal.toFixed(0)}</td>
+                    <td style="color:var(--text-primary);">${mProtein.toFixed(1)}g</td>
+                    <td style="color:var(--text-primary);">${mCarbs.toFixed(1)}g</td>
+                    <td style="color:var(--text-primary);">${mFat.toFixed(1)}g</td>
+                    <td style="color:var(--text-primary);">${mSodium.toFixed(0)}mg</td>
+                    <td style="color:var(--text-primary);">${mFiber.toFixed(1)}g</td>
                     <td style="text-align:right; white-space:nowrap;">
                         <button type="button" class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar comida" aria-label="Editar comida ${safeMealName}"><i class="ph ph-pencil" style="font-size:1rem;"></i></button>
                         <button type="button" class="btn-history-delete" style="padding:0;" title="Eliminar comida" aria-label="Eliminar comida ${safeMealName}"><i class="ph ph-trash" style="font-size:1rem;"></i></button>
@@ -1483,8 +1483,8 @@ export class GymModule {
             el.style.justifyContent = 'space-between';
             el.style.fontSize = '0.8rem';
             el.style.padding = '6px 0';
-            el.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-            el.style.color = 'white';
+            el.style.borderBottom = '1px solid var(--divider-color)';
+            el.style.color = 'var(--text-primary)';
             el.style.alignItems = 'center';
             el.innerHTML = `
                 <span>📅 ${safeDate} - ⚖️ <strong>${Number.isFinite(numericWeight) ? numericWeight.toFixed(2) : '-'}kg</strong> ${Number.isFinite(numericFasting) && numericFasting > 0 ? `(${numericFasting}h ayuno)` : ''}</span>
@@ -1534,18 +1534,18 @@ export class GymModule {
                     : '-'
             );
             return `
-                <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--primary-color)" stroke="#ffffff" stroke-width="1.5">
+                <circle cx="${p.x}" cy="${p.y}" r="4" fill="var(--primary-color)" stroke="var(--surface-solid)" stroke-width="1.5">
                     <title>${dateStr}: ${p.weight.toFixed(2)} kg</title>
                 </circle>
-                <text x="${p.x}" y="${p.y - 8}" font-size="9" fill="#ffffff" text-anchor="middle" font-weight="bold">${p.weight.toFixed(1)}</text>
+                <text x="${p.x}" y="${p.y - 8}" font-size="9" fill="var(--text-primary)" text-anchor="middle" font-weight="bold">${p.weight.toFixed(1)}</text>
             `;
         }).join('');
 
         const svgHtml = `
             <svg viewBox="0 0 ${svgWidth} ${svgHeight}" style="width: 100%; height: auto; overflow: visible;">
                 <!-- Grid Horizontal Lines -->
-                <line x1="${padding}" y1="${padding}" x2="${svgWidth - padding}" y2="${padding}" stroke="rgba(255,255,255,0.08)" stroke-dasharray="3,3"/>
-                <line x1="${padding}" y1="${svgHeight - padding}" x2="${svgWidth - padding}" y2="${svgHeight - padding}" stroke="rgba(255,255,255,0.08)"/>
+                <line x1="${padding}" y1="${padding}" x2="${svgWidth - padding}" y2="${padding}" stroke="var(--divider-color)" stroke-dasharray="3,3"/>
+                <line x1="${padding}" y1="${svgHeight - padding}" x2="${svgWidth - padding}" y2="${svgHeight - padding}" stroke="var(--divider-color)"/>
                 
                 <!-- Weight Line -->
                 <polyline fill="none" stroke="var(--primary-color)" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" points="${polylinePoints}" />
@@ -1642,8 +1642,8 @@ export class GymModule {
             el.style.justifyContent = 'space-between';
             el.style.fontSize = '0.8rem';
             el.style.padding = '6px 0';
-            el.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-            el.style.color = 'white';
+            el.style.borderBottom = '1px solid var(--divider-color)';
+            el.style.color = 'var(--text-primary)';
             el.style.alignItems = 'center';
             el.innerHTML = `
                 <span>📅 Toma: ${safeDate}</span>
@@ -1817,8 +1817,8 @@ export class GymModule {
             el.style.justifyContent = 'space-between';
             el.style.fontSize = '0.8rem';
             el.style.padding = '6px 0';
-            el.style.borderBottom = '1px solid rgba(255,255,255,0.05)';
-            el.style.color = 'white';
+            el.style.borderBottom = '1px solid var(--divider-color)';
+            el.style.color = 'var(--text-primary)';
             el.style.alignItems = 'center';
             el.innerHTML = `
                 <span>📅 ${safeDate} - 💊 <strong>${safeType}</strong> ${safeNote}</span>
@@ -1949,13 +1949,13 @@ export class GymModule {
                 const safeGroupName = escapeHtml(grpName);
 
                 const trHeader = document.createElement('tr');
-                trHeader.style.background = 'rgba(255,255,255,0.02)';
+                trHeader.style.background = 'var(--surface-subtle)';
                 trHeader.innerHTML = `
                     <td style="padding: 8px;">
                         <button type="button" class="btn-group-toggle" style="background:transparent; border:none; color:var(--primary-color); cursor:pointer; padding: 2px 5px; font-size:0.8rem;" title="Mostrar u ocultar grupo" aria-label="Mostrar u ocultar grupo ${safeGroupName}">
                             <i class="ph ${isCollapsed ? 'ph-caret-right' : 'ph-caret-down'}"></i>
                         </button>
-                        <strong style="color: white;">📁 ${safeGroupName}</strong>
+                        <strong style="color: var(--text-primary);">📁 ${safeGroupName}</strong>
                     </td>
                     <td colspan="7" style="color:var(--text-secondary);">-</td>
                     <td style="text-align:right;">
@@ -1979,12 +1979,12 @@ export class GymModule {
                         trItem.innerHTML = `
                             <td style="padding: 8px 8px 8px 24px; color: var(--text-secondary);">↳ ${safeMealName}</td>
                             <td style="color:var(--text-secondary);">${safeQuantity}${safeUnit}</td>
-                            <td style="color:white;">${(parseFloat(m.kcal) || 0).toFixed(0)}</td>
-                            <td style="color:white;">${(parseFloat(m.protein) || 0).toFixed(1)}g</td>
-                            <td style="color:white;">${(parseFloat(m.carbs) || 0).toFixed(1)}g</td>
-                            <td style="color:white;">${(parseFloat(m.fat) || 0).toFixed(1)}g</td>
-                            <td style="color:white;">${(parseFloat(m.sodium) || 0).toFixed(0)}mg</td>
-                            <td style="color:white;">${(parseFloat(m.fiber) || 0).toFixed(1)}g</td>
+                            <td style="color:var(--text-primary);">${(parseFloat(m.kcal) || 0).toFixed(0)}</td>
+                            <td style="color:var(--text-primary);">${(parseFloat(m.protein) || 0).toFixed(1)}g</td>
+                            <td style="color:var(--text-primary);">${(parseFloat(m.carbs) || 0).toFixed(1)}g</td>
+                            <td style="color:var(--text-primary);">${(parseFloat(m.fat) || 0).toFixed(1)}g</td>
+                            <td style="color:var(--text-primary);">${(parseFloat(m.sodium) || 0).toFixed(0)}mg</td>
+                            <td style="color:var(--text-primary);">${(parseFloat(m.fiber) || 0).toFixed(1)}g</td>
                             <td style="text-align:right; white-space:nowrap;">
                                 <button type="button" class="btn-copy-fixed" style="padding:0; margin-right:6px;" title="Copiar a comidas fijas" aria-label="Copiar ${safeMealName} a comidas fijas"><i class="ph ph-calendar-plus" style="font-size:0.95rem;"></i></button>
                                 <button type="button" class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar comida" aria-label="Editar comida ${safeMealName}"><i class="ph ph-pencil" style="font-size:0.95rem;"></i></button>
@@ -2010,14 +2010,14 @@ export class GymModule {
                 const safeUnit = escapeHtml(m.unit || 'u');
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td style="padding: 8px; font-weight:600; color:white;">${safeMealName}</td>
+                    <td style="padding: 8px; font-weight:600; color:var(--text-primary);">${safeMealName}</td>
                     <td>${safeQuantity}${safeUnit}</td>
-                    <td style="color:white;">${(parseFloat(m.kcal) || 0).toFixed(0)}</td>
-                    <td style="color:white;">${(parseFloat(m.protein) || 0).toFixed(1)}g</td>
-                    <td style="color:white;">${(parseFloat(m.carbs) || 0).toFixed(1)}g</td>
-                    <td style="color:white;">${(parseFloat(m.fat) || 0).toFixed(1)}g</td>
-                    <td style="color:white;">${(parseFloat(m.sodium) || 0).toFixed(0)}mg</td>
-                    <td style="color:white;">${(parseFloat(m.fiber) || 0).toFixed(1)}g</td>
+                    <td style="color:var(--text-primary);">${(parseFloat(m.kcal) || 0).toFixed(0)}</td>
+                    <td style="color:var(--text-primary);">${(parseFloat(m.protein) || 0).toFixed(1)}g</td>
+                    <td style="color:var(--text-primary);">${(parseFloat(m.carbs) || 0).toFixed(1)}g</td>
+                    <td style="color:var(--text-primary);">${(parseFloat(m.fat) || 0).toFixed(1)}g</td>
+                    <td style="color:var(--text-primary);">${(parseFloat(m.sodium) || 0).toFixed(0)}mg</td>
+                    <td style="color:var(--text-primary);">${(parseFloat(m.fiber) || 0).toFixed(1)}g</td>
                     <td style="text-align:right; white-space:nowrap;">
                         <button type="button" class="btn-copy-fixed" style="padding:0; margin-right:6px;" title="Copiar a comidas fijas" aria-label="Copiar ${safeMealName} a comidas fijas"><i class="ph ph-calendar-plus" style="font-size:1rem;"></i></button>
                         <button type="button" class="btn-history-edit" style="padding:0; margin-right:6px;" title="Editar comida" aria-label="Editar comida ${safeMealName}"><i class="ph ph-pencil" style="font-size:1rem;"></i></button>

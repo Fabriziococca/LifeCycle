@@ -772,7 +772,7 @@ export class VehicleModule {
             div.innerHTML = `
                 <div class="vehicle-issue-content">
                     <div class="vehicle-issue-title-row">
-                        <strong style="color:white; font-size:0.95rem;">${safeTitle}</strong>
+                        <strong style="color:var(--text-primary); font-size:0.95rem;">${safeTitle}</strong>
                         ${urgencyBadge}
                     </div>
                     <div class="vehicle-issue-meta">

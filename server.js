@@ -36,6 +36,10 @@ const {
     safeEqualStrings
 } = require('./security-utils');
 const {
+    createInvitedUser,
+    isInvitedRegistrationConfigured
+} = require('./registration-utils');
+const {
     attachPushDeliveryMetadata,
     createPushReceiptCredential,
     endpointFingerprint,
@@ -226,6 +230,12 @@ webpush.setVapidDetails(
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
 const supabase = supabaseUrl ? createClient(supabaseUrl, supabaseKey) : null;
+const hasSupabaseServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+const registrationAccessCodeHash = process.env.REGISTRATION_ACCESS_CODE_SHA256 || '';
+const registrationEnabled = isInvitedRegistrationConfigured({
+    authAdmin: hasSupabaseServiceRole ? supabase?.auth?.admin : null,
+    accessCodeHash: registrationAccessCodeHash
+});
 
 if (!supabase) {
     console.warn("⚠️ Advertencia: SUPABASE_URL no está configurada. Supabase no estará disponible en el backend.");
@@ -1288,6 +1298,29 @@ const rateLimiter = (req, res, next) => {
     next();
 };
 
+const registrationIpAttempts = new Map();
+const REGISTRATION_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
+const REGISTRATION_ATTEMPT_LIMIT = 8;
+
+const registrationRateLimiter = (req, res, next) => {
+    const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
+    const ip = forwardedFor || req.socket.remoteAddress || req.ip || 'unknown';
+    const now = Date.now();
+    const previous = registrationIpAttempts.get(ip);
+    const current = !previous || previous.resetAt <= now
+        ? { count: 0, resetAt: now + REGISTRATION_ATTEMPT_WINDOW_MS }
+        : previous;
+
+    current.count += 1;
+    registrationIpAttempts.set(ip, current);
+    if (current.count > REGISTRATION_ATTEMPT_LIMIT) {
+        return res.status(429).json({
+            error: 'Demasiados intentos de registro. Esperá unos minutos antes de volver a probar.'
+        });
+    }
+    next();
+};
+
 // Middleware
 app.disable('x-powered-by');
 app.use((req, res, next) => {
@@ -1348,8 +1381,32 @@ app.get('/api/config', (req, res) => {
     res.json({
         supabaseUrl: process.env.SUPABASE_URL || '',
         supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
-        vapidPublicKey: publicKey
+        vapidPublicKey: publicKey,
+        registrationEnabled
     });
+});
+
+app.post('/api/auth/register', registrationRateLimiter, async (req, res) => {
+    try {
+        const result = await createInvitedUser({
+            authAdmin: hasSupabaseServiceRole ? supabase?.auth?.admin : null,
+            accessCodeHash: registrationAccessCodeHash,
+            email: req.body?.email,
+            password: req.body?.password,
+            accessCode: req.body?.accessCode
+        });
+
+        if (result.internalErrorCode) {
+            const safeCode = result.internalErrorCode.replace(/[^a-zA-Z0-9_-]/g, '').slice(0, 64);
+            console.warn(`[Auth] No se pudo crear una cuenta invitada. code=${safeCode || 'unknown'}`);
+        }
+        return res.status(result.status).json(result.body);
+    } catch (error) {
+        console.error('[Auth] Falló el registro por invitación:', error?.message || 'unknown');
+        return res.status(500).json({
+            error: 'No se pudo crear la cuenta en este momento. Intentá nuevamente más tarde.'
+        });
+    }
 });
 
 app.get('/api/rules', (req, res) => {

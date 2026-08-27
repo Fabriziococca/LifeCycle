@@ -47,7 +47,7 @@
                 <div class="access-gate-icon"><i class="ph-fill ph-activity"></i></div>
                 <div>
                     <h1>LifeCycle</h1>
-                    <p>Acceso personal</p>
+                    <p>Ingresá a tu cuenta</p>
                 </div>
             </div>
 
@@ -69,7 +69,42 @@
                 <button type="submit" class="btn btn-primary access-gate-submit">
                     <i class="ph ph-sign-in"></i> Entrar a LifeCycle
                 </button>
-                <p class="access-gate-help">El registro público está deshabilitado. Solo tu cuenta puede acceder.</p>
+                <button id="access-open-registration" type="button" class="btn btn-secondary access-gate-register hidden">
+                    <i class="ph ph-user-plus"></i> Crear una cuenta
+                </button>
+            </form>
+
+            <form id="access-registration-form" class="access-gate-form hidden" autocomplete="on">
+                <div class="access-gate-form-heading">
+                    <h2>Crear cuenta</h2>
+                    <p>Necesitás el código de invitación que te compartió el administrador.</p>
+                </div>
+                <div class="input-group">
+                    <label for="access-registration-code">Código de invitación</label>
+                    <input type="password" id="access-registration-code" class="text-input" autocomplete="off" required minlength="8" maxlength="256">
+                </div>
+                <div class="input-group">
+                    <label for="access-registration-email">Correo electrónico</label>
+                    <input type="email" id="access-registration-email" class="text-input" autocomplete="email" required maxlength="254">
+                </div>
+                <div class="input-group">
+                    <label for="access-registration-password">Contraseña</label>
+                    <input type="password" id="access-registration-password" class="text-input" autocomplete="new-password" required minlength="12" maxlength="128">
+                    <small>Usá al menos 12 caracteres.</small>
+                </div>
+                <div class="input-group">
+                    <label for="access-registration-password-confirm">Repetir contraseña</label>
+                    <input type="password" id="access-registration-password-confirm" class="text-input" autocomplete="new-password" required minlength="12" maxlength="128">
+                </div>
+                <p id="access-registration-error" class="access-gate-error hidden"></p>
+                <div class="access-gate-registration-actions">
+                    <button id="access-cancel-registration" type="button" class="btn btn-secondary">
+                        Volver
+                    </button>
+                    <button id="access-submit-registration" type="submit" class="btn btn-primary">
+                        <i class="ph ph-user-plus"></i> Crear cuenta
+                    </button>
+                </div>
             </form>
 
             <div id="access-gate-unavailable" class="access-gate-state hidden">

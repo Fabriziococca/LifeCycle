@@ -2242,20 +2242,20 @@ export class FinanzasModule {
                         <i class="ph ph-caret-right" id="fin-freelance-caret" style="transition: transform 0.2s;"></i>
                         <i class="ph ph-briefcase" style="color:var(--primary-color);"></i> Freelance (Proyectos)
                     </span>
-                    <strong style="color:white;">${this.formatAmount(catFreelance)} (${pctFreelance.toFixed(0)}%)</strong>
+                    <strong style="color:var(--text-primary);">${this.formatAmount(catFreelance)} (${pctFreelance.toFixed(0)}%)</strong>
                 </div>
-                <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                <div style="height:8px; background:var(--progress-track); border-radius:4px; overflow:hidden;">
                     <div style="height:100%; width:${pctFreelance}%; background:var(--primary-color); border-radius:4px; transition:width 0.3s;"></div>
                 </div>
                 <!-- Sub-desglose freelance -->
-                <div id="fin-freelance-sub-breakdown" class="hidden" style="padding-left: 20px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; border-left: 2px solid rgba(255,255,255,0.05); margin-left: 6px;">
+                <div id="fin-freelance-sub-breakdown" class="hidden" style="padding-left: 20px; font-size: 0.8rem; display: flex; flex-direction: column; gap: 8px; margin-top: 4px; border-left: 2px solid var(--divider-color); margin-left: 6px;">
                     <div style="display:flex; justify-content:space-between; width: 100%;">
                         <span style="color:var(--text-secondary);">💻 Workana:</span>
-                        <strong style="color:white;">${this.formatAmount(freelanceWorkana)}</strong>
+                        <strong style="color:var(--text-primary);">${this.formatAmount(freelanceWorkana)}</strong>
                     </div>
                     <div style="display:flex; justify-content:space-between; width: 100%;">
                         <span style="color:var(--text-secondary);">🌍 Externo (LinkedIn/Otros):</span>
-                        <strong style="color:white;">${this.formatAmount(freelanceExternal)}</strong>
+                        <strong style="color:var(--text-primary);">${this.formatAmount(freelanceExternal)}</strong>
                     </div>
                 </div>
             </div>
@@ -2263,9 +2263,9 @@ export class FinanzasModule {
             <div style="display:flex; flex-direction:column; gap:6px;">
                 <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
                     <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-chat-circle" style="color:var(--status-purple);"></i> Discord (Negocio)</span>
-                    <strong style="color:white;">${this.formatAmount(catDiscord)} (${pctDiscord.toFixed(0)}%)</strong>
+                    <strong style="color:var(--text-primary);">${this.formatAmount(catDiscord)} (${pctDiscord.toFixed(0)}%)</strong>
                 </div>
-                <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                <div style="height:8px; background:var(--progress-track); border-radius:4px; overflow:hidden;">
                     <div style="height:100%; width:${pctDiscord}%; background:var(--status-purple); border-radius:4px; transition:width 0.3s;"></div>
                 </div>
             </div>
@@ -2273,9 +2273,9 @@ export class FinanzasModule {
             <div style="display:flex; flex-direction:column; gap:6px;">
                 <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
                     <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-chart-line-up" style="color:var(--status-green);"></i> Trading</span>
-                    <strong style="color:white;">${this.formatAmount(catTrading)} (${pctTrading.toFixed(0)}%)</strong>
+                    <strong style="color:var(--text-primary);">${this.formatAmount(catTrading)} (${pctTrading.toFixed(0)}%)</strong>
                 </div>
-                <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                <div style="height:8px; background:var(--progress-track); border-radius:4px; overflow:hidden;">
                     <div style="height:100%; width:${pctTrading}%; background:var(--status-green); border-radius:4px; transition:width 0.3s;"></div>
                 </div>
             </div>
@@ -2283,9 +2283,9 @@ export class FinanzasModule {
             <div style="display:flex; flex-direction:column; gap:6px;">
                 <div style="display:flex; justify-content:space-between; font-size:0.9rem;">
                     <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;"><i class="ph ph-gift" style="color:var(--status-yellow);"></i> Ingresos Extraordinarios</span>
-                    <strong style="color:white;">${this.formatAmount(catExtraordinary)} (${pctExtraordinary.toFixed(0)}%)</strong>
+                    <strong style="color:var(--text-primary);">${this.formatAmount(catExtraordinary)} (${pctExtraordinary.toFixed(0)}%)</strong>
                 </div>
-                <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                <div style="height:8px; background:var(--progress-track); border-radius:4px; overflow:hidden;">
                     <div style="height:100%; width:${pctExtraordinary}%; background:var(--status-yellow); border-radius:4px; transition:width 0.3s;"></div>
                 </div>
             </div>
@@ -2332,16 +2332,16 @@ export class FinanzasModule {
             const isManual = !String(e.id).startsWith('proj-');
             const deleteBtn = isManual
                 ? `<button type="button" class="btn-delete-fin-item icon-btn icon-btn-sm is-danger" data-id="${safeId}" data-tooltip="Eliminar ingreso" aria-label="Eliminar ingreso ${safeDescription}"><i class="ph ph-trash" aria-hidden="true"></i></button>`
-                : `<span style="font-size: 0.7rem; color: var(--text-secondary); padding: 4px 8px; background: rgba(255,255,255,0.03); border:1px solid var(--surface-border); border-radius:4px;">Proyecto</span>`;
+                : `<span style="font-size: 0.7rem; color: var(--text-secondary); padding: 4px 8px; background: var(--surface-subtle); border:1px solid var(--surface-border); border-radius:4px;">Proyecto</span>`;
 
             return `
-                <div class="card" style="margin:0; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; border: 1px solid rgba(255,255,255,0.03); gap: 10px;">
+                <div class="card" style="margin:0; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; border: 1px solid var(--surface-border); gap: 10px;">
                     <div style="display:flex; align-items:center; gap:12px; min-width:0;">
-                        <div class="icon-container" style="background: rgba(255,255,255,0.03); color: ${color}; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:50%; flex-shrink:0;">
+                        <div class="icon-container" style="background: var(--surface-subtle); color: ${color}; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:50%; flex-shrink:0;">
                             <i class="ph ${icon}" style="font-size:1.2rem;"></i>
                         </div>
                         <div style="min-width:0;">
-                            <h4 style="margin:0; font-size:0.95rem; color:white; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeDescription}</h4>
+                            <h4 style="margin:0; font-size:0.95rem; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeDescription}</h4>
                             <p style="margin:3px 0 0 0; font-size:0.75rem; color:var(--text-secondary);">${catName} • ${safeDate}</p>
                         </div>
                     </div>
@@ -2410,9 +2410,9 @@ export class FinanzasModule {
                             <span style="color:var(--text-secondary); display:flex; align-items:center; gap:6px;">
                                 <i class="ph ${meta.icon}" style="color:${meta.color};"></i> ${escapeHtml(meta.name)}
                             </span>
-                            <strong style="color:white;">${this.formatAmount(amount)} (${pct.toFixed(0)}%)</strong>
+                            <strong style="color:var(--text-primary);">${this.formatAmount(amount)} (${pct.toFixed(0)}%)</strong>
                         </div>
-                        <div style="height:8px; background:rgba(255,255,255,0.05); border-radius:4px; overflow:hidden;">
+                        <div style="height:8px; background:var(--progress-track); border-radius:4px; overflow:hidden;">
                             <div style="height:100%; width:${pct}%; background:${meta.color}; border-radius:4px; transition:width 0.3s;"></div>
                         </div>
                     </div>
@@ -2449,13 +2449,13 @@ export class FinanzasModule {
             const safeId = escapeHtml(e.id);
 
             return `
-                <div class="card" style="margin:0; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; border: 1px solid rgba(255,255,255,0.03); gap: 10px;">
+                <div class="card" style="margin:0; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; border: 1px solid var(--surface-border); gap: 10px;">
                     <div style="display:flex; align-items:center; gap:12px; min-width:0;">
-                        <div class="icon-container" style="background: rgba(255,255,255,0.03); color: ${meta.color}; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:50%; flex-shrink:0;">
+                        <div class="icon-container" style="background: var(--surface-subtle); color: ${meta.color}; width:36px; height:36px; display:flex; align-items:center; justify-content:center; border-radius:50%; flex-shrink:0;">
                             <i class="ph ${meta.icon}" style="font-size:1.2rem;"></i>
                         </div>
                         <div style="min-width:0;">
-                            <h4 style="margin:0; font-size:0.95rem; color:white; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeDescription}</h4>
+                            <h4 style="margin:0; font-size:0.95rem; color:var(--text-primary); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${safeDescription}</h4>
                             <p style="margin:3px 0 0 0; font-size:0.75rem; color:var(--text-secondary);">${safeCategoryName} • ${safeDate}</p>
                         </div>
                     </div>

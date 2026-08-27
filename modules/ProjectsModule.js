@@ -13,6 +13,7 @@ import {
     getMovementMonthKey,
     groupProjectIncomeMovementsByMonth
 } from '../project-income-utils.mjs?v=20260808-project-income';
+import { normalizeProjectSubscription } from '../project-subscription-utils.mjs?v=20260826-project-subscription';
 
 export class ProjectsModule {
     
@@ -66,22 +67,7 @@ export class ProjectsModule {
             }
 
             const subscription = localStorage.getItem('projectPulseSubscription');
-            if (subscription) {
-                const parsed = JSON.parse(subscription);
-                this.subscription = (parsed && typeof parsed === 'object') ? parsed : {
-                    plan: 'Explorer',
-                    cost: 37.18,
-                    cycle: 3,
-                    startDate: '2026-04-24'
-                };
-            } else {
-                this.subscription = {
-                    plan: 'Explorer',
-                    cost: 37.18,
-                    cycle: 3,
-                    startDate: '2026-04-24'
-                };
-            }
+            this.subscription = normalizeProjectSubscription(subscription);
 
             const templates = localStorage.getItem('projectPulseTemplates');
             this.templateRegistry = normalizeProjectTemplateRegistry(templates);
@@ -90,19 +76,18 @@ export class ProjectsModule {
             this.projects = [];
             this.history = [];
             this.templateRegistry = normalizeProjectTemplateRegistry(null);
-            this.subscription = {
-                plan: 'Explorer',
-                cost: 37.18,
-                cycle: 3,
-                startDate: '2026-04-24'
-            };
+            this.subscription = null;
         }
     }
 
     saveData() {
         localStorage.setItem('projectPulseData', JSON.stringify(this.projects));
         localStorage.setItem('projectPulseHistory', JSON.stringify(this.history));
-        localStorage.setItem('projectPulseSubscription', JSON.stringify(this.subscription));
+        if (this.subscription) {
+            localStorage.setItem('projectPulseSubscription', JSON.stringify(this.subscription));
+        } else {
+            localStorage.removeItem('projectPulseSubscription');
+        }
     }
 
     saveTemplateData() {
@@ -497,7 +482,12 @@ export class ProjectsModule {
                 const isHidden = subForm.classList.toggle('hidden');
                 if (!isHidden) {
                     // Prefill values
-                    const sub = this.subscription;
+                    const sub = this.subscription || {
+                        plan: 'Free',
+                        cost: 0,
+                        cycle: 1,
+                        startDate: getLocalISODate()
+                    };
                     const isStandard = ['Explorer', 'Profesional', 'Beginner', 'Free'].includes(sub.plan);
                     selectPlan.value = isStandard ? sub.plan : 'custom';
                     if (!isStandard) {
@@ -1109,7 +1099,7 @@ export class ProjectsModule {
                     ${p.partialReleases.map(r => `
                         <div style="display: flex; justify-content: space-between; font-size: 0.8rem; color: var(--text-secondary); margin-bottom: 3px;">
                             <span>${r.date} (${r.percent}%):</span>
-                            <strong style="color: white;">${this.formatAmount(r.netAmount)}</strong>
+                            <strong style="color: var(--text-primary);">${this.formatAmount(r.netAmount)}</strong>
                         </div>
                     `).join('')}
                 </div>`;
@@ -1235,7 +1225,40 @@ export class ProjectsModule {
 
         if (!subNameEl || !startDateEl || !endDateEl || !costValEl || !daysCountEl || !badgeEl || !cardEl) return;
 
-        const sub = this.subscription;
+        const titleEl = cardEl.querySelector('.card-header h3');
+        const editButton = document.getElementById('btn-edit-sub');
+        const sub = normalizeProjectSubscription(this.subscription);
+
+        if (!sub) {
+            this.subscription = null;
+            if (titleEl) {
+                titleEl.textContent = 'Suscripción de plataforma';
+                titleEl.style.color = 'var(--text-primary)';
+            }
+            subNameEl.textContent = 'Sin configurar';
+            startDateEl.textContent = '—';
+            endDateEl.textContent = '—';
+            costValEl.textContent = '—';
+            daysCountEl.textContent = '—';
+            daysCountEl.style.color = 'var(--text-secondary)';
+            badgeEl.textContent = 'Opcional';
+            badgeEl.className = 'badge';
+            cardEl.style.borderColor = '';
+            if (editButton) {
+                editButton.innerHTML = '<i class="ph ph-gear"></i> Configurar suscripción';
+            }
+            this.app.notificationsCenter?.updateBadge();
+            return;
+        }
+
+        if (titleEl) {
+            titleEl.textContent = 'Plan Workana';
+            titleEl.style.color = 'var(--text-primary)';
+        }
+        if (editButton) {
+            editButton.innerHTML = '<i class="ph ph-gear"></i> Ajustar suscripción';
+        }
+        this.subscription = sub;
         const start = new Date(sub.startDate + 'T12:00:00');
         const expiry = new Date(start);
         expiry.setMonth(expiry.getMonth() + parseInt(sub.cycle));
@@ -1431,8 +1454,8 @@ export class ProjectsModule {
 
             const isRunning = p.timerStart !== null;
             const btnTimerIcon = p.isArbitration ? '🔒' : (isRunning ? '⏸️' : '▶️');
-            const btnTimerBg = p.isArbitration ? 'rgba(255,255,255,0.05)' : (isRunning ? 'var(--status-red)' : 'var(--primary-color)');
-            const btnTimerColor = p.isArbitration ? 'var(--text-secondary)' : 'white';
+            const btnTimerBg = p.isArbitration ? 'var(--surface-subtle)' : (isRunning ? 'var(--status-red)' : 'var(--primary-color)');
+            const btnTimerColor = p.isArbitration ? 'var(--text-secondary)' : 'var(--text-on-accent)';
             const timerButtonLabel = p.isArbitration
                 ? 'Temporizador bloqueado durante el arbitraje'
                 : (isRunning ? 'Pausar temporizador' : 'Iniciar temporizador');
@@ -1446,13 +1469,13 @@ export class ProjectsModule {
             card.innerHTML = `
                 <div class="project-card-header" style="margin-bottom: 0.5rem; display:flex; justify-content:space-between; align-items:flex-start;">
                     <div class="project-card-info" style="min-width:0; flex:1;">
-                        <h3 class="project-client" style="color:white; font-size:1.15rem; margin:0; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
+                        <h3 class="project-client" style="color:var(--text-primary); font-size:1.15rem; margin:0; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
                             ${safeClient}
                         </h3>
                         <p class="project-name" style="color:var(--text-secondary); font-size:0.85rem; margin: 2px 0 6px 0; font-weight: 500; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">${safeProjectName}</p>
                     </div>
                     <div class="countdown-badge-wrapper" style="flex-shrink:0; margin-left:10px;">
-                        <div class="countdown-badge" style="background: rgba(0,0,0,0.3); border: 1.5px solid ${colorVar}; color: ${colorVar}; padding: 4px 10px; border-radius: 10px; font-weight: 800; font-size: 0.95rem; font-variant-numeric: tabular-nums;">
+                        <div class="countdown-badge" style="background: var(--surface-inset); border: 1.5px solid ${colorVar}; color: ${colorVar}; padding: 4px 10px; border-radius: 10px; font-weight: 800; font-size: 0.95rem; font-variant-numeric: tabular-nums;">
                             ${safeCountdownText}
                         </div>
                     </div>
@@ -1471,7 +1494,7 @@ export class ProjectsModule {
 
                 ${partialReleaseHTML}
 
-                <div class="finance-block" style="display: flex; justify-content: space-between; align-items: center; background: rgba(255,255,255,0.02); border: 1px solid var(--surface-border); padding: 6px 10px; border-radius: 8px; margin-bottom: 0.6rem;">
+                <div class="finance-block" style="display: flex; justify-content: space-between; align-items: center; background: var(--surface-inset); border: 1px solid var(--surface-border); padding: 6px 10px; border-radius: 8px; margin-bottom: 0.6rem;">
                     <span class="gross-amount" style="font-size: 0.78rem; color: var(--text-secondary);">Bruto: ${this.formatAmount(p.budgetGross || 0)}</span>
                     <strong class="net-amount" style="font-size: 0.9rem; color: var(--status-green);">Neto Pendiente: ${this.formatAmount(pendingNet)}</strong>
                 </div>

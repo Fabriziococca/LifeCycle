@@ -439,8 +439,11 @@ export class AlertsModule {
         if (!document.querySelector('.modal:not(.hidden), .custom-tracker-dialog:not(.hidden)')) {
             document.body.classList.remove('modal-open');
         }
-        if (restoreFocus && this.reminderModalReturnFocus?.isConnected) {
-            requestAnimationFrame(() => this.reminderModalReturnFocus.focus());
+        const returnFocusTarget = this.reminderModalReturnFocus;
+        if (restoreFocus && returnFocusTarget?.isConnected) {
+            requestAnimationFrame(() => {
+                if (returnFocusTarget.isConnected) returnFocusTarget.focus();
+            });
         }
         this.editingRecurringReminderId = null;
         this.reminderModalReturnFocus = null;
@@ -614,7 +617,7 @@ export class AlertsModule {
             html += `
                 <button type="button" class="alerts-tab-btn ${isActive ? 'active' : ''}" data-category="${cat}" aria-pressed="${isActive}">
                     <span>${CATEGORY_NAMES[cat]}</span>
-                    <span style="background: rgba(255,255,255,0.15); padding: 1px 7px; border-radius: 10px; font-size: 0.75rem;">${count}</span>
+                    <span style="background: var(--surface-subtle); border: 1px solid var(--border-subtle); padding: 1px 7px; border-radius: 10px; font-size: 0.75rem;">${count}</span>
                 </button>
             `;
         });
@@ -699,14 +702,14 @@ export class AlertsModule {
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);" title="Frecuencia de repetición dinámica mientras esté pendiente/sucio">Repetir cada:</span>
                         <div style="display: flex; align-items: center; gap: 4px;">
-                            <input type="number" class="alert-interval-input" min="1" max="48" value="${conf.interval_hours || def.intervalHours || (def.key === 'very_urgent_tasks' ? 4 : 6)}" aria-label="Horas entre alertas de ${safeName}" style="width: 60px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem; text-align: center;">
+                            <input type="number" class="alert-interval-input" min="1" max="48" value="${conf.interval_hours || def.intervalHours || (def.key === 'very_urgent_tasks' ? 4 : 6)}" aria-label="Horas entre alertas de ${safeName}" style="width: 60px; padding: 4px 6px; border-radius: 6px; border: 1px solid var(--surface-border); background: var(--control-bg); color: var(--text-primary); font-size: 0.85rem; text-align: center;">
                             <span style="font-size: 0.8rem; color: var(--text-secondary);">hs</span>
                         </div>
                     </div>
                     ` : `
                     <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
                         <span style="font-size: 0.8rem; color: var(--text-secondary);">Hora de push:</span>
-                        <input type="time" class="alert-time-input" value="${conf.time}" aria-label="Hora de alerta de ${safeName}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: rgba(0,0,0,0.3); color: white; font-size: 0.85rem;">
+                        <input type="time" class="alert-time-input" value="${conf.time}" aria-label="Hora de alerta de ${safeName}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: var(--control-bg); color: var(--text-primary); font-size: 0.85rem;">
                     </div>
                     `}
                     ${isRecurring && schedule.type === 'weekly' ? `

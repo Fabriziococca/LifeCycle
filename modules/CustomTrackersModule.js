@@ -19,9 +19,10 @@ import {
     getCustomTrackerState,
     isMedicalStudyTracker,
     isStateReminderTracker,
+    normalizeCustomTrackerDayThresholds,
     normalizeCustomTrackerRegistry,
     normalizeNavigationPreferences
-} from '../custom-tracker-utils.mjs?v=20260818-unified-registry';
+} from '../custom-tracker-utils.mjs?v=20260826-threshold-order';
 import {
     migrateLegacyTrackerRegistry,
     readLegacyTrackerSnapshot
@@ -2008,14 +2009,14 @@ export class CustomTrackersModule {
                             <label for="custom-tracker-yellow">Mostrar próximo desde</label>
                             <div class="custom-number-with-unit">
                                 <input id="custom-tracker-yellow" class="number-input" type="number" min="1" max="3650" inputmode="numeric">
-                                <span>días</span>
+                                <span>días transcurridos</span>
                             </div>
                         </div>
                         <div class="input-group custom-day-thresholds">
                             <label for="custom-tracker-orange">Mostrar atención desde</label>
                             <div class="custom-number-with-unit">
                                 <input id="custom-tracker-orange" class="number-input" type="number" min="1" max="3650" inputmode="numeric">
-                                <span>días</span>
+                                <span>días transcurridos</span>
                             </div>
                         </div>
                         <div class="input-group custom-month-warning hidden">
@@ -2041,15 +2042,15 @@ export class CustomTrackersModule {
                         <div class="custom-threshold-help custom-form-wide" aria-label="Cómo funcionan los estados de una tarjeta">
                             <span>
                                 <i class="ph ph-clock-countdown" aria-hidden="true"></i>
-                                <span><strong>Próximo</strong><small>Empieza a mostrarse como cercano.</small></span>
+                                <span><strong>Próximo</strong><small>Es el primer aviso y usa el valor menor.</small></span>
                             </span>
                             <span>
                                 <i class="ph ph-warning-circle" aria-hidden="true"></i>
-                                <span><strong>Atención</strong><small>Cambia a una advertencia más visible.</small></span>
+                                <span><strong>Atención</strong><small>Es el segundo aviso y usa el valor mayor.</small></span>
                             </span>
                             <span>
                                 <i class="ph ph-x-circle" aria-hidden="true"></i>
-                                <span><strong>Vencido</strong><small>Ya alcanzó o superó el plazo definido.</small></span>
+                                <span><strong>Vencido</strong><small>Coincide con el plazo total definido.</small></span>
                             </span>
                         </div>
                         <div class="input-group custom-form-wide">
@@ -2428,25 +2429,30 @@ export class CustomTrackersModule {
             this.dialog.querySelector('#custom-tracker-interval').value
         );
         const isStateReminder = template === 'state-reminder';
-        const thresholds = isStateReminder
-            ? { yellow: 1, orange: 1, red: 1 }
-            : cadenceUnit === 'months'
-            ? {
-                warningDays: Number(
-                    this.dialog.querySelector('#custom-tracker-warning-days').value
-                )
-            }
-            : {
-                yellow: Number(
-                    this.dialog.querySelector('#custom-tracker-yellow').value
-                ),
-                orange: Number(
-                    this.dialog.querySelector('#custom-tracker-orange').value
-                ),
-                red: cadenceValue
-            };
 
         try {
+            let thresholdsReordered = false;
+            const thresholds = isStateReminder
+                ? { yellow: 1, orange: 1, red: 1 }
+                : cadenceUnit === 'months'
+                ? {
+                    warningDays: Number(
+                        this.dialog.querySelector('#custom-tracker-warning-days').value
+                    )
+                }
+                : (() => {
+                    const normalized = normalizeCustomTrackerDayThresholds({
+                        yellow: Number(
+                            this.dialog.querySelector('#custom-tracker-yellow').value
+                        ),
+                        orange: Number(
+                            this.dialog.querySelector('#custom-tracker-orange').value
+                        ),
+                        red: cadenceValue
+                    }, { strict: true });
+                    thresholdsReordered = normalized.reordered;
+                    return normalized.thresholds;
+                })();
             const destinationChanged = existing && (
                 existing.section !== section || existing.subsection !== subsection
             );
@@ -2522,7 +2528,9 @@ export class CustomTrackersModule {
             this.persistRegistry();
             this.closeEditor();
             this.showManagerFeedback(
-                existing ? 'Tarjeta actualizada.' : 'Tarjeta creada y sincronizada.'
+                thresholdsReordered
+                    ? `${existing ? 'Tarjeta actualizada' : 'Tarjeta creada y sincronizada'}. Ordené los avisos para que Próximo ocurra antes que Atención.`
+                    : (existing ? 'Tarjeta actualizada.' : 'Tarjeta creada y sincronizada.')
             );
         } catch (error) {
             errorElement.textContent = error.message || 'No se pudo guardar la tarjeta.';

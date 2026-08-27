@@ -364,13 +364,13 @@ export class HygieneModule {
                     const subItemEl = document.createElement('div');
                     const safeSubName = escapeHtml(item.subName);
                     subItemEl.className = 'group-subitem';
-                    subItemEl.style.borderTop = index > 0 ? '1px solid rgba(255,255,255,0.06)' : 'none';
+                    subItemEl.style.borderTop = index > 0 ? '1px solid var(--divider-color)' : 'none';
                     subItemEl.style.paddingTop = index > 0 ? '1.25rem' : '0.5rem';
                     subItemEl.style.paddingBottom = '0.5rem';
                     
                     subItemEl.innerHTML = `
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
-                            <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: #fff;">${safeSubName}</h4>
+                            <h4 style="margin: 0; font-size: 0.95rem; font-weight: 600; color: var(--text-primary);">${safeSubName}</h4>
                             <div style="display: flex; align-items: center; gap: 8px;">
                                 <button type="button" class="btn-info sub-info-btn" title="Ver instrucciones de ${safeSubName}" aria-label="Ver instrucciones de ${safeSubName}" aria-expanded="false" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; font-size: 1rem;"><i class="ph ph-book-open"></i></button>
                                 <button type="button" class="btn-card-edit sub-edit-btn" title="Editar fecha del último registro de ${safeSubName}" aria-label="Editar fecha del último registro de ${safeSubName}" style="background: none; border: none; color: var(--text-secondary); cursor: pointer; padding: 2px 4px; font-size: 1rem;"><i class="ph ph-pencil-simple"></i></button>
@@ -388,16 +388,16 @@ export class HygieneModule {
                         </div>
 
                         <div style="font-size: 0.75rem; color: var(--text-secondary); display: grid; grid-template-columns: 1fr 1fr; gap: 6px; margin-bottom: 0.75rem;">
-                            <div>Último: <strong style="color: white; font-weight: 500;">${this.formatDate(lastDateVal)}</strong></div>
-                            <div>Próximo: <strong style="color: white; font-weight: 500;">${lastDateVal ? this.formatDate(this.getNextDate(lastDateVal, item.limits.red)) : 'N/A'}</strong></div>
+                            <div>Último: <strong style="color: var(--text-primary); font-weight: 500;">${this.formatDate(lastDateVal)}</strong></div>
+                            <div>Próximo: <strong style="color: var(--text-primary); font-weight: 500;">${lastDateVal ? this.formatDate(this.getNextDate(lastDateVal, item.limits.red)) : 'N/A'}</strong></div>
                         </div>
 
-                        <div class="progress-container" style="height: 4px; background: rgba(255,255,255,0.05); border-radius: 2px; overflow: hidden; margin-bottom: 0.75rem;">
+                        <div class="progress-container" style="height: 4px; background: var(--progress-track); border-radius: 2px; overflow: hidden; margin-bottom: 0.75rem;">
                             <div class="progress-bar" style="width: ${this.getProgressWidth(daysElapsed, item.limits.red)}; background-color: ${statusColor}; height: 100%;"></div>
                         </div>
 
-                        <button type="button" class="btn btn-history hygiene-history-btn" style="margin-top: 0.5rem; width: 100%; font-size: 0.8rem; padding: 6px 12px; background: rgba(255,255,255,0.03); border: 1px solid rgba(255,255,255,0.08); border-radius: 6px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">Ver historial</button>
-                        <div class="history-log hygiene-history-log hidden" style="margin-top: 0.5rem; background: rgba(0,0,0,0.15); border-radius: 6px; padding: 8px;"></div>
+                        <button type="button" class="btn btn-history hygiene-history-btn" style="margin-top: 0.5rem; width: 100%; font-size: 0.8rem; padding: 6px 12px; background: var(--surface-subtle); border: 1px solid var(--border-subtle); border-radius: 6px; color: var(--text-secondary); cursor: pointer; transition: all 0.2s;">Ver historial</button>
+                        <div class="history-log hygiene-history-log hidden" style="margin-top: 0.5rem; background: var(--surface-inset); border: 1px solid var(--border-subtle); border-radius: 6px; padding: 8px;"></div>
                         
                         <div class="card-footer" style="padding-top: 0.75rem; margin-top: 0.5rem;">
                             <button type="button" class="btn-wash" style="padding: 0.6rem; font-size: 0.85rem;">

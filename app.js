@@ -633,13 +633,15 @@ class AppController {
         const targetSection = this.customTrackers?.isModuleVisible(this.uiState.section)
             ? this.uiState.section
             : this.customTrackers?.getFirstVisibleModuleId();
-        this.activateSection(targetSection, {
-            persist: false,
-            render: true
-        });
+        // Keep the last profile tab ready for the next explicit profile visit,
+        // then let the actually visible module define the restored app header.
         this.activateProfileTab(this.uiState.profileTab, {
             persist: false,
             render: false
+        });
+        this.activateSection(targetSection, {
+            persist: false,
+            render: true
         });
     }
 

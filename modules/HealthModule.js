@@ -545,7 +545,7 @@ export class HealthModule {
             let historyHtml = '';
             if (Array.isArray(doc.history) && doc.history.length > 0) {
                 historyHtml = doc.history.map((dateStr, idx) => `
-                    <li style="font-size: 0.85rem; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center; background: rgba(0, 0, 0, 0.15); border-radius: var(--border-radius-sm);">
+                    <li style="font-size: 0.85rem; padding: 0.5rem 0.75rem; display: flex; justify-content: space-between; align-items: center; background: var(--surface-inset); border: 1px solid var(--border-subtle); border-radius: var(--border-radius-sm);">
                         <span>${escapeHtml(this.formatDate(dateStr))}</span>
                         <button type="button" class="btn-delete-visit-history icon-btn icon-btn-sm is-danger" data-key="${safeKey}" data-index="${idx}" data-tooltip="Borrar registro" aria-label="Borrar visita de ${name}"><i class="ph ph-trash" aria-hidden="true"></i></button>
                     </li>

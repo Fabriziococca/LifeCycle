@@ -336,7 +336,7 @@ export class TareasModule {
                 urgencyBadge.style.display = 'inline-block';
             } else {
                 urgencyBadge.innerText = 'No Urgente';
-                urgencyBadge.style.background = 'rgba(255, 255, 255, 0.1)';
+                urgencyBadge.style.background = 'var(--surface-subtle)';
                 urgencyBadge.style.color = 'var(--text-secondary)';
                 urgencyBadge.style.fontWeight = 'normal';
                 urgencyBadge.style.boxShadow = 'none';
@@ -926,9 +926,9 @@ export class TareasModule {
                 const isPinned = p.isPinned || this.pinnedProjectIds.map(String).includes(String(p.id));
                 if (isPinned) {
                     if (lblPinProject) lblPinProject.innerText = 'Desfijar Proyecto';
-                    btnPinProject.style.background = 'rgba(59, 130, 246, 0.25)';
-                    btnPinProject.style.borderColor = '#3b82f6';
-                    btnPinProject.style.color = '#ffffff';
+                    btnPinProject.style.background = 'var(--surface-active)';
+                    btnPinProject.style.borderColor = 'var(--primary-color)';
+                    btnPinProject.style.color = 'var(--text-link)';
                     btnPinProject.querySelector('i').className = 'ph ph-push-pin-slash';
                 } else {
                     if (lblPinProject) lblPinProject.innerText = 'Fijar Proyecto';
@@ -993,7 +993,7 @@ export class TareasModule {
                     const row = document.createElement('div');
                     row.className = 'task-item';
                     row.setAttribute('data-task-id', t.id);
-                    row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
+                    row.style = 'display:flex; justify-content:space-between; align-items:center; background:var(--surface-inset); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
                     
                     if (isEditing) {
                         row.innerHTML = `
@@ -1047,7 +1047,7 @@ export class TareasModule {
                                     <input type="checkbox" class="task-check" aria-label="Marcar tarea como completada">
                                     <span class="custom-checkbox"></span>
                                 </label>
-                                <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText} ${badge}</span>
+                                <span class="task-text-span" style="color:var(--text-primary); font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText} ${badge}</span>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
                                 <button type="button" class="btn-view-task icon-btn icon-btn-sm is-primary" data-tooltip="Ver tarea completa" aria-label="Ver tarea completa"><i class="ph ph-eye" aria-hidden="true"></i></button>
@@ -1089,7 +1089,7 @@ export class TareasModule {
                     const row = document.createElement('div');
                     row.className = 'task-item';
                     row.setAttribute('data-task-id', t.id);
-                    row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); border-radius:8px; padding:10px 14px;';
+                    row.style = 'display:flex; justify-content:space-between; align-items:center; background:var(--surface-subtle); border:1px solid var(--border-subtle); border-radius:8px; padding:10px 14px;';
                     row.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px; opacity: 0.6; flex:1; min-width:0;">
                             <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; flex-shrink:0;">
@@ -1153,7 +1153,7 @@ export class TareasModule {
                     const row = document.createElement('div');
                     row.className = 'task-item';
                     row.setAttribute('data-task-id', t.id);
-                    row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.02); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
+                    row.style = 'display:flex; justify-content:space-between; align-items:center; background:var(--surface-inset); border:1px solid var(--surface-border); border-radius:8px; padding:10px 14px;';
                     
                     if (isEditing) {
                         row.innerHTML = `
@@ -1205,7 +1205,7 @@ export class TareasModule {
                                     <input type="checkbox" class="task-check" aria-label="Marcar tarea como completada">
                                     <span class="custom-checkbox"></span>
                                 </label>
-                                <span class="task-text-span" style="color:white; font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText} ${badge}</span>
+                                <span class="task-text-span" style="color:var(--text-primary); font-size:0.95rem; text-overflow:ellipsis; overflow:hidden; white-space:nowrap; flex:1; cursor:pointer;" title="Haz clic para ver la tarea completa">${safeTaskText} ${badge}</span>
                             </div>
                             <div style="display:flex; gap:6px; align-items:center; flex-shrink:0; margin-left:10px;">
                                 <button type="button" class="btn-view-task icon-btn icon-btn-sm is-primary" data-tooltip="Ver tarea completa" aria-label="Ver tarea completa"><i class="ph ph-eye" aria-hidden="true"></i></button>
@@ -1242,7 +1242,7 @@ export class TareasModule {
                     const row = document.createElement('div');
                     row.className = 'task-item';
                     row.setAttribute('data-task-id', t.id);
-                    row.style = 'display:flex; justify-content:space-between; align-items:center; background:rgba(255,255,255,0.01); border:1px solid rgba(255,255,255,0.03); border-radius:8px; padding:10px 14px;';
+                    row.style = 'display:flex; justify-content:space-between; align-items:center; background:var(--surface-subtle); border:1px solid var(--border-subtle); border-radius:8px; padding:10px 14px;';
                     row.innerHTML = `
                         <div style="display:flex; align-items:center; gap:10px; opacity: 0.6; flex:1; min-width:0;">
                             <label class="custom-checkbox-container" style="margin: 0; display: flex; align-items: center; flex-shrink:0;">

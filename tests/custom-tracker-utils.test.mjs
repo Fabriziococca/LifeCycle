@@ -17,6 +17,7 @@ import {
     isSupportedCustomTrackerSchemaVersion,
     isUnifiedCustomTrackerRegistry,
     isStateReminderTracker,
+    normalizeCustomTrackerDayThresholds,
     normalizeNavigationPreferences,
     normalizeCustomTrackerRegistry,
     validateCustomTrackerRegistry
@@ -186,6 +187,41 @@ test('strict custom tracker validation rejects unsafe or malformed data', () => 
             histories: {}
         }),
         /ubicación/
+    );
+});
+
+test('reversed progressive thresholds are ordered instead of blocking card creation', () => {
+    const normalized = normalizeCustomTrackerDayThresholds({
+        yellow: 170,
+        orange: 160,
+        red: 180
+    }, { strict: true });
+
+    assert.deepEqual(normalized, {
+        thresholds: { yellow: 160, orange: 170, red: 180 },
+        reordered: true
+    });
+
+    const tracker = createTracker({
+        cadence: { unit: 'days', value: 180 },
+        intervalDays: 180,
+        thresholds: { yellow: 170, orange: 160, red: 180 }
+    });
+    assert.deepEqual(tracker.thresholds, { yellow: 160, orange: 170, red: 180 });
+});
+
+test('progressive thresholds explain invalid user values without internal field names', () => {
+    assert.throws(
+        () => normalizeCustomTrackerDayThresholds({
+            yellow: 190,
+            orange: 170,
+            red: 180
+        }, { strict: true }),
+        error => (
+            error.name === 'CustomTrackerValidationError'
+            && error.message === '"Próximo" debe ser un entero entre 1 y 180.'
+            && !error.message.includes('thresholds.')
+        )
     );
 });
 

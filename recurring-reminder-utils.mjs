@@ -154,7 +154,7 @@ export function describeRecurringSchedule(value) {
     if (schedule.type === 'yearly') {
         const monthName = new Intl.DateTimeFormat('es-AR', { month: 'long' })
             .format(new Date(2024, schedule.month - 1, 1));
-        return `Anual · ${schedule.day} de ${monthName}`;
+        return `Anual · ${schedule.day} de ${monthName} (o último día válido)`;
     }
     const labels = ['D', 'L', 'M', 'M', 'J', 'V', 'S'];
     return `Semanal · ${schedule.days.map(day => labels[day]).join(', ')}`;
