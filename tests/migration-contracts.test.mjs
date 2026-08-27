@@ -19,6 +19,12 @@ const TRADING_MIGRATION = path.join(
     'migrations',
     '20260809062605_tanda_8_trading_projection.sql'
 );
+const RESOURCE_POLICY_MIGRATION = path.join(
+    ROOT,
+    'supabase',
+    'migrations',
+    '20260827192821_user_resource_policy_foundation.sql'
+);
 
 test('the latest client sync migration allows every cloud-owned key', async () => {
     const migration = await readFile(FOUNDATION_MIGRATION, 'utf8');
@@ -66,6 +72,24 @@ test('Tanda 8 Trading persistence is additive, isolated and idempotent', async (
     assert.doesNotMatch(migration, /drop table/i);
     assert.doesNotMatch(migration, /delete from public\.user_data/i);
     assert.doesNotMatch(migration, /tradingEvents'\s*,\s*null|tradingEvents'\s*-/i);
+});
+
+test('resource policy is private, owner-safe and exposed only through an authenticated RPC', async () => {
+    const migration = await readFile(RESOURCE_POLICY_MIGRATION, 'utf8');
+    const authSync = await readFile(path.join(ROOT, 'modules', 'AuthSyncModule.js'), 'utf8');
+
+    assert.match(migration, /create table if not exists private\.lifecycle_access_profiles/i);
+    assert.match(migration, /user_id uuid primary key references auth\.users\(id\) on delete cascade/i);
+    assert.match(migration, /create table if not exists private\.lifecycle_resource_limits/i);
+    assert.match(migration, /force row level security/i);
+    assert.match(migration, /revoke all on table private\.lifecycle_access_profiles[\s\S]+authenticated/i);
+    assert.match(migration, /get_my_resource_policy[\s\S]+security definer[\s\S]+set search_path = pg_catalog, pg_temp/i);
+    assert.match(migration, /v_user_id uuid := auth\.uid\(\)/i);
+    assert.match(migration, /coalesce\(v_access_tier, 'friend'\)/i);
+    assert.match(migration, /grant execute on function public\.get_my_resource_policy\(\)[\s\S]+to authenticated/i);
+    assert.doesNotMatch(migration, /contactofabrizioo|3534e80f/i);
+    assert.match(authSync, /rpc\('get_my_resource_policy'\)/);
+    assert.match(authSync, /createFallbackResourcePolicy/);
 });
 
 test('private safety snapshots enforce RLS without client grants', async () => {

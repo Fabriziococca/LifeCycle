@@ -9,6 +9,12 @@ import {
     areStoredValuesEqual,
     buildCloudPatch
 } from '../sync-utils.mjs';
+import {
+    createFallbackResourcePolicy,
+    evaluateResourceCapacity,
+    getResourceLimit as getConfiguredResourceLimit,
+    normalizeResourcePolicy
+} from '../resource-policy.mjs?v=20260827-resource-policy';
 import { PushManagementModule } from './PushManagementModule.js?v=20260801-push-diagnostics';
 
 function isMissingCloudRevisionSchema(error) {
@@ -24,6 +30,7 @@ export class AuthSyncModule {
         this.supabase = null;
         this.user = null;
         this.config = null;
+        this.resourcePolicy = createFallbackResourcePolicy();
         
         // Dom Elements
         this.authLoading = document.getElementById('auth-loading');
@@ -362,6 +369,7 @@ export class AuthSyncModule {
             if (!cloudReady) {
                 throw new Error('No se pudo cargar el estado principal desde Supabase.');
             }
+            await this.loadResourcePolicy();
 
             // Setup realtime subscription for cross-device updates
             this.setupRealtimeSubscription();
@@ -377,6 +385,7 @@ export class AuthSyncModule {
             });
         } else {
             // Logged out
+            this.resourcePolicy = createFallbackResourcePolicy();
             this.clearLocalUserData();
             if (this.authLoggedIn) this.authLoggedIn.classList.add('hidden');
             if (this.authLoggedOut) this.authLoggedOut.classList.remove('hidden');
@@ -393,6 +402,47 @@ export class AuthSyncModule {
             this.setLoading(false);
             this.setAccessGateState('logged-out');
         }
+    }
+
+    async loadResourcePolicy() {
+        if (!this.user || !this.supabase) {
+            this.resourcePolicy = createFallbackResourcePolicy();
+            return false;
+        }
+
+        try {
+            const { data, error } = await this.supabase.rpc('get_my_resource_policy');
+            if (error) throw error;
+            this.resourcePolicy = normalizeResourcePolicy(data);
+            return true;
+        } catch (error) {
+            console.warn(
+                '[Resource Policy] No se pudo cargar la política remota; se aplicará el perfil seguro por defecto.',
+                error
+            );
+            this.resourcePolicy = createFallbackResourcePolicy();
+            return false;
+        }
+    }
+
+    getResourcePolicy() {
+        return {
+            ...this.resourcePolicy,
+            limits: { ...this.resourcePolicy.limits }
+        };
+    }
+
+    getResourceLimit(resourceKey) {
+        return getConfiguredResourceLimit(this.resourcePolicy, resourceKey);
+    }
+
+    canCreateResource(resourceKey, currentCount, requestedCount = 1) {
+        return evaluateResourceCapacity(
+            this.resourcePolicy,
+            resourceKey,
+            currentCount,
+            requestedCount
+        );
     }
 
     setLoading(isLoading, text = "") {
