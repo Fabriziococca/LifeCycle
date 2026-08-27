@@ -38,3 +38,19 @@ export function buildCloudPatch(keys, readStoredValue) {
 
     return { updates, deleteKeys };
 }
+
+export function isPermanentSyncPolicyError(error) {
+    const code = String(error?.code || '');
+    const message = String(error?.message || '').toLowerCase();
+    return code === '54000'
+        || message.includes('lifecycle synchronized data limit exceeded');
+}
+
+export function getSyncPolicyErrorMessage(error) {
+    if (!isPermanentSyncPolicyError(error)) {
+        return String(error?.message || 'No se pudieron guardar los cambios.');
+    }
+
+    return 'Tu información supera el límite seguro de sincronización. '
+        + 'Los cambios quedan pendientes para que puedas reducir contenido antes de reintentar.';
+}

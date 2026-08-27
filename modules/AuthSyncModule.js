@@ -7,7 +7,9 @@ import {
 } from '../sync-config.mjs?v=20260729-project-templates';
 import {
     areStoredValuesEqual,
-    buildCloudPatch
+    buildCloudPatch,
+    getSyncPolicyErrorMessage,
+    isPermanentSyncPolicyError
 } from '../sync-utils.mjs';
 import {
     createFallbackResourcePolicy,
@@ -574,6 +576,7 @@ export class AuthSyncModule {
             && this.user?.id === syncUserId
         );
         let operation;
+        let shouldSchedulePendingSync = true;
         operation = (async () => {
             this.isSyncing = true;
             this.updateSyncBadge('syncing', 'Sincronizando...');
@@ -599,21 +602,28 @@ export class AuthSyncModule {
                 return true;
             } catch (error) {
                 if (!isCurrentSession()) return false;
+                const isPermanentPolicyError = isPermanentSyncPolicyError(error);
                 keysToSync.forEach(key => this.pendingSyncKeys.add(key));
                 this.persistPendingSyncKeys();
                 this.updateSyncBadge('error', 'Cambios pendientes');
                 console.error('[Cloud Sync] No se pudieron guardar las claves modificadas:', error);
 
-                this.syncRetryTimer = setTimeout(() => {
-                    this.flushPendingKeySync().catch(retryError => {
-                        console.error('[Cloud Sync] Falló el reintento:', retryError);
-                    });
-                }, 15 * 1000);
+                if (isPermanentPolicyError) {
+                    // A quota rejection cannot recover by retrying the same payload.
+                    // Keep the local queue, but avoid a tight background retry loop.
+                    shouldSchedulePendingSync = false;
+                } else {
+                    this.syncRetryTimer = setTimeout(() => {
+                        this.flushPendingKeySync().catch(retryError => {
+                            console.error('[Cloud Sync] Falló el reintento:', retryError);
+                        });
+                    }, 15 * 1000);
+                }
 
                 if (isManual) {
                     void this.app.showMessage({
                         title: 'No se pudieron guardar los cambios',
-                        message: error.message,
+                        message: getSyncPolicyErrorMessage(error),
                         tone: 'danger'
                     });
                 }
@@ -627,6 +637,7 @@ export class AuthSyncModule {
                     isCurrentSession()
                     && this.pendingSyncKeys.size > 0
                     && !this.syncRetryTimer
+                    && shouldSchedulePendingSync
                 ) {
                     this.syncFlushTimer = setTimeout(() => {
                         this.flushPendingKeySync().catch(error => {

@@ -25,6 +25,12 @@ const RESOURCE_POLICY_MIGRATION = path.join(
     'migrations',
     '20260827192821_user_resource_policy_foundation.sql'
 );
+const RESOURCE_POLICY_ENFORCEMENT_MIGRATION = path.join(
+    ROOT,
+    'supabase',
+    'migrations',
+    '20260827211500_enforce_user_document_policy.sql'
+);
 
 test('the latest client sync migration allows every cloud-owned key', async () => {
     const migration = await readFile(FOUNDATION_MIGRATION, 'utf8');
@@ -90,6 +96,24 @@ test('resource policy is private, owner-safe and exposed only through an authent
     assert.doesNotMatch(migration, /contactofabrizioo|3534e80f/i);
     assert.match(authSync, /rpc\('get_my_resource_policy'\)/);
     assert.match(authSync, /createFallbackResourcePolicy/);
+});
+
+test('synchronized document limits are enforced privately without cross-user input', async () => {
+    const migration = await readFile(RESOURCE_POLICY_ENFORCEMENT_MIGRATION, 'utf8');
+    const authSync = await readFile(path.join(ROOT, 'modules', 'AuthSyncModule.js'), 'utf8');
+
+    assert.match(migration, /private\.enforce_lifecycle_user_document_limit\(\)/i);
+    assert.match(migration, /security definer[\s\S]+set search_path = pg_catalog, pg_temp/i);
+    assert.match(migration, /where profile\.user_id = new\.user_id/i);
+    assert.match(migration, /resource_key = 'synced_document_bytes'/i);
+    assert.match(migration, /v_access_tier = 'owner'[\s\S]+return new/i);
+    assert.match(migration, /octet_length[\s\S]+convert_to/i);
+    assert.match(migration, /errcode = '54000'/i);
+    assert.match(migration, /revoke all on function private\.enforce_lifecycle_user_document_limit\(\)[\s\S]+authenticated/i);
+    assert.match(migration, /create trigger user_data_enforce_resource_policy_before_write/i);
+    assert.doesNotMatch(migration, /contactofabrizioo|soyfabriziococca/i);
+    assert.match(authSync, /isPermanentSyncPolicyError/);
+    assert.match(authSync, /shouldSchedulePendingSync/);
 });
 
 test('private safety snapshots enforce RLS without client grants', async () => {

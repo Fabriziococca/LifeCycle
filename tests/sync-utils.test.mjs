@@ -3,7 +3,9 @@ import assert from 'node:assert/strict';
 
 import {
     areStoredValuesEqual,
-    buildCloudPatch
+    buildCloudPatch,
+    getSyncPolicyErrorMessage,
+    isPermanentSyncPolicyError
 } from '../sync-utils.mjs';
 import {
     CLOUD_LOCAL_CLEAR_KEYS,
@@ -61,6 +63,18 @@ test('buildCloudPatch sends only requested unique keys', () => {
         deleteKeys: []
     });
     assert.equal('alerts_sent_log' in result.updates, false);
+});
+
+test('permanent synchronization policy errors do not look transient', () => {
+    const policyError = {
+        code: '54000',
+        message: 'LifeCycle synchronized data limit exceeded'
+    };
+
+    assert.equal(isPermanentSyncPolicyError(policyError), true);
+    assert.equal(isPermanentSyncPolicyError({ code: '503', message: 'offline' }), false);
+    assert.match(getSyncPolicyErrorMessage(policyError), /límite seguro de sincronización/i);
+    assert.equal(getSyncPolicyErrorMessage({ message: 'Sin conexión' }), 'Sin conexión');
 });
 
 test('cloud configuration keeps server-managed keys read-only', () => {
