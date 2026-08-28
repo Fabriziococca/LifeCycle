@@ -10,7 +10,7 @@ import {
     isSupportedCustomTrackerSchemaVersion,
     LEGACY_CUSTOM_TRACKER_FIELD,
     normalizeCustomTrackerRegistry
-} from './custom-tracker-utils.mjs?v=20260818-unified-registry';
+} from './custom-tracker-utils.mjs?v=20260828-permanent-delete';
 import {
     GROOMING_RULES,
     itemsConfig,
@@ -480,9 +480,10 @@ function migrateSpecialTrackers(registry, {
     now
 }) {
     let added = 0;
+    const deletedTrackerIds = new Set(registry.deletedTrackerIds || []);
     const hasRobotTracker = registry.trackers.some(
         tracker => tracker.id === DEFAULT_ROBOT_TRACKER_ID
-    );
+    ) || deletedTrackerIds.has(DEFAULT_ROBOT_TRACKER_ID);
     const legacyRobot = isRecord(hygieneData?.robot_cleaner)
         ? hygieneData.robot_cleaner
         : null;
@@ -535,7 +536,7 @@ function migrateSpecialTrackers(registry, {
     const safeBloodTests = Array.isArray(bloodTests) ? bloodTests : [];
     const hasBloodTracker = registry.trackers.some(
         tracker => tracker.id === DEFAULT_BLOOD_STUDY_TRACKER_ID
-    );
+    ) || deletedTrackerIds.has(DEFAULT_BLOOD_STUDY_TRACKER_ID);
     if (!hasBloodTracker && (hasLegacyAccountData || safeBloodTests.length > 0)) {
         const alertKey = `${CUSTOM_ALERT_PREFIX}${DEFAULT_BLOOD_STUDY_TRACKER_ID}`;
         appendTracker(

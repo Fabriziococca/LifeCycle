@@ -1,6 +1,6 @@
 import { DateUtils, getLocalISODate } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
-import { VehicleCatalogModule } from './VehicleCatalogModule.js?v=20260801-vehicle-catalog';
+import { VehicleCatalogModule } from './VehicleCatalogModule.js?v=20260828-permanent-delete';
 
 export class VehicleModule {
     constructor(controller) {

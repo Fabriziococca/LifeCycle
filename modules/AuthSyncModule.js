@@ -972,15 +972,28 @@ export class AuthSyncModule {
         return data.signedUrl;
     }
 
-    async deleteMedicalFile(filePath) {
-        const ownedPath = this.getOwnedMedicalFilePath(filePath);
+    async deleteMedicalFiles(filePaths) {
+        if (!Array.isArray(filePaths)) {
+            throw new Error('La lista de archivos médicos no es válida.');
+        }
+        const ownedPaths = Array.from(new Set(
+            filePaths
+                .filter(filePath => typeof filePath === 'string' && filePath.trim())
+                .map(filePath => this.getOwnedMedicalFilePath(filePath))
+        ));
+        if (ownedPaths.length === 0) return;
+
         const { error } = await this.supabase.storage
             .from('blood-tests')
-            .remove([ownedPath]);
+            .remove(ownedPaths);
 
         if (error) {
             throw error;
         }
+    }
+
+    async deleteMedicalFile(filePath) {
+        await this.deleteMedicalFiles([filePath]);
     }
 
     setupRealtimeSubscription() {

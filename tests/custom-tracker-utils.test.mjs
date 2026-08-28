@@ -9,6 +9,7 @@ import {
     CUSTOM_TRACKER_FIELD,
     CUSTOM_TRACKER_SCHEMA_VERSION,
     DEFAULT_NAVIGATION_FAVORITES,
+    deleteCustomTrackerPermanently,
     getAppModules,
     getCustomAlertKey,
     getCustomTrackerSections,
@@ -376,7 +377,7 @@ test('defensive normalization ignores broken optional entries', () => {
     assert.equal(normalized.trackers.length, 1);
 });
 
-test('archived and deleted cards keep their identity but expose no active alert', () => {
+test('legacy deleted cards become minimal tombstones and expose no active alert', () => {
     const archived = {
         ...createTracker({ id: 'ct_archived_001' }),
         archived: true
@@ -396,9 +397,42 @@ test('archived and deleted cards keep their identity but expose no active alert'
         }
     });
 
-    assert.equal(registry.trackers[1].deleted, true);
-    assert.equal(registry.trackers[1].deletedAt, '2026-07-28T13:00:00.000Z');
+    assert.deepEqual(registry.trackers.map(tracker => tracker.id), [archived.id]);
+    assert.deepEqual(registry.deletedTrackerIds, [deleted.id]);
+    assert.equal(Object.hasOwn(registry.histories, deleted.id), false);
     assert.deepEqual(buildCustomAlertDefinitions(registry), []);
+});
+
+test('permanent card deletion requires archives and removes content plus references', () => {
+    const active = createTracker({ id: 'ct_active_delete_001' });
+    const archived = {
+        ...createTracker({ id: 'ct_archived_delete_001' }),
+        archived: true
+    };
+    const source = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        trackers: [active, archived],
+        histories: {
+            [active.id]: [],
+            [archived.id]: ['2026-08-01T12:00:00.000Z']
+        }
+    });
+
+    assert.throws(
+        () => deleteCustomTrackerPermanently(source, active.id),
+        /archivada/
+    );
+
+    const result = deleteCustomTrackerPermanently(source, archived.id);
+    assert.equal(result.changed, true);
+    assert.equal(result.deletedTracker.id, archived.id);
+    assert.equal(result.registry.trackers.some(item => item.id === archived.id), false);
+    assert.equal(Object.hasOwn(result.registry.histories, archived.id), false);
+    assert.deepEqual(result.registry.deletedTrackerIds, [archived.id]);
+    assert.equal(source.trackers.some(item => item.id === archived.id), true);
+
+    const repeated = deleteCustomTrackerPermanently(result.registry, archived.id);
+    assert.equal(repeated.changed, false);
 });
 
 test('module visibility defaults to visible and preserves explicit hidden modules', () => {

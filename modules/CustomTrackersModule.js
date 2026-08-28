@@ -11,6 +11,7 @@ import {
     CUSTOM_TRACKER_TEMPLATES,
     DEFAULT_BLOOD_STUDY_TRACKER_ID,
     DEFAULT_ROBOT_TRACKER_ID,
+    deleteCustomTrackerPermanently,
     getAppModules,
     getCustomAlertKey,
     getCustomModuleHostId,
@@ -22,11 +23,11 @@ import {
     normalizeCustomTrackerDayThresholds,
     normalizeCustomTrackerRegistry,
     normalizeNavigationPreferences
-} from '../custom-tracker-utils.mjs?v=20260826-threshold-order';
+} from '../custom-tracker-utils.mjs?v=20260828-permanent-delete';
 import {
     migrateLegacyTrackerRegistry,
     readLegacyTrackerSnapshot
-} from '../tracker-migration.mjs?v=20260811-special-trackers';
+} from '../tracker-migration.mjs?v=20260828-permanent-delete';
 import {
     combineLocalDateWithTime,
     DateUtils,
@@ -595,7 +596,7 @@ export class CustomTrackersModule {
             this.enterReorderMode('manager');
         });
 
-        this.managerRoot?.addEventListener('click', event => {
+        this.managerRoot?.addEventListener('click', async event => {
             const orderButton = event.target.closest('[data-custom-order-action]');
             if (orderButton) {
                 if (orderButton.dataset.customOrderAction === 'save') {
@@ -645,13 +646,16 @@ export class CustomTrackersModule {
             } else if (action === 'restore' || action === 'undo-archive') {
                 this.restoreTracker(trackerId);
             } else if (action === 'request-delete') {
+                const tracker = this.getTracker(trackerId);
+                if (!tracker?.archived) return;
                 this.pendingDeleteIds.add(trackerId);
                 this.renderManager();
             } else if (action === 'cancel-delete') {
                 this.pendingDeleteIds.delete(trackerId);
                 this.renderManager();
             } else if (action === 'confirm-delete') {
-                this.deleteTracker(trackerId);
+                button.disabled = true;
+                await this.deleteTracker(trackerId);
             }
         });
 
@@ -2839,7 +2843,7 @@ export class CustomTrackersModule {
         this.showManagerFeedback(`${tracker.name} volvió a estar activa.`);
     }
 
-    deleteTracker(trackerId) {
+    async deleteTracker(trackerId) {
         const tracker = this.getTracker(trackerId);
         if (
             !tracker
@@ -2847,28 +2851,32 @@ export class CustomTrackersModule {
             || tracker.deleted
             || !this.pendingDeleteIds.has(trackerId)
         ) {
-            return;
-        }
-        const studyCount = isMedicalStudyTracker(tracker)
-            ? (this.app.health?.getStudyEntries?.(trackerId)?.length || 0)
-            : 0;
-        if (studyCount > 0) {
-            this.pendingDeleteIds.delete(trackerId);
-            this.showManagerFeedback(
-                `Antes de borrar ${tracker.name}, eliminá sus ${studyCount} ${studyCount === 1 ? 'estudio adjunto' : 'estudios adjuntos'} desde el historial.`
-            );
-            this.renderManager();
-            return;
+            return false;
         }
 
-        tracker.deleted = true;
-        tracker.deletedAt = new Date().toISOString();
-        tracker.updatedAt = tracker.deletedAt;
-        tracker.alert = {
-            ...tracker.alert,
-            enabled: false
-        };
-        this.registry.histories[trackerId] = [];
+        const deletion = deleteCustomTrackerPermanently(this.registry, trackerId);
+
+        let deletedStudies = { deletedEntries: 0, deletedFiles: 0 };
+        if (isMedicalStudyTracker(tracker)) {
+            if (!this.app.health?.deleteStudyEntriesForTracker) {
+                this.showManagerFeedback(
+                    `No se pudo borrar ${tracker.name}: el administrador de estudios no está disponible.`
+                );
+                this.renderManager();
+                return false;
+            }
+            try {
+                deletedStudies = await this.app.health.deleteStudyEntriesForTracker(trackerId);
+            } catch (error) {
+                console.error('Error eliminando adjuntos de la tarjeta médica:', error);
+                this.showManagerFeedback(
+                    `No se pudo borrar ${tracker.name}: sus archivos adjuntos se conservaron para que puedas reintentar.`
+                );
+                this.renderManager();
+                return false;
+            }
+        }
+
         this.clearLegacyTracker(tracker);
         this.pendingDeleteIds.delete(trackerId);
         if (this.historyDialogTrackerId === trackerId) {
@@ -2877,13 +2885,15 @@ export class CustomTrackersModule {
         if (this.instructionsDialogTrackerId === trackerId) {
             this.closeInstructionsDialog({ restoreFocus: false });
         }
-        if (this.registry.featuredBySection[tracker.section] === trackerId) {
-            this.registry.featuredBySection[tracker.section] = null;
-        }
         this.clearPendingHistoryDeletes(trackerId);
         this.syncAlertConfig(tracker, tracker.alert, { remove: true });
+        this.registry = deletion.registry;
         this.persistRegistry();
-        this.showManagerFeedback(`${tracker.name} fue borrada definitivamente.`);
+        const studySummary = deletedStudies.deletedEntries > 0
+            ? ` También se eliminaron ${deletedStudies.deletedEntries} ${deletedStudies.deletedEntries === 1 ? 'estudio' : 'estudios'}${deletedStudies.deletedFiles > 0 ? ` y ${deletedStudies.deletedFiles} ${deletedStudies.deletedFiles === 1 ? 'archivo adjunto' : 'archivos adjuntos'}` : ''}.`
+            : '';
+        this.showManagerFeedback(`${tracker.name} fue borrada definitivamente.${studySummary}`);
+        return true;
     }
 
     getActiveTrackers(sectionKey = null) {
@@ -3724,19 +3734,20 @@ export class CustomTrackersModule {
 
     renderManagerArchivedRow(tracker) {
         const awaitingConfirmation = this.pendingDeleteIds.has(tracker.id);
+        const historyCount = this.getHistory(tracker.id).length;
+        const deletionDetail = isMedicalStudyTracker(tracker)
+            ? 'También se eliminarán sus estudios y archivos adjuntos.'
+            : 'Esta acción no se puede deshacer.';
         return `
             <div class="custom-manager-row archived">
                 <div class="custom-manager-row-name">
-                    <i class="ph ${tracker.icon}"></i>
+                    <i class="ph ${awaitingConfirmation ? 'ph-warning' : tracker.icon}"></i>
                     <span>
-                        <strong>${escapeHtml(tracker.name)}</strong>
-                        <small>Historial conservado</small>
+                        <strong>${awaitingConfirmation ? `¿Borrar ${escapeHtml(tracker.name)} y todo su historial?` : escapeHtml(tracker.name)}</strong>
+                        <small>${awaitingConfirmation ? deletionDetail : `${historyCount} ${historyCount === 1 ? 'registro conservado' : 'registros conservados'}`}</small>
                     </span>
                 </div>
                 <div class="custom-manager-row-actions ${awaitingConfirmation ? 'confirming' : ''}">
-                    <button type="button" data-custom-manager-action="restore" data-tracker-id="${tracker.id}" aria-label="Restaurar ${escapeHtml(tracker.name)}" data-tooltip="Restaurar tarjeta">
-                        <i class="ph ph-arrow-counter-clockwise"></i>
-                    </button>
                     ${awaitingConfirmation ? `
                         <button type="button" class="text-action" data-custom-manager-action="cancel-delete" data-tracker-id="${tracker.id}">
                             Cancelar
@@ -3745,6 +3756,9 @@ export class CustomTrackersModule {
                             Borrar
                         </button>
                     ` : `
+                        <button type="button" data-custom-manager-action="restore" data-tracker-id="${tracker.id}" aria-label="Restaurar ${escapeHtml(tracker.name)}" data-tooltip="Restaurar tarjeta">
+                            <i class="ph ph-arrow-counter-clockwise"></i>
+                        </button>
                         <button type="button" class="danger" data-custom-manager-action="request-delete" data-tracker-id="${tracker.id}" aria-label="Borrar definitivamente ${escapeHtml(tracker.name)}" data-tooltip="Borrar definitivamente">
                             <i class="ph ph-trash"></i>
                         </button>

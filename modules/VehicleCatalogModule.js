@@ -2,6 +2,7 @@ import {
     appendVehicleCardRecord,
     buildVehicleAlertDefinitions,
     createVehicleCard,
+    deleteVehicleCardPermanently,
     getVehicleAlertKey,
     getVehicleCardLastRecord,
     getVehicleCardState,
@@ -13,7 +14,7 @@ import {
     VEHICLE_CARD_SECTIONS,
     VEHICLE_CARD_TYPES,
     VEHICLE_CATALOG_FIELD
-} from '../vehicle-catalog-utils.mjs?v=20260801-vehicle-catalog';
+} from '../vehicle-catalog-utils.mjs?v=20260828-permanent-delete';
 import { getLocalISODate } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import { createIconPicker } from '../icon-picker-utils.mjs?v=20260818-icon-preview';
@@ -650,11 +651,11 @@ export class VehicleCatalogModule {
                 <span class="custom-manager-row-actions">
                     ${archived ? `
                         <button type="button" data-vehicle-manager-action="restore" data-vehicle-card-id="${card.id}" aria-label="Restaurar ${safeName}" data-tooltip="Restaurar tarjeta"><i class="ph ph-arrow-counter-clockwise"></i></button>
+                        <button type="button" class="danger" data-vehicle-manager-action="request-delete" data-vehicle-card-id="${card.id}" aria-label="Borrar definitivamente ${safeName}" data-tooltip="Borrar definitivamente"><i class="ph ph-trash"></i></button>
                     ` : `
                         <button type="button" data-vehicle-manager-action="edit" data-vehicle-card-id="${card.id}" aria-label="Editar ${safeName}" data-tooltip="Editar tarjeta"><i class="ph ph-pencil-simple"></i></button>
                         <button type="button" data-vehicle-manager-action="archive" data-vehicle-card-id="${card.id}" aria-label="Archivar ${safeName}" data-tooltip="Archivar tarjeta"><i class="ph ph-archive"></i></button>
                     `}
-                    <button type="button" class="danger" data-vehicle-manager-action="request-delete" data-vehicle-card-id="${card.id}" aria-label="Borrar definitivamente ${safeName}" data-tooltip="Borrar definitivamente"><i class="ph ph-trash"></i></button>
                 </span>
             </div>
         `;
@@ -674,6 +675,8 @@ export class VehicleCatalogModule {
         } else if (action === 'restore') {
             this.restoreCard(cardId);
         } else if (action === 'request-delete') {
+            const card = this.getCard(cardId);
+            if (!card?.archived) return true;
             this.pendingDeleteIds.add(cardId);
             this.app.customTrackers?.renderManager?.();
         } else if (action === 'cancel-delete') {
@@ -705,7 +708,8 @@ export class VehicleCatalogModule {
 
     deleteCard(cardId) {
         const card = this.getCard(cardId);
-        if (!card) return;
+        if (!card?.archived || !this.pendingDeleteIds.has(cardId)) return false;
+        const deletion = deleteVehicleCardPermanently(this.catalog, cardId);
         this.removeCardAlertConfig(card);
         if (card.source?.kind === 'maintenance') {
             this.vehicle.maintenanceLog = this.vehicle.maintenanceLog
@@ -714,10 +718,10 @@ export class VehicleCatalogModule {
         } else if (card.source?.kind === 'tracker') {
             this.vehicle.trackerData[card.source.key] = '';
         }
-        this.catalog.cards = this.catalog.cards.filter(item => item.id !== cardId);
-        delete this.catalog.records[cardId];
+        this.catalog = deletion.catalog;
         this.pendingDeleteIds.delete(cardId);
         this.persist({ message: `${card.name} y su historial fueron eliminados.` });
+        return true;
     }
 
     ensureEditorDialog() {

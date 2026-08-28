@@ -264,6 +264,7 @@ const LEGACY_KEY_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const MAX_TRACKERS = 500;
 const MAX_HISTORY_ENTRIES = 1000;
+const MAX_DELETED_TRACKER_IDS = 2000;
 
 export class CustomTrackerValidationError extends Error {
     constructor(message) {
@@ -940,6 +941,35 @@ function normalizeHistory(history, { trackerId, strict = false } = {}) {
     return normalized;
 }
 
+function normalizeDeletedTrackerIds(value, { strict = false } = {}) {
+    if (strict && value !== undefined && !Array.isArray(value)) {
+        throw new CustomTrackerValidationError(
+            '"deletedTrackerIds" debe ser una lista.'
+        );
+    }
+
+    const candidates = Array.isArray(value) ? value : [];
+    if (strict && candidates.length > MAX_DELETED_TRACKER_IDS) {
+        throw new CustomTrackerValidationError(
+            `No se pueden conservar más de ${MAX_DELETED_TRACKER_IDS} referencias de borrado.`
+        );
+    }
+
+    const ids = [];
+    for (const candidate of candidates.slice(0, MAX_DELETED_TRACKER_IDS)) {
+        if (typeof candidate !== 'string' || !TRACKER_ID_PATTERN.test(candidate)) {
+            if (strict) {
+                throw new CustomTrackerValidationError(
+                    `La referencia de borrado "${String(candidate)}" no es válida.`
+                );
+            }
+            continue;
+        }
+        if (!ids.includes(candidate)) ids.push(candidate);
+    }
+    return ids;
+}
+
 export function createDefaultModulePreferences(customModules = []) {
     return Object.fromEntries(
         Object.keys(getAppModules(customModules, { includeArchived: true }))
@@ -1078,6 +1108,7 @@ export function createEmptyCustomTrackerRegistry() {
         customModules: [],
         trackers: [],
         histories: {},
+        deletedTrackerIds: [],
         featuredBySection: createDefaultFeaturedPreferences(),
         modulePreferences: createDefaultModulePreferences(),
         navigationPreferences: createDefaultNavigationPreferences(),
@@ -1114,12 +1145,37 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
         );
     }
 
+    const deletedTrackerIdSet = new Set(
+        normalizeDeletedTrackerIds(value.deletedTrackerIds, { strict })
+    );
+    trackerCandidates.forEach(candidate => {
+        if (
+            candidate?.deleted === true
+            && typeof candidate.id === 'string'
+            && TRACKER_ID_PATTERN.test(candidate.id)
+        ) {
+            deletedTrackerIdSet.add(candidate.id);
+        }
+    });
+
     const trackers = [];
     const ids = new Set();
     const alertKeys = new Set();
     for (const candidate of trackerCandidates.slice(0, MAX_TRACKERS)) {
         try {
             const tracker = normalizeTracker(candidate, { strict, sections });
+            if (tracker.deleted) {
+                deletedTrackerIdSet.add(tracker.id);
+                continue;
+            }
+            if (deletedTrackerIdSet.has(tracker.id)) {
+                if (strict) {
+                    throw new CustomTrackerValidationError(
+                        `La tarjeta "${tracker.id}" figura a la vez como activa y borrada.`
+                    );
+                }
+                continue;
+            }
             if (ids.has(tracker.id)) {
                 if (strict) {
                     throw new CustomTrackerValidationError(
@@ -1156,16 +1212,19 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
             trackerId: tracker.id,
             strict
         });
-        if (strict && tracker.deleted && normalizedHistory.length > 0) {
-            throw new CustomTrackerValidationError(
-                `La tarjeta borrada "${tracker.name}" no puede conservar historial.`
-            );
-        }
-        histories[tracker.id] = tracker.deleted ? [] : normalizedHistory;
+        histories[tracker.id] = normalizedHistory;
     }
     if (strict) {
         Object.keys(rawHistories).forEach(trackerId => {
-            assert(ids.has(trackerId), `El historial "${trackerId}" no pertenece a ninguna tarjeta.`);
+            if (ids.has(trackerId)) return;
+            if (deletedTrackerIdSet.has(trackerId)) {
+                assert(
+                    Array.isArray(rawHistories[trackerId]) && rawHistories[trackerId].length === 0,
+                    `La tarjeta borrada "${trackerId}" no puede conservar historial.`
+                );
+                return;
+            }
+            assert(false, `El historial "${trackerId}" no pertenece a ninguna tarjeta.`);
         });
     }
 
@@ -1174,6 +1233,7 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
         customModules,
         trackers,
         histories,
+        deletedTrackerIds: Array.from(deletedTrackerIdSet).slice(0, MAX_DELETED_TRACKER_IDS),
         featuredBySection: normalizeFeaturedBySection(
             value.featuredBySection,
             trackers,
@@ -1194,6 +1254,39 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
 
 export function validateCustomTrackerRegistry(value) {
     return normalizeCustomTrackerRegistry(value, { strict: true });
+}
+
+export function deleteCustomTrackerPermanently(registryValue, trackerId) {
+    const registry = normalizeCustomTrackerRegistry(registryValue);
+    const tracker = registry.trackers.find(item => item.id === trackerId);
+    if (!tracker) {
+        if (registry.deletedTrackerIds.includes(trackerId)) {
+            return { registry, deletedTracker: null, changed: false };
+        }
+        throw new CustomTrackerValidationError('La tarjeta no existe.');
+    }
+    if (!tracker.archived) {
+        throw new CustomTrackerValidationError(
+            'La tarjeta debe estar archivada antes de borrarla definitivamente.'
+        );
+    }
+
+    registry.trackers = registry.trackers.filter(item => item.id !== trackerId);
+    delete registry.histories[trackerId];
+    if (!registry.deletedTrackerIds.includes(trackerId)) {
+        registry.deletedTrackerIds.push(trackerId);
+    }
+    Object.keys(registry.featuredBySection).forEach(sectionKey => {
+        if (registry.featuredBySection[sectionKey] === trackerId) {
+            registry.featuredBySection[sectionKey] = null;
+        }
+    });
+
+    return {
+        registry: normalizeCustomTrackerRegistry(registry),
+        deletedTracker: tracker,
+        changed: true
+    };
 }
 
 export function appendCustomTrackerRecords(

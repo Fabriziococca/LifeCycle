@@ -464,6 +464,24 @@ export function removeVehicleCardRecord(catalogValue, cardId, recordId) {
     return catalog;
 }
 
+export function deleteVehicleCardPermanently(catalogValue, cardId) {
+    const catalog = normalizeVehicleCatalog(catalogValue);
+    const card = catalog.cards.find(item => item.id === cardId);
+    if (!card) throw new TypeError('La tarjeta de vehículo no existe.');
+    if (!card.archived) {
+        throw new TypeError(
+            'La tarjeta de vehículo debe estar archivada antes de borrarla definitivamente.'
+        );
+    }
+
+    catalog.cards = catalog.cards.filter(item => item.id !== cardId);
+    delete catalog.records[cardId];
+    return {
+        catalog: normalizeVehicleCatalog(catalog),
+        deletedCard: card
+    };
+}
+
 export function getVehicleCardLastRecord(catalogValue, cardId) {
     const catalog = normalizeVehicleCatalog(catalogValue);
     const card = catalog.cards.find(item => item.id === cardId);

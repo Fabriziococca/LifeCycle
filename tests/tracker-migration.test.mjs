@@ -178,10 +178,11 @@ test('an existing current registry is authoritative and migration is idempotent'
         hasLegacyAccountData: true,
         now: NOW
     });
+    const deletedTrackerId = first.registry.trackers[0].id;
     first.registry.trackers[0].archived = true;
     first.registry.trackers[0].deleted = true;
     first.registry.trackers[0].deletedAt = '2026-07-28T13:00:00.000Z';
-    first.registry.histories[first.registry.trackers[0].id] = [];
+    first.registry.histories[deletedTrackerId] = [];
 
     const second = migrateLegacyTrackerRegistry({
         hygieneData: {
@@ -194,8 +195,54 @@ test('an existing current registry is authoritative and migration is idempotent'
 
     assert.equal(second.migrated, false);
     assert.equal(second.report.source, 'v3');
-    assert.equal(second.registry.trackers[0].deleted, true);
-    assert.deepEqual(second.registry.histories[first.registry.trackers[0].id], []);
+    assert.equal(second.registry.trackers.some(item => item.id === deletedTrackerId), false);
+    assert.equal(Object.hasOwn(second.registry.histories, deletedTrackerId), false);
+    assert.deepEqual(second.registry.deletedTrackerIds, [deletedTrackerId]);
+});
+
+test('special cards are not recreated after their permanent deletion tombstone', () => {
+    const source = migrateLegacyTrackerRegistry({
+        hygieneData: {
+            robot_cleaner: {
+                status: 'dirty',
+                marked_dirty_at: '2026-07-28T08:00:00.000Z'
+            }
+        },
+        bloodTests: [{ id: 'blood_1', date: '2026-07-01' }],
+        hasLegacyAccountData: true,
+        now: NOW
+    }).registry;
+    source.trackers = source.trackers.filter(tracker => ![
+        DEFAULT_ROBOT_TRACKER_ID,
+        DEFAULT_BLOOD_STUDY_TRACKER_ID
+    ].includes(tracker.id));
+    delete source.histories[DEFAULT_ROBOT_TRACKER_ID];
+    delete source.histories[DEFAULT_BLOOD_STUDY_TRACKER_ID];
+    source.deletedTrackerIds = [
+        DEFAULT_ROBOT_TRACKER_ID,
+        DEFAULT_BLOOD_STUDY_TRACKER_ID
+    ];
+
+    const result = migrateLegacyTrackerRegistry({
+        hygieneData: {
+            robot_cleaner: {
+                status: 'dirty',
+                marked_dirty_at: '2026-07-28T08:00:00.000Z'
+            },
+            [CUSTOM_TRACKER_FIELD]: source
+        },
+        bloodTests: [{ id: 'blood_1', date: '2026-07-01' }],
+        hasLegacyAccountData: true,
+        now: new Date('2026-07-29T12:00:00.000Z')
+    });
+
+    assert.equal(result.registry.trackers.some(
+        tracker => tracker.id === DEFAULT_ROBOT_TRACKER_ID
+    ), false);
+    assert.equal(result.registry.trackers.some(
+        tracker => tracker.id === DEFAULT_BLOOD_STUDY_TRACKER_ID
+    ), false);
+    assert.deepEqual(result.registry.deletedTrackerIds, source.deletedTrackerIds);
 });
 
 test('a supported older unified registry upgrades without rebuilding legacy cards', () => {

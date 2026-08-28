@@ -5,6 +5,7 @@ import {
     appendVehicleCardRecord,
     buildVehicleAlertDefinitions,
     createVehicleCard,
+    deleteVehicleCardPermanently,
     getVehicleCardState,
     migrateVehicleCatalog,
     normalizeVehicleCatalog,
@@ -156,6 +157,31 @@ test('cards with history keep their specialized type when edited', () => {
         name: 'Correa de accesorios',
         intervalKm: 40000
     }).cards[0].name, 'Correa de accesorios');
+});
+
+test('permanent vehicle-card deletion requires archives and removes its history', () => {
+    const card = createVehicleCard({
+        name: 'Correa auxiliar',
+        type: 'maintenance',
+        section: 'maintenance',
+        intervalKm: 30000
+    }, { id: 'vc_delete_belt' });
+    const source = appendVehicleCardRecord({
+        cards: [card],
+        records: { [card.id]: [] }
+    }, card.id, { id: 'r_delete_1', date: '2026-08-01', km: 1000 });
+
+    assert.throws(
+        () => deleteVehicleCardPermanently(source, card.id),
+        /archivada/
+    );
+
+    const archived = updateVehicleCard(source, card.id, { archived: true });
+    const result = deleteVehicleCardPermanently(archived, card.id);
+    assert.equal(result.deletedCard.id, card.id);
+    assert.deepEqual(result.catalog.cards, []);
+    assert.equal(Object.hasOwn(result.catalog.records, card.id), false);
+    assert.equal(source.cards.length, 1);
 });
 
 test('vehicle cards reject warning thresholds that cannot be reached coherently', () => {

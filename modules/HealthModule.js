@@ -4,7 +4,7 @@ import {
     DEFAULT_BLOOD_STUDY_TRACKER_ID,
     getCustomTrackerState,
     isUnifiedCustomTrackerRegistry
-} from '../custom-tracker-utils.mjs?v=20260818-unified-registry';
+} from '../custom-tracker-utils.mjs?v=20260828-permanent-delete';
 
 export class HealthModule {
     constructor(controller) {
@@ -121,6 +121,31 @@ export class HealthModule {
                 return entryTrackerId === trackerId;
             })
             .sort((left, right) => Date.parse(right.date) - Date.parse(left.date));
+    }
+
+    async deleteStudyEntriesForTracker(trackerId) {
+        const entries = this.getStudyEntries(trackerId);
+        const storagePaths = entries
+            .map(entry => entry?.storagePath)
+            .filter(Boolean);
+
+        if (storagePaths.length > 0) {
+            await this.controller.auth.deleteMedicalFiles(storagePaths);
+        }
+
+        this.bloodTests = this.bloodTests.filter(entry => (
+            (entry?.trackerId || DEFAULT_BLOOD_STUDY_TRACKER_ID) !== trackerId
+        ));
+        this.saveBloodTests();
+        if (this.activeStudyTrackerId === trackerId) {
+            this.closeStudyDialog({ restoreFocus: false });
+            this.activeStudyTrackerId = DEFAULT_BLOOD_STUDY_TRACKER_ID;
+        }
+        this.render();
+        return {
+            deletedEntries: entries.length,
+            deletedFiles: storagePaths.length
+        };
     }
 
     bindLegacyStudiesToTracker(trackerId = DEFAULT_BLOOD_STUDY_TRACKER_ID) {
