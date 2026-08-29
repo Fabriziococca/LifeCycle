@@ -7,6 +7,7 @@ import {
     createFallbackResourcePolicy,
     evaluateResourceCapacity,
     getResourceLimit,
+    getTrackerRegistryResourceUsage,
     normalizeResourcePolicy
 } from '../resource-policy.mjs';
 
@@ -48,5 +49,22 @@ test('owner capacity stays unlimited regardless of current usage', () => {
         allowed: true,
         limit: null,
         remaining: null
+    });
+});
+
+test('tracker registry usage counts archived resources but excludes deleted card tombstones', () => {
+    assert.deepEqual(getTrackerRegistryResourceUsage({
+        customModules: [
+            { id: 'cm_active', archived: false },
+            { id: 'cm_archived', archived: true }
+        ],
+        trackers: [
+            { id: 'ct_active', deleted: false },
+            { id: 'ct_archived', archived: true, deleted: false },
+            { id: 'ct_deleted', deleted: true }
+        ]
+    }), {
+        custom_modules: 2,
+        tracker_cards: 2
     });
 });

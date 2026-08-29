@@ -6,7 +6,6 @@ import {
     CUSTOM_MODULE_COLORS,
     CUSTOM_MODULE_CARD_RESOLUTIONS,
     CUSTOM_MODULE_ICONS,
-    MAX_CUSTOM_MODULES,
     CUSTOM_TRACKER_FIELD,
     CUSTOM_TRACKER_ICONS,
     CUSTOM_TRACKER_TEMPLATES,
@@ -27,6 +26,12 @@ import {
     normalizeCustomTrackerRegistry,
     normalizeNavigationPreferences
 } from '../custom-tracker-utils.mjs?v=20260829-module-delete';
+import {
+    RESOURCE_KEYS,
+    createFallbackResourcePolicy,
+    evaluateResourceCapacity,
+    getTrackerRegistryResourceUsage
+} from '../resource-policy.mjs?v=20260829-feature-limits';
 import {
     migrateLegacyTrackerRegistry,
     readLegacyTrackerSnapshot
@@ -239,6 +244,53 @@ export class CustomTrackersModule {
         this.renderAll();
         this.applyModuleVisibility();
         this.app.notificationsCenter?.updateBadge();
+    }
+
+    getCreationCapacity(resourceKey, requestedCount = 1) {
+        const usage = getTrackerRegistryResourceUsage(this.registry);
+        const currentCount = usage[resourceKey] || 0;
+        if (typeof this.app.auth?.canCreateResource === 'function') {
+            return this.app.auth.canCreateResource(
+                resourceKey,
+                currentCount,
+                requestedCount
+            );
+        }
+        return evaluateResourceCapacity(
+            createFallbackResourcePolicy(),
+            resourceKey,
+            currentCount,
+            requestedCount
+        );
+    }
+
+    getCreationLimitMessage(resourceKey, capacity) {
+        const limit = capacity?.limit;
+        if (!Number.isSafeInteger(limit)) {
+            return 'No se pudo validar la capacidad disponible de esta cuenta.';
+        }
+        if (resourceKey === RESOURCE_KEYS.CUSTOM_MODULES) {
+            return `Esta cuenta puede tener hasta ${limit} módulos personalizados. Para crear otro, eliminá definitivamente un módulo archivado.`;
+        }
+        return `Esta cuenta puede tener hasta ${limit} tarjetas configurables. Para crear otra, eliminá definitivamente una tarjeta archivada.`;
+    }
+
+    ensureCreationCapacity(resourceKey, { errorElement = null } = {}) {
+        const capacity = this.getCreationCapacity(resourceKey);
+        if (capacity.allowed) return true;
+
+        const message = this.getCreationLimitMessage(resourceKey, capacity);
+        if (errorElement) {
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+        } else {
+            void this.app.showMessage({
+                title: 'Límite alcanzado',
+                message,
+                tone: 'warning'
+            });
+        }
+        return false;
     }
 
     generateTrackerId() {
@@ -1878,6 +1930,9 @@ export class CustomTrackersModule {
     openModuleEditor(moduleId = null, trigger = null) {
         const module = moduleId ? this.getCustomModule(moduleId) : null;
         if (moduleId && (!module || module.archived)) return false;
+        if (!module && !this.ensureCreationCapacity(RESOURCE_KEYS.CUSTOM_MODULES)) {
+            return false;
+        }
         this.editingModuleId = module?.id || null;
         this.lastModuleDialogTrigger = trigger instanceof HTMLElement ? trigger : null;
         this.moduleDialog.querySelector('#custom-module-dialog-title').textContent = module
@@ -1931,9 +1986,12 @@ export class CustomTrackersModule {
             error.classList.remove('hidden');
             return false;
         }
-        if (!this.editingModuleId && this.registry.customModules.length >= MAX_CUSTOM_MODULES) {
-            error.textContent = `Podés crear hasta ${MAX_CUSTOM_MODULES} módulos personalizados.`;
-            error.classList.remove('hidden');
+        if (
+            !this.editingModuleId
+            && !this.ensureCreationCapacity(RESOURCE_KEYS.CUSTOM_MODULES, {
+                errorElement: error
+            })
+        ) {
             return false;
         }
 
@@ -2764,6 +2822,9 @@ export class CustomTrackersModule {
     openEditor(sectionKey = 'hygiene', trackerId = null, trigger = null) {
         const tracker = trackerId ? this.getTracker(trackerId) : null;
         if (trackerId && (!tracker || tracker.deleted)) return;
+        if (!tracker && !this.ensureCreationCapacity(RESOURCE_KEYS.TRACKER_CARDS)) {
+            return false;
+        }
 
         const sections = this.getSections();
         const selectedSectionKey = tracker?.section || (
@@ -2862,6 +2923,14 @@ export class CustomTrackersModule {
 
     saveEditor() {
         const errorElement = this.dialog.querySelector('#custom-tracker-form-error');
+        if (
+            !this.editingId
+            && !this.ensureCreationCapacity(RESOURCE_KEYS.TRACKER_CARDS, {
+                errorElement
+            })
+        ) {
+            return false;
+        }
         const section = this.dialog.querySelector('#custom-tracker-section').value;
         const subsection = this.dialog.querySelector('#custom-tracker-subsection').value;
         const actionChoice = this.dialog.querySelector('#custom-tracker-action').value;

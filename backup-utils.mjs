@@ -5,6 +5,12 @@ import {
     validateCustomTrackerRegistry
 } from './custom-tracker-utils.mjs';
 import {
+    RESOURCE_KEYS,
+    getResourceLimit,
+    getTrackerRegistryResourceUsage,
+    normalizeResourcePolicy
+} from './resource-policy.mjs';
+import {
     validateVehicleCatalog,
     VEHICLE_CATALOG_FIELD
 } from './vehicle-catalog-utils.mjs';
@@ -1012,6 +1018,74 @@ export function parseAndValidateBackupText(text) {
         entries,
         categories: getBackupCategories(keys)
     };
+}
+
+export function validateBackupResourceCapacity(plan, policy) {
+    if (!plan || !Array.isArray(plan.entries)) {
+        throw new BackupValidationError('El plan de restauración no es válido.');
+    }
+
+    const normalizedPolicy = normalizeResourcePolicy(policy);
+    if (normalizedPolicy.unlimited) {
+        return {
+            [RESOURCE_KEYS.CUSTOM_MODULES]: 0,
+            [RESOURCE_KEYS.TRACKER_CARDS]: 0
+        };
+    }
+
+    const hygieneEntry = plan.entries.find(([key]) => key === 'hygiene_tracker_data');
+    if (!hygieneEntry || hygieneEntry[1] === null) {
+        return {
+            [RESOURCE_KEYS.CUSTOM_MODULES]: 0,
+            [RESOURCE_KEYS.TRACKER_CARDS]: 0
+        };
+    }
+
+    let hygieneData;
+    try {
+        hygieneData = typeof hygieneEntry[1] === 'string'
+            ? JSON.parse(hygieneEntry[1])
+            : hygieneEntry[1];
+    } catch {
+        throw new BackupValidationError(
+            'La sección de tarjetas del backup no contiene JSON válido.'
+        );
+    }
+
+    const registryValue = hygieneData?.[CUSTOM_TRACKER_FIELD];
+    if (!registryValue) {
+        return {
+            [RESOURCE_KEYS.CUSTOM_MODULES]: 0,
+            [RESOURCE_KEYS.TRACKER_CARDS]: 0
+        };
+    }
+
+    const registry = validateCustomTrackerRegistry(registryValue);
+    const usage = getTrackerRegistryResourceUsage(registry);
+    const checks = [
+        {
+            key: RESOURCE_KEYS.CUSTOM_MODULES,
+            singular: 'módulo personalizado',
+            plural: 'módulos personalizados'
+        },
+        {
+            key: RESOURCE_KEYS.TRACKER_CARDS,
+            singular: 'tarjeta configurable',
+            plural: 'tarjetas configurables'
+        }
+    ];
+
+    checks.forEach(({ key, singular, plural }) => {
+        const limit = getResourceLimit(normalizedPolicy, key);
+        const count = usage[key];
+        if (limit !== null && count > limit) {
+            throw new BackupValidationError(
+                `La copia contiene ${count} ${count === 1 ? singular : plural}, pero esta cuenta admite hasta ${limit}. Reducí ese contenido antes de restaurarla.`
+            );
+        }
+    });
+
+    return usage;
 }
 
 export function applyBackupEntries(storage, entries) {

@@ -5,8 +5,9 @@ import {
     createBackupPayload,
     getBackupCategories,
     MAX_BACKUP_BYTES,
-    parseAndValidateBackupText
-} from '../backup-utils.mjs?v=20260729-project-templates';
+    parseAndValidateBackupText,
+    validateBackupResourceCapacity
+} from '../backup-utils.mjs?v=20260829-feature-limits';
 
 export class BackupModule {
     constructor(appController) {
@@ -148,6 +149,10 @@ export class BackupModule {
             this.validateSelectedFile(file);
             const fileText = await file.text();
             const plan = parseAndValidateBackupText(fileText);
+            validateBackupResourceCapacity(
+                plan,
+                this.app.auth?.getResourcePolicy?.()
+            );
 
             const confirmed = await this.app.confirmAction({
                 title: 'Restaurar copia de seguridad',

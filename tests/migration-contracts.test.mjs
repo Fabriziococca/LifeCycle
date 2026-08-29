@@ -31,6 +31,12 @@ const RESOURCE_POLICY_ENFORCEMENT_MIGRATION = path.join(
     'migrations',
     '20260827211500_enforce_user_document_policy.sql'
 );
+const TRACKER_RESOURCE_ENFORCEMENT_MIGRATION = path.join(
+    ROOT,
+    'supabase',
+    'migrations',
+    '20260829193500_enforce_tracker_resource_limits.sql'
+);
 
 test('the latest client sync migration allows every cloud-owned key', async () => {
     const migration = await readFile(FOUNDATION_MIGRATION, 'utf8');
@@ -114,6 +120,33 @@ test('synchronized document limits are enforced privately without cross-user inp
     assert.doesNotMatch(migration, /contactofabrizioo|soyfabriziococca/i);
     assert.match(authSync, /isPermanentSyncPolicyError/);
     assert.match(authSync, /shouldSchedulePendingSync/);
+});
+
+test('module and tracker limits are enforced at the synchronized document boundary', async () => {
+    const migration = await readFile(TRACKER_RESOURCE_ENFORCEMENT_MIGRATION, 'utf8');
+    const verification = await readFile(path.join(
+        ROOT,
+        'supabase',
+        'verification',
+        '20260827_resource_policy_security_check.sql'
+    ), 'utf8');
+
+    assert.match(migration, /private\.enforce_lifecycle_user_document_limit\(\)/i);
+    assert.match(migration, /security definer[\s\S]+set search_path = pg_catalog, pg_temp/i);
+    assert.match(migration, /where profile\.user_id = new\.user_id/i);
+    assert.match(migration, /v_access_tier = 'owner'[\s\S]+return new/i);
+    assert.match(migration, /resource_key = 'custom_modules'/i);
+    assert.match(migration, /resource_key = 'tracker_cards'/i);
+    assert.match(migration, /new\.data -> 'hygiene_tracker_data'/i);
+    assert.match(migration, /v_hygiene_stored #>> '\{\}'[\s\S]+::jsonb/i);
+    assert.match(migration, /jsonb_array_length\(v_custom_modules\)/i);
+    assert.match(migration, /jsonb_array_length\(v_tracker_cards\)/i);
+    assert.match(migration, /errcode = '54000'/i);
+    assert.match(migration, /revoke all on function private\.enforce_lifecycle_user_document_limit\(\)[\s\S]+authenticated/i);
+    assert.doesNotMatch(migration, /contactofabrizioo|soyfabriziococca/i);
+    assert.match(verification, /tracker_resource_limits/i);
+    assert.match(verification, /resource_key = ''custom_modules''/i);
+    assert.match(verification, /resource_key = ''tracker_cards''/i);
 });
 
 test('private safety snapshots enforce RLS without client grants', async () => {

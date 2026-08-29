@@ -9,7 +9,9 @@ export const CUSTOM_TRACKER_SCHEMA_VERSION = 3;
 export const CUSTOM_ALERT_PREFIX = 'custom_tracker:';
 export const DEFAULT_ROBOT_TRACKER_ID = 'trk_hygiene_robot_cleaner';
 export const DEFAULT_BLOOD_STUDY_TRACKER_ID = 'trk_health_blood_analysis';
-export const MAX_CUSTOM_MODULES = 30;
+// These are parser safety ceilings, not account quotas. Product limits come
+// from the authenticated resource policy so the owner tier remains unlimited.
+const MAX_NORMALIZED_CUSTOM_MODULES = 10_000;
 
 export const CUSTOM_MODULE_CARD_RESOLUTIONS = Object.freeze({
     MOVE: 'move',
@@ -267,7 +269,7 @@ const CUSTOM_MODULE_ID_PATTERN = /^cm_[a-z0-9_-]{3,64}$/;
 const ALERT_KEY_PATTERN = /^[a-z0-9:_-]{3,120}$/;
 const LEGACY_KEY_PATTERN = /^[a-zA-Z0-9_-]{1,100}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
-const MAX_TRACKERS = 500;
+const MAX_NORMALIZED_TRACKERS = 50_000;
 const MAX_HISTORY_ENTRIES = 1000;
 const MAX_DELETED_TRACKER_IDS = 2000;
 
@@ -425,15 +427,15 @@ export function normalizeCustomModules(value, { strict = false } = {}) {
         }
         return [];
     }
-    if (strict && value.length > MAX_CUSTOM_MODULES) {
+    if (strict && value.length > MAX_NORMALIZED_CUSTOM_MODULES) {
         throw new CustomTrackerValidationError(
-            `No se pueden importar más de ${MAX_CUSTOM_MODULES} módulos personalizados.`
+            'El archivo supera el límite técnico de seguridad para módulos personalizados.'
         );
     }
 
     const modules = [];
     const ids = new Set();
-    for (const candidate of value.slice(0, MAX_CUSTOM_MODULES)) {
+    for (const candidate of value.slice(0, MAX_NORMALIZED_CUSTOM_MODULES)) {
         try {
             assert(isRecord(candidate), 'Cada módulo personalizado debe ser un objeto.');
             const id = normalizeText(candidate.id, {
@@ -686,7 +688,7 @@ function normalizeMigrationMeta(value) {
     const migratedTrackerCount = normalizeInteger(value.migratedTrackerCount, {
         field: 'migration.migratedTrackerCount',
         min: 0,
-        max: MAX_TRACKERS,
+        max: MAX_NORMALIZED_TRACKERS,
         fallback: 0
     });
     return {
@@ -1144,9 +1146,9 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
     if (strict && !Array.isArray(value.trackers)) {
         throw new CustomTrackerValidationError('"trackers" debe ser una lista.');
     }
-    if (strict && trackerCandidates.length > MAX_TRACKERS) {
+    if (strict && trackerCandidates.length > MAX_NORMALIZED_TRACKERS) {
         throw new CustomTrackerValidationError(
-            `No se pueden importar más de ${MAX_TRACKERS} tarjetas configurables.`
+            'El archivo supera el límite técnico de seguridad para tarjetas configurables.'
         );
     }
 
@@ -1166,7 +1168,7 @@ export function normalizeCustomTrackerRegistry(value, { strict = false } = {}) {
     const trackers = [];
     const ids = new Set();
     const alertKeys = new Set();
-    for (const candidate of trackerCandidates.slice(0, MAX_TRACKERS)) {
+    for (const candidate of trackerCandidates.slice(0, MAX_NORMALIZED_TRACKERS)) {
         try {
             const tracker = normalizeTracker(candidate, { strict, sections });
             if (tracker.deleted) {

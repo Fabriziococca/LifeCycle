@@ -77,6 +77,19 @@ test('permanent synchronization policy errors do not look transient', () => {
     assert.equal(getSyncPolicyErrorMessage({ message: 'Sin conexión' }), 'Sin conexión');
 });
 
+test('resource policy errors explain which tracker capacity must be reduced', () => {
+    assert.match(getSyncPolicyErrorMessage({
+        code: '54000',
+        message: 'LifeCycle resource limit exceeded',
+        details: 'resource_key=custom_modules current=31 limit=30'
+    }), /límite de módulos personalizados/i);
+    assert.match(getSyncPolicyErrorMessage({
+        code: '54000',
+        message: 'LifeCycle resource limit exceeded',
+        details: 'resource_key=tracker_cards current=501 limit=500'
+    }), /límite de tarjetas configurables/i);
+});
+
 test('cloud configuration keeps server-managed keys read-only', () => {
     assert.equal(CLOUD_SYNC_KEYS.includes('gym_active_session'), true);
     assert.equal(CLOUD_RESTORE_KEYS.includes('gym_active_session'), true);

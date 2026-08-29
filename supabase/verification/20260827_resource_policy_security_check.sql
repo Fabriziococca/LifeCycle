@@ -69,6 +69,21 @@ where triggers.tgrelid = 'public.user_data'::regclass
   and not triggers.tgisinternal;
 
 select
+    'tracker_resource_limits' as check_name,
+    procedures.prosecdef
+    and procedures.proconfig @> array['search_path=pg_catalog, pg_temp']
+    and pg_get_functiondef(procedures.oid) ~ 'resource_key = ''custom_modules'''
+    and pg_get_functiondef(procedures.oid) ~ 'resource_key = ''tracker_cards'''
+    and pg_get_functiondef(procedures.oid) ~ 'hygiene_tracker_data'
+    and not has_function_privilege(
+        'authenticated',
+        'private.enforce_lifecycle_user_document_limit()',
+        'execute'
+    ) as passed
+from pg_catalog.pg_proc as procedures
+where procedures.oid = 'private.enforce_lifecycle_user_document_limit()'::regprocedure;
+
+select
     'owner_profile_cardinality' as check_name,
     count(*) = 1 as passed
 from private.lifecycle_access_profiles

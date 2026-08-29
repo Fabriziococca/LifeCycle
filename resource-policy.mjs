@@ -110,3 +110,17 @@ export function evaluateResourceCapacity(
         remaining: Math.max(0, limit - current)
     };
 }
+
+export function getTrackerRegistryResourceUsage(registry) {
+    const customModules = Array.isArray(registry?.customModules)
+        ? registry.customModules
+        : [];
+    const trackerCards = Array.isArray(registry?.trackers)
+        ? registry.trackers.filter(tracker => tracker?.deleted !== true)
+        : [];
+
+    return {
+        [RESOURCE_KEYS.CUSTOM_MODULES]: customModules.length,
+        [RESOURCE_KEYS.TRACKER_CARDS]: trackerCards.length
+    };
+}

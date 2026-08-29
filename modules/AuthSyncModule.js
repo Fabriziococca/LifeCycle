@@ -16,7 +16,7 @@ import {
     evaluateResourceCapacity,
     getResourceLimit as getConfiguredResourceLimit,
     normalizeResourcePolicy
-} from '../resource-policy.mjs?v=20260827-resource-policy';
+} from '../resource-policy.mjs?v=20260829-feature-limits';
 import { PushManagementModule } from './PushManagementModule.js?v=20260801-push-diagnostics';
 
 function isMissingCloudRevisionSchema(error) {

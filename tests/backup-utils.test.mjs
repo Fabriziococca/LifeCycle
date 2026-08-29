@@ -8,10 +8,12 @@ import {
     BackupValidationError,
     createBackupPayload,
     normalizeBackupStorageEntry,
-    parseAndValidateBackupText
+    parseAndValidateBackupText,
+    validateBackupResourceCapacity
 } from '../backup-utils.mjs';
 import { CLOUD_SYNC_KEYS } from '../sync-config.mjs';
 import {
+    createEmptyCustomTrackerRegistry,
     createCustomTracker,
     CUSTOM_TRACKER_FIELD
 } from '../custom-tracker-utils.mjs';
@@ -386,6 +388,53 @@ test('backup validates configurable tracker definitions and histories', () => {
         () => normalizeBackupStorageEntry('hygiene_tracker_data', validData),
         /tarjetas configurables/
     );
+});
+
+test('backup restore enforces account limits while the owner remains unlimited', () => {
+    const registry = createEmptyCustomTrackerRegistry();
+    registry.customModules = [
+        {
+            id: 'cm_primero',
+            name: 'Primero',
+            description: '',
+            icon: 'ph-house',
+            color: 'blue',
+            order: 0,
+            archived: false,
+            createdAt: '2026-08-29T12:00:00.000Z',
+            updatedAt: '2026-08-29T12:00:00.000Z'
+        },
+        {
+            id: 'cm_segundo',
+            name: 'Segundo',
+            description: '',
+            icon: 'ph-star',
+            color: 'green',
+            order: 1,
+            archived: true,
+            createdAt: '2026-08-29T12:00:00.000Z',
+            updatedAt: '2026-08-29T12:00:00.000Z'
+        }
+    ];
+    const plan = {
+        entries: [[
+            'hygiene_tracker_data',
+            JSON.stringify({ [CUSTOM_TRACKER_FIELD]: registry })
+        ]]
+    };
+
+    assert.throws(
+        () => validateBackupResourceCapacity(plan, {
+            tier: 'friend',
+            unlimited: false,
+            limits: { custom_modules: 1 }
+        }),
+        /contiene 2 módulos personalizados.*admite hasta 1/i
+    );
+    assert.doesNotThrow(() => validateBackupResourceCapacity(plan, {
+        tier: 'owner',
+        unlimited: true
+    }));
 });
 
 test('backup validates the configurable vehicle catalog without rejecting legacy dates', () => {

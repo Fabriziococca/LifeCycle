@@ -876,3 +876,20 @@ test('push management distinguishes devices, provider acceptance and failures', 
     assert.match(migration, /enable row level security/);
     assert.match(migration, /revoke all.*authenticated/s);
 });
+
+test('module and tracker creation consume the authenticated resource policy', async () => {
+    const trackerSource = await readFile(
+        path.join(ROOT, 'modules', 'CustomTrackersModule.js'),
+        'utf8'
+    );
+    const backupSource = await readFile(
+        path.join(ROOT, 'modules', 'BackupModule.js'),
+        'utf8'
+    );
+
+    assert.match(trackerSource, /openModuleEditor[\s\S]{0,500}ensureCreationCapacity\(RESOURCE_KEYS\.CUSTOM_MODULES\)/);
+    assert.match(trackerSource, /saveModuleEditor[\s\S]{0,1800}ensureCreationCapacity\(RESOURCE_KEYS\.CUSTOM_MODULES/);
+    assert.match(trackerSource, /openEditor[\s\S]{0,500}ensureCreationCapacity\(RESOURCE_KEYS\.TRACKER_CARDS\)/);
+    assert.match(trackerSource, /saveEditor[\s\S]{0,500}ensureCreationCapacity\(RESOURCE_KEYS\.TRACKER_CARDS/);
+    assert.match(backupSource, /validateBackupResourceCapacity/);
+});
