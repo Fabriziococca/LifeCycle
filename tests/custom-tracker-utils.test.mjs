@@ -6,12 +6,16 @@ import {
     buildCustomAlertDefinitions,
     createCustomTracker,
     createEmptyCustomTrackerRegistry,
+    CUSTOM_MODULE_CARD_RESOLUTIONS,
     CUSTOM_TRACKER_FIELD,
     CUSTOM_TRACKER_SCHEMA_VERSION,
     DEFAULT_NAVIGATION_FAVORITES,
+    deleteCustomModulePermanently,
     deleteCustomTrackerPermanently,
     getAppModules,
     getCustomAlertKey,
+    getCustomModuleDeletionPlan,
+    getCustomModuleSectionId,
     getCustomTrackerSections,
     getCustomTrackerState,
     isMedicalStudyTracker,
@@ -55,6 +59,39 @@ function createTracker(overrides = {}) {
         id: overrides.id || 'ct_sillones_1',
         now: new Date('2026-07-28T12:00:00.000Z'),
         order: overrides.order ?? 0
+    });
+}
+
+function createCustomModule(overrides = {}) {
+    return {
+        id: 'cm_hogar',
+        name: 'Hogar',
+        description: 'Mantenimiento de la casa.',
+        icon: 'ph-house',
+        color: 'blue',
+        order: 0,
+        archived: false,
+        createdAt: '2026-08-17T12:00:00.000Z',
+        updatedAt: '2026-08-17T12:00:00.000Z',
+        ...overrides
+    };
+}
+
+function createModuleTracker(customModules, overrides = {}) {
+    return createCustomTracker({
+        section: customModules[0].id,
+        subsection: 'general',
+        name: 'Cambiar filtro',
+        actionLabel: 'Registrar cambio',
+        intervalDays: 90,
+        icon: 'ph-arrows-clockwise',
+        alert: { enabled: true, time: '20:30' },
+        ...overrides
+    }, {
+        id: overrides.id || 'ct_hogar_filtro',
+        now: new Date('2026-08-17T12:00:00.000Z'),
+        order: overrides.order ?? 0,
+        customModules
     });
 }
 
@@ -433,6 +470,233 @@ test('permanent card deletion requires archives and removes content plus referen
 
     const repeated = deleteCustomTrackerPermanently(result.registry, archived.id);
     assert.equal(repeated.changed, false);
+});
+
+test('module deletion plan inventories dependencies and only offers active destinations', () => {
+    const sourceModule = createCustomModule({ archived: true });
+    const targetModule = createCustomModule({
+        id: 'cm_trabajo',
+        name: 'Trabajo',
+        icon: 'ph-briefcase',
+        color: 'violet',
+        order: 1
+    });
+    const archivedTarget = createCustomModule({
+        id: 'cm_viajes',
+        name: 'Viajes',
+        icon: 'ph-airplane-tilt',
+        color: 'cyan',
+        order: 2,
+        archived: true
+    });
+    const customModules = [sourceModule, targetModule, archivedTarget];
+    const active = createModuleTracker(customModules, { id: 'ct_hogar_activa', order: 2 });
+    const archived = {
+        ...createModuleTracker(customModules, {
+            id: 'ct_hogar_archivada',
+            order: 1,
+            template: 'medical-study'
+        }),
+        archived: true
+    };
+    const registry = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        customModules,
+        trackers: [active, archived],
+        histories: { [active.id]: [], [archived.id]: [] }
+    });
+
+    const plan = getCustomModuleDeletionPlan(registry, sourceModule.id);
+
+    assert.equal(plan.module.id, sourceModule.id);
+    assert.equal(plan.moduleSectionId, getCustomModuleSectionId(sourceModule.id));
+    assert.deepEqual(plan.trackerIds, [archived.id, active.id]);
+    assert.deepEqual(plan.counts, {
+        total: 2,
+        active: 1,
+        archived: 1,
+        medicalStudies: 1,
+        legacyBacked: 0
+    });
+    assert.equal(plan.requiresCardResolution, true);
+    assert.equal(plan.destinationSections.some(item => item.section === 'hygiene'), true);
+    assert.equal(plan.destinationSections.some(item => item.section === targetModule.id), true);
+    assert.equal(plan.destinationSections.some(item => item.section === sourceModule.id), false);
+    assert.equal(plan.destinationSections.some(item => item.section === archivedTarget.id), false);
+});
+
+test('permanent module deletion requires an archived module and an explicit card resolution', () => {
+    const activeModule = createCustomModule();
+    const activeTracker = createModuleTracker([activeModule]);
+    const activeRegistry = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        customModules: [activeModule],
+        trackers: [activeTracker],
+        histories: { [activeTracker.id]: [] }
+    });
+
+    assert.throws(
+        () => deleteCustomModulePermanently(activeRegistry, activeModule.id),
+        /archivado/
+    );
+
+    const archivedModule = { ...activeModule, archived: true };
+    const archivedRegistry = validateCustomTrackerRegistry({
+        ...activeRegistry,
+        customModules: [archivedModule]
+    });
+    assert.throws(
+        () => deleteCustomModulePermanently(archivedRegistry, archivedModule.id),
+        /Elegí si las tarjetas/
+    );
+    assert.throws(
+        () => deleteCustomModulePermanently(archivedRegistry, archivedModule.id, {
+            cardResolution: CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE,
+            targetSection: archivedModule.id
+        }),
+        /destino activo válido/
+    );
+});
+
+test('permanent module deletion can move every card without losing history or alerts', () => {
+    const sourceModule = createCustomModule({ archived: true });
+    const targetModule = createCustomModule({
+        id: 'cm_trabajo',
+        name: 'Trabajo',
+        icon: 'ph-briefcase',
+        color: 'violet',
+        order: 1
+    });
+    const customModules = [sourceModule, targetModule];
+    const first = createModuleTracker(customModules, { id: 'ct_hogar_primera', order: 1 });
+    const second = {
+        ...createModuleTracker(customModules, { id: 'ct_hogar_segunda', order: 3 }),
+        archived: true
+    };
+    const existingTarget = createCustomTracker({
+        section: targetModule.id,
+        subsection: 'general',
+        name: 'Informe mensual',
+        actionLabel: 'Registrar informe',
+        intervalDays: 30,
+        icon: 'ph-briefcase',
+        alert: { enabled: false, time: '22:00' }
+    }, {
+        id: 'ct_trabajo_informe',
+        order: 7,
+        customModules
+    });
+    const source = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        customModules,
+        trackers: [first, second, existingTarget],
+        histories: {
+            [first.id]: ['2026-08-20T12:00:00.000Z'],
+            [second.id]: ['2026-08-19T12:00:00.000Z'],
+            [existingTarget.id]: []
+        },
+        featuredBySection: {
+            [sourceModule.id]: first.id,
+            [targetModule.id]: existingTarget.id
+        },
+        modulePreferences: {
+            [getCustomModuleSectionId(sourceModule.id)]: { visible: false },
+            [getCustomModuleSectionId(targetModule.id)]: { visible: true }
+        },
+        navigationPreferences: {
+            favoriteModules: [
+                getCustomModuleSectionId(sourceModule.id),
+                getCustomModuleSectionId(targetModule.id)
+            ]
+        }
+    });
+
+    const result = deleteCustomModulePermanently(source, sourceModule.id, {
+        cardResolution: CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE,
+        targetSection: targetModule.id,
+        now: new Date('2026-08-28T12:00:00.000Z')
+    });
+
+    assert.equal(result.changed, true);
+    assert.equal(result.deletedModule.id, sourceModule.id);
+    assert.deepEqual(result.destination, { section: targetModule.id, subsection: 'general' });
+    assert.deepEqual(result.movedTrackers.map(tracker => tracker.id), [first.id, second.id]);
+    assert.deepEqual(result.deletedTrackers, []);
+    assert.equal(result.registry.customModules.some(module => module.id === sourceModule.id), false);
+    assert.equal(result.registry.trackers.find(tracker => tracker.id === first.id).order, 8);
+    assert.equal(result.registry.trackers.find(tracker => tracker.id === second.id).order, 9);
+    assert.equal(result.registry.trackers.find(tracker => tracker.id === second.id).archived, true);
+    assert.equal(result.registry.trackers.find(tracker => tracker.id === first.id).alertKey, first.alertKey);
+    assert.deepEqual(result.registry.histories[first.id], ['2026-08-20T12:00:00.000Z']);
+    assert.deepEqual(result.registry.histories[second.id], ['2026-08-19T12:00:00.000Z']);
+    assert.equal(Object.hasOwn(result.registry.featuredBySection, sourceModule.id), false);
+    assert.equal(result.registry.featuredBySection[targetModule.id], existingTarget.id);
+    assert.equal(Object.hasOwn(
+        result.registry.modulePreferences,
+        getCustomModuleSectionId(sourceModule.id)
+    ), false);
+    assert.equal(result.registry.navigationPreferences.favoriteModules.includes(
+        getCustomModuleSectionId(sourceModule.id)
+    ), false);
+    assert.equal(source.customModules.some(module => module.id === sourceModule.id), true);
+    validateCustomTrackerRegistry(result.registry);
+});
+
+test('permanent module deletion can explicitly erase cards, histories and references', () => {
+    const sourceModule = createCustomModule({ archived: true });
+    const active = createModuleTracker([sourceModule], { id: 'ct_hogar_activa' });
+    const archived = {
+        ...createModuleTracker([sourceModule], { id: 'ct_hogar_archivada', order: 1 }),
+        archived: true
+    };
+    const source = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        customModules: [sourceModule],
+        trackers: [active, archived],
+        histories: {
+            [active.id]: ['2026-08-20T12:00:00.000Z'],
+            [archived.id]: ['2026-08-19T12:00:00.000Z']
+        },
+        deletedTrackerIds: ['ct_deleted_before'],
+        featuredBySection: { [sourceModule.id]: active.id },
+        navigationPreferences: {
+            favoriteModules: [getCustomModuleSectionId(sourceModule.id)]
+        }
+    });
+
+    const result = deleteCustomModulePermanently(source, sourceModule.id, {
+        cardResolution: CUSTOM_MODULE_CARD_RESOLUTIONS.DELETE
+    });
+
+    assert.deepEqual(result.movedTrackers, []);
+    assert.deepEqual(result.deletedTrackers.map(tracker => tracker.id), [active.id, archived.id]);
+    assert.equal(result.registry.trackers.length, 0);
+    assert.equal(Object.hasOwn(result.registry.histories, active.id), false);
+    assert.equal(Object.hasOwn(result.registry.histories, archived.id), false);
+    assert.deepEqual(result.registry.deletedTrackerIds, [
+        'ct_deleted_before',
+        active.id,
+        archived.id
+    ]);
+    assert.equal(Object.hasOwn(result.registry.featuredBySection, sourceModule.id), false);
+    assert.equal(source.trackers.length, 2);
+    validateCustomTrackerRegistry(result.registry);
+});
+
+test('an empty archived custom module can be deleted without a card resolution', () => {
+    const customModule = createCustomModule({ archived: true });
+    const source = validateCustomTrackerRegistry({
+        ...createEmptyCustomTrackerRegistry(),
+        customModules: [customModule]
+    });
+
+    const result = deleteCustomModulePermanently(source, customModule.id);
+
+    assert.equal(result.changed, true);
+    assert.equal(result.cardResolution, null);
+    assert.equal(result.registry.customModules.length, 0);
+    assert.deepEqual(result.movedTrackers, []);
+    assert.deepEqual(result.deletedTrackers, []);
 });
 
 test('module visibility defaults to visible and preserves explicit hidden modules', () => {

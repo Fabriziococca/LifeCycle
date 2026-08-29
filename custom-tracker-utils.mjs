@@ -11,6 +11,11 @@ export const DEFAULT_ROBOT_TRACKER_ID = 'trk_hygiene_robot_cleaner';
 export const DEFAULT_BLOOD_STUDY_TRACKER_ID = 'trk_health_blood_analysis';
 export const MAX_CUSTOM_MODULES = 30;
 
+export const CUSTOM_MODULE_CARD_RESOLUTIONS = Object.freeze({
+    MOVE: 'move',
+    DELETE: 'delete'
+});
+
 export const CUSTOM_MODULE_COLORS = Object.freeze({
     blue: '#3b82f6',
     cyan: '#06b6d4',
@@ -1285,6 +1290,182 @@ export function deleteCustomTrackerPermanently(registryValue, trackerId) {
     return {
         registry: normalizeCustomTrackerRegistry(registry),
         deletedTracker: tracker,
+        changed: true
+    };
+}
+
+function getCustomModuleDeletionDestinations(registry, moduleId) {
+    const sections = getCustomTrackerSections(registry.customModules);
+    return Object.entries(sections)
+        .filter(([sectionKey, section]) => (
+            sectionKey !== moduleId
+            && section.archived !== true
+        ))
+        .map(([sectionKey, section]) => ({
+            section: sectionKey,
+            label: section.label,
+            mainSectionId: section.mainSectionId,
+            customModule: section.customModule === true,
+            defaultSubsection: section.defaultSubsection,
+            subsections: Object.entries(section.subsections).map(([subsection, config]) => ({
+                subsection,
+                label: config.label
+            }))
+        }));
+}
+
+export function getCustomModuleDeletionPlan(registryValue, moduleId) {
+    const registry = normalizeCustomTrackerRegistry(registryValue);
+    const customModule = registry.customModules.find(module => module.id === moduleId);
+    if (!customModule) {
+        throw new CustomTrackerValidationError('El módulo personalizado no existe.');
+    }
+
+    const trackers = registry.trackers
+        .filter(tracker => tracker.section === customModule.id)
+        .sort((a, b) => a.order - b.order || a.name.localeCompare(b.name, 'es'));
+    const activeTrackers = trackers.filter(tracker => !tracker.archived);
+    const archivedTrackers = trackers.filter(tracker => tracker.archived);
+
+    return {
+        module: customModule,
+        moduleSectionId: getCustomModuleSectionId(customModule.id),
+        trackers,
+        trackerIds: trackers.map(tracker => tracker.id),
+        counts: {
+            total: trackers.length,
+            active: activeTrackers.length,
+            archived: archivedTrackers.length,
+            medicalStudies: trackers.filter(isMedicalStudyTracker).length,
+            legacyBacked: trackers.filter(tracker => tracker.legacySource !== null).length
+        },
+        requiresCardResolution: trackers.length > 0,
+        destinationSections: getCustomModuleDeletionDestinations(registry, customModule.id)
+    };
+}
+
+export function deleteCustomModulePermanently(registryValue, moduleId, {
+    cardResolution = null,
+    targetSection = null,
+    targetSubsection = null,
+    now = new Date()
+} = {}) {
+    const registry = normalizeCustomTrackerRegistry(registryValue);
+    const plan = getCustomModuleDeletionPlan(registry, moduleId);
+    if (!plan.module.archived) {
+        throw new CustomTrackerValidationError(
+            'El módulo debe estar archivado antes de borrarlo definitivamente.'
+        );
+    }
+
+    const validResolutions = new Set(Object.values(CUSTOM_MODULE_CARD_RESOLUTIONS));
+    if (cardResolution !== null && !validResolutions.has(cardResolution)) {
+        throw new CustomTrackerValidationError(
+            'La resolución elegida para las tarjetas no es válida.'
+        );
+    }
+    if (plan.requiresCardResolution && !validResolutions.has(cardResolution)) {
+        throw new CustomTrackerValidationError(
+            'Elegí si las tarjetas del módulo se moverán o se borrarán definitivamente.'
+        );
+    }
+
+    let destination = null;
+    let timestamp = null;
+    if (cardResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE) {
+        destination = plan.destinationSections.find(item => item.section === targetSection);
+        if (!destination) {
+            throw new CustomTrackerValidationError(
+                'La sección elegida para mover las tarjetas no es un destino activo válido.'
+            );
+        }
+        const requestedSubsection = targetSubsection || destination.defaultSubsection;
+        if (!destination.subsections.some(item => item.subsection === requestedSubsection)) {
+            throw new CustomTrackerValidationError(
+                'La ubicación elegida no pertenece a la sección de destino.'
+            );
+        }
+        destination = {
+            ...destination,
+            subsection: requestedSubsection
+        };
+
+        const date = now instanceof Date ? new Date(now) : new Date(now);
+        assert(!Number.isNaN(date.getTime()), 'La fecha de la operación no es válida.');
+        timestamp = date.toISOString();
+    }
+
+    const trackerIdSet = new Set(plan.trackerIds);
+    if (cardResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.DELETE) {
+        const newDeletedIds = plan.trackerIds.filter(
+            trackerId => !registry.deletedTrackerIds.includes(trackerId)
+        );
+        if (registry.deletedTrackerIds.length + newDeletedIds.length > MAX_DELETED_TRACKER_IDS) {
+            throw new CustomTrackerValidationError(
+                'No hay espacio para conservar todas las referencias de borrado de las tarjetas.'
+            );
+        }
+        registry.trackers = registry.trackers.filter(tracker => !trackerIdSet.has(tracker.id));
+        plan.trackerIds.forEach(trackerId => {
+            delete registry.histories[trackerId];
+            if (!registry.deletedTrackerIds.includes(trackerId)) {
+                registry.deletedTrackerIds.push(trackerId);
+            }
+        });
+        Object.keys(registry.featuredBySection).forEach(sectionKey => {
+            if (trackerIdSet.has(registry.featuredBySection[sectionKey])) {
+                registry.featuredBySection[sectionKey] = null;
+            }
+        });
+    }
+
+    if (cardResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE) {
+        const destinationOrders = registry.trackers
+            .filter(tracker => tracker.section === destination.section)
+            .map(tracker => tracker.order);
+        const firstMovedOrder = destinationOrders.length > 0
+            ? Math.max(...destinationOrders) + 1
+            : 0;
+        const movedOrderById = new Map(
+            plan.trackerIds.map((trackerId, index) => [trackerId, firstMovedOrder + index])
+        );
+        registry.trackers = registry.trackers.map(tracker => (
+            trackerIdSet.has(tracker.id)
+                ? {
+                    ...tracker,
+                    section: destination.section,
+                    subsection: destination.subsection,
+                    order: movedOrderById.get(tracker.id),
+                    updatedAt: timestamp
+                }
+                : tracker
+        ));
+    }
+
+    registry.customModules = registry.customModules.filter(module => module.id !== moduleId);
+    delete registry.featuredBySection[moduleId];
+    delete registry.modulePreferences[plan.moduleSectionId];
+    registry.navigationPreferences.favoriteModules = (
+        registry.navigationPreferences.favoriteModules || []
+    ).filter(sectionId => sectionId !== plan.moduleSectionId);
+
+    const normalizedRegistry = validateCustomTrackerRegistry(registry);
+    return {
+        registry: normalizedRegistry,
+        deletedModule: plan.module,
+        movedTrackers: cardResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE
+            ? normalizedRegistry.trackers.filter(tracker => trackerIdSet.has(tracker.id))
+            : [],
+        deletedTrackers: cardResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.DELETE
+            ? plan.trackers
+            : [],
+        cardResolution,
+        destination: destination
+            ? {
+                section: destination.section,
+                subsection: destination.subsection
+            }
+            : null,
         changed: true
     };
 }
