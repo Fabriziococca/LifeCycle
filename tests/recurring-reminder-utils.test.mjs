@@ -9,6 +9,7 @@ import {
     describeRecurringSchedule,
     matchesRecurringSchedule,
     migrateRecurringReminderConfigs,
+    normalizeRecurringReminderRegistry,
     normalizeRecurringSchedule,
     RECURRING_REMINDERS_FIELD,
     removeRecurringReminder,
@@ -53,6 +54,23 @@ test('custom recurring reminders can be created, edited and removed', () => {
     const removed = removeRecurringReminder(created, id);
     assert.equal(removed[id], undefined);
     assert.equal(buildRecurringReminderDefinitions(removed).some(definition => definition.key === id), false);
+});
+
+test('registry normalization does not silently truncate the former 200 item cap', () => {
+    const reminders = Array.from({ length: 201 }, (_, index) => ({
+        id: `reminder_test_${index}`,
+        name: `Recordatorio ${index + 1}`,
+        category: 'otros',
+        title: `Aviso ${index + 1}`,
+        body: 'Mensaje de prueba.',
+        defaultTime: '09:00',
+        defaultDays: [1]
+    }));
+
+    assert.equal(normalizeRecurringReminderRegistry({
+        version: 2,
+        reminders
+    }).reminders.length, 201);
 });
 
 test('monthly schedules use the last valid day when a month is shorter', () => {
@@ -156,6 +174,8 @@ test('the backend sends the same configurable recurring catalog, including Tradi
     assert.match(serverSource, /recurringReminderMap\.has\(key\)/);
     assert.match(serverSource, /title = recurringReminder\.title/);
     assert.match(serverSource, /body = recurringReminder\.body/);
+    assert.match(serverSource, /candidates\.slice\(0, 10_000\)/);
+    assert.doesNotMatch(serverSource, /candidates\.slice\(0, 200\)/);
 
     DEFAULT_RECURRING_REMINDERS.forEach(reminder => {
         assert.match(serverSource, new RegExp(`id: '${reminder.id}'`));

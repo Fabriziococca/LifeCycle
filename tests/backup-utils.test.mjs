@@ -21,6 +21,7 @@ import {
     createVehicleCard,
     VEHICLE_CATALOG_FIELD
 } from '../vehicle-catalog-utils.mjs';
+import { RECURRING_REMINDERS_FIELD } from '../recurring-reminder-utils.mjs';
 
 const readFixture = fileName => readFileSync(
     new URL(`./fixtures/${fileName}`, import.meta.url),
@@ -430,6 +431,36 @@ test('backup restore enforces account limits while the owner remains unlimited',
             limits: { custom_modules: 1 }
         }),
         /contiene 2 módulos personalizados.*admite hasta 1/i
+    );
+    assert.doesNotThrow(() => validateBackupResourceCapacity(plan, {
+        tier: 'owner',
+        unlimited: true
+    }));
+});
+
+test('backup restore rejects reminder registries above the friend quota', () => {
+    const plan = {
+        entries: [[
+            'alerts_config',
+            JSON.stringify({
+                [RECURRING_REMINDERS_FIELD]: {
+                    version: 2,
+                    reminders: [
+                        { id: 'reminder_first' },
+                        { id: 'reminder_second' }
+                    ]
+                }
+            })
+        ]]
+    };
+
+    assert.throws(
+        () => validateBackupResourceCapacity(plan, {
+            tier: 'friend',
+            unlimited: false,
+            limits: { reminders: 1 }
+        }),
+        /contiene 2 recordatorios.*admite hasta 1/i
     );
     assert.doesNotThrow(() => validateBackupResourceCapacity(plan, {
         tier: 'owner',

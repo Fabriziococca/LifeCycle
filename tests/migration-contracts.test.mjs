@@ -122,7 +122,7 @@ test('synchronized document limits are enforced privately without cross-user inp
     assert.match(authSync, /shouldSchedulePendingSync/);
 });
 
-test('module and tracker limits are enforced at the synchronized document boundary', async () => {
+test('module, tracker and reminder limits are enforced at the synchronized document boundary', async () => {
     const migration = await readFile(TRACKER_RESOURCE_ENFORCEMENT_MIGRATION, 'utf8');
     const verification = await readFile(path.join(
         ROOT,
@@ -137,16 +137,26 @@ test('module and tracker limits are enforced at the synchronized document bounda
     assert.match(migration, /v_access_tier = 'owner'[\s\S]+return new/i);
     assert.match(migration, /resource_key = 'custom_modules'/i);
     assert.match(migration, /resource_key = 'tracker_cards'/i);
+    assert.match(migration, /resource_key = 'reminders'/i);
     assert.match(migration, /new\.data -> 'hygiene_tracker_data'/i);
+    assert.match(migration, /new\.data -> 'alerts_config'/i);
     assert.match(migration, /v_hygiene_stored #>> '\{\}'[\s\S]+::jsonb/i);
+    assert.match(migration, /v_alerts_stored #>> '\{\}'[\s\S]+::jsonb/i);
     assert.match(migration, /jsonb_array_length\(v_custom_modules\)/i);
     assert.match(migration, /jsonb_array_length\(v_tracker_cards\)/i);
+    assert.match(migration, /jsonb_array_length\(v_reminders\)/i);
+    assert.doesNotMatch(
+        migration,
+        /if v_hygiene_stored is null[\s\S]{0,180}return new/i,
+        'missing tracker data must not bypass reminder enforcement'
+    );
     assert.match(migration, /errcode = '54000'/i);
     assert.match(migration, /revoke all on function private\.enforce_lifecycle_user_document_limit\(\)[\s\S]+authenticated/i);
     assert.doesNotMatch(migration, /contactofabrizioo|soyfabriziococca/i);
     assert.match(verification, /tracker_resource_limits/i);
     assert.match(verification, /resource_key = ''custom_modules''/i);
     assert.match(verification, /resource_key = ''tracker_cards''/i);
+    assert.match(verification, /resource_key = ''reminders''/i);
 });
 
 test('private safety snapshots enforce RLS without client grants', async () => {

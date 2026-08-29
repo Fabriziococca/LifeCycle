@@ -235,6 +235,18 @@ test('recurring reminders use an accessible editor and the shared destructive pa
     assert.match(alertsSource, /showUndo\?\.\('Recordatorio eliminado\.'/);
     assert.match(
         alertsSource,
+        /addEarningsSeasonReminderPreset[\s\S]{0,1400}requestedCount: missing\.length/
+    );
+    assert.match(
+        alertsSource,
+        /openRecurringReminderEditor[\s\S]{0,500}ensureRecurringReminderCreationCapacity\(\)/
+    );
+    assert.match(
+        alertsSource,
+        /saveRecurringReminderFromEditor[\s\S]{0,1000}ensureRecurringReminderCreationCapacity\(\{ errorElement: error \}\)/
+    );
+    assert.match(
+        alertsSource,
         /const returnFocusTarget = this\.reminderModalReturnFocus;[\s\S]*?requestAnimationFrame\(\(\) => \{[\s\S]*?returnFocusTarget\.isConnected[\s\S]*?returnFocusTarget\.focus\(\)/
     );
     assert.doesNotMatch(

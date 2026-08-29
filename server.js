@@ -401,7 +401,9 @@ function ensureRecurringReminderConfigs(alertsConfig, oldReminders = {}) {
         : DEFAULT_RECURRING_REMINDERS;
     const definitions = new Map();
 
-    candidates.slice(0, 200).forEach(candidate => {
+    // Technical parser ceiling; account quotas are enforced before user_data
+    // is persisted so the owner tier is not silently reduced to a friend cap.
+    candidates.slice(0, 10_000).forEach(candidate => {
         const id = cleanRecurringText(candidate?.id, 96).toLowerCase();
         if (!RECURRING_ID_PATTERN.test(id) || definitions.has(id)) return;
         const defaultSchedule = normalizeRecurringSchedule(

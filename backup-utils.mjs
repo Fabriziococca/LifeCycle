@@ -7,9 +7,11 @@ import {
 import {
     RESOURCE_KEYS,
     getResourceLimit,
+    getRecurringReminderRegistryResourceUsage,
     getTrackerRegistryResourceUsage,
     normalizeResourcePolicy
 } from './resource-policy.mjs';
+import { RECURRING_REMINDERS_FIELD } from './recurring-reminder-utils.mjs';
 import {
     validateVehicleCatalog,
     VEHICLE_CATALOG_FIELD
@@ -1026,42 +1028,61 @@ export function validateBackupResourceCapacity(plan, policy) {
     }
 
     const normalizedPolicy = normalizeResourcePolicy(policy);
+    const usage = {
+        [RESOURCE_KEYS.CUSTOM_MODULES]: 0,
+        [RESOURCE_KEYS.TRACKER_CARDS]: 0,
+        [RESOURCE_KEYS.REMINDERS]: 0
+    };
     if (normalizedPolicy.unlimited) {
-        return {
-            [RESOURCE_KEYS.CUSTOM_MODULES]: 0,
-            [RESOURCE_KEYS.TRACKER_CARDS]: 0
-        };
+        return usage;
     }
 
     const hygieneEntry = plan.entries.find(([key]) => key === 'hygiene_tracker_data');
-    if (!hygieneEntry || hygieneEntry[1] === null) {
-        return {
-            [RESOURCE_KEYS.CUSTOM_MODULES]: 0,
-            [RESOURCE_KEYS.TRACKER_CARDS]: 0
-        };
+    if (hygieneEntry && hygieneEntry[1] !== null) {
+        let hygieneData;
+        try {
+            hygieneData = typeof hygieneEntry[1] === 'string'
+                ? JSON.parse(hygieneEntry[1])
+                : hygieneEntry[1];
+        } catch {
+            throw new BackupValidationError(
+                'La sección de tarjetas del backup no contiene JSON válido.'
+            );
+        }
+
+        const registryValue = hygieneData?.[CUSTOM_TRACKER_FIELD];
+        if (registryValue) {
+            Object.assign(
+                usage,
+                getTrackerRegistryResourceUsage(
+                    validateCustomTrackerRegistry(registryValue)
+                )
+            );
+        }
     }
 
-    let hygieneData;
-    try {
-        hygieneData = typeof hygieneEntry[1] === 'string'
-            ? JSON.parse(hygieneEntry[1])
-            : hygieneEntry[1];
-    } catch {
-        throw new BackupValidationError(
-            'La sección de tarjetas del backup no contiene JSON válido.'
-        );
+    const alertsEntry = plan.entries.find(([key]) => key === 'alerts_config');
+    if (alertsEntry && alertsEntry[1] !== null) {
+        let alertsData;
+        try {
+            alertsData = typeof alertsEntry[1] === 'string'
+                ? JSON.parse(alertsEntry[1])
+                : alertsEntry[1];
+        } catch {
+            throw new BackupValidationError(
+                'La sección de recordatorios del backup no contiene JSON válido.'
+            );
+        }
+
+        const registry = alertsData?.[RECURRING_REMINDERS_FIELD];
+        if (registry) {
+            Object.assign(
+                usage,
+                getRecurringReminderRegistryResourceUsage(registry)
+            );
+        }
     }
 
-    const registryValue = hygieneData?.[CUSTOM_TRACKER_FIELD];
-    if (!registryValue) {
-        return {
-            [RESOURCE_KEYS.CUSTOM_MODULES]: 0,
-            [RESOURCE_KEYS.TRACKER_CARDS]: 0
-        };
-    }
-
-    const registry = validateCustomTrackerRegistry(registryValue);
-    const usage = getTrackerRegistryResourceUsage(registry);
     const checks = [
         {
             key: RESOURCE_KEYS.CUSTOM_MODULES,
@@ -1072,6 +1093,11 @@ export function validateBackupResourceCapacity(plan, policy) {
             key: RESOURCE_KEYS.TRACKER_CARDS,
             singular: 'tarjeta configurable',
             plural: 'tarjetas configurables'
+        },
+        {
+            key: RESOURCE_KEYS.REMINDERS,
+            singular: 'recordatorio',
+            plural: 'recordatorios'
         }
     ];
 

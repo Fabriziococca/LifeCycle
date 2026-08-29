@@ -88,6 +88,11 @@ test('resource policy errors explain which tracker capacity must be reduced', ()
         message: 'LifeCycle resource limit exceeded',
         details: 'resource_key=tracker_cards current=501 limit=500'
     }), /límite de tarjetas configurables/i);
+    assert.match(getSyncPolicyErrorMessage({
+        code: '54000',
+        message: 'LifeCycle resource limit exceeded',
+        details: 'resource_key=reminders current=501 limit=500'
+    }), /límite de recordatorios/i);
 });
 
 test('cloud configuration keeps server-managed keys read-only', () => {

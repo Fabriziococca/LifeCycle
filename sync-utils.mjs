@@ -61,6 +61,10 @@ export function getSyncPolicyErrorMessage(error) {
         return 'Tu cuenta alcanzó el límite de tarjetas configurables. '
             + 'Eliminá definitivamente una tarjeta archivada antes de reintentar.';
     }
+    if (details.includes('resource_key=reminders')) {
+        return 'Tu cuenta alcanzó el límite de recordatorios. '
+            + 'Eliminá uno antes de reintentar.';
+    }
     return 'Tu información supera el límite seguro de sincronización. '
         + 'Los cambios quedan pendientes para que puedas reducir contenido antes de reintentar.';
 }

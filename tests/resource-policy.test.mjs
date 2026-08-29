@@ -7,6 +7,7 @@ import {
     createFallbackResourcePolicy,
     evaluateResourceCapacity,
     getResourceLimit,
+    getRecurringReminderRegistryResourceUsage,
     getTrackerRegistryResourceUsage,
     normalizeResourcePolicy
 } from '../resource-policy.mjs';
@@ -66,5 +67,19 @@ test('tracker registry usage counts archived resources but excludes deleted card
     }), {
         custom_modules: 2,
         tracker_cards: 2
+    });
+});
+
+test('recurring reminder registry usage counts every persisted reminder', () => {
+    assert.deepEqual(getRecurringReminderRegistryResourceUsage({
+        reminders: [
+            { id: 'reminder_first' },
+            { id: 'reminder_second' }
+        ]
+    }), {
+        reminders: 2
+    });
+    assert.deepEqual(getRecurringReminderRegistryResourceUsage(null), {
+        reminders: 0
     });
 });

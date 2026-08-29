@@ -10,7 +10,13 @@ import {
     RECURRING_REMINDERS_FIELD,
     removeRecurringReminder,
     upsertRecurringReminder
-} from '../recurring-reminder-utils.mjs?v=20260801-recurring-reminders';
+} from '../recurring-reminder-utils.mjs?v=20260829-reminder-limits';
+import {
+    RESOURCE_KEYS,
+    createFallbackResourcePolicy,
+    evaluateResourceCapacity,
+    getRecurringReminderRegistryResourceUsage
+} from '../resource-policy.mjs?v=20260829-feature-limits';
 
 const EARNINGS_SEASON_REMINDER_PRESET = Object.freeze([
     Object.freeze({
@@ -281,6 +287,50 @@ export class AlertsModule {
         );
     }
 
+    getRecurringReminderCreationCapacity(requestedCount = 1) {
+        const registry = this.getRecurringReminderRegistry();
+        const usage = getRecurringReminderRegistryResourceUsage(registry);
+        const currentCount = usage[RESOURCE_KEYS.REMINDERS] || 0;
+        if (typeof this.app.auth?.canCreateResource === 'function') {
+            return this.app.auth.canCreateResource(
+                RESOURCE_KEYS.REMINDERS,
+                currentCount,
+                requestedCount
+            );
+        }
+        return evaluateResourceCapacity(
+            createFallbackResourcePolicy(),
+            RESOURCE_KEYS.REMINDERS,
+            currentCount,
+            requestedCount
+        );
+    }
+
+    ensureRecurringReminderCreationCapacity({
+        requestedCount = 1,
+        errorElement = null
+    } = {}) {
+        const capacity = this.getRecurringReminderCreationCapacity(requestedCount);
+        if (capacity.allowed) return true;
+
+        const message = Number.isSafeInteger(capacity.limit)
+            ? `Esta cuenta puede tener hasta ${capacity.limit} recordatorios. Eliminá uno antes de crear otro.`
+            : 'No se pudo validar la capacidad disponible de esta cuenta.';
+        if (errorElement) {
+            errorElement.textContent = message;
+            errorElement.classList.remove('hidden');
+        } else if (typeof this.app.showMessage === 'function') {
+            void this.app.showMessage({
+                title: 'Límite alcanzado',
+                message,
+                tone: 'warning'
+            });
+        } else {
+            this.app.showToast?.(message);
+        }
+        return false;
+    }
+
     getRecurringReminder(reminderId) {
         return this.getRecurringReminderRegistry().reminders
             .find(reminder => reminder.id === reminderId) || null;
@@ -333,6 +383,12 @@ export class AlertsModule {
             this.app.showToast?.('Las cuatro temporadas de balances ya están configuradas.');
             return;
         }
+        if (!this.ensureRecurringReminderCreationCapacity({
+            requestedCount: missing.length
+        })) {
+            trigger?.focus?.();
+            return;
+        }
 
         const confirmed = await this.app.confirmAction({
             title: 'Agregar temporadas de balances',
@@ -347,6 +403,12 @@ export class AlertsModule {
             closeOnBackdrop: false
         });
         if (!confirmed) {
+            trigger?.focus?.();
+            return;
+        }
+        if (!this.ensureRecurringReminderCreationCapacity({
+            requestedCount: missing.length
+        })) {
             trigger?.focus?.();
             return;
         }
@@ -385,6 +447,9 @@ export class AlertsModule {
         if (!modal || !form) return;
 
         const reminder = reminderId ? this.getRecurringReminder(reminderId) : null;
+        if (!reminderId && !this.ensureRecurringReminderCreationCapacity()) {
+            return false;
+        }
         const config = reminder ? (this.configs[reminder.id] || {}) : {};
         this.editingRecurringReminderId = reminder?.id || null;
         this.reminderModalReturnFocus = trigger || document.activeElement;
@@ -432,6 +497,7 @@ export class AlertsModule {
         modal.classList.remove('hidden');
         document.body.classList.add('modal-open');
         requestAnimationFrame(() => document.getElementById('recurring-reminder-name')?.focus());
+        return true;
     }
 
     closeRecurringReminderEditor({ restoreFocus = true } = {}) {
@@ -460,6 +526,12 @@ export class AlertsModule {
         }
 
         const wasEditing = Boolean(this.editingRecurringReminderId);
+        if (
+            !wasEditing
+            && !this.ensureRecurringReminderCreationCapacity({ errorElement: error })
+        ) {
+            return false;
+        }
         const registry = this.getRecurringReminderRegistry();
         const reminderId = this.editingRecurringReminderId || createRecurringReminderId(
             name,

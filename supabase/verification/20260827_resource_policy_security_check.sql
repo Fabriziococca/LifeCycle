@@ -74,7 +74,9 @@ select
     and procedures.proconfig @> array['search_path=pg_catalog, pg_temp']
     and pg_get_functiondef(procedures.oid) ~ 'resource_key = ''custom_modules'''
     and pg_get_functiondef(procedures.oid) ~ 'resource_key = ''tracker_cards'''
+    and pg_get_functiondef(procedures.oid) ~ 'resource_key = ''reminders'''
     and pg_get_functiondef(procedures.oid) ~ 'hygiene_tracker_data'
+    and pg_get_functiondef(procedures.oid) ~ 'alerts_config'
     and not has_function_privilege(
         'authenticated',
         'private.enforce_lifecycle_user_document_limit()',

@@ -79,6 +79,9 @@ const CATEGORY_SET = new Set(RECURRING_REMINDER_CATEGORIES);
 const SCHEDULE_TYPE_SET = new Set(RECURRING_SCHEDULE_TYPES);
 const ID_PATTERN = /^[a-z0-9][a-z0-9_-]{2,95}$/;
 const TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
+// Parser safety ceiling only. The authenticated account quota is enforced
+// separately so the owner tier is not constrained by the friend limit.
+const MAX_NORMALIZED_RECURRING_REMINDERS = 10_000;
 
 function cleanText(value, maxLength, fallback = '') {
     const result = String(value ?? '').replace(/\s+/g, ' ').trim();
@@ -229,7 +232,7 @@ export function normalizeRecurringReminderRegistry(value, { useDefaultsWhenMissi
     const reminders = [];
     const ids = new Set();
 
-    candidates.slice(0, 200).forEach(candidate => {
+    candidates.slice(0, MAX_NORMALIZED_RECURRING_REMINDERS).forEach(candidate => {
         const migratedCandidate = Number(value?.version || 1) < 2
             && candidate?.id === 'trading'
             && candidate?.category === 'gym'

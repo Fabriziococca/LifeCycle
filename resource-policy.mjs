@@ -124,3 +124,13 @@ export function getTrackerRegistryResourceUsage(registry) {
         [RESOURCE_KEYS.TRACKER_CARDS]: trackerCards.length
     };
 }
+
+export function getRecurringReminderRegistryResourceUsage(registry) {
+    const reminders = Array.isArray(registry?.reminders)
+        ? registry.reminders
+        : [];
+
+    return {
+        [RESOURCE_KEYS.REMINDERS]: reminders.length
+    };
+}
