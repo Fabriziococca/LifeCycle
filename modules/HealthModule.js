@@ -4,7 +4,7 @@ import {
     DEFAULT_BLOOD_STUDY_TRACKER_ID,
     getCustomTrackerState,
     isUnifiedCustomTrackerRegistry
-} from '../custom-tracker-utils.mjs?v=20260828-permanent-delete';
+} from '../custom-tracker-utils.mjs?v=20260829-module-delete';
 
 export class HealthModule {
     constructor(controller) {
@@ -124,20 +124,38 @@ export class HealthModule {
     }
 
     async deleteStudyEntriesForTracker(trackerId) {
-        const entries = this.getStudyEntries(trackerId);
-        const storagePaths = entries
+        return this.deleteStudyEntriesForTrackers([trackerId]);
+    }
+
+    async deleteStudyEntriesForTrackers(trackerIds) {
+        const requestedIds = new Set(
+            (Array.isArray(trackerIds) ? trackerIds : [])
+                .map(trackerId => typeof trackerId === 'string' ? trackerId.trim() : '')
+                .filter(Boolean)
+        );
+        if (requestedIds.size === 0) {
+            return { deletedEntries: 0, deletedFiles: 0 };
+        }
+
+        const currentEntries = Array.isArray(this.bloodTests) ? this.bloodTests : [];
+        const entries = currentEntries.filter(entry => {
+            const entryTrackerId = entry?.trackerId || DEFAULT_BLOOD_STUDY_TRACKER_ID;
+            return requestedIds.has(entryTrackerId);
+        });
+        const storagePaths = [...new Set(entries
             .map(entry => entry?.storagePath)
-            .filter(Boolean);
+            .filter(Boolean))];
 
         if (storagePaths.length > 0) {
             await this.controller.auth.deleteMedicalFiles(storagePaths);
         }
 
-        this.bloodTests = this.bloodTests.filter(entry => (
-            (entry?.trackerId || DEFAULT_BLOOD_STUDY_TRACKER_ID) !== trackerId
-        ));
+        this.bloodTests = currentEntries.filter(entry => {
+            const entryTrackerId = entry?.trackerId || DEFAULT_BLOOD_STUDY_TRACKER_ID;
+            return !requestedIds.has(entryTrackerId);
+        });
         this.saveBloodTests();
-        if (this.activeStudyTrackerId === trackerId) {
+        if (requestedIds.has(this.activeStudyTrackerId)) {
             this.closeStudyDialog({ restoreFocus: false });
             this.activeStudyTrackerId = DEFAULT_BLOOD_STUDY_TRACKER_ID;
         }

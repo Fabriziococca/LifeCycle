@@ -4,6 +4,7 @@ import {
     buildCustomAlertDefinitions,
     createCustomTracker,
     CUSTOM_MODULE_COLORS,
+    CUSTOM_MODULE_CARD_RESOLUTIONS,
     CUSTOM_MODULE_ICONS,
     MAX_CUSTOM_MODULES,
     CUSTOM_TRACKER_FIELD,
@@ -11,9 +12,11 @@ import {
     CUSTOM_TRACKER_TEMPLATES,
     DEFAULT_BLOOD_STUDY_TRACKER_ID,
     DEFAULT_ROBOT_TRACKER_ID,
+    deleteCustomModulePermanently,
     deleteCustomTrackerPermanently,
     getAppModules,
     getCustomAlertKey,
+    getCustomModuleDeletionPlan,
     getCustomModuleHostId,
     getCustomModuleSectionId,
     getCustomTrackerSections,
@@ -23,7 +26,7 @@ import {
     normalizeCustomTrackerDayThresholds,
     normalizeCustomTrackerRegistry,
     normalizeNavigationPreferences
-} from '../custom-tracker-utils.mjs?v=20260828-permanent-delete';
+} from '../custom-tracker-utils.mjs?v=20260829-module-delete';
 import {
     migrateLegacyTrackerRegistry,
     readLegacyTrackerSnapshot
@@ -110,6 +113,9 @@ export class CustomTrackersModule {
         this.instructionsDialogTrigger = null;
         this.editingModuleId = null;
         this.lastModuleDialogTrigger = null;
+        this.deletingModuleId = null;
+        this.lastModuleDeleteTrigger = null;
+        this.moduleDeletionBusy = false;
         this.editingId = null;
         this.lastDialogTrigger = null;
         this.toastTimer = null;
@@ -141,6 +147,7 @@ export class CustomTrackersModule {
         this.ensureInstructionsDialog();
         this.ensureEditorDialog();
         this.ensureModuleEditorDialog();
+        this.ensureModuleDeletionDialog();
         this.setupManagerListeners();
         this.setupModuleListeners();
         this.setupRuntimeListeners();
@@ -705,6 +712,8 @@ export class CustomTrackersModule {
                     void this.archiveCustomModule(moduleId);
                 } else if (action === 'restore') {
                     this.restoreCustomModule(moduleId);
+                } else if (action === 'delete') {
+                    this.openModuleDeletionDialog(moduleId, customModuleButton);
                 }
                 return;
             }
@@ -919,15 +928,22 @@ export class CustomTrackersModule {
                 <details class="custom-modules-archived">
                     <summary><span><i class="ph ph-archive"></i> Archivados</span><small>${archived.length}</small></summary>
                     <div>
-                        ${archived.map(module => `
+                        ${archived.map(module => {
+                            const plan = getCustomModuleDeletionPlan(this.registry, module.id);
+                            const cardSummary = plan.counts.total === 0
+                                ? 'Sin tarjetas; puede eliminarse definitivamente.'
+                                : `${plan.counts.total} ${plan.counts.total === 1 ? 'tarjeta conservada' : 'tarjetas conservadas'}; alertas pausadas.`;
+                            return `
                             <article class="custom-module-manager-card is-archived">
                                 <span class="custom-module-manager-icon"><i class="ph ${module.icon}"></i></span>
-                                <span class="custom-module-manager-copy"><strong>${escapeHtml(module.name)}</strong><small>Tarjetas e historiales conservados; alertas pausadas.</small></span>
+                                <span class="custom-module-manager-copy"><strong>${escapeHtml(module.name)}</strong><small>${escapeHtml(cardSummary)}</small></span>
                                 <span class="custom-module-manager-actions">
                                     <button type="button" data-custom-module-action="restore" data-module-id="${module.id}" aria-label="Restaurar módulo ${escapeHtml(module.name)}" data-tooltip="Restaurar"><i class="ph ph-arrow-counter-clockwise"></i></button>
+                                    <button type="button" class="danger" data-custom-module-action="delete" data-module-id="${module.id}" aria-label="Eliminar definitivamente módulo ${escapeHtml(module.name)}" data-tooltip="Eliminar definitivamente"><i class="ph ph-trash"></i></button>
                                 </span>
                             </article>
-                        `).join('')}
+                        `;
+                        }).join('')}
                     </div>
                 </details>
             `
@@ -1947,6 +1963,436 @@ export class CustomTrackersModule {
             existing ? `Módulo ${name} actualizado.` : `Módulo ${name} creado. Ya podés agregarle tarjetas.`
         );
         return true;
+    }
+
+    ensureModuleDeletionDialog() {
+        document.getElementById('custom-module-delete-dialog')?.remove();
+
+        const dialog = document.createElement('div');
+        dialog.id = 'custom-module-delete-dialog';
+        dialog.className = 'custom-tracker-dialog custom-module-delete-dialog hidden';
+        dialog.setAttribute('role', 'dialog');
+        dialog.setAttribute('aria-modal', 'true');
+        dialog.setAttribute('aria-labelledby', 'custom-module-delete-title');
+        dialog.setAttribute('aria-describedby', 'custom-module-delete-description');
+        dialog.innerHTML = `
+            <div class="custom-tracker-dialog-card custom-module-delete-card">
+                <div class="custom-tracker-dialog-header">
+                    <div>
+                        <span class="custom-trackers-eyebrow">Eliminación permanente</span>
+                        <h2 id="custom-module-delete-title">Eliminar módulo</h2>
+                        <p id="custom-module-delete-description">Revisá qué ocurrirá con sus tarjetas antes de continuar.</p>
+                    </div>
+                    <button type="button" class="custom-dialog-close" data-module-delete-action="close" aria-label="Cerrar eliminación de módulo" data-tooltip="Cerrar">
+                        <i class="ph ph-x"></i>
+                    </button>
+                </div>
+                <form id="custom-module-delete-form" novalidate>
+                    <div class="custom-module-delete-summary">
+                        <span class="custom-module-manager-icon" data-module-delete-icon><i class="ph ph-squares-four"></i></span>
+                        <span>
+                            <small>MÓDULO ARCHIVADO</small>
+                            <strong data-module-delete-name></strong>
+                            <span data-module-delete-counts></span>
+                        </span>
+                    </div>
+                    <fieldset class="custom-module-delete-resolutions" data-module-delete-resolutions>
+                        <legend data-module-delete-legend>¿Qué querés hacer con sus tarjetas?</legend>
+                        <label class="custom-module-delete-choice">
+                            <input type="radio" name="custom-module-card-resolution" value="${CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE}" checked>
+                            <span class="custom-module-delete-choice-icon"><i class="ph ph-arrow-bend-down-right"></i></span>
+                            <span>
+                                <strong>Mover las tarjetas</strong>
+                                <small>Conserva tarjetas, historiales, estudios, archivos y configuración de avisos.</small>
+                            </span>
+                        </label>
+                        <div class="custom-module-delete-destination" data-module-delete-destination>
+                            <div class="input-group">
+                                <label for="custom-module-delete-section">Módulo de destino</label>
+                                <select id="custom-module-delete-section" class="text-input"></select>
+                            </div>
+                            <div class="input-group" data-module-delete-subsection-group>
+                                <label for="custom-module-delete-subsection">Ubicación</label>
+                                <select id="custom-module-delete-subsection" class="text-input"></select>
+                            </div>
+                        </div>
+                        <label class="custom-module-delete-choice is-danger">
+                            <input type="radio" name="custom-module-card-resolution" value="${CUSTOM_MODULE_CARD_RESOLUTIONS.DELETE}">
+                            <span class="custom-module-delete-choice-icon"><i class="ph ph-trash"></i></span>
+                            <span>
+                                <strong>Borrar también las tarjetas</strong>
+                                <small>Elimina historiales, avisos y archivos médicos asociados. Esta acción no se puede deshacer.</small>
+                            </span>
+                        </label>
+                    </fieldset>
+                    <div class="custom-module-delete-empty hidden" data-module-delete-empty>
+                        <i class="ph ph-info"></i>
+                        <span><strong>Este módulo no contiene tarjetas.</strong><small>Solo se eliminará su configuración.</small></span>
+                    </div>
+                    <div id="custom-module-delete-error" class="custom-tracker-form-error hidden" role="alert"></div>
+                    <div class="custom-tracker-dialog-actions">
+                        <button type="button" class="btn btn-secondary" data-module-delete-action="close">Cancelar</button>
+                        <button type="submit" class="btn btn-danger" data-module-delete-submit>
+                            <i class="ph ph-trash"></i> Revisar eliminación
+                        </button>
+                    </div>
+                </form>
+            </div>
+        `;
+        document.body.appendChild(dialog);
+        this.moduleDeleteDialog = dialog;
+
+        dialog.addEventListener('click', event => {
+            if (
+                !this.moduleDeletionBusy
+                && (
+                    event.target === dialog
+                    || event.target.closest('[data-module-delete-action="close"]')
+                )
+            ) {
+                this.closeModuleDeletionDialog();
+            }
+        });
+        dialog.addEventListener('change', event => {
+            if (event.target.matches('input[name="custom-module-card-resolution"]')) {
+                this.updateModuleDeletionResolution();
+            } else if (event.target.id === 'custom-module-delete-section') {
+                this.updateModuleDeletionSubsections();
+            }
+        });
+        dialog.querySelector('#custom-module-delete-form').addEventListener('submit', event => {
+            event.preventDefault();
+            void this.submitModuleDeletion();
+        });
+        dialog.addEventListener('keydown', event => {
+            if (this.moduleDeleteDialog.classList.contains('hidden')) return;
+            if (event.key === 'Escape' && !this.moduleDeletionBusy) {
+                event.preventDefault();
+                this.closeModuleDeletionDialog();
+                return;
+            }
+            if (event.key !== 'Tab') return;
+            const focusable = Array.from(dialog.querySelectorAll(
+                'button:not([disabled]), input:not([disabled]), select:not([disabled])'
+            ));
+            if (focusable.length === 0) return;
+            const first = focusable[0];
+            const last = focusable[focusable.length - 1];
+            if (event.shiftKey && document.activeElement === first) {
+                event.preventDefault();
+                last.focus();
+            } else if (!event.shiftKey && document.activeElement === last) {
+                event.preventDefault();
+                first.focus();
+            }
+        });
+    }
+
+    openModuleDeletionDialog(moduleId, trigger = null) {
+        const module = this.getCustomModule(moduleId);
+        if (!module?.archived || !this.moduleDeleteDialog) return false;
+
+        const plan = getCustomModuleDeletionPlan(this.registry, moduleId);
+        this.deletingModuleId = moduleId;
+        this.moduleDeletionPlan = plan;
+        this.lastModuleDeleteTrigger = trigger instanceof HTMLElement ? trigger : null;
+        this.moduleDeletionBusy = false;
+
+        this.moduleDeleteDialog.querySelector('#custom-module-delete-title').textContent = `Eliminar ${module.name}`;
+        this.moduleDeleteDialog.querySelector('[data-module-delete-name]').textContent = module.name;
+        this.moduleDeleteDialog.querySelector('[data-module-delete-counts]').textContent = plan.counts.total === 0
+            ? 'Sin tarjetas asociadas'
+            : `${plan.counts.total} ${plan.counts.total === 1 ? 'tarjeta' : 'tarjetas'} · ${plan.counts.active} ${plan.counts.active === 1 ? 'activa' : 'activas'} · ${plan.counts.archived} ${plan.counts.archived === 1 ? 'archivada' : 'archivadas'}`;
+        const icon = this.moduleDeleteDialog.querySelector('[data-module-delete-icon]');
+        icon?.style.setProperty(
+            '--custom-module-color',
+            CUSTOM_MODULE_COLORS[module.color] || CUSTOM_MODULE_COLORS.blue
+        );
+        const iconElement = icon?.querySelector('i');
+        if (iconElement) iconElement.className = `ph ${module.icon}`;
+
+        const resolutions = this.moduleDeleteDialog.querySelector('[data-module-delete-resolutions]');
+        const emptyState = this.moduleDeleteDialog.querySelector('[data-module-delete-empty]');
+        resolutions.classList.toggle('hidden', !plan.requiresCardResolution);
+        emptyState.classList.toggle('hidden', plan.requiresCardResolution);
+        this.moduleDeleteDialog.querySelector('[data-module-delete-legend]').textContent = `¿Qué querés hacer con ${plan.counts.total} ${plan.counts.total === 1 ? 'tarjeta' : 'tarjetas'}?`;
+
+        const moveRadio = this.moduleDeleteDialog.querySelector(
+            `input[name="custom-module-card-resolution"][value="${CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE}"]`
+        );
+        const deleteRadio = this.moduleDeleteDialog.querySelector(
+            `input[name="custom-module-card-resolution"][value="${CUSTOM_MODULE_CARD_RESOLUTIONS.DELETE}"]`
+        );
+        if (moveRadio) moveRadio.checked = true;
+        if (deleteRadio) deleteRadio.checked = false;
+
+        const sectionSelect = this.moduleDeleteDialog.querySelector('#custom-module-delete-section');
+        sectionSelect.innerHTML = plan.destinationSections
+            .map(destination => `
+                <option value="${escapeHtml(destination.section)}">
+                    ${escapeHtml(destination.label)}${destination.customModule ? ' · Personalizado' : ''}
+                </option>
+            `)
+            .join('');
+        this.moduleDeleteDialog.querySelector('#custom-module-delete-error').classList.add('hidden');
+        this.setModuleDeletionBusy(false);
+        this.updateModuleDeletionSubsections();
+        this.updateModuleDeletionResolution();
+
+        this.moduleDeleteDialog.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        requestAnimationFrame(() => {
+            const initialFocus = plan.requiresCardResolution
+                ? moveRadio
+                : this.moduleDeleteDialog.querySelector('[data-module-delete-submit]');
+            initialFocus?.focus();
+        });
+        return true;
+    }
+
+    closeModuleDeletionDialog({ restoreFocus = true } = {}) {
+        if (!this.moduleDeleteDialog || this.moduleDeleteDialog.classList.contains('hidden')) return;
+        this.moduleDeleteDialog.classList.add('hidden');
+        document.body.classList.remove('modal-open');
+        this.deletingModuleId = null;
+        this.moduleDeletionPlan = null;
+        this.moduleDeletionBusy = false;
+        const trigger = this.lastModuleDeleteTrigger;
+        this.lastModuleDeleteTrigger = null;
+        if (restoreFocus) requestAnimationFrame(() => trigger?.focus?.());
+    }
+
+    setModuleDeletionBusy(busy) {
+        if (!this.moduleDeleteDialog) return;
+        this.moduleDeletionBusy = busy === true;
+        this.moduleDeleteDialog.querySelectorAll('button, input, select').forEach(control => {
+            control.disabled = this.moduleDeletionBusy;
+        });
+        if (!this.moduleDeletionBusy) this.updateModuleDeletionResolution();
+        const submitButton = this.moduleDeleteDialog.querySelector('[data-module-delete-submit]');
+        if (submitButton) {
+            submitButton.innerHTML = this.moduleDeletionBusy
+                ? '<i class="ph ph-spinner-gap ph-spin"></i> Eliminando…'
+                : '<i class="ph ph-trash"></i> Revisar eliminación';
+        }
+    }
+
+    updateModuleDeletionResolution() {
+        if (!this.moduleDeleteDialog || !this.moduleDeletionPlan) return;
+        const selected = this.moduleDeleteDialog.querySelector(
+            'input[name="custom-module-card-resolution"]:checked'
+        )?.value;
+        const moving = selected === CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE;
+        const destination = this.moduleDeleteDialog.querySelector('[data-module-delete-destination]');
+        destination?.classList.toggle('hidden', !moving);
+        destination?.querySelectorAll('select').forEach(select => {
+            select.disabled = this.moduleDeletionBusy || !moving;
+        });
+    }
+
+    updateModuleDeletionSubsections() {
+        if (!this.moduleDeleteDialog || !this.moduleDeletionPlan) return;
+        const sectionSelect = this.moduleDeleteDialog.querySelector('#custom-module-delete-section');
+        const subsectionSelect = this.moduleDeleteDialog.querySelector('#custom-module-delete-subsection');
+        const subsectionGroup = this.moduleDeleteDialog.querySelector('[data-module-delete-subsection-group]');
+        const destination = this.moduleDeletionPlan.destinationSections.find(
+            item => item.section === sectionSelect.value
+        );
+        const subsections = destination?.subsections || [];
+        subsectionSelect.innerHTML = subsections
+            .map(item => `<option value="${escapeHtml(item.subsection)}">${escapeHtml(item.label)}</option>`)
+            .join('');
+        if (destination?.defaultSubsection) {
+            subsectionSelect.value = destination.defaultSubsection;
+        }
+        subsectionGroup?.classList.toggle('hidden', subsections.length <= 1);
+    }
+
+    async submitModuleDeletion() {
+        if (
+            this.moduleDeletionBusy
+            || !this.deletingModuleId
+            || !this.moduleDeletionPlan
+        ) {
+            return false;
+        }
+
+        const plan = getCustomModuleDeletionPlan(this.registry, this.deletingModuleId);
+        const error = this.moduleDeleteDialog.querySelector('#custom-module-delete-error');
+        error.classList.add('hidden');
+        const selectedResolution = plan.requiresCardResolution
+            ? this.moduleDeleteDialog.querySelector(
+                'input[name="custom-module-card-resolution"]:checked'
+            )?.value
+            : null;
+        const sectionSelect = this.moduleDeleteDialog.querySelector('#custom-module-delete-section');
+        const subsectionSelect = this.moduleDeleteDialog.querySelector('#custom-module-delete-subsection');
+        const destination = plan.destinationSections.find(
+            item => item.section === sectionSelect.value
+        );
+
+        if (
+            plan.requiresCardResolution
+            && selectedResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE
+            && !destination
+        ) {
+            error.textContent = 'Elegí un módulo válido para mover las tarjetas.';
+            error.classList.remove('hidden');
+            return false;
+        }
+
+        const deletingCards = selectedResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.DELETE;
+        const confirmation = deletingCards
+            ? {
+                title: `Eliminar ${plan.module.name} y sus tarjetas`,
+                message: 'Las tarjetas, sus historiales, avisos y archivos médicos asociados se eliminarán permanentemente. Esta acción no se puede deshacer.',
+                details: [
+                    { label: 'Módulo', value: plan.module.name },
+                    { label: 'Tarjetas', value: String(plan.counts.total) },
+                    ...(plan.counts.medicalStudies > 0
+                        ? [{ label: 'Estudios médicos', value: String(plan.counts.medicalStudies) }]
+                        : []),
+                    ...(plan.counts.legacyBacked > 0
+                        ? [{ label: 'Datos heredados', value: String(plan.counts.legacyBacked) }]
+                        : [])
+                ],
+                confirmLabel: 'Eliminar todo definitivamente',
+                cancelLabel: 'Conservar módulo',
+                tone: 'danger',
+                closeOnBackdrop: false
+            }
+            : {
+                title: plan.requiresCardResolution
+                    ? `Eliminar ${plan.module.name} y mover sus tarjetas`
+                    : `Eliminar ${plan.module.name}`,
+                message: plan.requiresCardResolution
+                    ? 'El módulo se eliminará, pero todas sus tarjetas, historiales, estudios y avisos se conservarán en el destino elegido.'
+                    : 'El módulo archivado se eliminará definitivamente. No contiene tarjetas ni historiales asociados.',
+                details: [
+                    { label: 'Módulo', value: plan.module.name },
+                    ...(plan.requiresCardResolution
+                        ? [
+                            { label: 'Tarjetas', value: String(plan.counts.total) },
+                            { label: 'Destino', value: destination?.label || '' }
+                        ]
+                        : [])
+                ],
+                confirmLabel: 'Eliminar módulo',
+                cancelLabel: 'Cancelar',
+                tone: plan.requiresCardResolution ? 'warning' : 'danger',
+                closeOnBackdrop: false
+            };
+        const confirmed = await this.app.confirmAction(confirmation);
+        if (!confirmed) return false;
+
+        this.setModuleDeletionBusy(true);
+        try {
+            await this.executeCustomModuleDeletion(this.deletingModuleId, {
+                cardResolution: selectedResolution,
+                targetSection: selectedResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE
+                    ? sectionSelect.value
+                    : null,
+                targetSubsection: selectedResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE
+                    ? subsectionSelect.value
+                    : null
+            });
+            this.closeModuleDeletionDialog({ restoreFocus: false });
+            requestAnimationFrame(() => this.newModuleButton?.focus?.());
+            return true;
+        } catch (deletionError) {
+            console.error('No se pudo eliminar el módulo personalizado:', deletionError);
+            error.textContent = deletionError.message
+                || 'No se pudo eliminar el módulo. Tus datos se conservaron para que puedas reintentar.';
+            error.classList.remove('hidden');
+            this.setModuleDeletionBusy(false);
+            return false;
+        }
+    }
+
+    removeAlertConfigsForTrackers(trackers) {
+        if (!this.app.alerts || !Array.isArray(trackers) || trackers.length === 0) return;
+        trackers.forEach(tracker => {
+            delete this.app.alerts.configs[getCustomAlertKey(tracker)];
+        });
+        this.app.alerts.saveData();
+        const alertsTab = document.getElementById('tab-alertas');
+        if (alertsTab && !alertsTab.classList.contains('hidden')) {
+            this.app.alerts.render();
+        }
+    }
+
+    async executeCustomModuleDeletion(moduleId, {
+        cardResolution = null,
+        targetSection = null,
+        targetSubsection = null
+    } = {}) {
+        const previousRegistry = this.registry;
+        const plan = getCustomModuleDeletionPlan(previousRegistry, moduleId);
+        const deletion = deleteCustomModulePermanently(previousRegistry, moduleId, {
+            cardResolution,
+            targetSection,
+            targetSubsection
+        });
+        let studyCleanup = { deletedEntries: 0, deletedFiles: 0 };
+
+        if (cardResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.DELETE) {
+            const medicalTrackerIds = plan.trackers
+                .filter(isMedicalStudyTracker)
+                .map(tracker => tracker.id);
+            if (medicalTrackerIds.length > 0) {
+                if (!this.app.health?.deleteStudyEntriesForTrackers) {
+                    throw new Error(
+                        'No se pudo acceder al administrador de estudios médicos. No se eliminó ningún dato.'
+                    );
+                }
+                studyCleanup = await this.app.health.deleteStudyEntriesForTrackers(
+                    medicalTrackerIds
+                );
+            }
+
+            plan.trackers.forEach(tracker => this.clearLegacyTracker(tracker));
+            this.removeAlertConfigsForTrackers(plan.trackers);
+        }
+
+        plan.trackerIds.forEach(trackerId => {
+            this.pendingDeleteIds.delete(trackerId);
+            this.clearPendingHistoryDeletes(trackerId);
+        });
+        if (plan.trackerIds.includes(this.historyDialogTrackerId)) {
+            this.closeHistoryDialog({ restoreFocus: false });
+        }
+        if (plan.trackerIds.includes(this.instructionsDialogTrackerId)) {
+            this.closeInstructionsDialog({ restoreFocus: false });
+        }
+
+        this.registry = deletion.registry;
+        try {
+            this.persistRegistry();
+        } catch (error) {
+            this.registry = previousRegistry;
+            throw error;
+        }
+
+        if (cardResolution === CUSTOM_MODULE_CARD_RESOLUTIONS.MOVE) {
+            const destination = getCustomTrackerSections(this.registry.customModules)[targetSection];
+            this.showCustomModulesFeedback(
+                `${plan.module.name} fue eliminado y sus ${plan.counts.total} ${plan.counts.total === 1 ? 'tarjeta fue movida' : 'tarjetas fueron movidas'} a ${destination?.label || 'su nuevo destino'}.`
+            );
+        } else {
+            const studySummary = studyCleanup.deletedEntries > 0
+                ? ` También se eliminaron ${studyCleanup.deletedEntries} ${studyCleanup.deletedEntries === 1 ? 'estudio' : 'estudios'}${studyCleanup.deletedFiles > 0 ? ` y ${studyCleanup.deletedFiles} ${studyCleanup.deletedFiles === 1 ? 'archivo' : 'archivos'}` : ''}.`
+                : '';
+            this.showCustomModulesFeedback(
+                plan.counts.total > 0
+                    ? `${plan.module.name} y sus ${plan.counts.total} ${plan.counts.total === 1 ? 'tarjeta fueron eliminados' : 'tarjetas fueron eliminados'} definitivamente.${studySummary}`
+                    : `${plan.module.name} fue eliminado definitivamente.`
+            );
+        }
+
+        return {
+            ...deletion,
+            studyCleanup
+        };
     }
 
     ensureEditorDialog() {

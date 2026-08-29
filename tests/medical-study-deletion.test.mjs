@@ -55,6 +55,42 @@ test('medical-study cleanup preserves every record if storage deletion fails', a
     assert.equal(health.bloodTests.length, 1);
 });
 
+test('module cleanup deletes multiple medical studies in one storage operation', async () => {
+    let removedPaths = null;
+    let saveCount = 0;
+    let closeCount = 0;
+    const health = Object.create(HealthModule.prototype);
+    health.controller = {
+        auth: {
+            async deleteMedicalFiles(paths) {
+                removedPaths = paths;
+            }
+        }
+    };
+    health.activeStudyTrackerId = 'ct_study_2';
+    health.bloodTests = [
+        { id: 'blood_1', trackerId: 'ct_study_1', storagePath: 'user/shared.pdf' },
+        { id: 'blood_2', trackerId: 'ct_study_2', storagePath: 'user/shared.pdf' },
+        { id: 'blood_3', trackerId: 'ct_study_2', storagePath: 'user/second.pdf' },
+        { id: 'blood_4', trackerId: 'ct_other', storagePath: 'user/other.pdf' }
+    ];
+    health.saveBloodTests = () => { saveCount += 1; };
+    health.closeStudyDialog = () => { closeCount += 1; };
+    health.render = () => {};
+
+    const result = await health.deleteStudyEntriesForTrackers([
+        'ct_study_1',
+        'ct_study_2',
+        'ct_study_2'
+    ]);
+
+    assert.deepEqual(removedPaths, ['user/shared.pdf', 'user/second.pdf']);
+    assert.deepEqual(health.bloodTests.map(entry => entry.id), ['blood_4']);
+    assert.deepEqual(result, { deletedEntries: 3, deletedFiles: 2 });
+    assert.equal(saveCount, 1);
+    assert.equal(closeCount, 1);
+});
+
 test('batch medical-file deletion validates ownership, deduplicates and uses one request', async () => {
     let removedPaths = null;
     const auth = Object.create(AuthSyncModule.prototype);

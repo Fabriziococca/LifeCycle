@@ -539,9 +539,16 @@ test('appearance, recurring schedules and lightweight custom modules expose thei
     assert.match(index, /id="custom-modules-summary"/);
     assert.match(trackerSource, /openModuleEditor/);
     assert.match(trackerSource, /archiveCustomModule/);
+    assert.match(trackerSource, /id = 'custom-module-delete-dialog'/);
+    assert.match(trackerSource, /CUSTOM_MODULE_CARD_RESOLUTIONS\.MOVE/);
+    assert.match(trackerSource, /CUSTOM_MODULE_CARD_RESOLUTIONS\.DELETE/);
+    assert.match(trackerSource, /executeCustomModuleDeletion/);
+    assert.match(trackerSource, /data-custom-module-action="delete"/);
     assert.match(trackerSource, /ensureCustomModuleRuntime/);
     assert.match(trackerSource, /data-custom-module-runtime-action="new-card"/);
     assert.match(styles, /\.custom-module-runtime-section/);
+    assert.match(styles, /\.custom-module-delete-choice/);
+    assert.match(styles, /\.custom-module-delete-destination/);
 });
 
 test('schema upgrades never render or count the legacy tracker catalog beside unified cards', async () => {
