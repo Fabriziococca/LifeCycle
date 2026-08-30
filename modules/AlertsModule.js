@@ -15,6 +15,7 @@ import {
     RESOURCE_KEYS,
     createFallbackResourcePolicy,
     evaluateResourceCapacity,
+    getResourceCapacityNotice,
     getRecurringReminderRegistryResourceUsage
 } from '../resource-policy.mjs?v=20260829-feature-limits';
 
@@ -406,6 +407,9 @@ export class AlertsModule {
             trigger?.focus?.();
             return;
         }
+        const confirmedCapacity = this.getRecurringReminderCreationCapacity(
+            missing.length
+        );
         if (!this.ensureRecurringReminderCreationCapacity({
             requestedCount: missing.length
         })) {
@@ -433,10 +437,16 @@ export class AlertsModule {
         this.saveData();
         this.app.triggerDataSync?.('alerts_config');
         this.render();
+        const capacityNotice = getResourceCapacityNotice(
+            RESOURCE_KEYS.REMINDERS,
+            confirmedCapacity,
+            missing.length
+        );
+        const successMessage = missing.length === 4
+            ? 'Temporadas de balances agregadas.'
+            : 'Se agregaron las temporadas que faltaban.';
         this.app.showToast?.(
-            missing.length === 4
-                ? 'Temporadas de balances agregadas.'
-                : 'Se agregaron las temporadas que faltaban.'
+            `${successMessage}${capacityNotice ? ` ${capacityNotice}` : ''}`
         );
     }
 
@@ -526,6 +536,9 @@ export class AlertsModule {
         }
 
         const wasEditing = Boolean(this.editingRecurringReminderId);
+        const creationCapacity = wasEditing
+            ? null
+            : this.getRecurringReminderCreationCapacity();
         if (
             !wasEditing
             && !this.ensureRecurringReminderCreationCapacity({ errorElement: error })
@@ -584,8 +597,14 @@ export class AlertsModule {
         this.app.triggerDataSync?.('alerts_config');
         this.closeRecurringReminderEditor({ restoreFocus: false });
         this.render();
+        const capacityNotice = creationCapacity
+            ? getResourceCapacityNotice(RESOURCE_KEYS.REMINDERS, creationCapacity)
+            : '';
+        const successMessage = wasEditing
+            ? 'Recordatorio actualizado.'
+            : 'Recordatorio creado.';
         this.app.showToast?.(
-            wasEditing ? 'Recordatorio actualizado.' : 'Recordatorio creado.'
+            `${successMessage}${capacityNotice ? ` ${capacityNotice}` : ''}`
         );
     }
 

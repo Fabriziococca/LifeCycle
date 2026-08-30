@@ -7,11 +7,13 @@ import {
 } from '../sync-config.mjs?v=20260729-project-templates';
 import {
     areStoredValuesEqual,
+    assertSynchronizedDocumentCapacity,
     buildCloudPatch,
     getSyncPolicyErrorMessage,
     isPermanentSyncPolicyError
 } from '../sync-utils.mjs';
 import {
+    RESOURCE_KEYS,
     createFallbackResourcePolicy,
     evaluateResourceCapacity,
     getResourceLimit as getConfiguredResourceLimit,
@@ -582,6 +584,11 @@ export class AuthSyncModule {
             this.updateSyncBadge('syncing', 'Sincronizando...');
 
             try {
+                assertSynchronizedDocumentCapacity({
+                    policy: this.resourcePolicy,
+                    keys: CLOUD_SYNC_KEYS,
+                    readStoredValue: key => localStorage.getItem(key)
+                });
                 const { updates, deleteKeys } = buildCloudPatch(
                     keysToSync,
                     key => localStorage.getItem(key)
@@ -930,8 +937,17 @@ export class AuthSyncModule {
         if (!file || !allowedMimeTypes.has(file.type)) {
             throw new Error('Solo se permiten archivos PDF, JPG, PNG, WebP, HEIC o HEIF.');
         }
-        if (!Number.isFinite(file.size) || file.size <= 0 || file.size > 15 * 1024 * 1024) {
-            throw new Error('El archivo debe pesar entre 1 byte y 15 MB.');
+        const technicalMaximum = 15 * 1024 * 1024;
+        const configuredMaximum = this.getResourceLimit(
+            RESOURCE_KEYS.BLOOD_TEST_FILE_BYTES
+        );
+        const maximumBytes = Math.min(
+            technicalMaximum,
+            configuredMaximum ?? technicalMaximum
+        );
+        if (!Number.isFinite(file.size) || file.size <= 0 || file.size > maximumBytes) {
+            const maximumMb = Math.round((maximumBytes / (1024 * 1024)) * 10) / 10;
+            throw new Error(`El archivo debe pesar entre 1 byte y ${maximumMb} MB.`);
         }
 
         const safeFileId = String(fileId || '')

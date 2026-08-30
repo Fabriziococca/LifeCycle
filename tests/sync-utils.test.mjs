@@ -3,10 +3,13 @@ import assert from 'node:assert/strict';
 
 import {
     areStoredValuesEqual,
+    assertSynchronizedDocumentCapacity,
     buildCloudPatch,
+    estimateSynchronizedDocumentBytes,
     getSyncPolicyErrorMessage,
     isPermanentSyncPolicyError
 } from '../sync-utils.mjs';
+import { RESOURCE_KEYS } from '../resource-policy.mjs';
 import {
     CLOUD_LOCAL_CLEAR_KEYS,
     CLOUD_RESTORE_KEYS,
@@ -93,6 +96,56 @@ test('resource policy errors explain which tracker capacity must be reduced', ()
         message: 'LifeCycle resource limit exceeded',
         details: 'resource_key=reminders current=501 limit=500'
     }), /límite de recordatorios/i);
+    assert.match(getSyncPolicyErrorMessage({
+        code: '54000',
+        message: 'LifeCycle resource limit exceeded',
+        details: 'resource_key=finance_transactions current=25001 limit=25000'
+    }), /límite de movimientos financieros: 25000/i);
+});
+
+test('synchronization capacity estimates the complete local document and reserves server space', () => {
+    const values = new Map([
+        ['tareas_list', '[{"id":"task-1"}]'],
+        ['finanzasData', '{"entries":[]}']
+    ]);
+    const estimate = estimateSynchronizedDocumentBytes(
+        [...values.keys()],
+        key => values.get(key)
+    );
+    assert.ok(estimate > 0);
+
+    const policy = {
+        tier: 'friend',
+        unlimited: false,
+        limits: { [RESOURCE_KEYS.SYNCED_DOCUMENT_BYTES]: estimate + 10 }
+    };
+    assert.throws(
+        () => assertSynchronizedDocumentCapacity({
+            policy,
+            keys: [...values.keys()],
+            readStoredValue: key => values.get(key),
+            reserveBytes: 11
+        }),
+        error => error.code === '54000'
+            && /resource_key=synced_document_bytes/.test(error.details)
+    );
+    assert.doesNotThrow(() => assertSynchronizedDocumentCapacity({
+        policy,
+        keys: [...values.keys()],
+        readStoredValue: key => values.get(key),
+        reserveBytes: 10
+    }));
+});
+
+test('owner synchronization remains unlimited while still reporting the estimate', () => {
+    const result = assertSynchronizedDocumentCapacity({
+        policy: { tier: 'owner', unlimited: true, limits: {} },
+        keys: ['large'],
+        readStoredValue: () => 'x'.repeat(10_000_000)
+    });
+    assert.equal(result.allowed, true);
+    assert.equal(result.limit, null);
+    assert.ok(result.estimatedBytes > 10_000_000);
 });
 
 test('cloud configuration keeps server-managed keys read-only', () => {

@@ -1,8 +1,29 @@
 -- Read-only production checks for the Tanda 8 database foundation.
+-- Accounts created after the snapshot are intentionally excluded from the
+-- recovery-point cardinality check.
+with snapshot_boundary as (
+    select max(captured_at) as captured_at
+    from private.user_data_snapshots
+    where reason = 'before_tanda_8_20260809'
+), missing_preexisting_documents as (
+    select documents.user_id
+    from public.user_data as documents
+    join auth.users as users on users.id = documents.user_id
+    cross join snapshot_boundary
+    where users.created_at <= snapshot_boundary.captured_at
+      and not exists (
+          select 1
+          from private.user_data_snapshots as snapshots
+          where snapshots.reason = 'before_tanda_8_20260809'
+            and snapshots.user_id = documents.user_id
+      )
+)
 select
     'tanda_8_recovery_snapshot' as check_name,
-    count(*) = (select count(*) from public.user_data) as passed,
+    count(*) > 0
+        and not exists (select 1 from missing_preexisting_documents) as passed,
     count(*) as snapshot_rows,
+    (select count(*) from missing_preexisting_documents) as missing_rows,
     string_agg(md5(data::text), ', ' order by user_id) as snapshot_hashes
 from private.user_data_snapshots
 where reason = 'before_tanda_8_20260809';
@@ -99,6 +120,20 @@ select
     ) as passed
 from pg_catalog.pg_class as classes
 where classes.oid = 'public.trading_events'::regclass;
+
+select
+    'trading_projection_capacity' as check_name,
+    procedures.prosecdef
+    and procedures.proconfig @> array['search_path=pg_catalog, pg_temp']
+    and pg_get_functiondef(procedures.oid) ~ 'candidate.position <= 10000'
+    and not has_function_privilege(
+        'authenticated',
+        'private.sync_trading_events_for_user(uuid,jsonb)',
+        'execute'
+    ) as passed
+from pg_catalog.pg_proc as procedures
+where procedures.oid =
+    'private.sync_trading_events_for_user(uuid,jsonb)'::regprocedure;
 
 with json_events as (
     select source.user_id, event.value ->> 'id' as id

@@ -468,6 +468,70 @@ test('backup restore rejects reminder registries above the friend quota', () => 
     }));
 });
 
+test('backup restore enforces quotas across projects, finance, gym, vehicle and files', () => {
+    const plan = {
+        entries: [
+            ['tareas_list', JSON.stringify([{ id: 'standalone' }])],
+            ['projectPulseData', JSON.stringify([{
+                id: 'active-project',
+                tasks: [{ id: 'project-task' }]
+            }])],
+            ['projectPulseHistory', JSON.stringify([{ id: 'past-project', tasks: [] }])],
+            ['projectPulseTemplates', JSON.stringify({
+                templates: [{ id: 'template-1' }, { id: 'template-2' }]
+            })],
+            ['finanzasData', JSON.stringify({
+                entries: [{ id: 'income' }],
+                expenses: [{ id: 'expense' }],
+                recurringRules: [{ id: 'rule-1' }, { id: 'rule-2' }],
+                tradingEvents: [{ id: 'event-1' }, { id: 'event-2' }]
+            })],
+            ['gym_routine', JSON.stringify([{ id: 'exercise-1' }, { id: 'exercise-2' }])],
+            ['gym_meals', JSON.stringify({ fixed: [{ id: 'fixed-meal' }] })],
+            ['gym_general_meals', JSON.stringify([{ id: 'general-meal' }])],
+            ['gym_supplements', JSON.stringify({
+                vit_d_history: [{ id: 'vitamin' }],
+                painkillers_history: [{ id: 'painkiller' }]
+            })],
+            ['vehicle_issues', JSON.stringify([{ id: 'issue-1' }, { id: 'issue-2' }])],
+            ['health_blood_tests', JSON.stringify([
+                { storagePath: 'user/test-1.pdf' },
+                { fileData: 'data:application/pdf;base64,abc' }
+            ])]
+        ]
+    };
+    const cases = [
+        ['tasks', 1, /2 tareas/],
+        ['projects', 1, /2 proyectos/],
+        ['project_templates', 1, /2 plantillas de proyectos/],
+        ['finance_transactions', 1, /2 movimientos financieros/],
+        ['finance_recurring_rules', 1, /2 movimientos recurrentes/],
+        ['trading_events', 1, /2 eventos de Trading/i],
+        ['gym_routine_exercises', 1, /2 ejercicios de rutina/],
+        ['gym_meal_templates', 1, /2 comidas guardadas/],
+        ['gym_supplements', 1, /2 registros de suplementos/],
+        ['vehicle_issues', 1, /2 fallas de vehículo/],
+        ['blood_test_files', 1, /2 adjuntos de análisis/]
+    ];
+
+    cases.forEach(([resourceKey, limit, message]) => {
+        assert.throws(
+            () => validateBackupResourceCapacity(plan, {
+                tier: 'friend',
+                unlimited: false,
+                limits: { [resourceKey]: limit }
+            }),
+            message,
+            resourceKey
+        );
+    });
+
+    assert.doesNotThrow(() => validateBackupResourceCapacity(plan, {
+        tier: 'owner',
+        unlimited: true
+    }));
+});
+
 test('backup validates the configurable vehicle catalog without rejecting legacy dates', () => {
     const card = createVehicleCard({
         name: 'Correa auxiliar',

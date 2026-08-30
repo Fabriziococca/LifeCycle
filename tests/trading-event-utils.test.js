@@ -111,6 +111,15 @@ test('the registry rejects malformed or duplicated events', () => {
     assert.equal(normalized[0].name, 'Resultados Q3');
 });
 
+test('normalization does not silently truncate the former 500 event cap', () => {
+    const events = Array.from({ length: 501 }, (_, index) => buildEvent({
+        id: `trade_event_${index}`,
+        name: `Evento ${index + 1}`
+    }));
+
+    assert.equal(normalizeTradingEvents(events).length, 501);
+});
+
 test('database projection rows normalize back to the client event contract', () => {
     const event = tradingEventFromDatabaseRow({
         id: 'trade_nvidia_q3',

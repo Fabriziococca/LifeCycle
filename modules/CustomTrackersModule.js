@@ -30,6 +30,7 @@ import {
     RESOURCE_KEYS,
     createFallbackResourcePolicy,
     evaluateResourceCapacity,
+    getResourceCapacityNotice,
     getTrackerRegistryResourceUsage
 } from '../resource-policy.mjs?v=20260829-feature-limits';
 import {
@@ -1986,6 +1987,9 @@ export class CustomTrackersModule {
             error.classList.remove('hidden');
             return false;
         }
+        const creationCapacity = this.editingModuleId
+            ? null
+            : this.getCreationCapacity(RESOURCE_KEYS.CUSTOM_MODULES);
         if (
             !this.editingModuleId
             && !this.ensureCreationCapacity(RESOURCE_KEYS.CUSTOM_MODULES, {
@@ -2017,9 +2021,15 @@ export class CustomTrackersModule {
 
         this.closeModuleEditor();
         this.persistRegistry();
-        this.showCustomModulesFeedback(
-            existing ? `Módulo ${name} actualizado.` : `Módulo ${name} creado. Ya podés agregarle tarjetas.`
-        );
+        const capacityNotice = creationCapacity
+            ? getResourceCapacityNotice(
+                RESOURCE_KEYS.CUSTOM_MODULES,
+                creationCapacity
+            )
+            : '';
+        this.showCustomModulesFeedback(existing
+            ? `Módulo ${name} actualizado.`
+            : `Módulo ${name} creado. Ya podés agregarle tarjetas.${capacityNotice ? ` ${capacityNotice}` : ''}`);
         return true;
     }
 
@@ -2923,6 +2933,9 @@ export class CustomTrackersModule {
 
     saveEditor() {
         const errorElement = this.dialog.querySelector('#custom-tracker-form-error');
+        const creationCapacity = this.editingId
+            ? null
+            : this.getCreationCapacity(RESOURCE_KEYS.TRACKER_CARDS);
         if (
             !this.editingId
             && !this.ensureCreationCapacity(RESOURCE_KEYS.TRACKER_CARDS, {
@@ -3046,10 +3059,17 @@ export class CustomTrackersModule {
             this.syncAlertConfig(candidate, candidate.alert);
             this.persistRegistry();
             this.closeEditor();
+            const capacityNotice = creationCapacity
+                ? getResourceCapacityNotice(
+                    RESOURCE_KEYS.TRACKER_CARDS,
+                    creationCapacity
+                )
+                : '';
+            const successMessage = thresholdsReordered
+                ? `${existing ? 'Tarjeta actualizada' : 'Tarjeta creada y sincronizada'}. Ordené los avisos para que Próximo ocurra antes que Atención.`
+                : (existing ? 'Tarjeta actualizada.' : 'Tarjeta creada y sincronizada.');
             this.showManagerFeedback(
-                thresholdsReordered
-                    ? `${existing ? 'Tarjeta actualizada' : 'Tarjeta creada y sincronizada'}. Ordené los avisos para que Próximo ocurra antes que Atención.`
-                    : (existing ? 'Tarjeta actualizada.' : 'Tarjeta creada y sincronizada.')
+                `${successMessage}${capacityNotice ? ` ${capacityNotice}` : ''}`
             );
         } catch (error) {
             errorElement.textContent = error.message || 'No se pudo guardar la tarjeta.';

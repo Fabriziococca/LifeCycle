@@ -1,3 +1,56 @@
+import {
+    RESOURCE_KEYS,
+    getResourceLimit,
+    getResourceLimitMessage
+} from './resource-policy.mjs';
+
+export const SYNC_DOCUMENT_SERVER_RESERVE_BYTES = 64 * 1024;
+
+export function getUtf8ByteLength(value) {
+    const text = typeof value === 'string' ? value : JSON.stringify(value);
+    return new TextEncoder().encode(text || '').byteLength;
+}
+
+export function estimateSynchronizedDocumentBytes(keys, readStoredValue) {
+    if (!Array.isArray(keys)) throw new TypeError('keys must be an array');
+    if (typeof readStoredValue !== 'function') {
+        throw new TypeError('readStoredValue must be a function');
+    }
+    const document = {};
+    [...new Set(keys)].forEach(key => {
+        const value = readStoredValue(key);
+        if (value !== null && value !== undefined) document[key] = value;
+    });
+    return getUtf8ByteLength(document);
+}
+
+export function assertSynchronizedDocumentCapacity({
+    policy,
+    keys,
+    readStoredValue,
+    reserveBytes = SYNC_DOCUMENT_SERVER_RESERVE_BYTES
+}) {
+    const limit = getResourceLimit(policy, RESOURCE_KEYS.SYNCED_DOCUMENT_BYTES);
+    const estimatedBytes = estimateSynchronizedDocumentBytes(keys, readStoredValue);
+    if (limit === null) {
+        return { allowed: true, limit: null, estimatedBytes, effectiveLimit: null };
+    }
+
+    const safeReserve = Math.max(0, Number.isFinite(Number(reserveBytes))
+        ? Math.trunc(Number(reserveBytes))
+        : 0);
+    const effectiveLimit = Math.max(0, limit - safeReserve);
+    if (estimatedBytes > effectiveLimit) {
+        const error = new Error('LifeCycle synchronized data limit exceeded');
+        error.code = '54000';
+        error.details = `resource_key=${RESOURCE_KEYS.SYNCED_DOCUMENT_BYTES} current=${estimatedBytes} limit=${limit}`;
+        error.hint = 'Reduce synchronized content before trying again.';
+        throw error;
+    }
+
+    return { allowed: true, limit, estimatedBytes, effectiveLimit };
+}
+
 export function areStoredValuesEqual(firstValue, secondValue) {
     if (firstValue === secondValue) return true;
     if (!firstValue && !secondValue) return true;
@@ -53,17 +106,12 @@ export function getSyncPolicyErrorMessage(error) {
     }
 
     const details = String(error?.details || '').toLowerCase();
-    if (details.includes('resource_key=custom_modules')) {
-        return 'Tu cuenta alcanzó el límite de módulos personalizados. '
-            + 'Eliminá definitivamente un módulo archivado antes de reintentar.';
-    }
-    if (details.includes('resource_key=tracker_cards')) {
-        return 'Tu cuenta alcanzó el límite de tarjetas configurables. '
-            + 'Eliminá definitivamente una tarjeta archivada antes de reintentar.';
-    }
-    if (details.includes('resource_key=reminders')) {
-        return 'Tu cuenta alcanzó el límite de recordatorios. '
-            + 'Eliminá uno antes de reintentar.';
+    const resourceMatch = details.match(/resource_key=([a-z0-9_]+)/);
+    const limitMatch = details.match(/limit=(\d+)/);
+    const resourceKey = resourceMatch?.[1];
+    const limit = limitMatch ? Number(limitMatch[1]) : null;
+    if (resourceKey && resourceKey !== RESOURCE_KEYS.SYNCED_DOCUMENT_BYTES) {
+        return getResourceLimitMessage(resourceKey, limit);
     }
     return 'Tu información supera el límite seguro de sincronización. '
         + 'Los cambios quedan pendientes para que puedas reducir contenido antes de reintentar.';

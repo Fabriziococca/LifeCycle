@@ -15,7 +15,15 @@ import {
     upsertFinanceRecurringRule
 } from '../finance-recurring-utils.mjs?v=20260729-finance-recurring';
 import { buildProjectIncomeMovements } from '../project-income-utils.mjs?v=20260808-project-income';
-import '../trading-event-utils.js?v=20260808-trading-events';
+import '../trading-event-utils.js?v=20260829-trading-capacity';
+import {
+    RESOURCE_KEYS,
+    getFinanceResourceUsage
+} from '../resource-policy.mjs?v=20260829-all-limits';
+import {
+    appendResourceCapacityNotice,
+    checkResourceCreationCapacity
+} from '../resource-limit-ui.mjs?v=20260829-all-limits';
 
 const {
     DEFAULT_TRADING_NOTICE_DAYS,
@@ -143,6 +151,17 @@ export class FinanzasModule {
 
     saveData() {
         localStorage.setItem('finanzasData', JSON.stringify(this.data));
+    }
+
+    getFinanceResourceCapacity(resourceKey, requestedCount = 1, errorElement = null) {
+        const usage = getFinanceResourceUsage(this.data);
+        return checkResourceCreationCapacity({
+            app: this.app,
+            resourceKey,
+            currentCount: usage[resourceKey],
+            requestedCount,
+            errorElement
+        });
     }
 
     formatAmount(amount) {
@@ -335,6 +354,15 @@ export class FinanzasModule {
             return;
         }
 
+        const capacity = existing
+            ? { allowed: true, limit: null, remaining: null }
+            : this.getFinanceResourceCapacity(
+                RESOURCE_KEYS.FINANCE_RECURRING_RULES,
+                1,
+                error
+            );
+        if (!capacity) return;
+
         try {
             const rule = buildFinanceRecurringRule({
                 id: existing?.id,
@@ -362,11 +390,13 @@ export class FinanzasModule {
             this.renderFinanceRecurringManager();
             this.renderFinanceRecurringDuePanel();
             this.resetFinanceRecurringForm();
-            this.app.showToast?.(
-                existing
-                    ? `Movimiento ${rule.name} actualizado.`
-                    : `Movimiento ${rule.name} creado.`
-            );
+            this.app.showToast?.(existing
+                ? `Movimiento ${rule.name} actualizado.`
+                : appendResourceCapacityNotice(
+                    `Movimiento ${rule.name} creado.`,
+                    RESOURCE_KEYS.FINANCE_RECURRING_RULES,
+                    capacity
+                ));
         } catch (saveError) {
             showError(saveError.message);
         }
@@ -832,6 +862,15 @@ export class FinanzasModule {
             return;
         }
 
+        const capacity = existing
+            ? { allowed: true, limit: null, remaining: null }
+            : this.getFinanceResourceCapacity(
+                RESOURCE_KEYS.TRADING_EVENTS,
+                1,
+                document.getElementById('trading-event-form-error')
+            );
+        if (!capacity) return;
+
         if (existing) {
             this.data.tradingEvents = this.data.tradingEvents.map(item => (
                 item.id === existing.id ? normalized : item
@@ -844,7 +883,13 @@ export class FinanzasModule {
         this.app.auth?.syncToCloud(false).catch(() => {});
         this.closeTradingEventModal({ restoreFocus: false });
         this.renderTradingEvents();
-        this.app.showToast?.(existing ? 'Evento actualizado.' : 'Evento de Trading creado.');
+        this.app.showToast?.(existing
+            ? 'Evento actualizado.'
+            : appendResourceCapacityNotice(
+                'Evento de Trading creado.',
+                RESOURCE_KEYS.TRADING_EVENTS,
+                capacity
+            ));
     }
 
     toggleTradingEventStatus(eventId) {
@@ -1421,6 +1466,11 @@ export class FinanzasModule {
             } : {})
         };
 
+        const capacity = this.getFinanceResourceCapacity(
+            RESOURCE_KEYS.FINANCE_TRANSACTIONS
+        );
+        if (!capacity) return;
+
         this.data.entries.push(newEntry);
         this.advanceFinanceRecurringAfterRecord(recurringContext);
         this.saveData();
@@ -1430,6 +1480,11 @@ export class FinanzasModule {
 
         this.app.auth?.syncToCloud(false).catch(() => {});
         this.render();
+        this.app.showToast?.(appendResourceCapacityNotice(
+            'Ingreso registrado.',
+            RESOURCE_KEYS.FINANCE_TRANSACTIONS,
+            capacity
+        ));
     }
 
     async deleteEntry(id) {
@@ -1528,6 +1583,11 @@ export class FinanzasModule {
             } : {})
         };
 
+        const capacity = this.getFinanceResourceCapacity(
+            RESOURCE_KEYS.FINANCE_TRANSACTIONS
+        );
+        if (!capacity) return;
+
         this.data.expenses.push(newExpense);
         this.advanceFinanceRecurringAfterRecord(recurringContext);
         this.saveData();
@@ -1537,6 +1597,11 @@ export class FinanzasModule {
 
         this.app.auth?.syncToCloud(false).catch(() => {});
         this.render();
+        this.app.showToast?.(appendResourceCapacityNotice(
+            'Gasto registrado.',
+            RESOURCE_KEYS.FINANCE_TRANSACTIONS,
+            capacity
+        ));
     }
 
     async deleteExpense(id) {

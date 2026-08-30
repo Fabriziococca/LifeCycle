@@ -1,6 +1,14 @@
 import { DateUtils, getLocalISODate } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import { VehicleCatalogModule } from './VehicleCatalogModule.js?v=20260828-permanent-delete';
+import {
+    RESOURCE_KEYS,
+    getVehicleResourceUsage
+} from '../resource-policy.mjs?v=20260829-all-limits';
+import {
+    appendResourceCapacityNotice,
+    checkResourceCreationCapacity
+} from '../resource-limit-ui.mjs?v=20260829-all-limits';
 
 export class VehicleModule {
     constructor(controller) {
@@ -352,8 +360,7 @@ export class VehicleModule {
             e.preventDefault();
             const title = this.issueTitleInput?.value.trim();
             const urgency = this.issueUrgencySelect?.value || 'baja';
-            if (title) {
-                this.addIssue(title, urgency);
+            if (title && this.addIssue(title, urgency)) {
                 if (this.issueTitleInput) this.issueTitleInput.value = '';
                 if (this.issueUrgencySelect) this.issueUrgencySelect.value = 'baja';
                 if (this.issueComposer) {
@@ -833,6 +840,14 @@ export class VehicleModule {
     }
 
     addIssue(title, urgency) {
+        const usage = getVehicleResourceUsage(this.issues);
+        const capacity = checkResourceCreationCapacity({
+            app: this.controller,
+            resourceKey: RESOURCE_KEYS.VEHICLE_ISSUES,
+            currentCount: usage[RESOURCE_KEYS.VEHICLE_ISSUES]
+        });
+        if (!capacity) return false;
+
         const issue = {
             id: 'issue_' + Date.now(),
             title,
@@ -843,6 +858,12 @@ export class VehicleModule {
         this.issues.push(issue);
         this.saveIssues();
         this.render();
+        this.controller.showToast?.(appendResourceCapacityNotice(
+            'Falla registrada.',
+            RESOURCE_KEYS.VEHICLE_ISSUES,
+            capacity
+        ));
+        return true;
     }
 
     resolveIssue(id) {

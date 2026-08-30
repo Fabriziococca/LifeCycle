@@ -6,6 +6,14 @@ import {
 } from '../task-capture-utils.mjs?v=20260729-quick-task';
 import { shouldHideCompletedTask } from '../task-visibility-utils.mjs?v=20260801-safe-completed';
 import { matchesKeyboardShortcut } from '../keyboard-shortcuts.mjs?v=20260801-shortcuts';
+import {
+    RESOURCE_KEYS,
+    getTaskResourceUsage
+} from '../resource-policy.mjs?v=20260829-all-limits';
+import {
+    appendResourceCapacityNotice,
+    checkResourceCreationCapacity
+} from '../resource-limit-ui.mjs?v=20260829-all-limits';
 
 export class TareasModule {
     constructor(appController) {
@@ -121,6 +129,20 @@ export class TareasModule {
         error.classList.toggle('hidden', !message);
     }
 
+    getTaskCreationCapacity({ errorElement = null } = {}) {
+        const usage = getTaskResourceUsage({
+            standaloneTasks: this.tasks,
+            projects: this.app.projects?.projects,
+            projectHistory: this.app.projects?.history
+        });
+        return checkResourceCreationCapacity({
+            app: this.app,
+            resourceKey: RESOURCE_KEYS.TASKS,
+            currentCount: usage[RESOURCE_KEYS.TASKS],
+            errorElement
+        });
+    }
+
     populateTaskCaptureCategories(preferredCategory = null) {
         const select = document.getElementById('tareas-task-category');
         if (!select) return [];
@@ -214,13 +236,25 @@ export class TareasModule {
             return false;
         }
 
+        const capacity = this.getTaskCreationCapacity({
+            errorElement: elements.error
+        });
+        if (!capacity) {
+            elements.input?.focus();
+            return false;
+        }
+
         this.tasks.push(newTask);
         if (!wasQuickCapture) this.currentCategory = newTask.category;
         this.saveData();
         this.closeTaskCapture();
         this.render();
         this.app.notificationsCenter?.render();
-        this.app.showToast?.(`Tarea guardada en ${newTask.category}.`);
+        this.app.showToast?.(appendResourceCapacityNotice(
+            `Tarea guardada en ${newTask.category}.`,
+            RESOURCE_KEYS.TASKS,
+            capacity
+        ));
         return true;
     }
 
@@ -736,6 +770,9 @@ export class TareasModule {
                 return;
             }
 
+            const capacity = this.getTaskCreationCapacity();
+            if (!capacity) return;
+
             if (!p.tasks) p.tasks = [];
             const newTask = {
                 id: Date.now(),
@@ -755,6 +792,11 @@ export class TareasModule {
             if (freelanceInput) freelanceInput.value = '';
             if (freelanceUrgency) freelanceUrgency.value = DEFAULT_TASK_URGENCY;
             this.render();
+            this.app.showToast?.(appendResourceCapacityNotice(
+                'Tarea del proyecto guardada.',
+                RESOURCE_KEYS.TASKS,
+                capacity
+            ));
         };
 
         btnFreelanceAdd?.addEventListener('click', addFreelanceTask);

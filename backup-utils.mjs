@@ -7,11 +7,9 @@ import {
 import {
     RESOURCE_KEYS,
     getResourceLimit,
-    getRecurringReminderRegistryResourceUsage,
-    getTrackerRegistryResourceUsage,
+    getSynchronizedResourceUsage,
     normalizeResourcePolicy
 } from './resource-policy.mjs';
-import { RECURRING_REMINDERS_FIELD } from './recurring-reminder-utils.mjs';
 import {
     validateVehicleCatalog,
     VEHICLE_CATALOG_FIELD
@@ -946,7 +944,7 @@ export function parseAndValidateBackupText(text) {
         throw new BackupValidationError('El archivo de backup está vacío.');
     }
     if (getTextByteLength(text) > MAX_BACKUP_BYTES) {
-        throw new BackupValidationError('El backup supera el límite permitido de 8 MB.');
+        throw new BackupValidationError('El backup supera el límite permitido de 64 MB.');
     }
 
     let root;
@@ -1028,59 +1026,10 @@ export function validateBackupResourceCapacity(plan, policy) {
     }
 
     const normalizedPolicy = normalizeResourcePolicy(policy);
-    const usage = {
-        [RESOURCE_KEYS.CUSTOM_MODULES]: 0,
-        [RESOURCE_KEYS.TRACKER_CARDS]: 0,
-        [RESOURCE_KEYS.REMINDERS]: 0
-    };
+    const storedValues = Object.fromEntries(plan.entries);
+    const usage = getSynchronizedResourceUsage(storedValues);
     if (normalizedPolicy.unlimited) {
         return usage;
-    }
-
-    const hygieneEntry = plan.entries.find(([key]) => key === 'hygiene_tracker_data');
-    if (hygieneEntry && hygieneEntry[1] !== null) {
-        let hygieneData;
-        try {
-            hygieneData = typeof hygieneEntry[1] === 'string'
-                ? JSON.parse(hygieneEntry[1])
-                : hygieneEntry[1];
-        } catch {
-            throw new BackupValidationError(
-                'La sección de tarjetas del backup no contiene JSON válido.'
-            );
-        }
-
-        const registryValue = hygieneData?.[CUSTOM_TRACKER_FIELD];
-        if (registryValue) {
-            Object.assign(
-                usage,
-                getTrackerRegistryResourceUsage(
-                    validateCustomTrackerRegistry(registryValue)
-                )
-            );
-        }
-    }
-
-    const alertsEntry = plan.entries.find(([key]) => key === 'alerts_config');
-    if (alertsEntry && alertsEntry[1] !== null) {
-        let alertsData;
-        try {
-            alertsData = typeof alertsEntry[1] === 'string'
-                ? JSON.parse(alertsEntry[1])
-                : alertsEntry[1];
-        } catch {
-            throw new BackupValidationError(
-                'La sección de recordatorios del backup no contiene JSON válido.'
-            );
-        }
-
-        const registry = alertsData?.[RECURRING_REMINDERS_FIELD];
-        if (registry) {
-            Object.assign(
-                usage,
-                getRecurringReminderRegistryResourceUsage(registry)
-            );
-        }
     }
 
     const checks = [
@@ -1098,6 +1047,61 @@ export function validateBackupResourceCapacity(plan, policy) {
             key: RESOURCE_KEYS.REMINDERS,
             singular: 'recordatorio',
             plural: 'recordatorios'
+        },
+        {
+            key: RESOURCE_KEYS.TASKS,
+            singular: 'tarea',
+            plural: 'tareas'
+        },
+        {
+            key: RESOURCE_KEYS.PROJECTS,
+            singular: 'proyecto',
+            plural: 'proyectos'
+        },
+        {
+            key: RESOURCE_KEYS.PROJECT_TEMPLATES,
+            singular: 'plantilla de proyecto',
+            plural: 'plantillas de proyectos'
+        },
+        {
+            key: RESOURCE_KEYS.FINANCE_TRANSACTIONS,
+            singular: 'movimiento financiero',
+            plural: 'movimientos financieros'
+        },
+        {
+            key: RESOURCE_KEYS.FINANCE_RECURRING_RULES,
+            singular: 'movimiento recurrente',
+            plural: 'movimientos recurrentes'
+        },
+        {
+            key: RESOURCE_KEYS.TRADING_EVENTS,
+            singular: 'evento de Trading',
+            plural: 'eventos de Trading'
+        },
+        {
+            key: RESOURCE_KEYS.GYM_ROUTINE_EXERCISES,
+            singular: 'ejercicio de rutina',
+            plural: 'ejercicios de rutina'
+        },
+        {
+            key: RESOURCE_KEYS.GYM_MEAL_TEMPLATES,
+            singular: 'comida guardada',
+            plural: 'comidas guardadas'
+        },
+        {
+            key: RESOURCE_KEYS.GYM_SUPPLEMENTS,
+            singular: 'registro de suplemento',
+            plural: 'registros de suplementos'
+        },
+        {
+            key: RESOURCE_KEYS.VEHICLE_ISSUES,
+            singular: 'falla de vehículo',
+            plural: 'fallas de vehículo'
+        },
+        {
+            key: RESOURCE_KEYS.BLOOD_TEST_FILES,
+            singular: 'adjunto de análisis',
+            plural: 'adjuntos de análisis'
         }
     ];
 

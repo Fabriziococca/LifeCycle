@@ -19,6 +19,12 @@ const TRADING_MIGRATION = path.join(
     'migrations',
     '20260809062605_tanda_8_trading_projection.sql'
 );
+const TRADING_CAPACITY_MIGRATION = path.join(
+    ROOT,
+    'supabase',
+    'migrations',
+    '20260829201218_expand_trading_projection_capacity.sql'
+);
 const RESOURCE_POLICY_MIGRATION = path.join(
     ROOT,
     'supabase',
@@ -36,6 +42,18 @@ const TRACKER_RESOURCE_ENFORCEMENT_MIGRATION = path.join(
     'supabase',
     'migrations',
     '20260829193500_enforce_tracker_resource_limits.sql'
+);
+const ALL_RESOURCE_ENFORCEMENT_MIGRATION = path.join(
+    ROOT,
+    'supabase',
+    'migrations',
+    '20260829213000_enforce_all_resource_limits.sql'
+);
+const OPERATIONAL_LIMITS_MIGRATION = path.join(
+    ROOT,
+    'supabase',
+    'migrations',
+    '20260829214500_harden_storage_and_push_limits.sql'
 );
 
 test('the latest client sync migration allows every cloud-owned key', async () => {
@@ -84,6 +102,38 @@ test('Tanda 8 Trading persistence is additive, isolated and idempotent', async (
     assert.doesNotMatch(migration, /drop table/i);
     assert.doesNotMatch(migration, /delete from public\.user_data/i);
     assert.doesNotMatch(migration, /tradingEvents'\s*,\s*null|tradingEvents'\s*-/i);
+});
+
+test('Trading projection capacity expands safely and rebuilds existing rows', async () => {
+    const migration = await readFile(TRADING_CAPACITY_MIGRATION, 'utf8');
+
+    assert.match(migration, /create or replace function private\.sync_trading_events_for_user/i);
+    assert.match(migration, /security definer[\s\S]+set search_path = pg_catalog, pg_temp/i);
+    assert.match(migration, /candidate\.position <= 10000/i);
+    assert.match(migration, /on conflict \(user_id, id\) do nothing/i);
+    assert.match(migration, /revoke all on function private\.sync_trading_events_for_user[\s\S]+authenticated/i);
+    assert.match(migration, /select private\.sync_trading_events_for_user\(user_id, data\)[\s\S]+from public\.user_data/i);
+    assert.doesNotMatch(migration, /delete from public\.user_data/i);
+
+    const verification = await readFile(path.join(
+        ROOT,
+        'supabase',
+        'verification',
+        '20260809_tanda_8_security_check.sql'
+    ), 'utf8');
+    assert.match(verification, /trading_projection_capacity/i);
+    assert.match(verification, /candidate\.position <= 10000/i);
+});
+
+test('Trading scheduler reads every projection page in deterministic order', async () => {
+    const serverSource = await readFile(path.join(ROOT, 'server.js'), 'utf8');
+
+    assert.match(serverSource, /collectSupabaseRangePages/);
+    assert.match(
+        serverSource,
+        /from\('trading_events'\)[\s\S]{0,500}order\('user_id',[\s\S]{0,150}order\('id',[\s\S]{0,150}range\(from, to\)/
+    );
+    assert.match(serverSource, /collectSupabaseRangePages[\s\S]{0,900}\{ pageSize: 500 \}/);
 });
 
 test('resource policy is private, owner-safe and exposed only through an authenticated RPC', async () => {
@@ -154,9 +204,84 @@ test('module, tracker and reminder limits are enforced at the synchronized docum
     assert.match(migration, /revoke all on function private\.enforce_lifecycle_user_document_limit\(\)[\s\S]+authenticated/i);
     assert.doesNotMatch(migration, /contactofabrizioo|soyfabriziococca/i);
     assert.match(verification, /tracker_resource_limits/i);
-    assert.match(verification, /resource_key = ''custom_modules''/i);
-    assert.match(verification, /resource_key = ''tracker_cards''/i);
-    assert.match(verification, /resource_key = ''reminders''/i);
+    assert.match(verification, /pg_get_functiondef\(procedures\.oid\)\s*~\s*'''custom_modules'''/i);
+    assert.match(verification, /pg_get_functiondef\(procedures\.oid\)\s*~\s*'''tracker_cards'''/i);
+    assert.match(verification, /pg_get_functiondef\(procedures\.oid\)\s*~\s*'''reminders'''/i);
+});
+
+test('every synchronized collection is counted by the authoritative policy trigger', async () => {
+    const migration = await readFile(ALL_RESOURCE_ENFORCEMENT_MIGRATION, 'utf8');
+    const verification = await readFile(path.join(
+        ROOT,
+        'supabase',
+        'verification',
+        '20260827_resource_policy_security_check.sql'
+    ), 'utf8');
+
+    assert.match(migration, /private\.lifecycle_stored_json/i);
+    assert.match(migration, /private\.lifecycle_json_array/i);
+    assert.match(migration, /security definer[\s\S]+set search_path = pg_catalog, pg_temp/i);
+    assert.match(migration, /where profile\.user_id = new\.user_id/i);
+    assert.match(migration, /v_access_tier = 'owner'[\s\S]+return new/i);
+    for (const resourceKey of [
+        'custom_modules',
+        'tracker_cards',
+        'reminders',
+        'tasks',
+        'projects',
+        'project_templates',
+        'finance_transactions',
+        'finance_recurring_rules',
+        'trading_events',
+        'gym_routine_exercises',
+        'gym_meal_templates',
+        'gym_supplements',
+        'vehicle_issues',
+        'blood_test_files'
+    ]) {
+        assert.match(migration, new RegExp(`'${resourceKey}'`));
+    }
+    for (const storageKey of [
+        'tareas_list',
+        'projectPulseData',
+        'projectPulseHistory',
+        'projectPulseTemplates',
+        'finanzasData',
+        'gym_routine',
+        'gym_meals',
+        'gym_general_meals',
+        'gym_supplements',
+        'vehicle_issues',
+        'health_blood_tests'
+    ]) {
+        assert.match(migration, new RegExp(`'${storageKey}'`));
+    }
+    assert.match(migration, /project tasks are invalid/i);
+    assert.match(migration, /tracker\.value ->> 'deleted'/i);
+    assert.match(migration, /errcode = '54000'/i);
+    assert.match(migration, /revoke all on function private\.enforce_lifecycle_user_document_limit/i);
+    assert.doesNotMatch(migration, /contactofabrizioo|soyfabriziococca/i);
+    assert.match(verification, /all_resource_limits/i);
+});
+
+test('Storage and Push quotas are isolated, race-safe and owner-aware', async () => {
+    const migration = await readFile(OPERATIONAL_LIMITS_MIGRATION, 'utf8');
+
+    assert.match(migration, /update storage\.buckets[\s\S]+public = false/i);
+    assert.match(migration, /file_size_limit = 15728640/i);
+    assert.match(migration, /public\.can_upload_lifecycle_medical_file/i);
+    assert.match(migration, /v_user_id uuid := auth\.uid\(\)/i);
+    assert.doesNotMatch(migration, /p_user_id/i);
+    assert.match(migration, /split_part\(p_object_name, '\/', 1\) <> v_user_id::text/i);
+    assert.match(migration, /resource_key = 'blood_test_files'/i);
+    assert.match(migration, /pg_advisory_xact_lock/i);
+    assert.match(migration, /grant execute on function public\.can_upload_lifecycle_medical_file\(text\)[\s\S]+to authenticated/i);
+    assert.match(migration, /create policy "Users can insert their own blood tests"[\s\S]+can_upload_lifecycle_medical_file\(name\)/i);
+    assert.match(migration, /private\.enforce_lifecycle_push_subscription_limit/i);
+    assert.match(migration, /v_limit constant bigint := 20/i);
+    assert.match(migration, /access_tier[\s\S]+owner[\s\S]+return new/i);
+    assert.match(migration, /before insert on public\.push_subscriptions/i);
+    assert.doesNotMatch(migration, /contactofabrizioo|soyfabriziococca/i);
 });
 
 test('private safety snapshots enforce RLS without client grants', async () => {
@@ -257,6 +382,7 @@ test('the Tanda 8 verification script is read-only and covers security plus pari
         'user_data_rpc_security',
         'owned_rows_cascade',
         'trading_events_security',
+        'trading_projection_capacity',
         'trading_projection_parity',
         'trading_dispatch_security',
         'trading_dispatch_rpc_security'

@@ -63,6 +63,11 @@ const {
     normalizeTradingEvents,
     tradingEventFromDatabaseRow
 } = require('./trading-event-utils');
+const { collectSupabaseRangePages } = require('./supabase-pagination-utils');
+const {
+    createFixedWindowRateLimiter,
+    normalizeClientAddress
+} = require('./rate-limit-utils');
 
 // Búfer en memoria para depuración de logs en Render
 const logBuffer = [];
@@ -555,23 +560,30 @@ function reportOptionalSchemaWarning(key, message) {
 async function loadTradingEventProjection() {
     if (!supabase || tradingProjectionSchemaAvailable === false) return null;
 
-    const { data, error } = await supabase
-        .from('trading_events')
-        .select([
-            'user_id',
-            'id',
-            'company',
-            'ticker',
-            'name',
-            'scheduled_at',
-            'notes',
-            'source_url',
-            'notice_days',
-            'status',
-            'created_at',
-            'updated_at'
-        ].join(','))
-        .eq('status', 'active');
+    const projectionColumns = [
+        'user_id',
+        'id',
+        'company',
+        'ticker',
+        'name',
+        'scheduled_at',
+        'notes',
+        'source_url',
+        'notice_days',
+        'status',
+        'created_at',
+        'updated_at'
+    ].join(',');
+    const { data, error } = await collectSupabaseRangePages(
+        ({ from, to }) => supabase
+            .from('trading_events')
+            .select(projectionColumns)
+            .eq('status', 'active')
+            .order('user_id', { ascending: true })
+            .order('id', { ascending: true })
+            .range(from, to),
+        { pageSize: 500 }
+    );
 
     if (error) {
         if (isMissingTradingPersistenceSchema(error)) {
@@ -1280,51 +1292,46 @@ async function sendDueTradingEventAlerts({
     return sentLogUpdates;
 }
 
-// Rate Limiter integrado y liviano (sin dependencias npm)
-const ipCounts = {};
-const rateLimitResetTimer = setInterval(() => {
-    // Resetear contadores de IP cada 15 minutos para evitar fugas de memoria
-    for (const ip in ipCounts) {
-        delete ipCounts[ip];
-    }
-}, 15 * 60 * 1000);
-rateLimitResetTimer.unref?.();
-
-const rateLimiter = (req, res, next) => {
-    const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress || req.ip;
-    ipCounts[ip] = (ipCounts[ip] || 0) + 1;
-    if (ipCounts[ip] > 100) {
-        console.warn(`[Security] IP bloqueada temporalmente por exceso de peticiones: ${ip}`);
-        return res.status(429).json({ error: 'Demasiadas solicitudes. Por favor, intentá de nuevo más tarde.' });
-    }
-    next();
-};
-
-const registrationIpAttempts = new Map();
 const REGISTRATION_ATTEMPT_WINDOW_MS = 15 * 60 * 1000;
 const REGISTRATION_ATTEMPT_LIMIT = 8;
-
-const registrationRateLimiter = (req, res, next) => {
-    const forwardedFor = String(req.headers['x-forwarded-for'] || '').split(',')[0].trim();
-    const ip = forwardedFor || req.socket.remoteAddress || req.ip || 'unknown';
-    const now = Date.now();
-    const previous = registrationIpAttempts.get(ip);
-    const current = !previous || previous.resetAt <= now
-        ? { count: 0, resetAt: now + REGISTRATION_ATTEMPT_WINDOW_MS }
-        : previous;
-
-    current.count += 1;
-    registrationIpAttempts.set(ip, current);
-    if (current.count > REGISTRATION_ATTEMPT_LIMIT) {
-        return res.status(429).json({
-            error: 'Demasiados intentos de registro. Esperá unos minutos antes de volver a probar.'
-        });
-    }
-    next();
-};
+const rateLimiter = createFixedWindowRateLimiter({
+    scope: 'api',
+    windowMs: 15 * 60 * 1000,
+    max: 300,
+    maxEntries: 5_000
+});
+const registrationRateLimiter = createFixedWindowRateLimiter({
+    scope: 'registration',
+    windowMs: REGISTRATION_ATTEMPT_WINDOW_MS,
+    max: REGISTRATION_ATTEMPT_LIMIT,
+    maxEntries: 2_000,
+    message: 'Demasiados intentos de registro. Esperá unos minutos antes de volver a probar.'
+});
+const telemetryRateLimiter = createFixedWindowRateLimiter({
+    scope: 'push-telemetry',
+    windowMs: 15 * 60 * 1000,
+    max: 120,
+    maxEntries: 5_000
+});
+const authenticatedMutationRateLimiter = createFixedWindowRateLimiter({
+    scope: 'authenticated-mutation',
+    windowMs: 15 * 60 * 1000,
+    max: 240,
+    maxEntries: 5_000,
+    keyGenerator: req => req.authenticatedUser?.id || normalizeClientAddress(req)
+});
+const pushTestRateLimiter = createFixedWindowRateLimiter({
+    scope: 'push-test',
+    windowMs: 10 * 60 * 1000,
+    max: 6,
+    maxEntries: 5_000,
+    keyGenerator: req => req.authenticatedUser?.id || normalizeClientAddress(req),
+    message: 'Alcanzaste el límite temporal de pruebas Push. Esperá unos minutos antes de repetirlas.'
+});
 
 // Middleware
 app.disable('x-powered-by');
+app.set('trust proxy', 1);
 app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
@@ -1435,7 +1442,7 @@ app.get('/api/health', (req, res) => {
     });
 });
 
-app.post('/api/push/telemetry', async (req, res) => {
+app.post('/api/push/telemetry', telemetryRateLimiter, async (req, res) => {
     if (!supabase || notificationTelemetrySchemaAvailable === false) {
         return res.status(503).json({ error: 'La telemetría Push no está disponible.' });
     }
@@ -1549,7 +1556,10 @@ function deduplicateSubscriptionRows(rows = []) {
 }
 
 // Endpoint autenticado para registrar o reparar una suscripción Push.
-app.post('/api/subscribe', requireSupabaseUser, async (req, res) => {
+app.post('/api/subscribe',
+    requireSupabaseUser,
+    authenticatedMutationRateLimiter,
+    async (req, res) => {
     const { subscription } = req.body || {};
     if (!isValidPushSubscription(subscription)) {
         return res.status(400).json({ error: 'La suscripción Push no es válida.' });
@@ -1632,12 +1642,22 @@ app.post('/api/subscribe', requireSupabaseUser, async (req, res) => {
         });
     } catch (error) {
         console.error('[Push] Error guardando suscripción autenticada:', error);
+        const details = String(error?.details || '').toLowerCase();
+        if (String(error?.code || '') === '54000' && details.includes('resource_key=push_devices')) {
+            return res.status(409).json({
+                error: 'Esta cuenta alcanzó el límite de dispositivos Push. Revocá uno anterior antes de registrar otro.'
+            });
+        }
         res.status(500).json({ error: 'No se pudo guardar la suscripción Push.' });
     }
-});
+    }
+);
 
 // Passive verification never creates a row, so revoking a remote device remains durable.
-app.post('/api/push/status', requireSupabaseUser, async (req, res) => {
+app.post('/api/push/status',
+    requireSupabaseUser,
+    authenticatedMutationRateLimiter,
+    async (req, res) => {
     const { subscription } = req.body || {};
     if (!isValidPushSubscription(subscription)) {
         return res.status(400).json({ error: 'La suscripción Push no es válida.' });
@@ -1681,7 +1701,8 @@ app.post('/api/push/status', requireSupabaseUser, async (req, res) => {
         console.error('[Push] No se pudo comprobar el dispositivo:', error);
         res.status(500).json({ error: 'No se pudo comprobar el registro del dispositivo.' });
     }
-});
+    }
+);
 
 app.get('/api/push/devices', requireSupabaseUser, async (req, res) => {
     try {
@@ -1703,7 +1724,10 @@ app.get('/api/push/devices', requireSupabaseUser, async (req, res) => {
     }
 });
 
-app.post('/api/push/devices/:id/test', requireSupabaseUser, async (req, res) => {
+app.post('/api/push/devices/:id/test',
+    requireSupabaseUser,
+    pushTestRateLimiter,
+    async (req, res) => {
     const rowId = String(req.params.id || '').trim();
     if (!rowId || rowId.length > 128) {
         return res.status(400).json({ error: 'El dispositivo no es válido.' });
@@ -1748,9 +1772,13 @@ app.post('/api/push/devices/:id/test', requireSupabaseUser, async (req, res) => 
         console.error('[Push] No se pudo probar el dispositivo:', error);
         res.status(500).json({ error: 'No se pudo enviar la prueba al dispositivo.' });
     }
-});
+    }
+);
 
-app.patch('/api/push/devices/:id', requireSupabaseUser, async (req, res) => {
+app.patch('/api/push/devices/:id',
+    requireSupabaseUser,
+    authenticatedMutationRateLimiter,
+    async (req, res) => {
     const rowId = String(req.params.id || '').trim();
     const rawName = String(req.body?.name || '').replace(/\s+/g, ' ').trim();
     if (!rowId || rowId.length > 128 || !rawName || rawName.length > 80) {
@@ -1782,9 +1810,13 @@ app.patch('/api/push/devices/:id', requireSupabaseUser, async (req, res) => {
                 : 'No se pudo renombrar el dispositivo.'
         });
     }
-});
+    }
+);
 
-app.delete('/api/push/devices/:id', requireSupabaseUser, async (req, res) => {
+app.delete('/api/push/devices/:id',
+    requireSupabaseUser,
+    authenticatedMutationRateLimiter,
+    async (req, res) => {
     const rowId = String(req.params.id || '').trim();
     if (!rowId || rowId.length > 128) {
         return res.status(400).json({ error: 'El dispositivo no es válido.' });
@@ -1806,7 +1838,8 @@ app.delete('/api/push/devices/:id', requireSupabaseUser, async (req, res) => {
         console.error('[Push] No se pudo revocar el dispositivo:', error);
         res.status(500).json({ error: 'No se pudo revocar el dispositivo.' });
     }
-});
+    }
+);
 
 app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
     if (notificationHistorySchemaAvailable === false) {
@@ -1854,7 +1887,10 @@ app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
     }
 });
 
-app.post('/api/push/history/:id/confirm', requireSupabaseUser, async (req, res) => {
+app.post('/api/push/history/:id/confirm',
+    requireSupabaseUser,
+    authenticatedMutationRateLimiter,
+    async (req, res) => {
     const historyId = String(req.params.id || '').trim();
     if (!/^\d+$/.test(historyId)) {
         return res.status(400).json({ error: 'El evento de notificación no es válido.' });
@@ -1888,10 +1924,14 @@ app.post('/api/push/history/:id/confirm', requireSupabaseUser, async (req, res) 
         console.error('[Push] No se pudo confirmar la recepción manual:', error);
         res.status(500).json({ error: 'No se pudo confirmar que viste la notificación.' });
     }
-});
+    }
+);
 
 // Endpoint para probar notificaciones push de inmediato (5 segundos de delay)
-app.post('/api/test-push', requireSupabaseUser, async (req, res) => {
+app.post('/api/test-push',
+    requireSupabaseUser,
+    pushTestRateLimiter,
+    async (req, res) => {
     const { subscription } = req.body || {};
     if (!isValidPushSubscription(subscription)) {
         return res.status(400).json({ error: 'La suscripción Push no es válida.' });
@@ -1942,7 +1982,8 @@ app.post('/api/test-push', requireSupabaseUser, async (req, res) => {
         error: 'El servicio Push rechazó la notificación de prueba.',
         statusCode: result.lastFailureStatus
     });
-});
+    }
+);
 
 // Middleware de autenticación para endpoints administrativos
 const checkAdminToken = (req, res, next) => {

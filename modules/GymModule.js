@@ -4,6 +4,14 @@ import {
     normalizeActiveGymSession
 } from '../gym-session-utils.mjs?v=20260727-active-session';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import {
+    RESOURCE_KEYS,
+    getGymResourceUsage
+} from '../resource-policy.mjs?v=20260829-all-limits';
+import {
+    appendResourceCapacityNotice,
+    checkResourceCreationCapacity
+} from '../resource-limit-ui.mjs?v=20260829-all-limits';
 
 export class GymModule {
     constructor(appController) {
@@ -119,6 +127,21 @@ export class GymModule {
 
         // Sincronizar silenciosamente a la nube
         this.app.auth?.syncToCloud(false).catch(() => {});
+    }
+
+    getGymResourceCapacity(resourceKey, requestedCount = 1) {
+        const usage = getGymResourceUsage({
+            routine: this.routine,
+            meals: this.meals,
+            generalMeals: this.generalMeals,
+            supplements: this.supplements
+        });
+        return checkResourceCreationCapacity({
+            app: this.app,
+            resourceKey,
+            currentCount: usage[resourceKey],
+            requestedCount
+        });
     }
 
     persistActiveSession({ syncNow = false } = {}) {
@@ -323,6 +346,15 @@ export class GymModule {
                     const name = input.value.trim();
                     if (!name) return;
 
+                    const links = { 'Lunes': 'Jueves', 'Jueves': 'Lunes', 'Martes': 'Viernes', 'Viernes': 'Martes' };
+                    const pairedDay = links[day];
+                    const requestedCount = pairedDay ? 2 : 1;
+                    const capacity = this.getGymResourceCapacity(
+                        RESOURCE_KEYS.GYM_ROUTINE_EXERCISES,
+                        requestedCount
+                    );
+                    if (!capacity) return;
+
                     const linkId = 'link_' + Date.now();
 
                     this.routine.push({
@@ -335,8 +367,6 @@ export class GymModule {
                         series: 3
                     });
 
-                    const links = { 'Lunes': 'Jueves', 'Jueves': 'Lunes', 'Martes': 'Viernes', 'Viernes': 'Martes' };
-                    const pairedDay = links[day];
                     if (pairedDay) {
                         this.routine.push({
                             id: Date.now() + 1,
@@ -351,6 +381,14 @@ export class GymModule {
 
                     this.saveData('gym_routine');
                     this.renderRoutine();
+                    this.app.showToast?.(appendResourceCapacityNotice(
+                        pairedDay
+                            ? 'Ejercicio agregado a los dos días vinculados.'
+                            : 'Ejercicio agregado a la rutina.',
+                        RESOURCE_KEYS.GYM_ROUTINE_EXERCISES,
+                        capacity,
+                        requestedCount
+                    ));
 
                     // Re-enfocar el input del día correspondiente
                     const newInput = document.querySelector(`.inline-add-exercise-form[data-day="${day}"] input[type="text"]`);
@@ -530,6 +568,11 @@ export class GymModule {
                 const fiber = parseFloat(document.getElementById('fixed-meal-fiber').value) || 0;
                 const group = document.getElementById('fixed-meal-group').value.trim();
 
+                const capacity = this.getGymResourceCapacity(
+                    RESOURCE_KEYS.GYM_MEAL_TEMPLATES
+                );
+                if (!capacity) return;
+
                 this.meals.fixed.push({
                     id: Date.now(), name, qty, unit, kcal, protein, carbs, fat, sodium, fiber, group
                 });
@@ -538,6 +581,11 @@ export class GymModule {
                 fixedForm.reset();
                 fixedForm.classList.add('hidden');
                 if (toggleFixedBtn) toggleFixedBtn.innerHTML = '<i class="ph ph-plus"></i> Cargar Comida';
+                this.app.showToast?.(appendResourceCapacityNotice(
+                    'Comida fija guardada.',
+                    RESOURCE_KEYS.GYM_MEAL_TEMPLATES,
+                    capacity
+                ));
             });
         }
 
@@ -566,6 +614,11 @@ export class GymModule {
                 const fiber = parseFloat(document.getElementById('general-meal-fiber').value) || 0;
                 const group = document.getElementById('general-meal-group').value.trim();
 
+                const capacity = this.getGymResourceCapacity(
+                    RESOURCE_KEYS.GYM_MEAL_TEMPLATES
+                );
+                if (!capacity) return;
+
                 this.generalMeals.push({
                     id: Date.now(), name, qty, unit, kcal, protein, carbs, fat, sodium, fiber, group
                 });
@@ -574,6 +627,11 @@ export class GymModule {
                 generalForm.reset();
                 generalForm.classList.add('hidden');
                 if (toggleGeneralBtn) toggleGeneralBtn.innerHTML = '<i class="ph ph-plus"></i> Cargar Comida General';
+                this.app.showToast?.(appendResourceCapacityNotice(
+                    'Comida general guardada.',
+                    RESOURCE_KEYS.GYM_MEAL_TEMPLATES,
+                    capacity
+                ));
             });
         }
 
@@ -750,6 +808,11 @@ export class GymModule {
                 const dateVal = document.getElementById('vitd-log-date').value;
                 if (!dateVal) return;
 
+                const capacity = this.getGymResourceCapacity(
+                    RESOURCE_KEYS.GYM_SUPPLEMENTS
+                );
+                if (!capacity) return;
+
                 this.supplements.vit_d_history.push({ id: Date.now(), date: dateVal });
                 this.supplements.vit_d_history.sort((a, b) => new Date(b.date) - new Date(a.date));
                 this.saveData('gym_supplements');
@@ -757,6 +820,11 @@ export class GymModule {
                 formVitdLog.reset();
                 formVitdLog.classList.add('hidden');
                 if (btnVitdLogToggle) btnVitdLogToggle.innerHTML = '<i class="ph ph-plus"></i> Registrar Toma';
+                this.app.showToast?.(appendResourceCapacityNotice(
+                    'Toma de vitamina D registrada.',
+                    RESOURCE_KEYS.GYM_SUPPLEMENTS,
+                    capacity
+                ));
             });
         }
 
@@ -809,6 +877,11 @@ export class GymModule {
 
                 if (!dateVal) return;
 
+                const capacity = this.getGymResourceCapacity(
+                    RESOURCE_KEYS.GYM_SUPPLEMENTS
+                );
+                if (!capacity) return;
+
                 this.supplements.painkillers_history.push({
                     id: Date.now(), date: dateVal, type: typeVal, note: noteVal
                 });
@@ -818,6 +891,11 @@ export class GymModule {
                 formPainLog.reset();
                 formPainLog.classList.add('hidden');
                 if (btnPainLogToggle) btnPainLogToggle.innerHTML = '<i class="ph ph-plus"></i> Registrar Toma';
+                this.app.showToast?.(appendResourceCapacityNotice(
+                    'Toma de analgésico registrada.',
+                    RESOURCE_KEYS.GYM_SUPPLEMENTS,
+                    capacity
+                ));
             });
         }
     }
@@ -1877,6 +1955,11 @@ export class GymModule {
         const meal = this.generalMeals.find(m => m.id === id);
         if (!meal) return;
 
+        const capacity = this.getGymResourceCapacity(
+            RESOURCE_KEYS.GYM_MEAL_TEMPLATES
+        );
+        if (!capacity) return;
+
         // Clonamos la comida a la lista de fijas
         this.meals.fixed.push({
             id: Date.now(),
@@ -1893,7 +1976,11 @@ export class GymModule {
         });
 
         this.saveData('gym_meals');
-        this.app.showToast(`"${meal.name}" se copió a Comidas Fijas.`);
+        this.app.showToast(appendResourceCapacityNotice(
+            `"${meal.name}" se copió a Comidas Fijas.`,
+            RESOURCE_KEYS.GYM_MEAL_TEMPLATES,
+            capacity
+        ));
         this.renderNutrition();
     }
 

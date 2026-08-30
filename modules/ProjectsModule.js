@@ -14,6 +14,15 @@ import {
     groupProjectIncomeMovementsByMonth
 } from '../project-income-utils.mjs?v=20260808-project-income';
 import { normalizeProjectSubscription } from '../project-subscription-utils.mjs?v=20260826-project-subscription';
+import {
+    RESOURCE_KEYS,
+    getProjectResourceUsage,
+    getTaskResourceUsage
+} from '../resource-policy.mjs?v=20260829-all-limits';
+import {
+    appendResourceCapacityNotice,
+    checkResourceCreationCapacity
+} from '../resource-limit-ui.mjs?v=20260829-all-limits';
 
 export class ProjectsModule {
     
@@ -93,6 +102,36 @@ export class ProjectsModule {
     saveTemplateData() {
         this.templateRegistry = normalizeProjectTemplateRegistry(this.templateRegistry);
         localStorage.setItem('projectPulseTemplates', JSON.stringify(this.templateRegistry));
+    }
+
+    getProjectResourceCapacity(resourceKey, requestedCount = 1, errorElement = null) {
+        const usage = getProjectResourceUsage({
+            projects: this.projects,
+            projectHistory: this.history,
+            templateRegistry: this.templateRegistry
+        });
+        return checkResourceCreationCapacity({
+            app: this.app,
+            resourceKey,
+            currentCount: usage[resourceKey],
+            requestedCount,
+            errorElement
+        });
+    }
+
+    getTemplateTaskCapacity(requestedCount) {
+        if (requestedCount <= 0) return { allowed: true, limit: null, remaining: null };
+        const usage = getTaskResourceUsage({
+            standaloneTasks: this.app.tareas?.tasks,
+            projects: this.projects,
+            projectHistory: this.history
+        });
+        return checkResourceCreationCapacity({
+            app: this.app,
+            resourceKey: RESOURCE_KEYS.TASKS,
+            currentCount: usage[RESOURCE_KEYS.TASKS],
+            requestedCount
+        });
     }
 
     getProjectTemplateById(templateId) {
@@ -307,6 +346,13 @@ export class ProjectsModule {
             return;
         }
 
+        const capacity = this.getProjectResourceCapacity(
+            RESOURCE_KEYS.PROJECT_TEMPLATES,
+            1,
+            error
+        );
+        if (!capacity) return;
+
         const now = new Date().toISOString();
         const template = buildProjectTemplate(source, {
             id: `project-template-${Date.now()}-${this.templateRegistry.templates.length + 1}`,
@@ -320,7 +366,11 @@ export class ProjectsModule {
         this.renderProjectTemplateControls();
         this.renderProjectTemplatesManager();
         this.app.auth?.syncToCloud(false).catch(() => {});
-        this.app.showToast?.(`Plantilla ${template.name} guardada.`);
+        this.app.showToast?.(appendResourceCapacityNotice(
+            `Plantilla ${template.name} guardada.`,
+            RESOURCE_KEYS.PROJECT_TEMPLATES,
+            capacity
+        ));
 
         if (nameInput) nameInput.value = '';
         if (includeBudgetInput) includeBudgetInput.checked = false;
@@ -616,6 +666,14 @@ export class ProjectsModule {
                     template,
                     (_, index) => projectId + index + 1
                 );
+                const projectCapacity = this.getProjectResourceCapacity(
+                    RESOURCE_KEYS.PROJECTS
+                );
+                if (!projectCapacity) return;
+                const taskCapacity = this.getTemplateTaskCapacity(
+                    templatePayload.tasks.length
+                );
+                if (!taskCapacity) return;
                 const timeTotal = days * 24 * 60 * 60 * 1000;
                 const deadline = new Date(new Date(accepted).getTime() + timeTotal).toISOString();
                 const net = this.calculateNet(gross, feeType, customPct, isDel, isRec);
@@ -651,11 +709,23 @@ export class ProjectsModule {
                 if (templateSelect) templateSelect.value = '';
                 this.updateProjectTemplateSummary();
                 customContainer?.classList.add('hidden');
-                this.app.showToast?.(
-                    template
-                        ? `Proyecto creado con la plantilla ${template.name}.`
-                        : 'Proyecto creado.'
+                let successMessage = template
+                    ? `Proyecto creado con la plantilla ${template.name}.`
+                    : 'Proyecto creado.';
+                successMessage = appendResourceCapacityNotice(
+                    successMessage,
+                    RESOURCE_KEYS.PROJECTS,
+                    projectCapacity
                 );
+                if (templatePayload.tasks.length > 0) {
+                    successMessage = appendResourceCapacityNotice(
+                        successMessage,
+                        RESOURCE_KEYS.TASKS,
+                        taskCapacity,
+                        templatePayload.tasks.length
+                    );
+                }
+                this.app.showToast?.(successMessage);
             });
         }
 
@@ -886,6 +956,11 @@ export class ProjectsModule {
                 return;
             }
 
+            const projectCapacity = this.getProjectResourceCapacity(
+                RESOURCE_KEYS.PROJECTS
+            );
+            if (!projectCapacity) return;
+
             const pPast = {
                 id: Date.now(),
                 client,
@@ -913,6 +988,11 @@ export class ProjectsModule {
             pastForm?.classList.add('hidden');
             btnTogglePast?.setAttribute('aria-expanded', 'false');
             this.resetPastForm();
+            this.app.showToast?.(appendResourceCapacityNotice(
+                'Ingreso histórico guardado.',
+                RESOURCE_KEYS.PROJECTS,
+                projectCapacity
+            ));
         });
 
         // Projects Status Note Modal Cancel/Save and Chips

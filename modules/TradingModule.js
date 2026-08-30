@@ -1,5 +1,13 @@
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
-import '../trading-event-utils.js?v=20260817-trading-module';
+import '../trading-event-utils.js?v=20260829-trading-capacity';
+import {
+    RESOURCE_KEYS,
+    getFinanceResourceUsage
+} from '../resource-policy.mjs?v=20260829-all-limits';
+import {
+    appendResourceCapacityNotice,
+    checkResourceCreationCapacity
+} from '../resource-limit-ui.mjs?v=20260829-all-limits';
 
 const {
     DEFAULT_TRADING_NOTICE_DAYS,
@@ -187,13 +195,31 @@ export class TradingModule {
             return;
         }
 
+        const capacity = existing
+            ? { allowed: true, limit: null, remaining: null }
+            : checkResourceCreationCapacity({
+                app: this.app,
+                resourceKey: RESOURCE_KEYS.TRADING_EVENTS,
+                currentCount: getFinanceResourceUsage(this.financeData)[
+                    RESOURCE_KEYS.TRADING_EVENTS
+                ],
+                errorElement: document.getElementById('trading-event-form-error')
+            });
+        if (!capacity) return;
+
         this.events = existing
             ? this.events.map(item => item.id === existing.id ? normalized : item)
             : [...this.events, normalized];
         this.persist();
         this.closeEventModal({ restoreFocus: false });
         this.render();
-        this.app.showToast?.(existing ? 'Evento actualizado.' : 'Evento de Trading creado.');
+        this.app.showToast?.(existing
+            ? 'Evento actualizado.'
+            : appendResourceCapacityNotice(
+                'Evento de Trading creado.',
+                RESOURCE_KEYS.TRADING_EVENTS,
+                capacity
+            ));
     }
 
     toggleEventStatus(eventId) {

@@ -221,6 +221,39 @@ el JSON compatible contengan los mismos identificadores.
 
 La protección contra contraseñas filtradas requiere un plan pago de Supabase. Como este proyecto utiliza el plan Free, Supabase mantiene el alta pública desactivada y LifeCycle exige invitación más una contraseña mínima de 12 caracteres. La comprobación contra filtraciones queda documentada como defensa adicional para una futura migración de plan, no como requisito para compartir la aplicación con el grupo reducido previsto.
 
+### Cuotas y protección operativa
+
+Las cuotas funcionales se definen una sola vez en
+`private.lifecycle_resource_limits`. El cliente las usa para informar antes de
+guardar, la restauración de backups vuelve a contarlas y el trigger de
+`public.user_data` constituye la barrera autoritativa frente a clientes viejos
+o llamadas directas a la RPC. El perfil `owner` conserva recursos funcionales
+ilimitados; los topes técnicos de archivo y transporte continúan vigentes para
+proteger el servicio.
+
+Las migraciones de las Tandas 6 y 7 se aplicaron en producción el
+2026-08-30, en este orden. Un entorno nuevo debe conservar el mismo orden:
+
+1. `20260829193500_enforce_tracker_resource_limits.sql`;
+2. `20260829201218_expand_trading_projection_capacity.sql`;
+3. `20260829213000_enforce_all_resource_limits.sql`;
+4. `20260829214500_harden_storage_and_push_limits.sql`.
+
+La última migración mantiene `blood-tests` privado, limita cada archivo a
+15 MB, cuenta adjuntos por usuario desde RLS y limita a 20 dispositivos Push
+las cuentas acotadas. Las inserciones concurrentes se serializan por usuario.
+El servidor suma límites independientes para API general, registro por
+invitación, telemetría, mutaciones autenticadas y pruebas Push; las respuestas
+429 incluyen `Retry-After` y encabezados `RateLimit-*`.
+
+Después de aplicarlas se ejecutan los verificadores
+`supabase/verification/20260827_resource_policy_security_check.sql`,
+`supabase/verification/20260809_tanda_8_security_check.sql` y
+`supabase/verification/20260801_operation_security_check.sql`; todas las filas
+deben devolver `passed = true`. La ejecución de producción del 2026-08-30
+completó 30 de 30 comprobaciones, mantuvo la paridad de Trading y confirmó el
+aislamiento RLS de la cuenta propietaria y la cuenta secundaria.
+
 ## Criterio de cierre en producción
 
 La tanda queda operativamente cerrada cuando:

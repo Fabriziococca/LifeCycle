@@ -11,7 +11,9 @@
 
     const DAY_MS = 24 * 60 * 60 * 1000;
     const DEFAULT_TRADING_NOTICE_DAYS = Object.freeze([60, 30, 15, 7, 1]);
-    const MAX_TRADING_EVENTS = 500;
+    // Parser safety ceiling only. Account quotas are enforced separately so
+    // valid data is never silently reduced to the former friend-sized cap.
+    const MAX_TRADING_EVENTS = 10_000;
     const MAX_TRADING_NOTICE_DAYS = 365;
     const MAX_TRADING_NOTICES = 12;
     const TRADING_EVENT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{2,95}$/;

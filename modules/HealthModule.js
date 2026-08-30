@@ -5,6 +5,14 @@ import {
     getCustomTrackerState,
     isUnifiedCustomTrackerRegistry
 } from '../custom-tracker-utils.mjs?v=20260829-module-delete';
+import {
+    RESOURCE_KEYS,
+    getBloodTestResourceUsage
+} from '../resource-policy.mjs?v=20260829-all-limits';
+import {
+    appendResourceCapacityNotice,
+    checkResourceCreationCapacity
+} from '../resource-limit-ui.mjs?v=20260829-all-limits';
 
 export class HealthModule {
     constructor(controller) {
@@ -410,7 +418,19 @@ export class HealthModule {
             return;
         }
 
+        const attachmentCapacity = this.attachedFile
+            ? checkResourceCreationCapacity({
+                app: this.controller,
+                resourceKey: RESOURCE_KEYS.BLOOD_TEST_FILES,
+                currentCount: getBloodTestResourceUsage(this.bloodTests)[
+                    RESOURCE_KEYS.BLOOD_TEST_FILES
+                ]
+            })
+            : { allowed: true, limit: null, remaining: null };
+        if (!attachmentCapacity) return;
+
         this.setBloodFormSaving(true);
+        let uploadedPath = null;
 
         try {
             const entry = {
@@ -423,7 +443,11 @@ export class HealthModule {
 
             if (this.attachedFile) {
                 this.controller.auth.updateSyncBadge('syncing', "Subiendo archivo...");
-                entry.storagePath = await this.controller.auth.uploadMedicalFile(entry.id, this.attachedFile);
+                uploadedPath = await this.controller.auth.uploadMedicalFile(
+                    entry.id,
+                    this.attachedFile
+                );
+                entry.storagePath = uploadedPath;
                 entry.isCloudFile = true;
             }
 
@@ -433,8 +457,20 @@ export class HealthModule {
             this.syncStudyHistory(this.activeStudyTrackerId);
             this.clearBloodForm({ restoreFocus: true });
             this.render();
+            this.controller.showToast?.(appendResourceCapacityNotice(
+                'Estudio médico guardado.',
+                RESOURCE_KEYS.BLOOD_TEST_FILES,
+                attachmentCapacity
+            ));
         } catch (error) {
             console.error("Error guardando el estudio médico:", error);
+            if (uploadedPath) {
+                try {
+                    await this.controller.auth.deleteMedicalFile(uploadedPath);
+                } catch (cleanupError) {
+                    console.error('No se pudo limpiar el adjunto incompleto:', cleanupError);
+                }
+            }
             await this.controller.showMessage({
                 title: 'No se pudo guardar el estudio',
                 message: error.message,
