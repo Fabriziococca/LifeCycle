@@ -338,6 +338,48 @@ test('notification delivery migration records freshness and automatic device tel
     assert.doesNotMatch(migration, /security definer/i);
 });
 
+test('Push retry migration allows one fresh auditable retry with least privilege', async () => {
+    const migration = await readFile(path.join(
+        ROOT,
+        'supabase',
+        'migrations',
+        '20260831044654_add_safe_push_retry.sql'
+    ), 'utf8');
+
+    assert.match(migration, /attempt_no smallint not null default 1/i);
+    assert.match(migration, /retry_of_id bigint/i);
+    assert.match(migration, /notification_delivery_log_retry_once_idx/i);
+    assert.match(migration, /attempted_at <= clock_timestamp\(\) - interval '5 minutes'/i);
+    assert.match(migration, /expires_at > clock_timestamp\(\)/i);
+    assert.match(migration, /create or replace function public\.claim_notification_delivery_retry/i);
+    assert.match(migration, /security invoker/i);
+    assert.match(migration, /grant execute .*claim_notification_delivery_retry[\s\S]*to service_role/i);
+    assert.doesNotMatch(migration, /security definer/i);
+});
+
+test('Push retry production verification is read-only and covers security plus invariants', async () => {
+    const verification = await readFile(path.join(
+        ROOT,
+        'supabase',
+        'verification',
+        '20260831_push_retry_security_check.sql'
+    ), 'utf8');
+
+    assert.doesNotMatch(
+        verification,
+        /^\s*(insert|update|delete|alter|create|drop|grant|revoke|truncate)\b/im
+    );
+    for (const checkName of [
+        'push_retry_columns',
+        'push_retry_constraints',
+        'push_retry_indexes',
+        'push_retry_function_security',
+        'push_retry_data_invariants'
+    ]) {
+        assert.match(verification, new RegExp(`'${checkName}'`));
+    }
+});
+
 test('the production verification script is read-only and checks every new contract', async () => {
     const verification = await readFile(path.join(
         ROOT,

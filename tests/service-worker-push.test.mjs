@@ -87,11 +87,14 @@ test('the service worker displays a fresh notification and reports the display',
     await harness.dispatchPush({
         title: 'Aviso fresco',
         body: 'Debe aparecer',
+        notificationTag: 'lifecycle-safe-topic',
         delivery: delivery('2999-01-01T00:00:00.000Z')
     });
 
     assert.equal(harness.notifications.length, 1);
     assert.equal(harness.notifications[0].title, 'Aviso fresco');
+    assert.equal(harness.notifications[0].options.tag, 'lifecycle-safe-topic');
+    assert.equal(harness.notifications[0].options.renotify, false);
     assert.deepEqual(
         harness.telemetry.map(item => item.body.event),
         ['received', 'displayed']

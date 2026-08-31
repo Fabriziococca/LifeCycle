@@ -6,6 +6,7 @@ const assert = require('node:assert/strict');
 const {
     attachPushDeliveryMetadata,
     createPushReceiptCredential,
+    createPushTopic,
     endpointFingerprint,
     hashPushReceiptToken,
     isDuplicatePushDispatchError,
@@ -102,14 +103,27 @@ test('endpoint-specific payloads carry freshness and receipt metadata', () => {
         id: '42',
         receiptToken: credential.token,
         scheduledAt: '2026-08-21T01:00:00.000Z',
-        expiresAt: '2026-08-21T01:15:00.000Z'
+        expiresAt: '2026-08-21T01:15:00.000Z',
+        notificationTag: 'lifecycle-safe-topic'
     });
     const parsed = JSON.parse(payload);
 
     assert.equal(parsed.delivery.id, '42');
     assert.equal(parsed.delivery.receiptToken, credential.token);
     assert.equal(parsed.delivery.expiresAt, '2026-08-21T01:15:00.000Z');
+    assert.equal(parsed.notificationTag, 'lifecycle-safe-topic');
     assert.deepEqual(parsePushPayload(payload), { title: 'Aviso', body: 'Detalle' });
+});
+
+test('Push topics are stable, provider-safe and scoped to one scheduled alert', () => {
+    const first = createPushTopic('control_logs', '2026-08-31T01:00:00.000Z');
+    const same = createPushTopic('control_logs', '2026-08-31T01:00:00.000Z');
+    const other = createPushTopic('control_logs', '2026-09-07T01:00:00.000Z');
+
+    assert.match(first, /^[A-Za-z0-9_-]{32}$/);
+    assert.equal(first, same);
+    assert.notEqual(first, other);
+    assert.equal(createPushTopic('', '2026-08-31T01:00:00.000Z'), '');
 });
 
 test('telemetry accepts only known service-worker events', () => {

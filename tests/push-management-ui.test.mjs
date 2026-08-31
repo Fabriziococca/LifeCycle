@@ -86,4 +86,8 @@ test('push history distinguishes provider, device display and stale discard', ()
         buildPushHistoryPresentation({ status: 'unknown' }).label,
         'Resultado desconocido'
     );
+    assert.equal(
+        buildPushHistoryPresentation({ status: 'accepted', attempt_no: 2 }).label,
+        'Reintento · Aceptada por Push'
+    );
 });

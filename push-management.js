@@ -7,6 +7,7 @@ const DEVICE_META_MAX = 160;
 const HISTORY_STATUSES = new Set(['pending', 'accepted', 'failed', 'expired', 'unknown', 'no_devices']);
 const PUSH_TELEMETRY_EVENTS = new Set(['received', 'displayed', 'discarded_expired']);
 const PUSH_RECEIPT_TOKEN_PATTERN = /^[A-Za-z0-9_-]{32,128}$/;
+const PUSH_NOTIFICATION_TAG_PATTERN = /^[A-Za-z0-9_-]{1,80}$/;
 
 function cleanText(value, maxLength) {
     return typeof value === 'string'
@@ -129,6 +130,18 @@ function hashPushReceiptToken(value) {
     return crypto.createHash('sha256').update(token).digest('hex');
 }
 
+function createPushTopic(alertKey, scheduledAt) {
+    const normalizedAlertKey = cleanText(alertKey, 160);
+    const scheduledDate = new Date(scheduledAt || '');
+    if (!normalizedAlertKey || !Number.isFinite(scheduledDate.getTime())) return '';
+
+    return crypto
+        .createHash('sha256')
+        .update(`${normalizedAlertKey}\n${scheduledDate.toISOString()}`)
+        .digest('base64url')
+        .slice(0, 32);
+}
+
 function normalizePushTelemetryEvent(value) {
     const event = String(value || '');
     return PUSH_TELEMETRY_EVENTS.has(event) ? event : '';
@@ -145,6 +158,7 @@ function attachPushDeliveryMetadata(payload, metadata = {}) {
 
     const id = String(metadata.id || '');
     const receiptToken = String(metadata.receiptToken || '');
+    const notificationTag = String(metadata.notificationTag || '');
     const scheduledAt = new Date(metadata.scheduledAt || '');
     const expiresAt = new Date(metadata.expiresAt || '');
     if (
@@ -158,6 +172,9 @@ function attachPushDeliveryMetadata(payload, metadata = {}) {
 
     return JSON.stringify({
         ...parsed,
+        ...(PUSH_NOTIFICATION_TAG_PATTERN.test(notificationTag)
+            ? { notificationTag }
+            : {}),
         delivery: {
             id,
             receiptToken,
@@ -207,6 +224,9 @@ function isMissingPushTelemetrySchema(error) {
         || message.includes('received_at')
         || message.includes('displayed_at')
         || message.includes('discarded_at')
+        || message.includes('attempt_no')
+        || message.includes('retry_of_id')
+        || message.includes('claim_notification_delivery_retry')
         || (
             code === '23514'
             && message.includes('notification_delivery_log_status_check')
@@ -223,6 +243,7 @@ function isDuplicatePushDispatchError(error) {
 module.exports = {
     attachPushDeliveryMetadata,
     createPushReceiptCredential,
+    createPushTopic,
     endpointFingerprint,
     hashPushReceiptToken,
     inferBrowser,

@@ -42,6 +42,7 @@ const {
 const {
     attachPushDeliveryMetadata,
     createPushReceiptCredential,
+    createPushTopic,
     endpointFingerprint,
     hashPushReceiptToken,
     isDuplicatePushDispatchError,
@@ -68,6 +69,14 @@ const {
     createFixedWindowRateLimiter,
     normalizeClientAddress
 } = require('./rate-limit-utils');
+const {
+    OperationTimeoutError,
+    createTimeoutFetch,
+    normalizeApiRoute,
+    runWithTimeout,
+    throwIfAborted,
+    waitForDelay
+} = require('./operational-resilience');
 
 // Búfer en memoria para depuración de logs en Render
 const logBuffer = [];
@@ -130,7 +139,14 @@ const notificationRuntimeState = {
     lastDurationMs: null,
     lastTrigger: null,
     consecutiveFailures: 0,
+    lastTimeoutAt: null,
+    timeoutCount: 0,
+    skippedCycles: 0,
+    lastSkippedAt: null,
+    lastRetryCheckAt: null,
+    lastRetryCount: 0,
     engines: {
+        retry: null,
         recurring: null,
         configured: null
     }
@@ -147,6 +163,11 @@ let tradingProjectionSchemaAvailable = null;
 let tradingDispatchSchemaAvailable = null;
 const reportedOptionalSchemaWarnings = new Set();
 const PUSH_PROVIDER_TIMEOUT_MS = 12000;
+const SUPABASE_REQUEST_TIMEOUT_MS = 15000;
+const SCHEDULER_ENGINE_TIMEOUT_MS = 2 * 60 * 1000;
+const PUSH_RETRY_ENGINE_TIMEOUT_MS = 45 * 1000;
+const PUSH_RETRY_AFTER_MS = 5 * 60 * 1000;
+const MAX_PUSH_RETRIES_PER_RUN = 10;
 const PENDING_DELIVERY_RECOVERY_MS = 2 * 60 * 1000;
 const PENDING_DELIVERY_RECOVERY_INTERVAL_MS = 60 * 1000;
 const NOTIFICATION_HISTORY_RETENTION_DAYS = 90;
@@ -195,6 +216,12 @@ function shouldRecordMissingDevices(userId, alertKey, dateStr) {
     return true;
 }
 
+function withAbortSignal(query, signal) {
+    return signal && typeof query?.abortSignal === 'function'
+        ? query.abortSignal(signal)
+        : query;
+}
+
 // Configurar Web Push VAPID de forma segura (sin hardcodear en Git)
 let publicKey = process.env.VAPID_PUBLIC_KEY;
 let privateKey = process.env.VAPID_PRIVATE_KEY;
@@ -234,7 +261,17 @@ webpush.setVapidDetails(
 // Inicializar Supabase Client (bypasea RLS usando Service Role si está disponible)
 const supabaseUrl = process.env.SUPABASE_URL || '';
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.SUPABASE_ANON_KEY || '';
-const supabase = supabaseUrl ? createClient(supabaseUrl, supabaseKey) : null;
+const supabase = supabaseUrl
+    ? createClient(supabaseUrl, supabaseKey, {
+        global: {
+            fetch: createTimeoutFetch(fetch, SUPABASE_REQUEST_TIMEOUT_MS)
+        },
+        auth: {
+            persistSession: false,
+            autoRefreshToken: false
+        }
+    })
+    : null;
 const hasSupabaseServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 const registrationAccessCodeHash = process.env.REGISTRATION_ACCESS_CODE_SHA256 || '';
 const registrationEnabled = isInvitedRegistrationConfigured({
@@ -557,7 +594,7 @@ function reportOptionalSchemaWarning(key, message) {
     console.warn(message);
 }
 
-async function loadTradingEventProjection() {
+async function loadTradingEventProjection(signal = null) {
     if (!supabase || tradingProjectionSchemaAvailable === false) return null;
 
     const projectionColumns = [
@@ -575,13 +612,16 @@ async function loadTradingEventProjection() {
         'updated_at'
     ].join(',');
     const { data, error } = await collectSupabaseRangePages(
-        ({ from, to }) => supabase
-            .from('trading_events')
-            .select(projectionColumns)
-            .eq('status', 'active')
-            .order('user_id', { ascending: true })
-            .order('id', { ascending: true })
-            .range(from, to),
+        ({ from, to }) => withAbortSignal(
+            supabase
+                .from('trading_events')
+                .select(projectionColumns)
+                .eq('status', 'active')
+                .order('user_id', { ascending: true })
+                .order('id', { ascending: true })
+                .range(from, to),
+            signal
+        ),
         { pageSize: 500 }
     );
 
@@ -993,6 +1033,185 @@ async function cleanupNotificationHistory(now = Date.now()) {
     return 0;
 }
 
+async function retryUndeliveredPushes(now = Date.now(), { signal = null } = {}) {
+    const summary = {
+        eligible: 0,
+        claimed: 0,
+        accepted: 0,
+        failed: 0,
+        expired: 0,
+        missingSubscription: 0
+    };
+    notificationRuntimeState.lastRetryCheckAt = new Date(now).toISOString();
+    notificationRuntimeState.lastRetryCount = 0;
+
+    if (!supabase || notificationTelemetrySchemaAvailable === false) return summary;
+    throwIfAborted(signal);
+
+    const retryCutoff = new Date(now - PUSH_RETRY_AFTER_MS).toISOString();
+    const freshnessCutoff = new Date(now).toISOString();
+    const candidateResult = await withAbortSignal(
+        supabase
+            .from('notification_delivery_log')
+            .select([
+                'id',
+                'user_id',
+                'alert_key',
+                'context',
+                'title',
+                'body',
+                'subscription_row_id',
+                'endpoint_fingerprint',
+                'scheduled_at',
+                'expires_at'
+            ].join(','))
+            .eq('attempt_no', 1)
+            .eq('status', 'accepted')
+            .is('received_at', null)
+            .is('displayed_at', null)
+            .is('discarded_at', null)
+            .lte('attempted_at', retryCutoff)
+            .gt('expires_at', freshnessCutoff)
+            .order('attempted_at', { ascending: true })
+            .limit(MAX_PUSH_RETRIES_PER_RUN),
+        signal
+    );
+
+    if (candidateResult.error) {
+        if (isMissingPushTelemetrySchema(candidateResult.error)) {
+            notificationTelemetrySchemaAvailable = false;
+            reportOptionalSchemaWarning(
+                'push-retry',
+                '[Push Retry] La migración de reintento seguro todavía no está aplicada; los envíos originales continúan sin reintento.'
+            );
+            return summary;
+        }
+        throw new Error(`No se pudieron consultar los reintentos Push: ${candidateResult.error.message}`);
+    }
+
+    notificationTelemetrySchemaAvailable = true;
+    const candidates = candidateResult.data || [];
+    summary.eligible = candidates.length;
+    if (candidates.length === 0) return summary;
+
+    const userIds = [...new Set(candidates.map(row => row.user_id).filter(Boolean))];
+    const subscriptionResult = await withAbortSignal(
+        supabase
+            .from('push_subscriptions')
+            .select('id,user_id,subscription,device_name,created_at')
+            .in('user_id', userIds),
+        signal
+    );
+    if (subscriptionResult.error) {
+        throw new Error(`No se pudieron cargar las suscripciones para reintentos Push: ${subscriptionResult.error.message}`);
+    }
+    const subscriptionsByUser = groupSubscriptionsByUser(subscriptionResult.data || []);
+
+    for (const candidate of candidates) {
+        throwIfAborted(signal);
+        const userSubscriptions = subscriptionsByUser[candidate.user_id] || [];
+        const subscriptionItem = userSubscriptions.find(item => (
+            endpointFingerprint(item.subscription?.endpoint) === candidate.endpoint_fingerprint
+        ));
+        if (!subscriptionItem) {
+            summary.missingSubscription++;
+            continue;
+        }
+
+        const credential = createPushReceiptCredential();
+        const claimResult = await withAbortSignal(
+            supabase.rpc('claim_notification_delivery_retry', {
+                p_delivery_id: candidate.id,
+                p_receipt_token_hash: credential.tokenHash
+            }),
+            signal
+        );
+        if (claimResult.error) {
+            if (isMissingPushTelemetrySchema(claimResult.error)) {
+                notificationTelemetrySchemaAvailable = false;
+                reportOptionalSchemaWarning(
+                    'push-retry',
+                    '[Push Retry] La migración de reintento seguro todavía no está aplicada; los envíos originales continúan sin reintento.'
+                );
+                break;
+            }
+            throw new Error(`No se pudo reservar un reintento Push: ${claimResult.error.message}`);
+        }
+
+        const retryId = claimResult.data ? String(claimResult.data) : '';
+        if (!/^\d+$/.test(retryId)) continue;
+        summary.claimed++;
+
+        const attemptedAt = new Date().toISOString();
+        const policy = createPushDeliveryPolicy({
+            scheduledAt: candidate.scheduled_at,
+            expiresAt: candidate.expires_at,
+            now: attemptedAt,
+            urgency: 'high'
+        });
+        const delivery = { id: retryId };
+        if (!policy || policy.expired) {
+            summary.expired++;
+            await finalizePushDelivery({
+                delivery,
+                status: 'expired',
+                errorMessage: 'La ventana de entrega venció antes de contactar al proveedor en el reintento.'
+            });
+            continue;
+        }
+
+        const topic = createPushTopic(candidate.alert_key, candidate.scheduled_at);
+        const payload = attachPushDeliveryMetadata(JSON.stringify({
+            title: candidate.title || 'LifeCycle',
+            body: candidate.body || 'Tenés una notificación pendiente.',
+            url: '/'
+        }), {
+            id: retryId,
+            receiptToken: credential.token,
+            scheduledAt: policy.scheduledAt,
+            expiresAt: policy.expiresAt,
+            notificationTag: topic ? `lifecycle-${topic}` : ''
+        });
+
+        try {
+            await webpush.sendNotification(subscriptionItem.subscription, payload, {
+                timeout: PUSH_PROVIDER_TIMEOUT_MS,
+                TTL: policy.TTL,
+                urgency: policy.urgency,
+                ...(topic ? { topic } : {})
+            });
+            summary.accepted++;
+            await Promise.all([
+                updatePushDeviceDeliveryState(subscriptionItem.rowIds, 'accepted', attemptedAt),
+                finalizePushDelivery({ delivery, status: 'accepted' })
+            ]);
+        } catch (error) {
+            summary.failed++;
+            const statusCode = error?.statusCode || error?.status || 'sin estado';
+            const expiredEndpoint = isExpiredPushError(error);
+            await Promise.all([
+                updatePushDeviceDeliveryState(subscriptionItem.rowIds, 'failed', attemptedAt),
+                finalizePushDelivery({
+                    delivery,
+                    status: expiredEndpoint ? 'expired' : 'failed',
+                    providerStatus: statusCode,
+                    errorMessage: error?.message || String(error)
+                })
+            ]);
+            if (expiredEndpoint) {
+                await deleteSubscriptionRows(
+                    subscriptionItem.rowIds,
+                    `endpoint vencido durante reintento HTTP ${statusCode}`
+                );
+            }
+        }
+    }
+
+    notificationRuntimeState.lastRetryCount = summary.accepted;
+    console.log(`[Push Retry] ${summary.eligible} elegibles, ${summary.claimed} reservados, ${summary.accepted} aceptados por proveedor, ${summary.failed} fallidos, ${summary.expired} vencidos y ${summary.missingSubscription} sin suscripción vigente.`);
+    return summary;
+}
+
 async function sendPushToSubscriptions({
     userId,
     subscriptions,
@@ -1003,8 +1222,10 @@ async function sendPushToSubscriptions({
     scheduledAt = null,
     expiresAt = null,
     ttlSeconds = DEFAULT_PUSH_TTL_SECONDS,
-    urgency = 'normal'
+    urgency = 'normal',
+    signal = null
 }) {
+    throwIfAborted(signal);
     let successCount = 0;
     let failureCount = 0;
     let staleCount = 0;
@@ -1055,6 +1276,7 @@ async function sendPushToSubscriptions({
     }
 
     for (const item of subscriptions || []) {
+        throwIfAborted(signal);
         const attemptedAt = new Date().toISOString();
         const policy = createPushDeliveryPolicy({
             scheduledAt: initialPolicy.scheduledAt,
@@ -1080,6 +1302,7 @@ async function sendPushToSubscriptions({
             console.warn(`[Push] Se descartó '${context}' para usuario ${userId}: la ventana de entrega ya había vencido.`);
             continue;
         }
+        const topic = createPushTopic(alertKey || context, policy.scheduledAt);
 
         const delivery = await preparePushDelivery({
             userId,
@@ -1091,6 +1314,7 @@ async function sendPushToSubscriptions({
             scheduledAt: policy.scheduledAt,
             expiresAt: policy.expiresAt
         });
+        throwIfAborted(signal);
         if (delivery?.duplicate) {
             duplicateCount++;
             if (delivery.status === 'accepted') successCount++;
@@ -1102,14 +1326,16 @@ async function sendPushToSubscriptions({
                 id: delivery.id,
                 receiptToken: delivery.receiptToken,
                 scheduledAt: policy.scheduledAt,
-                expiresAt: policy.expiresAt
+                expiresAt: policy.expiresAt,
+                notificationTag: topic ? `lifecycle-${topic}` : ''
             })
             : payload;
         try {
             await webpush.sendNotification(item.subscription, endpointPayload, {
                 timeout: PUSH_PROVIDER_TIMEOUT_MS,
                 TTL: policy.TTL,
-                urgency: policy.urgency
+                urgency: policy.urgency,
+                ...(topic ? { topic } : {})
             });
             successCount++;
             await Promise.all([
@@ -1167,7 +1393,7 @@ async function sendPushToSubscriptions({
         }
 
         if (delayMs > 0) {
-            await new Promise(resolve => setTimeout(resolve, delayMs));
+            await waitForDelay(delayMs, signal);
         }
     }
 
@@ -1200,8 +1426,10 @@ async function sendDueTradingEventAlerts({
     tradingEvents: projectedTradingEvents = null,
     subscriptions,
     forceAll = false,
-    now = new Date()
+    now = new Date(),
+    signal = null
 }) {
+    throwIfAborted(signal);
     const financeData = parseJsonValue(userData.finanzasData, {});
     const tradingEvents = Array.isArray(projectedTradingEvents)
         ? normalizeTradingEvents(projectedTradingEvents)
@@ -1227,6 +1455,7 @@ async function sendDueTradingEventAlerts({
     const sentLogUpdates = {};
 
     for (const notice of dueNotices) {
+        throwIfAborted(signal);
         const claimed = await claimTradingNotificationDispatch({
             userId,
             notice,
@@ -1254,7 +1483,8 @@ async function sendDueTradingEventAlerts({
                 context: `evento de Trading ${notice.event.id}`,
                 alertKey: notice.alertKey,
                 delayMs: 250,
-                urgency: 'high'
+                urgency: 'high',
+                signal
             });
         } catch (error) {
             await completeTradingNotificationDispatch({
@@ -1345,7 +1575,7 @@ app.use('/api', (req, res, next) => {
     const startedAt = process.hrtime.bigint();
     res.on('finish', () => {
         const durationMs = Number(process.hrtime.bigint() - startedAt) / 1_000_000;
-        const pathName = `${req.baseUrl}${req.path}`;
+        const pathName = normalizeApiRoute(req);
         if (res.statusCode < 400 && pathName === '/api/health') return;
         const message = `[HTTP] ${req.method} ${pathName} status=${res.statusCode} duration_ms=${durationMs.toFixed(1)}`;
         if (res.statusCode >= 500) {
@@ -1437,7 +1667,14 @@ app.get('/api/health', (req, res) => {
             lastAttemptAt: notificationRuntimeState.lastAttemptAt,
             lastSuccessAt: notificationRuntimeState.lastSuccessAt,
             lastFailureAt: notificationRuntimeState.lastFailureAt,
-            consecutiveFailures: notificationRuntimeState.consecutiveFailures
+            lastDurationMs: notificationRuntimeState.lastDurationMs,
+            consecutiveFailures: notificationRuntimeState.consecutiveFailures,
+            lastTimeoutAt: notificationRuntimeState.lastTimeoutAt,
+            timeoutCount: notificationRuntimeState.timeoutCount,
+            skippedCycles: notificationRuntimeState.skippedCycles,
+            lastSkippedAt: notificationRuntimeState.lastSkippedAt,
+            lastRetryCheckAt: notificationRuntimeState.lastRetryCheckAt,
+            lastRetryCount: notificationRuntimeState.lastRetryCount
         }
     });
 });
@@ -1850,7 +2087,7 @@ app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
     const scope = req.query.scope === 'trading' ? 'trading' : '';
     try {
         const baseColumns = 'id, alert_key, context, title, body, endpoint_fingerprint, device_name, status, provider_status, error_message, attempted_at, confirmed_at';
-        const telemetryColumns = `${baseColumns}, scheduled_at, expires_at, received_at, displayed_at, discarded_at`;
+        const telemetryColumns = `${baseColumns}, scheduled_at, expires_at, received_at, displayed_at, discarded_at, attempt_no, retry_of_id`;
         const buildHistoryQuery = columns => {
             let query = supabase
                 .from('notification_delivery_log')
@@ -1996,8 +2233,7 @@ const checkAdminToken = (req, res, next) => {
     }
 
     if (!safeEqualStrings(token, secret)) {
-        const ip = req.headers['x-forwarded-for'] || req.socket.remoteAddress;
-        console.warn(`[Security] Intento de acceso no autorizado a endpoint administrativo desde IP: ${ip}`);
+        console.warn('[Security] Intento de acceso no autorizado a endpoint administrativo.');
         return res.status(401).json({ error: 'No autorizado. Se requiere un token válido.' });
     }
     next();
@@ -2173,6 +2409,8 @@ async function runScheduledAlertChecks({
 } = {}) {
     if (scheduledAlertCheckRunning) {
         console.warn('[Alert Scheduler] Se omitió un ciclo porque el anterior todavía está en ejecución.');
+        notificationRuntimeState.skippedCycles += 1;
+        notificationRuntimeState.lastSkippedAt = new Date().toISOString();
         return {
             skipped: true,
             reason: 'already-running'
@@ -2189,22 +2427,46 @@ async function runScheduledAlertChecks({
 
     try {
         const engines = [
-            ['recurring', () => checkAndSendRobotReminders(forceAll)],
-            ['configured', () => checkAndSendAllAlerts(forceAll)]
+            [
+                'retry',
+                signal => retryUndeliveredPushes(Date.now(), { signal }),
+                PUSH_RETRY_ENGINE_TIMEOUT_MS
+            ],
+            [
+                'recurring',
+                signal => checkAndSendRobotReminders(forceAll, { signal }),
+                SCHEDULER_ENGINE_TIMEOUT_MS
+            ],
+            [
+                'configured',
+                signal => checkAndSendAllAlerts(forceAll, { signal }),
+                SCHEDULER_ENGINE_TIMEOUT_MS
+            ]
         ];
 
-        for (const [name, run] of engines) {
+        for (const [name, run, timeoutMs] of engines) {
             try {
-                await run();
+                const details = await runWithTimeout(
+                    run,
+                    timeoutMs,
+                    `El motor '${name}'`
+                );
                 engineResults[name] = {
                     ok: true,
-                    completedAt: new Date().toISOString()
+                    completedAt: new Date().toISOString(),
+                    ...(name === 'retry' ? { details } : {})
                 };
             } catch (error) {
+                const timedOut = error instanceof OperationTimeoutError;
                 engineResults[name] = {
                     ok: false,
+                    timedOut,
                     completedAt: new Date().toISOString()
                 };
+                if (timedOut) {
+                    notificationRuntimeState.lastTimeoutAt = new Date().toISOString();
+                    notificationRuntimeState.timeoutCount += 1;
+                }
                 errors.push(error);
                 console.error(`[Alert Scheduler] Falló el motor '${name}':`, error);
             }
@@ -2259,21 +2521,31 @@ initialAlertTimer.unref?.();
 // ==========================================================================
 // Motor Unificado y Dinámico de Alertas (Gestor de Alertas)
 // ==========================================================================
-async function checkAndSendAllAlerts(forceAll = false) {
+async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
     if (!supabase) {
         throw new Error('Supabase no está disponible para el motor de alertas configuradas.');
     }
+    throwIfAborted(signal);
     try {
         const { year, month, day, hour, minutes, dayOfWeek, dateStr } = getArgentinaTime();
         const schedulerNow = new Date();
 
-        const { data: usersData, error: dbError } = await supabase.from('user_data').select('*');
-        const { data: subs, error: subError } = await supabase.from('push_subscriptions').select('*');
+        const { data: usersData, error: dbError } = await withAbortSignal(
+            supabase.from('user_data').select('*'),
+            signal
+        );
+        throwIfAborted(signal);
+        const { data: subs, error: subError } = await withAbortSignal(
+            supabase.from('push_subscriptions').select('*'),
+            signal
+        );
+        throwIfAborted(signal);
 
         if (dbError) throw dbError;
         if (subError) throw subError;
 
-        const tradingEventsByUser = await loadTradingEventProjection();
+        const tradingEventsByUser = await loadTradingEventProjection(signal);
+        throwIfAborted(signal);
 
         console.log(`[Notification Engine] Tick: checking configured notifications (forceAll: ${forceAll}). Time in Argentina: ${String(hour).padStart(2, '0')}:${String(minutes).padStart(2, '0')}, Day: ${dayOfWeek}, Date: ${dateStr}. Subscriptions found: ${subs ? subs.length : 0}`);
 
@@ -2284,6 +2556,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
         await cleanupDuplicateSubscriptions(subsByUser);
 
         for (const userRow of usersData) {
+            throwIfAborted(signal);
             const userId = userRow.user_id;
             const userSubs = subsByUser[userId] || [];
 
@@ -2343,7 +2616,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                     ? (tradingEventsByUser.get(userId) || [])
                     : null,
                 subscriptions: userSubs,
-                forceAll
+                forceAll,
+                signal
             });
             if (Object.keys(tradingSentLogUpdates).length > 0) {
                 Object.assign(sentLogUpdates, tradingSentLogUpdates);
@@ -2352,6 +2626,7 @@ async function checkAndSendAllAlerts(forceAll = false) {
 
             // Procesar cada alerta definida
             for (const key of Object.keys(alertsConfig)) {
+                throwIfAborted(signal);
                 if (key === RECURRING_REMINDERS_FIELD) continue;
                 const conf = alertsConfig[key];
                 if (!conf || !conf.enabled) continue;
@@ -2904,7 +3179,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                                     delayMs: 250,
                                                     scheduledAt: deliveryWindow.scheduledAt,
                                                     expiresAt: deliveryWindow.expiresAt,
-                                                    urgency: 'high'
+                                                    urgency: 'high',
+                                                    signal
                                                 });
 
                                                 if (!forceAll && result.successCount > 0) {
@@ -3017,7 +3293,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                                             delayMs: 250,
                                             scheduledAt: deliveryWindow.scheduledAt,
                                             expiresAt: deliveryWindow.expiresAt,
-                                            urgency: 'high'
+                                            urgency: 'high',
+                                            signal
                                         });
 
                                         if (!forceAll && result.successCount > 0) {
@@ -3050,7 +3327,8 @@ async function checkAndSendAllAlerts(forceAll = false) {
                             delayMs: 250,
                             scheduledAt: deliveryWindow.scheduledAt,
                             expiresAt: deliveryWindow.expiresAt,
-                            urgency: 'high'
+                            urgency: 'high',
+                            signal
                         });
 
                         if (!forceAll && result.successCount > 0) {
@@ -3096,14 +3374,23 @@ function getDaysUntil(dateString, referenceDateStr = getArgentinaTime().dateStr)
 // ==========================================================================
 // Recordatorios repetitivos (tarjetas pendientes y tareas muy urgentes)
 // ==========================================================================
-async function checkAndSendRobotReminders(forceAll = false) {
+async function checkAndSendRobotReminders(forceAll = false, { signal = null } = {}) {
     if (!supabase) {
         throw new Error('Supabase no está disponible para el motor de alertas repetitivas.');
     }
+    throwIfAborted(signal);
     
     try {
-        const { data: usersData, error: dbError } = await supabase.from('user_data').select('*');
-        const { data: subs, error: subError } = await supabase.from('push_subscriptions').select('*');
+        const { data: usersData, error: dbError } = await withAbortSignal(
+            supabase.from('user_data').select('*'),
+            signal
+        );
+        throwIfAborted(signal);
+        const { data: subs, error: subError } = await withAbortSignal(
+            supabase.from('push_subscriptions').select('*'),
+            signal
+        );
+        throwIfAborted(signal);
         
         if (dbError) throw dbError;
         if (subError) throw subError;
@@ -3117,6 +3404,7 @@ async function checkAndSendRobotReminders(forceAll = false) {
         const now = new Date();
         
         for (const userRow of usersData) {
+            throwIfAborted(signal);
             const userId = userRow.user_id;
             const data = userRow.data || {};
             
@@ -3133,6 +3421,7 @@ async function checkAndSendRobotReminders(forceAll = false) {
             const hasUnifiedRobot = stateReminders.some(reminder => reminder.alertKey === 'robot');
 
             for (const reminder of stateReminders) {
+                throwIfAborted(signal);
                 if (!reminder.active || alertsConfig[reminder.alertKey]?.enabled === false) continue;
 
                 const intervalHours = normalizeIntervalHours(
@@ -3171,7 +3460,8 @@ async function checkAndSendRobotReminders(forceAll = false) {
                     context: `tarjeta pendiente ${reminder.trackerId}`,
                     alertKey: reminder.alertKey,
                     delayMs: 250,
-                    urgency: 'high'
+                    urgency: 'high',
+                    signal
                 });
 
                 if (!forceAll && result.successCount > 0) {
@@ -3221,7 +3511,8 @@ async function checkAndSendRobotReminders(forceAll = false) {
                             context: 'robot aspiradora',
                             alertKey: 'robot',
                             delayMs: 250,
-                            urgency: 'high'
+                            urgency: 'high',
+                            signal
                         });
 
                         if (!forceAll && result.successCount > 0) {
@@ -3281,7 +3572,8 @@ async function checkAndSendRobotReminders(forceAll = false) {
                             context: 'tareas muy urgentes',
                             alertKey: 'very_urgent_tasks',
                             delayMs: 250,
-                            urgency: 'high'
+                            urgency: 'high',
+                            signal
                         });
 
                         if (!forceAll && result.successCount > 0) {

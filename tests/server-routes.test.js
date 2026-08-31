@@ -48,6 +48,9 @@ test('health exposes commit and non-sensitive notification state', async () => {
     assert.equal(result.commit, 'local');
     assert.equal(result.notifications.configured, false);
     assert.equal(Object.hasOwn(result.notifications, 'lastSuccessAt'), true);
+    assert.equal(Object.hasOwn(result.notifications, 'timeoutCount'), true);
+    assert.equal(Object.hasOwn(result.notifications, 'skippedCycles'), true);
+    assert.equal(Object.hasOwn(result.notifications, 'lastRetryCheckAt'), true);
     assert.equal(JSON.stringify(result).includes('PRIVATE_KEY'), false);
     assert.equal(
         response.headers.get('strict-transport-security'),
@@ -138,6 +141,7 @@ test('forced notification checks fail visibly when infrastructure is unavailable
     assert.equal(response.status, 500);
     assert.equal(result.success, false);
     assert.equal(notificationRuntimeState.consecutiveFailures, 1);
+    assert.equal(notificationRuntimeState.engines.retry.ok, true);
     assert.equal(notificationRuntimeState.engines.recurring.ok, false);
     assert.equal(notificationRuntimeState.engines.configured.ok, false);
 });

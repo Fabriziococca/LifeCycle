@@ -43,6 +43,12 @@ test('notification operations enforce freshness and emit auditable request logs'
     assert.doesNotMatch(server, /6\s*\*\s*60\s*\*\s*60\s*\*\s*1000/);
     assert.match(server, /PENDING_DELIVERY_RECOVERY_MS\s*=\s*2\s*\*\s*60\s*\*\s*1000/);
     assert.match(server, /PENDING_DELIVERY_RECOVERY_INTERVAL_MS\s*=\s*60\s*\*\s*1000/);
+    assert.match(server, /SUPABASE_REQUEST_TIMEOUT_MS\s*=\s*15000/);
+    assert.match(server, /PUSH_RETRY_AFTER_MS\s*=\s*5\s*\*\s*60\s*\*\s*1000/);
+    assert.match(server, /claim_notification_delivery_retry/);
+    assert.match(server, /\.\.\.\(topic \? \{ topic \} : \{\}\)/);
     assert.match(server, /telemetryRequested[\s\S]*isMissingPushTelemetrySchema[\s\S]*buildHistoryQuery\(baseColumns\)/);
     assert.match(server, /\[HTTP\].*status=.*duration_ms=/);
+    assert.match(server, /normalizeApiRoute\(req\)/);
+    assert.doesNotMatch(server, /`\$\{req\.baseUrl\}\$\{req\.path\}`/);
 });

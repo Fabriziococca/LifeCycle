@@ -86,6 +86,13 @@ self.addEventListener('push', (event) => {
         icon: '/icon-v2.png',
         badge: '/badge.png',
         vibrate: [100, 50, 100],
+        ...(typeof data.notificationTag === 'string'
+            && /^[A-Za-z0-9_-]{1,80}$/.test(data.notificationTag)
+            ? {
+                tag: data.notificationTag,
+                renotify: false
+            }
+            : {}),
         data: {
             url: data.url || '/'
         }

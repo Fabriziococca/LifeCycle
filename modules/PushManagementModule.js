@@ -86,17 +86,20 @@ export function buildPushEnginePresentation(value = {}) {
 }
 
 export function buildPushHistoryPresentation(entry = {}) {
+    const withAttempt = metadata => Number(entry.attempt_no) === 2
+        ? { ...metadata, label: `Reintento · ${metadata.label}` }
+        : metadata;
     if (entry.confirmed_at) {
-        return { label: 'Confirmada manualmente', icon: 'ph-user-check', className: 'success' };
+        return withAttempt({ label: 'Confirmada manualmente', icon: 'ph-user-check', className: 'success' });
     }
     if (entry.discarded_at) {
-        return { label: 'Descartada por vencida', icon: 'ph-clock-countdown', className: 'warning' };
+        return withAttempt({ label: 'Descartada por vencida', icon: 'ph-clock-countdown', className: 'warning' });
     }
     if (entry.displayed_at) {
-        return { label: 'Mostrada por el dispositivo', icon: 'ph-device-mobile-camera', className: 'success' };
+        return withAttempt({ label: 'Mostrada por el dispositivo', icon: 'ph-device-mobile-camera', className: 'success' });
     }
     if (entry.received_at) {
-        return { label: 'Recibida por el dispositivo', icon: 'ph-device-mobile-check', className: 'success' };
+        return withAttempt({ label: 'Recibida por el dispositivo', icon: 'ph-device-mobile-check', className: 'success' });
     }
 
     const statusMeta = {
@@ -107,7 +110,7 @@ export function buildPushHistoryPresentation(entry = {}) {
         unknown: { label: 'Resultado desconocido', icon: 'ph-question', className: 'warning' },
         no_devices: { label: 'Sin dispositivos', icon: 'ph-device-mobile-slash', className: 'warning' }
     };
-    return statusMeta[entry.status] || statusMeta.unknown;
+    return withAttempt(statusMeta[entry.status] || statusMeta.unknown);
 }
 
 export class PushManagementModule {

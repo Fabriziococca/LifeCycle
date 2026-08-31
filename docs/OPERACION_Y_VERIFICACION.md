@@ -36,6 +36,9 @@ servicio y comprobar que `GET /api/config` devuelva
 - Las alertas con hora exacta solo se recuperan durante 15 minutos; después vencen.
 - Esas alertas usan urgencia alta y un TTL que disminuye hasta el final de la ventana.
 - El Service Worker descarta cualquier payload que llegue después de `expiresAt`.
+- Si el proveedor aceptó el envío pero el dispositivo no reportó recepción en cinco minutos, el backend intenta una sola vez más mientras la ventana original siga vigente.
+- El reintento conserva exactamente el mismo vencimiento. `Topic` en Web Push y `tag` en el Service Worker reemplazan el intento pendiente en vez de generar avisos visibles duplicados.
+- Cada consulta del backend a Supabase vence a los 15 segundos y cada motor tiene un watchdog inferior al intervalo de cinco minutos; los ciclos bloqueados dejan de inmovilizar el scheduler indefinidamente.
 - Las tareas muy urgentes no tienen horario silencioso.
 - El primer aviso se puede emitir en el siguiente ciclo del backend.
 - Los avisos siguientes respetan el intervalo configurado, por defecto cuatro horas.
@@ -47,7 +50,7 @@ servicio y comprobar que `GET /api/config` devuelva
 
 `GET /api/health`
 
-Además del commit activo, devuelve si la infraestructura de notificaciones está configurada, si el planificador está ejecutándose y cuándo terminó correctamente por última vez.
+Además del commit activo, devuelve si la infraestructura de notificaciones está configurada, si el planificador está ejecutándose, cuándo terminó correctamente por última vez, duración, timeouts, ciclos omitidos y resultado agregado del último control de reintentos.
 
 ### Diagnóstico administrativo
 
@@ -113,7 +116,11 @@ La ventana de frescura, el estado pendiente/desconocido y la telemetría automá
 
 `supabase/migrations/20260821040806_notification_delivery_freshness_and_telemetry.sql`
 
-Las tres migraciones base están aplicadas en producción. La ampliación del 2026-08-21 debe aplicarse antes de considerar cerrada la telemetría automática; el código mantiene un fallback de compatibilidad para que una diferencia temporal de esquema nunca detenga el envío de avisos.
+El reintento único, su reserva atómica y los índices de diagnóstico están registrados en:
+
+`supabase/migrations/20260831044654_add_safe_push_retry.sql`
+
+La migración de reintento debe aplicarse antes de desplegar el backend que la consume. El código mantiene un fallback de compatibilidad para que una diferencia temporal de esquema nunca detenga el envío original de avisos.
 
 La migración siguiente mantiene la base alineada con el cliente y cierra una defensa adicional:
 
