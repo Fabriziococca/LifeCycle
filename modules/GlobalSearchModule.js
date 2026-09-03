@@ -152,7 +152,8 @@ export class GlobalSearchModule {
             ...this.getVehicleItems(),
             ...this.getTaskItems(),
             ...this.getProjectItems(),
-            ...this.getSubscriptionItems()
+            ...this.getSubscriptionItems(),
+            ...this.getTranscriptionItems()
         ];
     }
 
@@ -197,6 +198,14 @@ export class GlobalSearchModule {
                 subtitle: 'Crear · Finanzas',
                 keywords: ['dinero compra salida finanzas'],
                 target: { command: 'register-expense' }
+            },
+            {
+                id: 'command:transcripciones',
+                kind: 'command',
+                title: 'Notas de voz y Transcripciones',
+                subtitle: 'Abrir · Transcripciones',
+                keywords: ['transcripcion transcripciones audio voz grabar gemini microfono'],
+                target: { command: 'transcripciones' }
             },
             {
                 id: 'command:suscripciones',
@@ -341,6 +350,28 @@ export class GlobalSearchModule {
             ...(projectsModule?.projects || []).map(project => mapProject(project, 'active')),
             ...(projectsModule?.history || []).map(project => mapProject(project, 'history'))
         ];
+    }
+
+    getTranscriptionItems() {
+        const transModule = this.app.transcriptions;
+        return (transModule?.registry?.transcriptions || []).map(item => ({
+            id: uniqueSearchId('transcription', item.id),
+            kind: 'transcription',
+            title: item.title,
+            subtitle: `Nota de voz · ${(item.editedText || item.rawText || '').slice(0, 70)}...`,
+            keywords: [
+                'transcripción',
+                'transcripcion',
+                'audio',
+                'voz',
+                item.title,
+                ...(item.tags || [])
+            ],
+            target: {
+                transcriptionId: item.id,
+                sectionId: 'transcripciones-section'
+            }
+        }));
     }
 
     getSubscriptionItems() {

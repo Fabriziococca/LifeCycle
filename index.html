@@ -1891,6 +1891,50 @@
             </div>
         </section>
 
+        <!-- SECCIÓN: TRANSCRIPCIONES (Fase E) -->
+        <section id="transcripciones-section" class="main-section hidden">
+            <header class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h2>Transcripciones</h2>
+                    <p style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">Notas de voz, reuniones e ideas transcriptas con IA gratuita (Gemini).</p>
+                </div>
+                <div style="display: flex; gap: 8px; flex-wrap: wrap;">
+                    <input type="file" id="transcription-file-input" class="hidden" accept="audio/*,video/*">
+                    <button type="button" id="btn-import-audio-file" class="btn btn-secondary">
+                        <i class="ph ph-upload-simple"></i> Importar Audio
+                    </button>
+                    <button type="button" id="btn-toggle-record-voice" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="ph ph-microphone"></i> Grabar Nota de Voz
+                    </button>
+                </div>
+            </header>
+
+            <!-- Banner de grabación activa -->
+            <div id="recording-pulse" class="hidden" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 12px 18px; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between;">
+                <div style="display: flex; align-items: center; gap: 10px;">
+                    <span style="width: 12px; height: 12px; border-radius: 50%; background: #ef4444; display: inline-block; animation: pulse 1.2s infinite ease-in-out;"></span>
+                    <strong style="color: #ef4444; font-size: 0.95rem;">Grabando nota de voz...</strong>
+                    <span style="color: var(--text-secondary); font-size: 0.85rem;">(Pantalla bloqueada protegida por WakeLock)</span>
+                </div>
+                <span id="recording-timer" style="font-family: monospace; font-size: 1.2rem; font-weight: 700; color: var(--text-primary);">00:00</span>
+            </div>
+
+            <!-- Barra de búsqueda y carpetas -->
+            <div style="display: flex; gap: 12px; margin-bottom: 1.25rem; flex-wrap: wrap; justify-content: space-between; align-items: center;">
+                <div id="transcriptions-folder-tabs" class="tabs-container" style="display: flex; gap: 6px; flex-wrap: wrap;">
+                    <!-- Carpetas dinámicas -->
+                </div>
+                <div style="min-width: 240px; flex: 1; max-width: 380px;">
+                    <input type="text" id="transcription-search-input" class="text-input" placeholder="Buscar en transcripciones..." style="width: 100%;">
+                </div>
+            </div>
+
+            <!-- Grilla de transcripciones -->
+            <div id="transcriptions-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
+                <!-- Dinámico -->
+            </div>
+        </section>
+
         <!-- SECCIÓN 4: AJUSTES Y MIGRACIÓN -->
         <section id="perfil-section" class="main-section hidden">
             <button id="btn-back-to-modules" class="btn btn-secondary" style="margin-bottom: 2rem; display: flex; align-items: center; gap: 8px; font-weight: 600;">
@@ -2723,6 +2767,56 @@
                     <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Guardar</button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- MODAL DETALLE Y EDICIÓN DE TRANSCRIPCIÓN (Fase E) -->
+    <div id="transcription-detail-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="trans-modal-heading">
+        <div class="modal-content" style="max-width: 650px; width: 92%;">
+            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+                <h3 id="trans-modal-heading">Detalle de Transcripción</h3>
+                <button type="button" class="icon-btn" data-transcription-modal-close aria-label="Cerrar modal">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            
+            <div class="input-group" style="margin-bottom: 1rem;">
+                <label for="trans-detail-title">Título de la nota</label>
+                <input type="text" id="trans-detail-title" class="text-input" style="font-weight: 600;">
+            </div>
+
+            <!-- Resumen IA opcional (Tanda 25) -->
+            <div id="trans-detail-summary-container" class="hidden" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; padding: 14px; margin-bottom: 1rem;">
+                <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #3b82f6; font-size: 0.85rem; font-weight: 700;">
+                    <i class="ph ph-sparkle"></i> Resumen y Acciones (Generado por IA)
+                </div>
+                <div id="trans-detail-summary-text" style="font-size: 0.88rem; line-height: 1.5; color: var(--text-primary); white-space: pre-line;"></div>
+            </div>
+
+            <div class="input-group">
+                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+                    <label for="trans-detail-text">Texto transcripto completo</label>
+                    <button type="button" id="btn-generate-ai-summary" class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
+                        <i class="ph ph-sparkle"></i> Generar Resumen IA
+                    </button>
+                </div>
+                <textarea id="trans-detail-text" class="text-input" rows="10" style="font-size: 0.9rem; line-height: 1.5;"></textarea>
+            </div>
+
+            <div class="modal-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; flex-wrap: wrap; gap: 8px;">
+                <div style="display: flex; gap: 6px;">
+                    <button type="button" id="btn-export-transcription-txt" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                        <i class="ph ph-file-text"></i> .txt
+                    </button>
+                    <button type="button" id="btn-export-transcription-md" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                        <i class="ph ph-markdown-logo"></i> .md
+                    </button>
+                </div>
+                <div style="display: flex; gap: 8px;">
+                    <button type="button" class="btn btn-secondary" data-transcription-modal-close>Cerrar</button>
+                    <button type="button" id="btn-save-transcription-detail" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Guardar Cambios</button>
+                </div>
+            </div>
         </div>
     </div>
 

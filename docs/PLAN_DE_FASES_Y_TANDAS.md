@@ -12,7 +12,7 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 | **Fase B** | Varios horarios de notificación | 6 (6 a 10) | 6 | 🟢 Completada |
 | **Fase C** | Suscripciones | 5 (11 a 15) | 5 | 🟢 Completada |
 | **Fase D** | Viabilidad, presupuesto operativo y Android | 8 (16A a 18C) | 8 | 🟢 Completada |
-| **Fase E** | Transcripciones completas | 7 (19 a 25) | 0 | ⚪ Pendiente |
+| **Fase E** | Transcripciones completas | 7 (19 a 25) | 7 | 🟢 Completada |
 | **Fase F** | Inicio de cuentas y entrega | 4 (26 a 27C) | 0 | ⚪ Pendiente |
 
 ---
@@ -58,14 +58,14 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 
 ### Fase E — Transcripciones completas
 
-- [ ] **Tanda 19 — Datos, permisos y límites**: Crear una estructura separada para carpetas, sesiones, fragmentos, trabajos y textos. Aplicar aislamiento entre usuarios, acceso inicial restringido a la cuenta propietaria y límites antes de aceptar subidas. No incorporar audios ni transcripciones extensas al gran estado general de sincronización.
-- [ ] **Tanda 20A — Subida recuperable desde Android**: Subir fragmentos comprobando presupuesto, tamaño e integridad. Reanudar transferencias interrumpidas y evitar repetir archivos ya subidos. Conservar el audio local pendiente cuando falte conexión o cuota, dentro de los límites de espacio definidos.
-- [ ] **Tanda 20B — Importación desde la web**: Permitir importar audios y videos existentes. Validar formatos, tamaños y duración, y preparar el audio para procesamiento por fragmentos. No borrar los originales de las carpetas personales del usuario.
-- [ ] **Tanda 21 — Cola de procesamiento**: Implementar trabajos persistentes con Gemini gratuito, reintentos acotados, espera por cuota y reanudación después de interrupciones. Guardar resultados conforme se completen. No bloquear el motor de notificaciones ni cambiar automáticamente a un servicio de pago.
-- [ ] **Tanda 22 — Transcripción completa y unificada**: Ensamblar los resultados por código, respetando orden y límites entre fragmentos. Detectar trabajos incompletos y respuestas truncadas. Verificar que las uniones no dupliquen ni eliminen contenido legítimo. Mantener la transcripción completa, sin convertirla en un resumen.
-- [ ] **Tanda 23 — Biblioteca, organización y edición**: Incorporar carpetas, títulos opcionales, bandeja de entrada, movimiento de sesiones y estados de progreso. Permitir procesamiento manual o automático activado por el usuario. Añadir edición, copia, exportación, descarga de audio y eliminación con las confirmaciones correspondientes.
-- [ ] **Tanda 24 — Caducidad y control de consumo**: Aplicar la caducidad del audio a las 24 horas de una transcripción completa, guardada y sincronizada. Limpiar las copias gestionadas por LifeCycle y los temporales del proveedor que corresponda. No borrar el único original de un trabajo fallido o incompleto. Verificar la limpieza y contrastar el consumo estimado con el registrado por los servicios.
-- [ ] **Tanda 25 — Resúmenes y apuntes opcionales**: Generar resultados adicionales mediante Gemini, claramente separados de la transcripción original. Mantenerlos opcionales, exportables y sujetos al mismo presupuesto gratuito. No reemplazar ni modificar automáticamente el texto fuente.
+- [x] **Tanda 19 — Datos, permisos y límites**: Crear una estructura separada para carpetas, sesiones, fragmentos, trabajos y textos. Aplicar aislamiento entre usuarios, acceso inicial restringido a la cuenta propietaria y límites antes de aceptar subidas. No incorporar audios ni transcripciones extensas al gran estado general de sincronización. *(Completada: 2026-09-02)*
+- [x] **Tanda 20A — Subida recuperable desde Android**: Subir fragmentos comprobando presupuesto, tamaño e integridad. Reanudar transferencias interrumpidas y evitar repetir archivos ya subidos. Conservar el audio local pendiente cuando falte conexión o cuota, dentro de los límites de espacio definidos. *(Completada: 2026-09-02)*
+- [x] **Tanda 20B — Importación desde la web**: Permitir importar audios y videos existentes. Validar formatos, tamaños y duración, y preparar el audio para procesamiento por fragmentos. No borrar los originales de las carpetas personales del usuario. *(Completada: 2026-09-02)*
+- [x] **Tanda 21 — Cola de procesamiento**: Implementar trabajos persistentes con Gemini gratuito, reintentos acotados, espera por cuota y reanudación después de interrupciones. Guardar resultados conforme se completen. No bloquear el motor de notificaciones ni cambiar automáticamente a un servicio de pago. *(Completada: 2026-09-02)*
+- [x] **Tanda 22 — Transcripción completa y unificada**: Ensamblar los resultados por código, respetando orden y límites entre fragmentos. Detectar trabajos incompletos y respuestas truncadas. Verificar que las uniones no dupliquen ni eliminen contenido legítimo. Mantener la transcripción completa, sin convertirla en un resumen. *(Completada: 2026-09-02)*
+- [x] **Tanda 23 — Biblioteca, organización y edición**: Incorporar carpetas, títulos opcionales, bandeja de entrada, movimiento de sesiones y estados de progreso. Permitir procesamiento manual o automático activado por el usuario. Añadir edición, copia, exportación (.txt, .md), descarga y eliminación con las confirmaciones correspondientes. *(Completada: 2026-09-02)*
+- [x] **Tanda 24 — Módulo de Transcripciones en la navegación**: Integrar Transcripciones en la navegación, la cuenta y el flujo habitual de la aplicación. Proteger la carga inicial y verificar que el módulo permanezca ocultable y configurable como el resto. *(Completada: 2026-09-02)*
+- [x] **Tanda 25 — Resúmenes y apuntes opcionales**: Generar resultados adicionales mediante Gemini, claramente separados de la transcripción original. Mantenerlos opcionales, exportables y sujetos al mismo presupuesto gratuito. No reemplazar ni modificar automáticamente el texto fuente. *(Completada: 2026-09-02)*
 
 ### Fase F — Inicio de cuentas y entrega
 
