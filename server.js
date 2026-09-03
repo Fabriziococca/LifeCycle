@@ -2669,18 +2669,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                 });
 
                 for (const candidate of candidates) {
-                    // Verificar si ya fue enviada hoy para evitar spam en el mismo día
                     const usesItemLevelLog = key === 'projects_check' || key === 'tareas_urgentes_check';
-                    if (
-                        !forceAll
-                        && !usesItemLevelLog
-                        && (
-                            data.alerts_sent_log[key] === candidate.dateStr
-                            || wasSentForDate(userId, key, candidate.dateStr)
-                        )
-                    ) {
-                        continue;
-                    }
 
                     // Si es una alerta periódica/recurrente, verificar día de la semana
                     const isRecurring = recurringReminderMap.has(key);
@@ -2693,14 +2682,43 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                         )
                     ) continue;
 
-                    const timedWindow = createTimedNotificationWindow({
-                        dateStr: candidate.dateStr,
-                        time: conf.time,
-                        now: schedulerNow,
-                        graceMinutes: TIMED_NOTIFICATION_GRACE_MINUTES,
-                        force: forceAll
-                    });
-                    if (!timedWindow?.due) continue;
+                    const alertTimes = (Array.isArray(conf.times) && conf.times.length > 0)
+                        ? conf.times
+                        : [conf.time || '23:00'];
+
+                    let activeTime = null;
+                    let activeDeliveryKey = key;
+                    let timedWindow = null;
+
+                    for (const timeSlot of alertTimes) {
+                        const slotLogKey = alertTimes.length > 1 ? `${key}@${timeSlot}` : key;
+                        const alreadySent = !forceAll && !usesItemLevelLog && (
+                            data.alerts_sent_log[slotLogKey] === candidate.dateStr
+                            || wasSentForDate(userId, slotLogKey, candidate.dateStr)
+                            || (alertTimes.length === 1 && (
+                                data.alerts_sent_log[key] === candidate.dateStr
+                                || wasSentForDate(userId, key, candidate.dateStr)
+                            ))
+                        );
+                        if (alreadySent) continue;
+
+                        const windowCheck = createTimedNotificationWindow({
+                            dateStr: candidate.dateStr,
+                            time: timeSlot,
+                            now: schedulerNow,
+                            graceMinutes: TIMED_NOTIFICATION_GRACE_MINUTES,
+                            force: forceAll
+                        });
+                        if (windowCheck?.due) {
+                            activeTime = timeSlot;
+                            activeDeliveryKey = slotLogKey;
+                            timedWindow = windowCheck;
+                            break;
+                        }
+                    }
+
+                    if (!activeTime && !forceAll) continue;
+
                     const deliveryWindow = forceAll
                         ? createPushDeliveryPolicy({
                             now: schedulerNow,
@@ -3338,9 +3356,14 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                         });
 
                         if (!forceAll && result.successCount > 0) {
-                            rememberSentForDate(userId, key, candidate.dateStr);
-                            data.alerts_sent_log[key] = candidate.dateStr;
-                            sentLogUpdates[key] = candidate.dateStr;
+                            rememberSentForDate(userId, activeDeliveryKey, candidate.dateStr);
+                            data.alerts_sent_log[activeDeliveryKey] = candidate.dateStr;
+                            sentLogUpdates[activeDeliveryKey] = candidate.dateStr;
+                            if (activeDeliveryKey !== key) {
+                                rememberSentForDate(userId, `${key}@${activeTime}`, candidate.dateStr);
+                                data.alerts_sent_log[`${key}@${activeTime}`] = candidate.dateStr;
+                                sentLogUpdates[`${key}@${activeTime}`] = candidate.dateStr;
+                            }
                             dataChanged = true;
                         }
                     }

@@ -2487,8 +2487,12 @@
                     <input id="recurring-reminder-title" class="text-input" type="text" maxlength="100" placeholder="Ej: 💊 Suplemento">
                 </div>
                 <div class="input-group half">
-                    <label for="recurring-reminder-time">Hora</label>
-                    <input id="recurring-reminder-time" class="text-input" type="time" value="09:00" required>
+                    <label for="recurring-reminder-time">Horarios de aviso</label>
+                    <div style="display: flex; gap: 6px; align-items: center;">
+                        <input id="recurring-reminder-time" class="text-input" type="time" value="09:00" required>
+                        <button type="button" id="btn-add-reminder-time" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; white-space: nowrap;" title="Agregar otro horario de aviso">+ Horario</button>
+                    </div>
+                    <div id="recurring-reminder-extra-times-list" style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;"></div>
                 </div>
             </div>
 

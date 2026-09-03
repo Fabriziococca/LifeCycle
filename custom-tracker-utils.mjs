@@ -1,3 +1,4 @@
+import { normalizeAlertTimes } from './alert-schedule-utils.mjs';
 import {
     createDefaultTodayPreferences,
     normalizeTodayPreferences
@@ -837,16 +838,25 @@ function normalizeTracker(rawTracker, {
             `La tarjeta borrada "${name}" no tiene fecha de borrado.`
         );
     }
-    const alertTime = typeof alertCandidate.time === 'string'
-        && TIME_PATTERN.test(alertCandidate.time)
-        ? alertCandidate.time
-        : '23:00';
+    const rawAlertTimes = Array.isArray(alertCandidate.times)
+        ? alertCandidate.times
+        : (alertCandidate.time ? [alertCandidate.time] : ['23:00']);
+    const normalizedAlertSchedule = normalizeAlertTimes(rawAlertTimes, '23:00');
+    const alertTime = normalizedAlertSchedule.time;
+    const alertTimes = normalizedAlertSchedule.times;
     if (
         strict
         && alertCandidate.time !== undefined
         && !TIME_PATTERN.test(alertCandidate.time)
     ) {
         throw new CustomTrackerValidationError(`La hora de alerta de "${name}" no es válida.`);
+    }
+    if (
+        strict
+        && Array.isArray(alertCandidate.times)
+        && alertCandidate.times.some(t => !TIME_PATTERN.test(t))
+    ) {
+        throw new CustomTrackerValidationError(`Uno de los horarios de alerta de "${name}" no es válido.`);
     }
 
     const defaultAlertKey = `${CUSTOM_ALERT_PREFIX}${id}`;
@@ -916,7 +926,8 @@ function normalizeTracker(rawTracker, {
         }),
         alert: {
             enabled: !deleted && alertCandidate.enabled === true,
-            time: alertTime
+            time: alertTime,
+            times: alertTimes
         }
     };
 }

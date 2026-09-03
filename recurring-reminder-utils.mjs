@@ -1,3 +1,4 @@
+import { normalizeAlertTimes } from './alert-schedule-utils.mjs';
 export const RECURRING_REMINDERS_FIELD = '__recurring_reminders';
 export const RECURRING_REMINDER_SCHEMA_VERSION = 2;
 
@@ -212,7 +213,8 @@ export function normalizeRecurringReminder(reminder, fallback = {}) {
         category: CATEGORY_SET.has(categoryCandidate) ? categoryCandidate : 'otros',
         title: cleanText(reminder?.title, 100, fallback.title || reminder?.name || 'Recordatorio'),
         body: cleanText(reminder?.body, 240, fallback.body || 'Tenés un recordatorio pendiente.'),
-        defaultTime: TIME_PATTERN.test(defaultTimeCandidate) ? defaultTimeCandidate : '09:00',
+        defaultTime: normalizeAlertTimes(reminder?.defaultTimes || defaultTimeCandidate, '09:00').time,
+        defaultTimes: normalizeAlertTimes(reminder?.defaultTimes || defaultTimeCandidate, '09:00').times,
         defaultSchedule,
         defaultDays: defaultSchedule.type === 'weekly' ? [...defaultSchedule.days] : [],
         createdAt: cleanText(reminder?.createdAt, 40, fallback.createdAt),
@@ -272,11 +274,15 @@ export function migrateRecurringReminderConfigs(alertConfigs, { legacyGymReminde
                     : reminder.defaultSchedule
             )
         );
+        const currentTimesCandidate = Array.isArray(current.times) && current.times.length > 0
+            ? current.times
+            : (current.time || legacy.time || reminder.defaultTimes || [reminder.defaultTime]);
+        const normalizedTimes = normalizeAlertTimes(currentTimesCandidate, reminder.defaultTime);
+
         result[reminder.id] = {
             enabled: current.enabled ?? legacy.enabled ?? true,
-            time: TIME_PATTERN.test(current.time || '')
-                ? current.time
-                : (TIME_PATTERN.test(legacy.time || '') ? legacy.time : reminder.defaultTime),
+            time: normalizedTimes.time,
+            times: normalizedTimes.times,
             schedule,
             days: schedule.type === 'weekly' ? [...schedule.days] : []
         };

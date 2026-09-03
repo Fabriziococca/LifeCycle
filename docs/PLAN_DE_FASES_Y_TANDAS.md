@@ -9,7 +9,7 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 | Fase | Descripción | Tandas Totales | Completadas | Estado |
 |---|---|---|---|---|
 | **Fase A** | Base local y organización | 6 (0 a 5) | 6 | 🟢 Completada |
-| **Fase B** | Varios horarios de notificación | 6 (6 a 10) | 0 | ⚪ Pendiente |
+| **Fase B** | Varios horarios de notificación | 6 (6 a 10) | 6 | 🟢 Completada |
 | **Fase C** | Suscripciones | 5 (11 a 15) | 0 | ⚪ Pendiente |
 | **Fase D** | Viabilidad, presupuesto operativo y Android | 8 (16A a 18C) | 0 | ⚪ Pendiente |
 | **Fase E** | Transcripciones completas | 7 (19 a 25) | 0 | ⚪ Pendiente |
@@ -30,12 +30,12 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 
 ### Fase B — Varios horarios de notificación
 
-- [ ] **Tanda 6 — Reglas comunes de horarios**: Permitir varios horarios dentro del mismo día calendario para una única tarjeta o recordatorio. Mantener días, vencimientos y condiciones existentes. Validar horarios, evitar repeticiones idénticas y respetar la zona horaria utilizada por la aplicación. No incorporar ciclos especiales que agrupen noches entre dos fechas.
-- [ ] **Tanda 7 — Persistencia y compatibilidad**: Adaptar configuraciones y registros de envío para identificar cada aviso programado. Conservar las configuraciones antiguas como un único horario. Definir límites técnicos y compatibilidad entre versiones durante la transición.
-- [ ] **Tanda 8A — Editor compartido**: Incorporar controles reutilizables para agregar y quitar horarios en tarjetas, recordatorios y gimnasio. Mantener una sola entidad, configuración e historial.
-- [ ] **Tanda 8B — Resto de avisos configurables**: Aplicar el modelo a vehículo, salud, proyectos, tareas, Trading y demás avisos existentes. Preservar las reglas propias de anticipaciones, intervalos y vencimientos de cada dominio.
-- [ ] **Tanda 9 — Servidor, deduplicación y reintentos**: Adaptar el motor de envíos para admitir varios avisos diarios. Separar horarios solicitados de reintentos técnicos. Conservar las protecciones contra duplicados y avisos vencidos. Suprimir los avisos posteriores cuando el elemento registrado como realizado deje de cumplir la condición de pendiente.
-- [ ] **Tanda 10 — Verificación integrada**: Probar varios horarios, cambio de día, modificación de configuraciones, elementos realizados o archivados, sincronización y reinicios. Verificar compatibilidad con los reintentos existentes, aislamiento entre cuentas y recepción en el dispositivo.
+- [x] **Tanda 6 — Reglas comunes de horarios**: Permitir varios horarios dentro del mismo día calendario para una única tarjeta o recordatorio. Mantener días, vencimientos y condiciones existentes. Validar horarios, evitar repeticiones idénticas y respetar la zona horaria utilizada por la aplicación. No incorporar ciclos especiales que agrupen noches entre dos fechas. *(Completada: 2026-09-02)*
+- [x] **Tanda 7 — Persistencia y compatibilidad**: Adaptar configuraciones y registros de envío para identificar cada aviso programado. Conservar las configuraciones antiguas como un único horario. Definir límites técnicos y compatibilidad entre versiones durante la transición. *(Completada: 2026-09-02)*
+- [x] **Tanda 8A — Editor compartido**: Incorporar controles reutilizables para agregar y quitar horarios en tarjetas, recordatorios y gimnasio. Mantener una sola entidad, configuración e historial. *(Completada: 2026-09-02)*
+- [x] **Tanda 8B — Resto de avisos configurables**: Aplicar el modelo a vehículo, salud, proyectos, tareas, Trading y demás avisos existentes. Preservar las reglas propias de anticipaciones, intervalos y vencimientos de cada dominio. *(Completada: 2026-09-02)*
+- [x] **Tanda 9 — Servidor, deduplicación y reintentos**: Adaptar el motor de envíos para admitir varios avisos diarios. Separar horarios solicitados de reintentos técnicos. Conservar las protecciones contra duplicados y avisos vencidos. Suprimir los avisos posteriores cuando el elemento registrado como realizado deje de cumplir la condición de pendiente. *(Completada: 2026-09-02)*
+- [x] **Tanda 10 — Verificación integrada**: Probar varios horarios, cambio de día, modificación de configuraciones, elementos realizados o archivados, sincronización y reinicios. Verificar compatibilidad con los reintentos existentes, aislamiento entre cuentas y recepción en el dispositivo. *(Completada: 2026-09-02)*
 
 ### Fase C — Suscripciones
 

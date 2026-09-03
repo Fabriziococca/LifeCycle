@@ -1,3 +1,4 @@
+import { normalizeAlertTimes } from '../alert-schedule-utils.mjs';
 import { ALERT_DEFINITIONS, CATEGORY_NAMES } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import {
@@ -223,6 +224,26 @@ export class AlertsModule {
 
         const reminderModal = document.getElementById('recurring-reminder-modal');
         const reminderForm = document.getElementById('recurring-reminder-form');
+        const addReminderTimeBtn = document.getElementById('btn-add-reminder-time');
+        if (addReminderTimeBtn && !addReminderTimeBtn.dataset.bound) {
+            addReminderTimeBtn.dataset.bound = 'true';
+            addReminderTimeBtn.addEventListener('click', () => {
+                const container = document.getElementById('recurring-reminder-extra-times-list');
+                const existingExtraInputs = document.querySelectorAll('.recurring-extra-time-input');
+                if (existingExtraInputs.length < 5) {
+                    const extraRow = document.createElement('div');
+                    extraRow.style.cssText = 'display: flex; gap: 6px; align-items: center;';
+                    extraRow.innerHTML = `
+                        <input type="time" class="text-input recurring-extra-time-input" value="20:00" style="flex: 1;">
+                        <button type="button" class="icon-btn btn-remove-reminder-extra-time" style="color: var(--status-red); padding: 4px;" title="Eliminar horario"><i class="ph ph-trash"></i></button>
+                    `;
+                    extraRow.querySelector('.btn-remove-reminder-extra-time')?.addEventListener('click', () => {
+                        extraRow.remove();
+                    });
+                    container?.appendChild(extraRow);
+                }
+            });
+        }
         const closeButtons = reminderModal?.querySelectorAll('[data-recurring-reminder-close]') || [];
         closeButtons.forEach(button => {
             button.onclick = () => this.closeRecurringReminderEditor();
@@ -471,8 +492,12 @@ export class AlertsModule {
         document.getElementById('recurring-reminder-category').value = reminder?.category || 'otros';
         document.getElementById('recurring-reminder-title').value = reminder?.title || '';
         document.getElementById('recurring-reminder-body').value = reminder?.body || '';
-        document.getElementById('recurring-reminder-time').value = config.time || reminder?.defaultTime || '09:00';
+        const currentReminderTimes = Array.isArray(config.times) && config.times.length > 0
+            ? config.times
+            : [config.time || reminder?.defaultTime || '09:00'];
+        document.getElementById('recurring-reminder-time').value = currentReminderTimes[0];
         document.getElementById('recurring-reminder-enabled').checked = config.enabled ?? true;
+        this.renderReminderExtraTimesList(currentReminderTimes.slice(1));
         const schedule = normalizeRecurringSchedule(
             config.schedule || (
                 Array.isArray(config.days) ? { type: 'weekly', days: config.days } : null
@@ -580,17 +605,27 @@ export class AlertsModule {
         }
 
         const category = document.getElementById('recurring-reminder-category').value;
-        const time = document.getElementById('recurring-reminder-time').value;
+        const primaryTime = document.getElementById('recurring-reminder-time').value;
+        const extraTimeInputs = document.querySelectorAll('.recurring-extra-time-input');
+        const candidateTimes = [primaryTime];
+        extraTimeInputs.forEach(input => {
+            if (input.value) candidateTimes.push(input.value);
+        });
+        const normalized = normalizeAlertTimes(candidateTimes, primaryTime);
+
         this.configs = upsertRecurringReminder(this.configs, {
             id: reminderId,
             name,
             category,
             title: document.getElementById('recurring-reminder-title').value.trim() || `⏰ ${name}`,
             body,
-            time,
+            time: normalized.time,
+            times: normalized.times,
             schedule
         });
         this.configs[reminderId].enabled = document.getElementById('recurring-reminder-enabled').checked;
+        this.configs[reminderId].time = normalized.time;
+        this.configs[reminderId].times = normalized.times;
         this.activeCategory = category;
         this.app.saveUiState?.({ alertsCategory: category });
         this.saveData();
@@ -653,9 +688,18 @@ export class AlertsModule {
                 ? normalizeRecurringSchedule({ type: 'weekly', days })
                 : previousSchedule;
 
+            const primaryTime = timeInput ? timeInput.value : (prevConfig.time || '23:00');
+            const candidateTimes = [primaryTime];
+            const extraInputs = row.querySelectorAll('.alert-extra-time-input');
+            extraInputs.forEach(extra => {
+                if (extra.value) candidateTimes.push(extra.value);
+            });
+            const normalizedTimes = normalizeAlertTimes(candidateTimes, prevConfig.time || '23:00');
+
             const nextConfig = {
                 enabled: enabledInput ? enabledInput.checked : false,
-                time: timeInput ? timeInput.value : (prevConfig.time || '23:00'),
+                time: normalizedTimes.time,
+                times: normalizedTimes.times,
                 ...(schedule ? { schedule } : {}),
                 days: schedule?.type === 'weekly' ? [...schedule.days] : days
             };
@@ -798,9 +842,24 @@ export class AlertsModule {
                         </div>
                     </div>
                     ` : `
-                    <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
-                        <span style="font-size: 0.8rem; color: var(--text-secondary);">Hora de push:</span>
-                        <input type="time" class="alert-time-input" value="${conf.time}" aria-label="Hora de alerta de ${safeName}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: var(--control-bg); color: var(--text-primary); font-size: 0.85rem;">
+                    <div style="display: flex; flex-direction: column; gap: 4px;">
+                        <div style="display: flex; align-items: center; justify-content: space-between; gap: 8px;">
+                            <span style="font-size: 0.8rem; color: var(--text-secondary);">Hora de push:</span>
+                            <div style="display: flex; align-items: center; gap: 4px;">
+                                <input type="time" class="alert-time-input" value="${conf.time}" aria-label="Hora de alerta de ${safeName}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: var(--control-bg); color: var(--text-primary); font-size: 0.85rem;">
+                                ${((Array.isArray(conf.times) ? conf.times.length : 1) < 6) ? `
+                                <button type="button" class="icon-btn btn-add-extra-time" data-alert-key="${def.key}" aria-label="Agregar otro horario" title="Agregar horario adicional" style="font-size: 0.85rem; padding: 4px; border: 1px solid var(--surface-border); border-radius: 6px;"><i class="ph ph-plus"></i></button>
+                                ` : ''}
+                            </div>
+                        </div>
+                        <div class="alert-extra-times-list">
+                            ${((Array.isArray(conf.times) && conf.times.length > 1) ? conf.times.slice(1) : []).map((t, idx) => `
+                                <div class="alert-extra-time-row" style="display: flex; align-items: center; justify-content: flex-end; gap: 4px; margin-top: 4px;">
+                                    <input type="time" class="alert-time-input alert-extra-time-input" value="${t}" aria-label="Horario adicional de ${safeName}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: var(--control-bg); color: var(--text-primary); font-size: 0.85rem;">
+                                    <button type="button" class="icon-btn btn-remove-extra-time" data-extra-index="${idx}" aria-label="Eliminar horario adicional" title="Eliminar horario" style="font-size: 0.85rem; padding: 4px; color: var(--status-red);"><i class="ph ph-trash"></i></button>
+                                </div>
+                            `).join('')}
+                        </div>
                     </div>
                     `}
                     ${isRecurring && schedule.type === 'weekly' ? `

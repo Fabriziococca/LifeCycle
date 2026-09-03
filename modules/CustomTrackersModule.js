@@ -2604,8 +2604,12 @@ export class CustomTrackersModule {
                             </span>
                         </label>
                         <div class="input-group custom-tracker-alert-time-wrap hidden">
-                            <label for="custom-tracker-alert-time">Hora del aviso diario</label>
-                            <input id="custom-tracker-alert-time" class="time-input" type="time" value="23:00">
+                            <label for="custom-tracker-alert-time">Horarios de aviso</label>
+                            <div style="display: flex; gap: 6px; align-items: center;">
+                                <input id="custom-tracker-alert-time" class="time-input" type="time" value="23:00">
+                                <button type="button" id="btn-custom-tracker-add-time" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.8rem; white-space: nowrap;" title="Agregar otro horario de aviso">+ Horario</button>
+                            </div>
+                            <div id="custom-tracker-extra-times-list" style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;"></div>
                         </div>
                     </div>
                     <div id="custom-tracker-form-error" class="custom-tracker-form-error hidden" role="alert"></div>
@@ -2909,9 +2913,11 @@ export class CustomTrackersModule {
         this.dialog.querySelector('#custom-tracker-alert-enabled').checked = (
             alertConfig.enabled === true
         );
-        this.dialog.querySelector('#custom-tracker-alert-time').value = (
-            alertConfig.time || '23:00'
-        );
+        const currentAlertTimes = Array.isArray(alertConfig.times) && alertConfig.times.length > 0
+            ? alertConfig.times
+            : [alertConfig.time || '23:00'];
+        this.dialog.querySelector('#custom-tracker-alert-time').value = currentAlertTimes[0];
+        this.renderCustomTrackerExtraTimes(currentAlertTimes.slice(1));
         const errorElement = this.dialog.querySelector('#custom-tracker-form-error');
         errorElement.classList.add('hidden');
         errorElement.textContent = '';
@@ -3047,7 +3053,8 @@ export class CustomTrackersModule {
                 alertKey: existing?.alertKey,
                 alert: {
                     enabled: alertEnabled,
-                    time: alertTime
+                    time: normalizedAlertSchedule.time,
+                    times: normalizedAlertSchedule.times
                 }
             }, {
                 id: existing?.id || this.generateTrackerId(),
@@ -3101,6 +3108,9 @@ export class CustomTrackersModule {
             const nextConfig = {
                 enabled: disabled ? false : alertConfig.enabled === true,
                 time: alertConfig.time || '23:00',
+                times: (Array.isArray(alertConfig.times) && alertConfig.times.length > 0)
+                    ? alertConfig.times
+                    : [alertConfig.time || '23:00'],
                 days: []
             };
             const tracker = typeof trackerOrId === 'object'
