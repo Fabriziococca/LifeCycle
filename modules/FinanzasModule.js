@@ -1604,6 +1604,48 @@ export class FinanzasModule {
         ));
     }
 
+    recordSubscriptionExpense({ subscriptionId, name, amount, currency, date, period }) {
+        let amountInUSD = Math.max(0, Number(amount) || 0);
+        if (currency === 'ARS') {
+            const rate = Number(this.app.currencyRate) || 0;
+            if (rate > 0) {
+                amountInUSD = amountInUSD / rate;
+            }
+        }
+
+        const dateVal = date || new Date().toISOString().slice(0, 10);
+        const description = `[Suscripción: ${name}] ${period || 'Renovación'}`;
+
+        // Prevenir duplicado exacto para la misma suscripción y fecha
+        const existing = this.data.expenses.find(e =>
+            e.subscriptionId === subscriptionId && e.date === dateVal
+        );
+        if (existing) {
+            return false;
+        }
+
+        const newExpense = {
+            id: Date.now(),
+            category: 'Suscripciones',
+            date: dateVal,
+            amount: Math.round(amountInUSD * 100) / 100,
+            description,
+            subscriptionId,
+            autoRecorded: true
+        };
+
+        const capacity = this.getFinanceResourceCapacity(
+            RESOURCE_KEYS.FINANCE_TRANSACTIONS
+        );
+        if (!capacity) return false;
+
+        this.data.expenses.push(newExpense);
+        this.saveData();
+        this.app.auth?.syncToCloud(false).catch(() => {});
+        this.render();
+        return true;
+    }
+
     async deleteExpense(id) {
         const expense = this.data.expenses.find(item => item.id === id);
         if (!expense) return;

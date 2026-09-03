@@ -1845,6 +1845,52 @@
 
 
 
+        <!-- SECCIÓN: SUSCRIPCIONES (Fase C) -->
+        <section id="suscripciones-section" class="main-section hidden">
+            <header class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
+                <div>
+                    <h2>Suscripciones</h2>
+                    <p style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">Control de servicios recurrentes, costos mensuales y fechas de renovación.</p>
+                </div>
+                <button type="button" id="btn-new-subscription" class="btn btn-primary">
+                    <i class="ph ph-plus"></i> Nueva Suscripción
+                </button>
+            </header>
+
+            <!-- Métricas resumen -->
+            <div class="summary-metrics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
+                <div class="card" style="padding: 1.25rem;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Gasto mensual (USD)</span>
+                    <h3 id="subs-summary-monthly-usd" style="margin: 0.35rem 0 0 0; font-size: 1.45rem; color: var(--text-primary);">$0.00 USD</h3>
+                </div>
+                <div class="card" style="padding: 1.25rem;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Gasto mensual (ARS est.)</span>
+                    <h3 id="subs-summary-monthly-ars" style="margin: 0.35rem 0 0 0; font-size: 1.45rem; color: var(--text-primary);">—</h3>
+                </div>
+                <div class="card" style="padding: 1.25rem;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Renovaciones próximas (7 días)</span>
+                    <h3 id="subs-summary-upcoming" style="margin: 0.35rem 0 0 0; font-size: 1.45rem; color: var(--text-primary);">0</h3>
+                </div>
+                <div class="card" style="padding: 1.25rem;">
+                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Total de suscripciones</span>
+                    <h3 id="subs-summary-total" style="margin: 0.35rem 0 0 0; font-size: 1.45rem; color: var(--text-primary);">0</h3>
+                </div>
+            </div>
+
+            <!-- Filtros -->
+            <div class="tabs-container" style="display: flex; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap;">
+                <button type="button" class="tab-btn active" data-subscription-filter="all">Todas</button>
+                <button type="button" class="tab-btn" data-subscription-filter="active">Activas</button>
+                <button type="button" class="tab-btn" data-subscription-filter="expiring">Por vencer (7d)</button>
+                <button type="button" class="tab-btn" data-subscription-filter="canceled">Canceladas / Pausadas</button>
+            </div>
+
+            <!-- Grilla de suscripciones -->
+            <div id="subscriptions-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem;">
+                <!-- Dinámico -->
+            </div>
+        </section>
+
         <!-- SECCIÓN 4: AJUSTES Y MIGRACIÓN -->
         <section id="perfil-section" class="main-section hidden">
             <button id="btn-back-to-modules" class="btn btn-secondary" style="margin-bottom: 2rem; display: flex; align-items: center; gap: 8px; font-weight: 600;">
@@ -2575,6 +2621,109 @@
                 <button type="submit" class="btn btn-save"><i class="ph ph-floppy-disk"></i> Guardar recordatorio</button>
             </div>
         </form>
+    </div>
+
+    <!-- MODAL DE SUSCRIPCIÓN (Fase C) -->
+    <div id="subscription-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="subscription-modal-title">
+        <div class="modal-content" style="max-width: 500px;">
+            <div class="modal-header">
+                <h3 id="subscription-modal-title">Nueva Suscripción</h3>
+                <button type="button" class="icon-btn" data-subscription-modal-close aria-label="Cerrar modal">
+                    <i class="ph ph-x"></i>
+                </button>
+            </div>
+            <form id="subscription-form">
+                <div class="input-group">
+                    <label for="sub-name">Servicio o plataforma</label>
+                    <input type="text" id="sub-name" class="text-input" placeholder="Ej: Workana, Spotify, GitHub, ChatGPT..." required>
+                </div>
+                <div class="input-row" style="display: flex; gap: 10px;">
+                    <div class="input-group" style="flex: 1;">
+                        <label for="sub-cost">Costo del ciclo</label>
+                        <input type="number" id="sub-cost" class="text-input" step="0.01" min="0" placeholder="Ej: 15.00" required>
+                    </div>
+                    <div class="input-group" style="width: 110px;">
+                        <label for="sub-currency">Moneda</label>
+                        <select id="sub-currency" class="text-input">
+                            <option value="USD">USD</option>
+                            <option value="ARS">ARS</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="input-row" style="display: flex; gap: 10px;">
+                    <div class="input-group" style="flex: 1;">
+                        <label for="sub-period">Frecuencia / Ciclo</label>
+                        <select id="sub-period" class="text-input">
+                            <option value="1">Mensual (1 mes)</option>
+                            <option value="3">Trimestral (3 meses)</option>
+                            <option value="6">Semestral (6 meses)</option>
+                            <option value="12">Anual (1 año)</option>
+                        </select>
+                    </div>
+                    <div class="input-group" style="flex: 1;">
+                        <label for="sub-category">Categoría</label>
+                        <select id="sub-category" class="text-input">
+                            <option value="trabajo">💼 Trabajo</option>
+                            <option value="software">💻 Software</option>
+                            <option value="streaming">🎬 Streaming</option>
+                            <option value="servicios">⚡ Servicios</option>
+                            <option value="otros">📦 Otros</option>
+                        </select>
+                    </div>
+                </div>
+                <div class="input-row" style="display: flex; gap: 10px;">
+                    <div class="input-group" style="flex: 1;">
+                        <label for="sub-start-date">Fecha de inicio</label>
+                        <input type="date" id="sub-start-date" class="text-input" required>
+                    </div>
+                    <div class="input-group" style="flex: 1;">
+                        <label for="sub-renewal-date">Próxima renovación</label>
+                        <input type="date" id="sub-renewal-date" class="text-input">
+                    </div>
+                </div>
+
+                <div class="input-group" style="margin-top: 6px;">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="sub-autorenew" checked>
+                        <span>Renovación automática activa</span>
+                    </label>
+                </div>
+                <div class="input-group">
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                        <input type="checkbox" id="sub-auto-record-expense">
+                        <span>Registrar gasto automáticamente en Finanzas al renovar</span>
+                    </label>
+                </div>
+
+                <fieldset style="border: 1px solid var(--surface-border); border-radius: 8px; padding: 10px 14px; margin-top: 10px;">
+                    <legend style="padding: 0 6px; font-size: 0.85rem; color: var(--text-secondary);">Recordatorios push</legend>
+                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px;">
+                        <input type="checkbox" id="sub-alert-enabled" checked>
+                        <span>Avisarme antes de la renovación</span>
+                    </label>
+                    <div id="sub-alert-settings" class="input-row" style="display: flex; gap: 10px;">
+                        <div class="input-group" style="flex: 1;">
+                            <label for="sub-alert-days">Días previos</label>
+                            <input type="number" id="sub-alert-days" class="text-input" min="0" max="30" value="3">
+                        </div>
+                        <div class="input-group" style="flex: 1;">
+                            <label for="sub-alert-time">Hora del aviso</label>
+                            <input type="time" id="sub-alert-time" class="text-input" value="09:00">
+                        </div>
+                    </div>
+                </fieldset>
+
+                <div class="input-group" style="margin-top: 10px;">
+                    <label for="sub-notes">Notas u observaciones</label>
+                    <textarea id="sub-notes" class="text-input" rows="2" placeholder="Detalles del plan, datos de facturación..."></textarea>
+                </div>
+
+                <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1.5rem;">
+                    <button type="button" class="btn btn-secondary" data-subscription-modal-close>Cancelar</button>
+                    <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Guardar</button>
+                </div>
+            </form>
+        </div>
     </div>
 
     <!-- Modal de Edición Común (Retroactivo) -->

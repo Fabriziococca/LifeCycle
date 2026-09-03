@@ -3140,6 +3140,27 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                                 }
                             }
                             break;
+                        default:
+                            if (key.startsWith('sub_')) {
+                                const subRaw = data.projectPulseSubscription;
+                                const parsed = typeof subRaw === 'string' ? JSON.parse(subRaw || '{}') : (subRaw || {});
+                                const reg = parsed._subscriptionsRegistry?.subscriptions || [];
+                                const subId = key.replace(/^sub_/, '');
+                                const targetSub = reg.find(s => s.id === subId);
+                                if (targetSub && targetSub.status === 'active' && targetSub.alert?.enabled !== false) {
+                                    const renewal = new Date(targetSub.nextRenewalDate + 'T12:00:00');
+                                    const diffDays = getCandidateDaysUntil(renewal.toISOString());
+                                    const daysBefore = targetSub.alert?.daysBefore ?? 3;
+                                    if (diffDays <= daysBefore && diffDays >= 0) {
+                                        shouldNotify = true;
+                                        title = `💳 Suscripción: ${targetSub.name}`;
+                                        body = diffDays === 0
+                                            ? `Tu suscripción a ${targetSub.name} vence o renueva hoy.`
+                                            : `Tu suscripción a ${targetSub.name} vence o renueva en ${diffDays} días (${targetSub.nextRenewalDate}).`;
+                                    }
+                                }
+                            }
+                            break;
                         case 'projects_check':
                             const projectsData = typeof data.projectPulseData === 'string'
                                 ? JSON.parse(data.projectPulseData || '[]')
@@ -3334,6 +3355,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                         if (key === 'vitamina_d') targetUrl = '/?open=vitamina_d';
                         else if (key === 'robot') targetUrl = '/?open=robot';
                         else if (key === 'workana') targetUrl = '/?open=workana';
+                        else if (key.startsWith('sub_')) targetUrl = '/?open=suscripciones';
                         else if (key.startsWith('vehicle_')) targetUrl = '/?open=vehicle&tab=' + (key.includes('docs') ? 'docs' : 'maint');
 
                         const payload = JSON.stringify({

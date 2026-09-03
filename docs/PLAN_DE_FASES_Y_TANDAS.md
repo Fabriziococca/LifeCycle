@@ -10,7 +10,7 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 |---|---|---|---|---|
 | **Fase A** | Base local y organización | 6 (0 a 5) | 6 | 🟢 Completada |
 | **Fase B** | Varios horarios de notificación | 6 (6 a 10) | 6 | 🟢 Completada |
-| **Fase C** | Suscripciones | 5 (11 a 15) | 0 | ⚪ Pendiente |
+| **Fase C** | Suscripciones | 5 (11 a 15) | 5 | 🟢 Completada |
 | **Fase D** | Viabilidad, presupuesto operativo y Android | 8 (16A a 18C) | 0 | ⚪ Pendiente |
 | **Fase E** | Transcripciones completas | 7 (19 a 25) | 0 | ⚪ Pendiente |
 | **Fase F** | Inicio de cuentas y entrega | 4 (26 a 27C) | 0 | ⚪ Pendiente |
@@ -39,11 +39,11 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 
 ### Fase C — Suscripciones
 
-- [ ] **Tanda 11 — Modelo e historial**: Definir suscripciones con nombre, importe, moneda, inicio, periodo, próxima renovación, vigencia y estado de renovación automática. Mantener historial y contemplar cambios de precio y fechas de fin de mes.
-- [ ] **Tanda 12 — Gestión del módulo**: Crear el módulo especializado y ocultable de Suscripciones. Incorporar listado, detalle, creación, edición, desactivación de renovación y reactivación. Conservar la vigencia hasta la fecha correspondiente y distinguir el registro en LifeCycle de una cancelación real en el proveedor externo.
-- [ ] **Tanda 13 — Gastos vinculados**: Incorporar registro manual por defecto y registro automático como opción explícita. Generar como máximo un gasto por periodo, evitar duplicados entre dispositivos y reintentos, identificar los registros automáticos y permitir su corrección sin borrar el historial financiero.
-- [ ] **Tanda 14 — Recordatorios y traslado de Workana**: Integrar avisos previos y de vencimiento con varios horarios. Trasladar Workana desde Proyectos conservando sus datos y referencias. Verificar que repetir la migración no duplique información.
-- [ ] **Tanda 15 — Cierre del bloque**: Probar alta, edición, renovación, avisos, generación de gastos, cancelación y reactivación. Verificar persistencia, sincronización e interfaz. Publicar el bloque cuando esté integrado y validado.
+- [x] **Tanda 11 — Modelo e historial**: Definir suscripciones con nombre, importe, moneda, inicio, periodo, próxima renovación, vigencia y estado de renovación automática. Mantener historial y contemplar cambios de precio y fechas de fin de mes. *(Completada: 2026-09-02)*
+- [x] **Tanda 12 — Gestión del módulo**: Crear el módulo especializado y ocultable de Suscripciones. Incorporar listado, detalle, creación, edición, desactivación de renovación y reactivación. Conservar la vigencia hasta la fecha correspondiente y distinguir el registro en LifeCycle de una cancelación real en el proveedor externo. *(Completada: 2026-09-02)*
+- [x] **Tanda 13 — Gastos vinculados**: Incorporar registro manual por defecto y registro automático como opción explícita. Generar como máximo un gasto por periodo, evitar duplicados entre dispositivos y reintentos, identificar los registros automáticos y permitir su corrección sin borrar el historial financiero. *(Completada: 2026-09-02)*
+- [x] **Tanda 14 — Recordatorios y traslado de Workana**: Integrar avisos previos y de vencimiento con varios horarios. Trasladar Workana desde Proyectos conservando sus datos y referencias. Verificar que repetir la migración no duplique información. *(Completada: 2026-09-02)*
+- [x] **Tanda 15 — Cierre del bloque**: Probar alta, edición, renovación, avisos, generación de gastos, cancelación y reactivación. Verificar persistencia, sincronización e interfaz. Publicar el bloque cuando esté integrado y validado. *(Completada: 2026-09-02)*
 
 ### Fase D — Viabilidad, presupuesto operativo y Android
 

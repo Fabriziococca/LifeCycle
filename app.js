@@ -5,6 +5,7 @@ import { HealthModule } from './modules/HealthModule.js';
 import { VehicleModule } from './modules/VehicleModule.js';
 import { GymModule } from './modules/GymModule.js';
 import { ProjectsModule } from './modules/ProjectsModule.js';
+import { SubscriptionsModule } from './modules/SubscriptionsModule.js';
 import { BackupModule } from './modules/BackupModule.js';
 import { AuthSyncModule } from './modules/AuthSyncModule.js';
 import { FinanzasModule } from './modules/FinanzasModule.js';
@@ -925,6 +926,7 @@ class AppController {
         this.vehicle = new VehicleModule(this);
         this.gym = new GymModule(this);
         this.projects = new ProjectsModule(this);
+        this.subscriptions = new SubscriptionsModule(this);
         this.finanzas = new FinanzasModule(this);
         this.trading = new TradingModule(this);
         this.tareas = new TareasModule(this);
@@ -951,6 +953,7 @@ class AppController {
                 else if (activeSection.id === 'salud-section') this.health.render();
                 else if (activeSection.id === 'vehiculo-section') this.vehicle.render();
                 else if (activeSection.id === 'gym-section') this.gym.render();
+                else if (activeSection.id === 'suscripciones-section') this.subscriptions?.render();
                 else if (activeSection.id === 'projects-section') this.projects.render();
                 else if (activeSection.id === 'finanzas-section') this.finanzas.render();
                 else if (activeSection.id === 'trading-section') this.trading.render();

@@ -223,8 +223,27 @@ export class NotificationsCenterModule {
                 items.push(...(this.app.vehicle.cards?.getOverdueItems?.(now) || []));
             }
 
-            // 5. WORKANA SUBSCRIPTION
-            if (this.app.projects) {
+            // 5. SUSCRIPCIONES (Fase C)
+            if (this.app.subscriptions?.subscriptions?.length) {
+                this.app.subscriptions.subscriptions.forEach(sub => {
+                    if (sub.status !== 'active') return;
+                    const diffDays = DateUtils.getDaysUntil(sub.nextRenewalDate);
+                    const alertDays = sub.alert?.daysBefore ?? 3;
+                    if (Number.isFinite(diffDays) && diffDays <= alertDays) {
+                        items.push({
+                            module: 'workana',
+                            id: `sub_${sub.id}`,
+                            name: sub.name,
+                            icon: 'ph-receipt',
+                            desc: diffDays < 0
+                                ? `Plazo de suscripción vencido hace ${Math.abs(diffDays)} días.`
+                                : (diffDays === 0 ? 'La suscripción renueva o vence hoy.' : `Renueva en ${diffDays} días (${sub.nextRenewalDate}).`),
+                            overdue: diffDays <= 0,
+                            targetSection: 'suscripciones-section'
+                        });
+                    }
+                });
+            } else if (this.app.projects) {
                 const sub = this.app.projects.subscription;
                 if (sub && sub.startDate) {
                     const nextDate = parseDateLocal(sub.startDate);
@@ -394,7 +413,11 @@ export class NotificationsCenterModule {
             sectionId = 'tareas-section';
             targetElementId = targetElementId || `task-item-${item.id}`;
         } else if (item.module === 'projects' || item.module === 'workana') {
-            sectionId = 'projects-section';
+            if (item.targetSection === 'suscripciones-section') {
+                sectionId = 'suscripciones-section';
+            } else {
+                sectionId = 'projects-section';
+            }
             if (item.module === 'workana') {
                 targetElementId = targetElementId || 'subscription-card';
             }
