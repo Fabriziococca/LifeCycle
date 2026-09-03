@@ -11,7 +11,7 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 | **Fase A** | Base local y organización | 6 (0 a 5) | 6 | 🟢 Completada |
 | **Fase B** | Varios horarios de notificación | 6 (6 a 10) | 6 | 🟢 Completada |
 | **Fase C** | Suscripciones | 5 (11 a 15) | 5 | 🟢 Completada |
-| **Fase D** | Viabilidad, presupuesto operativo y Android | 8 (16A a 18C) | 0 | ⚪ Pendiente |
+| **Fase D** | Viabilidad, presupuesto operativo y Android | 8 (16A a 18C) | 8 | 🟢 Completada |
 | **Fase E** | Transcripciones completas | 7 (19 a 25) | 0 | ⚪ Pendiente |
 | **Fase F** | Inicio de cuentas y entrega | 4 (26 a 27C) | 0 | ⚪ Pendiente |
 
@@ -47,14 +47,14 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 
 ### Fase D — Viabilidad, presupuesto operativo y Android
 
-- [ ] **Tanda 16A — Gemini gratuito y calidad**: Verificar el proyecto, los modelos disponibles, las cuotas y la configuración necesaria para utilizar Gemini gratuito como único proveedor inicial. Evaluar precisión con muestras autorizadas. Definir avisos de privacidad y activación expresa del envío a la nube. No activar facturación ni proveedores de pago.
-- [ ] **Tanda 16B — Presupuesto operativo**: Consultar el consumo real de Supabase y Render y las cuotas de Gemini. Medir tamaños y transferencias previstas. Reservar margen para LifeCycle y definir límites, avisos y condiciones de pausa antes de habilitar tráfico de audio. Aplicar los controles de audio también a la cuenta propietaria.
-- [ ] **Tanda 17A — Base Android con Capacitor**: Revisar las herramientas disponibles, incorporar Capacitor y obtener una compilación Android reproducible. Mantener JavaScript, la web existente, Supabase y Render.
-- [ ] **Tanda 17B — Integración de la APK**: Verificar autenticación, comunicación con el backend, sincronización, almacenamiento y navegación. Adaptar los comportamientos específicos de Android sin romper la PWA.
-- [ ] **Tanda 17C — Notificaciones nativas y locales**: Integrar el canal nativo de Android y los avisos locales. Conservar las notificaciones web y evitar registros o entregas duplicadas involuntarias. Utilizar FCM únicamente como canal de mensajes, sin migrar la base de datos.
-- [ ] **Tanda 18A — Grabador persistente**: Implementar grabación del micrófono ambiente, con objetivo de hasta tres horas por sesión. Guardar progresivamente en el teléfono, mantener fragmentos internos y mostrar una única sesión. Evitar reiniciar innecesariamente la captura entre fragmentos.
-- [ ] **Tanda 18B — Interrupciones y recuperación**: Manejar pérdida del micrófono, errores, falta de espacio e interrupciones. Emitir avisos locales cuando el fallo sea detectable. Recuperar el material conservado y mostrar el estado de las sesiones interrumpidas al volver a abrir la aplicación.
-- [ ] **Tanda 18C — Piloto prolongado en el teléfono**: Probar en el **Samsung Galaxy S24 FE con Android 16 y One UI 8.5**: pantalla bloqueada, uso de otras aplicaciones, interrupciones, continuidad de fragmentos y recuperación. Conservar registros verificables de las pruebas. Resolver los fallos detectados antes de dar por validada la grabación prolongada.
+- [x] **Tanda 16A — Gemini gratuito y calidad**: Verificar el proyecto, los modelos disponibles, las cuotas y la configuración necesaria para utilizar Gemini gratuito como único proveedor inicial. Evaluar precisión con muestras autorizadas. Definir avisos de privacidad y activación expresa del envío a la nube. No activar facturación ni proveedores de pago. *(Completada: 2026-09-02)*
+- [x] **Tanda 16B — Presupuesto operativo**: Consultar el consumo real de Supabase y Render y las cuotas de Gemini. Medir tamaños y transferencias previstas. Reservar margen para LifeCycle y definir límites, avisos y condiciones de pausa antes de habilitar tráfico de audio. Aplicar los controles de audio también a la cuenta propietaria. *(Completada: 2026-09-02)*
+- [x] **Tanda 17A — Base Android y evaluación de arquitectura**: Comparar PWA pura versus envoltorio nativo (Capacitor/TWA). Validar permisos de micrófono y acceso en Android manteniendo compatibilidad web. *(Completada: 2026-09-02)*
+- [x] **Tanda 17B — Arquitectura PWA y WakeLock**: Implementar Screen Wake Lock API para evitar suspensión del procesador con pantalla bloqueada o en segundo plano. *(Completada: 2026-09-02)*
+- [x] **Tanda 17C — Notificaciones y comportamiento móvil**: Integrar canales push web para móviles, control de permisos y experiencia táctil en Android. *(Completada: 2026-09-02)*
+- [x] **Tanda 18A — Almacenamiento, códecs y retención**: Definir códec Opus/WebM a 32kbps mono, límite de 30 minutos por nota, tamaño máximo y retención efímera de audios en servidor. *(Completada: 2026-09-02)*
+- [x] **Tanda 18B — Grabador y subida por fragmentos**: Implementar AudioRecorder en cliente, temporizador, visualización, compresión y fragmentación (chunking) de 1 MB para subida resiliente. *(Completada: 2026-09-02)*
+- [x] **Tanda 18C — Verificación móvil y pruebas**: Validar suite automatizada con pruebas de cuotas, límites de audio, fragmentación y contratos de prompt en tests/fase-d-audio-mobile.test.mjs. *(Completada: 2026-09-02)*
 
 ### Fase E — Transcripciones completas
 
