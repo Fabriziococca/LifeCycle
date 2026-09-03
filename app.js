@@ -645,6 +645,43 @@ class AppController {
         });
     }
 
+    handleInitialDestination() {
+        if (typeof window === 'undefined') return;
+        const searchParams = new URLSearchParams(window.location.search);
+        const openParam = searchParams.get('open');
+        const hash = window.location.hash || '';
+
+        let itemToOpen = null;
+
+        if (openParam === 'vitamina_d' || hash.includes('vitamina_d')) {
+            itemToOpen = {
+                module: 'gym',
+                id: 'vit_d',
+                gymTab: 'nutrition',
+                targetElementId: 'vitd-timer-box'
+            };
+        } else if (openParam === 'robot' || hash.includes('robot')) {
+            itemToOpen = { module: 'robot', id: 'robot_cleaner' };
+        } else if (openParam === 'workana' || hash.includes('workana')) {
+            itemToOpen = { module: 'workana', id: 'workana_sub' };
+        } else if (openParam === 'vehicle' || hash.includes('vehiculo')) {
+            const tab = searchParams.get('tab') || (hash.includes('docs') ? 'docs' : 'maint');
+            itemToOpen = { module: 'vehicle', vehicleTab: tab, id: searchParams.get('id') };
+        } else if (openParam === 'project') {
+            itemToOpen = { module: 'projects', id: searchParams.get('id') };
+        } else if (openParam === 'tareas' || openParam === 'task') {
+            itemToOpen = { module: 'tareas', id: searchParams.get('id') };
+        } else if (openParam === 'custom_tracker' || searchParams.get('trackerId')) {
+            itemToOpen = { module: 'custom_tracker', id: searchParams.get('trackerId') || searchParams.get('id') };
+        }
+
+        if (itemToOpen) {
+            setTimeout(() => {
+                this.notificationsCenter?.openItem(itemToOpen);
+            }, 120);
+        }
+    }
+
     initProfileOverlay() {
         const profileBtn = document.getElementById('profile-btn');
         const backBtn = document.getElementById('btn-back-to-modules');
@@ -896,6 +933,7 @@ class AppController {
         this.adaptiveNavigation = new AdaptiveNavigationModule(this);
         this.restoreUiState();
         requestAnimationFrame(() => this.refreshNavigationHints());
+        this.handleInitialDestination();
         
         setInterval(() => {
             const activeSection = document.querySelector('.main-section:not(.hidden)');

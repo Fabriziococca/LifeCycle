@@ -294,7 +294,9 @@ export class NotificationsCenterModule {
                                 id: 'vit_d',
                                 name: 'Vitamina D',
                                 icon: 'ph-capsule',
-                                desc: remaining === 0 ? 'Te toca tomarla hoy.' : `Pendiente hace ${Math.abs(remaining)} días.`
+                                desc: remaining === 0 ? 'Te toca tomarla hoy.' : `Pendiente hace ${Math.abs(remaining)} días.`,
+                                gymTab: 'nutrition',
+                                targetElementId: 'vitd-timer-box'
                             });
                         }
                     }
@@ -374,55 +376,103 @@ export class NotificationsCenterModule {
         if (!item) return false;
 
         let sectionId = null;
+        let targetTab = null;
+        let targetElementId = item.targetElementId || null;
+
         if (item.module === 'tareas') {
             const task = this.app.tareas?.tasks?.find(
                 candidate => String(candidate.id) === String(item.id)
             );
             if (task?.category) this.app.tareas.currentCategory = task.category;
             sectionId = 'tareas-section';
+            targetElementId = targetElementId || `task-item-${item.id}`;
         } else if (item.module === 'projects_tasks') {
             this.app.tareas.currentCategory = 'Freelance';
             if (item.projectId !== undefined && item.projectId !== null) {
                 this.app.tareas.activeProjectId = item.projectId;
             }
             sectionId = 'tareas-section';
+            targetElementId = targetElementId || `task-item-${item.id}`;
         } else if (item.module === 'projects' || item.module === 'workana') {
             sectionId = 'projects-section';
+            if (item.module === 'workana') {
+                targetElementId = targetElementId || 'subscription-card';
+            }
         } else if (item.module === 'custom_tracker') {
             const tracker = this.app.customTrackers?.getTracker(item.id);
             const sectionMap = {
                 hygiene: 'higiene-section',
                 grooming: 'cuidado-section',
                 lenses: 'lentes-section',
-                health: 'salud-section'
+                health: 'salud-section',
+                gym: 'gym-section',
+                vehicle: 'vehiculo-section'
             };
-            sectionId = sectionMap[tracker?.section] || null;
+            sectionId = sectionMap[tracker?.section] || tracker?.section || null;
+            targetElementId = targetElementId || (tracker ? `custom-card-${tracker.id}` : null);
+        } else if (item.module === 'gym') {
+            sectionId = 'gym-section';
+            if (item.id === 'vit_d' || item.gymTab === 'nutrition') {
+                targetTab = 'nutrition';
+                targetElementId = targetElementId || 'vitd-timer-box';
+            } else if (item.gymTab) {
+                targetTab = item.gymTab;
+            }
+        } else if (item.module === 'vehicle') {
+            sectionId = 'vehiculo-section';
+            targetTab = item.vehicleTab || (item.section === 'documents' ? 'docs' : 'maint');
         } else {
             const moduleSections = {
                 hygiene: 'higiene-section',
                 robot: 'higiene-section',
                 grooming: 'cuidado-section',
-                lenses: 'lentes-section',
+                lenses: 'lenses-section',
                 vehicle: 'vehiculo-section',
-                gym: 'gym-section'
+                gym: 'gym-section',
+                finanzas: 'finanzas-section',
+                trading: 'trading-section'
             };
             sectionId = moduleSections[item.module] || null;
-        }
-
-        if (item.module === 'vehicle' && item.vehicleTab) {
-            this.app.vehicle?.activateVehicleTab?.(item.vehicleTab, {
-                persist: true,
-                render: true
-            });
+            if (item.module === 'robot') {
+                targetElementId = targetElementId || 'card-robot';
+            }
         }
 
         if (!sectionId || !this.app.activateSection(sectionId, { smooth: true })) {
             return false;
         }
 
+        // Sub-tabs switching
+        if (item.module === 'gym' && targetTab) {
+            this.app.gym?.activateGymTab?.(targetTab, {
+                persist: true,
+                render: true
+            });
+        } else if (item.module === 'vehicle' && targetTab) {
+            this.app.vehicle?.activateVehicleTab?.(targetTab, {
+                persist: true,
+                render: true
+            });
+        }
+
         this.panel?.classList.add('hidden');
+
+        // Scroll to specific element if targetElementId exists or card exists
         requestAnimationFrame(() => {
-            window.scrollTo({ top: 0, behavior: 'smooth' });
+            let targetEl = targetElementId ? document.getElementById(targetElementId) : null;
+            if (!targetEl && item.id) {
+                targetEl = document.querySelector(`[data-project-id="${item.id}"]`)
+                    || document.querySelector(`[data-card-id="${item.id}"]`)
+                    || document.querySelector(`[data-tracker-id="${item.id}"]`)
+                    || document.querySelector(`[data-task-id="${item.id}"]`);
+            }
+            if (targetEl) {
+                targetEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                targetEl.classList.add('highlight-target-pulse');
+                setTimeout(() => targetEl.classList.remove('highlight-target-pulse'), 2200);
+            } else {
+                window.scrollTo({ top: 0, behavior: 'smooth' });
+            }
         });
         return true;
     }

@@ -12836,3 +12836,21 @@ html[data-theme="light"] .notifications-header .count-badge {
         box-shadow: none !important;
     }
 }
+
+@keyframes highlightTargetPulse {
+    0% {
+        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0.8);
+        border-color: var(--primary-color) !important;
+    }
+    40% {
+        box-shadow: 0 0 0 10px rgba(99, 102, 241, 0.3);
+        border-color: var(--primary-color) !important;
+    }
+    100% {
+        box-shadow: 0 0 0 0 rgba(99, 102, 241, 0);
+    }
+}
+
+.highlight-target-pulse {
+    animation: highlightTargetPulse 2.2s cubic-bezier(0.25, 1, 0.5, 1);
+}

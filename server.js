@@ -3167,7 +3167,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                                                 const payload = JSON.stringify({
                                                     title: projTitle,
                                                     body: projBody,
-                                                    url: '/'
+                                                    url: `/?open=project&id=${encodeURIComponent(p.id)}`
                                                 });
 
                                                 const result = await sendPushToSubscriptions({
@@ -3281,7 +3281,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                                         const payload = JSON.stringify({
                                             title: item.title,
                                             body: item.body,
-                                            url: '/'
+                                            url: `/?open=task&id=${encodeURIComponent(item.id)}`
                                         });
 
                                         const result = await sendPushToSubscriptions({
@@ -3312,10 +3312,16 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
 
                     if (shouldNotify && title && body) {
                         console.log(`[Notification Dispatch] Preparando push de '${title}' para usuario ${userId}`);
+                        let targetUrl = '/';
+                        if (key === 'vitamina_d') targetUrl = '/?open=vitamina_d';
+                        else if (key === 'robot') targetUrl = '/?open=robot';
+                        else if (key === 'workana') targetUrl = '/?open=workana';
+                        else if (key.startsWith('vehicle_')) targetUrl = '/?open=vehicle&tab=' + (key.includes('docs') ? 'docs' : 'maint');
+
                         const payload = JSON.stringify({
                             title: title,
                             body: body,
-                            url: '/'
+                            url: targetUrl
                         });
 
                         const result = await sendPushToSubscriptions({
