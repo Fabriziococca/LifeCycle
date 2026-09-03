@@ -8,7 +8,7 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 
 | Fase | Descripción | Tandas Totales | Completadas | Estado |
 |---|---|---|---|---|
-| **Fase A** | Base local y organización | 6 (0 a 5) | 2 | 🟡 En progreso |
+| **Fase A** | Base local y organización | 6 (0 a 5) | 6 | 🟢 Completada |
 | **Fase B** | Varios horarios de notificación | 6 (6 a 10) | 0 | ⚪ Pendiente |
 | **Fase C** | Suscripciones | 5 (11 a 15) | 0 | ⚪ Pendiente |
 | **Fase D** | Viabilidad, presupuesto operativo y Android | 8 (16A a 18C) | 0 | ⚪ Pendiente |
@@ -23,10 +23,10 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 
 - [x] **Tanda 0 — Reconciliación de Git**: Respaldar el estado local, contrastarlo con GitHub y producción, recuperar las referencias correspondientes y separar archivos temporales del código. Conservar todos los cambios legítimos, sin commits duplicados ni reescrituras de historial. Dejar el plan y el estado de avance documentados en el repositorio. *(Completada: 2026-09-02)*
 - [x] **Tanda 1 — Destinos de los avisos**: Corregir enlaces como Vitamina D para abrir el módulo, la pestaña y el elemento correspondiente. Revisar los recorridos desde la campana, Hoy y las notificaciones que utilicen esos destinos. *(Completada: 2026-09-02)*
-- [ ] **Tanda 2 — Iconos y tooltip**: Inventariar los iconos utilizados, corregir referencias incorrectas y verificar su carga y visualización. Cubrir también selectores y contenido dinámico. Corregir el tooltip que queda visible al cerrar “Más”.
-- [ ] **Tanda 3 — Cuenta y preferencias**: Reorganizar la sección en **Mi cuenta**, **Preferencias**, **Organización**, **Notificaciones y dispositivos**, y **Datos y aplicación**. Ubicar moneda, apariencia y comportamiento en Preferencias; mantener diagnósticos avanzados desplegables y preservar las configuraciones existentes.
-- [ ] **Tanda 4 — Navegación móvil**: Incorporar un acceso visible a la cuenta en la cabecera. Mantener cuatro favoritos y reservar “Más” exclusivamente para módulos. Verificar selección, regreso, foco, accesibilidad y adaptación a pantallas pequeñas.
-- [ ] **Tanda 5 — Personalización y funciones**: Distinguir funciones especializadas de la aplicación, módulos personalizados y contenido creado por el usuario. Aclarar el selector de iconos. Añadir una preferencia para ocultar las plantillas de proyectos sin eliminarlas. Mantener Hoy, la búsqueda y la creación rápida de tareas.
+- [x] **Tanda 2 — Iconos y tooltip**: Inventariar los iconos utilizados, corregir referencias incorrectas y verificar su carga y visualización. Cubrir también selectores y contenido dinámico. Corregir el tooltip que queda visible al cerrar “Más”. *(Completada: 2026-09-02)*
+- [x] **Tanda 3 — Cuenta y preferencias**: Reorganizar la sección en **Mi cuenta**, **Preferencias**, **Organización**, **Notificaciones y dispositivos**, y **Datos y aplicación**. Ubicar moneda, apariencia y comportamiento en Preferencias; mantener diagnósticos avanzados desplegables y preservar las configuraciones existentes. *(Completada: 2026-09-02)*
+- [x] **Tanda 4 — Navegación móvil**: Incorporar un acceso visible a la cuenta en la cabecera. Mantener cuatro favoritos y reservar “Más” exclusivamente para módulos. Verificar selección, regreso, foco, accesibilidad y adaptación a pantallas pequeñas. *(Completada: 2026-09-02)*
+- [x] **Tanda 5 — Personalización y funciones**: Distinguir funciones especializadas de la aplicación, módulos personalizados y contenido creado por el usuario. Aclarar el selector de iconos. Añadir una preferencia para ocultar las plantillas de proyectos sin eliminarlas. Mantener Hoy, la búsqueda y la creación rápida de tareas. *(Completada: 2026-09-02)*
 
 ### Fase B — Varios horarios de notificación
 

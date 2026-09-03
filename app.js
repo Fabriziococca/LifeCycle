@@ -684,13 +684,19 @@ class AppController {
 
     initProfileOverlay() {
         const profileBtn = document.getElementById('profile-btn');
+        const headerProfileBtn = document.getElementById('header-profile-btn');
         const backBtn = document.getElementById('btn-back-to-modules');
         const mainNav = document.getElementById('main-nav');
 
+        const handleOpenProfile = () => {
+            this.openProfileTab(this.uiState.profileTab, { persist: false });
+        };
+
         if (profileBtn) {
-            profileBtn.addEventListener('click', () => {
-                this.openProfileTab(this.uiState.profileTab, { persist: false });
-            });
+            profileBtn.addEventListener('click', handleOpenProfile);
+        }
+        if (headerProfileBtn) {
+            headerProfileBtn.addEventListener('click', handleOpenProfile);
         }
 
         if (backBtn) {

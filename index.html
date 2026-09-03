@@ -186,6 +186,16 @@
                     <h1 id="app-context-title" aria-live="polite" aria-atomic="true">Hoy</h1>
                 </span>
             </div>
+            <button
+                id="header-profile-btn"
+                class="header-profile-btn"
+                type="button"
+                aria-label="Abrir mi cuenta y configuración"
+                data-tooltip="Mi cuenta y ajustes"
+            >
+                <i class="ph ph-user"></i>
+                <span class="header-profile-label">Cuenta</span>
+            </button>
         </header>
 
         <!-- Navegación Principal -->
@@ -1850,9 +1860,18 @@
                     </button>
                     <button class="profile-menu-item" data-tab="notificaciones">
                         <i class="ph ph-bell"></i>
-                        <span>Notificaciones</span>
+                        <span>Dispositivos</span>
                     </button>
+                    <button class="profile-menu-item" data-tab="alertas">
+                        <i class="ph ph-bell-ringing"></i>
+                        <span>Recordatorios</span>
+                    </button>
+
                     <span class="profile-menu-group">Personalización</span>
+                    <button class="profile-menu-item" data-tab="preferencias">
+                        <i class="ph ph-sliders"></i>
+                        <span>Preferencias</span>
+                    </button>
                     <button class="profile-menu-item" data-tab="seguimientos">
                         <i class="ph ph-stack"></i>
                         <span>Tarjetas</span>
@@ -1861,14 +1880,7 @@
                         <i class="ph ph-squares-four"></i>
                         <span>Módulos</span>
                     </button>
-                    <button class="profile-menu-item" data-tab="alertas">
-                        <i class="ph ph-bell-ringing"></i>
-                        <span>Recordatorios</span>
-                    </button>
-                    <button class="profile-menu-item" data-tab="preferencias">
-                        <i class="ph ph-sliders"></i>
-                        <span>Preferencias</span>
-                    </button>
+
                     <span class="profile-menu-group">Datos y aplicación</span>
                     <button class="profile-menu-item" data-tab="backup">
                         <i class="ph ph-shield-check"></i>
@@ -1913,8 +1925,43 @@
                                         <span class="slider round"></span>
                                     </label>
                                 </div>
+                                <div style="display:flex; justify-content:space-between; align-items:center; gap: 1rem; padding: 0.75rem 0; border-top: 1px solid var(--border-color, rgba(255, 255, 255, 0.08));">
+                                    <div>
+                                        <h4 style="margin: 0; font-size: 0.95rem; color: var(--text-primary);">Ocultar plantillas de proyectos</h4>
+                                        <p style="margin: 4px 0 0 0; font-size: 0.8rem; color: var(--text-secondary);">
+                                            Oculta el selector de plantillas al crear proyectos sin eliminar tus plantillas guardadas.
+                                        </p>
+                                    </div>
+                                    <label class="switch" style="flex-shrink: 0;">
+                                        <input
+                                            type="checkbox"
+                                            id="pref-hide-project-templates"
+                                            aria-label="Ocultar plantillas de proyectos"
+                                        >
+                                        <span class="slider round"></span>
+                                    </label>
+                                </div>
                             </div>
-                        </div>
+                        <
+                        <!-- Panel de Preferencias de Moneda -->
+                        <div class="card appearance-preference-card">
+                            <div class="card-header">
+                                <div class="icon-container">
+                                    <i class="ph ph-currency-dollar"></i>
+                                </div>
+                                <div>
+                                    <h3>Preferencia de Moneda</h3>
+                                    <p class="section-desc">Seleccioná la moneda para visualizar tus finanzas y valores de proyectos.</p>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <div style="display: flex; gap: 10px; align-items: center;">
+                                    <button id="btn-currency-usd" class="btn btn-primary" style="flex: 1;"><i class="ph ph-currency-dollar"></i> USD (Dólares)</button>
+                                    <button id="btn-currency-ars" class="btn btn-secondary" style="flex: 1;"><i class="ph ph-coins"></i> ARS (Pesos - Lemon)</button>
+                                </div>
+                                <p id="currency-rate-info" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.75rem; text-align: center; display: none;">Cotización no disponible.</p>
+                            </div>
+                        </div>/div>
                         <div class="card appearance-preference-card">
                             <div class="card-header">
                                 <div class="icon-container">
@@ -2017,23 +2064,7 @@
                             </div>
                         </div>
 
-                        <!-- Panel de Preferencias de Moneda -->
-                        <div class="card" style="margin-top: 1.5rem;">
-                            <div class="card-header">
-                                <div class="icon-container">
-                                    <i class="ph ph-currency-dollar"></i>
-                                </div>
-                                <h3>Preferencia de Moneda</h3>
-                            </div>
-                            <div class="card-body">
-                                <p class="backup-text" style="margin-bottom: 1rem;">Seleccioná la moneda para visualizar tus finanzas y valores de proyectos en la aplicación.</p>
-                                <div style="display: flex; gap: 10px; align-items: center;">
-                                    <button id="btn-currency-usd" class="btn btn-primary" style="flex: 1;"><i class="ph ph-currency-dollar"></i> USD (Dólares)</button>
-                                    <button id="btn-currency-ars" class="btn btn-secondary" style="flex: 1;"><i class="ph ph-coins"></i> ARS (Pesos - Lemon)</button>
-                                </div>
-                                <p id="currency-rate-info" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.75rem; text-align: center; display: none;">Cotización no disponible.</p>
-                            </div>
-                        </div>
+
                     </div>
 
                     <!-- Pestaña 2: Notificaciones -->

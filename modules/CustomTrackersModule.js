@@ -102,7 +102,21 @@ const ICON_LABELS = Object.freeze({
     'ph-drop-half': 'Líquido',
     'ph-user': 'Persona',
     'ph-user-focus': 'Cuidado personal',
-    'ph-arrows-clockwise': 'Reemplazo'
+    'ph-arrows-clockwise': 'Reemplazo',
+    'ph-robot': 'Robot aspiradora',
+    'ph-test-tube': 'Análisis clínico',
+    'ph-paw-print': 'Mascotas',
+    'ph-plant': 'Plantas',
+    'ph-house': 'Hogar',
+    'ph-book-open': 'Lectura / Estudio',
+    'ph-briefcase': 'Trabajo / Proyectos',
+    'ph-heart': 'Bienestar',
+    'ph-star': 'Destacado',
+    'ph-airplane-tilt': 'Viajes',
+    'ph-game-controller': 'Ocio / Juegos',
+    'ph-music-notes': 'Música',
+    'ph-camera': 'Fotografía',
+    'ph-bicycle': 'Bicicleta / Movilidad'
 });
 
 export class CustomTrackersModule {

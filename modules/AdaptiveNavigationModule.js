@@ -237,10 +237,16 @@ export class AdaptiveNavigationModule {
 
     closeMore({ restoreFocus = true } = {}) {
         if (!this.moreLayer || this.moreLayer.classList.contains('hidden')) return;
+        this.app.tooltips?.hide?.();
         this.moreLayer.classList.add('hidden');
         document.body.classList.remove('adaptive-navigation-open');
         this.moreButton?.setAttribute('aria-expanded', 'false');
-        if (restoreFocus) requestAnimationFrame(() => this.moreButton?.focus());
+        if (restoreFocus) {
+            requestAnimationFrame(() => {
+                this.moreButton?.focus({ preventScroll: true });
+                this.app.tooltips?.hide?.();
+            });
+        }
     }
 
     applyStoredCollapsePreference() {

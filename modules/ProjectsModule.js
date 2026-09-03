@@ -170,6 +170,12 @@ export class ProjectsModule {
         const select = document.getElementById('projectTemplateSelect');
         if (!select) return;
 
+        const templatePicker = document.querySelector('.project-template-picker');
+        const hideTemplates = localStorage.getItem('lifecycle_hide_project_templates') === 'true';
+        if (templatePicker) {
+            templatePicker.classList.toggle('hidden', hideTemplates);
+        }
+
         const templates = this.templateRegistry?.templates || [];
         const selectedTemplate = this.getProjectTemplateById(this.selectedTemplateId);
         if (!selectedTemplate) this.selectedTemplateId = null;
@@ -599,6 +605,15 @@ export class ProjectsModule {
         templateSelect?.addEventListener('change', () => {
             this.applyProjectTemplate(templateSelect.value);
         });
+
+        const prefHideTemplates = document.getElementById('pref-hide-project-templates');
+        if (prefHideTemplates) {
+            prefHideTemplates.checked = localStorage.getItem('lifecycle_hide_project_templates') === 'true';
+            prefHideTemplates.addEventListener('change', (e) => {
+                localStorage.setItem('lifecycle_hide_project_templates', String(e.target.checked));
+                this.renderProjectTemplateControls();
+            });
+        }
 
         templateManageButton?.addEventListener('click', () => {
             this.openProjectTemplatesModal(templateManageButton);
