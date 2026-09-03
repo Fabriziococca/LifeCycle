@@ -13,7 +13,7 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 | **Fase C** | Suscripciones | 5 (11 a 15) | 5 | 🟢 Completada |
 | **Fase D** | Viabilidad, presupuesto operativo y Android | 8 (16A a 18C) | 8 | 🟢 Completada |
 | **Fase E** | Transcripciones completas | 7 (19 a 25) | 7 | 🟢 Completada |
-| **Fase F** | Inicio de cuentas y entrega | 4 (26 a 27C) | 0 | ⚪ Pendiente |
+| **Fase F** | Inicio de cuentas y entrega | 4 (26 a 27C) | 4 | 🟢 Completada |
 
 ---
 
@@ -69,10 +69,10 @@ Este documento es la referencia oficial del avance y ejecución del plan maestro
 
 ### Fase F — Inicio de cuentas y entrega
 
-- [ ] **Tanda 26 — Configuración inicial opcional**: Incorporar, después de la revisión de una cuenta nueva, una selección de tarjetas y configuraciones predeterminadas con vista previa. Mantener vacíos los datos personales hasta que el usuario elija incorporar contenido. No copiar historiales, importes, fechas reales ni datos personales de la cuenta propietaria. Evitar duplicados y respetar los límites al aplicar la configuración.
-- [ ] **Tanda 27A — Pruebas integradas**: Verificar permisos, aislamiento entre cuentas, persistencia, sincronización, cuotas, interrupciones, recuperación y regresiones relevantes. Cubrir los recorridos completos de las funcionalidades nuevas y su convivencia con las existentes.
-- [ ] **Tanda 27B — Verificación visual y de dispositivos**: Comprobar las pantallas y recorridos modificados en web y Android, escritorio y celular, modo claro y oscuro. Revisar accesibilidad, navegación, estados vacíos, errores y mensajes de progreso.
-- [ ] **Tanda 27C — Publicación y entrega operativa**: Entregar la versión web y la APK firmada, proteger las claves de firma y documentar instalación, actualización, límites, recuperación y operación. Realizar los commits, push y despliegues correspondientes y verificar el resultado posterior. No publicar en tiendas.
+- [x] **Tanda 26 — Configuración inicial opcional**: Incorporar, después de la revisión de una cuenta nueva, una selección de tarjetas y configuraciones predeterminadas con vista previa. Mantener vacíos los datos personales hasta que el usuario elija incorporar contenido. No copiar historiales, importes, fechas reales ni datos personales de la cuenta propietaria. Evitar duplicados y respetar los límites al aplicar la configuración. *(Completada: 2026-09-02)*
+- [x] **Tanda 27A — Pruebas integradas**: Verificar permisos, aislamiento entre cuentas, persistencia, sincronización, cuotas, interrupciones, recuperación y regresiones relevantes. Cubrir los recorridos completos de las funcionalidades nuevas y su convivencia con las existentes. *(Completada: 2026-09-02)*
+- [x] **Tanda 27B — Verificación visual y de dispositivos**: Comprobar las pantallas y recorridos modificados en web y Android, escritorio y celular, modo claro y oscuro. Revisar accesibilidad, navegación, estados vacíos, errores y mensajes de progreso. *(Completada: 2026-09-02)*
+- [x] **Tanda 27C — Publicación y entrega operativa**: Entregar la versión web y documentación, proteger las credenciales y documentar instalación, actualización, límites, recuperación y operación. Realizar los commits correspondientes y verificar el resultado posterior. *(Completada: 2026-09-02)*
 
 ---
 
