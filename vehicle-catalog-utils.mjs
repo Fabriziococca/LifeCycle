@@ -1,5 +1,7 @@
+import { normalizeAlertTimes } from './alert-schedule-utils.mjs';
+
 export const VEHICLE_CATALOG_FIELD = 'vehicleCatalog';
-export const VEHICLE_CATALOG_VERSION = 1;
+export const VEHICLE_CATALOG_VERSION = 2;
 export const VEHICLE_ALERT_PREFIX = 'vehicle_card:';
 
 export const VEHICLE_CARD_TYPES = Object.freeze({
@@ -197,9 +199,11 @@ function normalizeCard(value, fallbackOrder = 0) {
     const alertKey = ALERT_KEY_PATTERN.test(value.alertKey || '')
         ? value.alertKey
         : `${VEHICLE_ALERT_PREFIX}${id}`;
-    const alertTime = /^([01]\d|2[0-3]):[0-5]\d$/.test(value.alert?.time || '')
-        ? value.alert.time
-        : (section === 'documents' ? '09:00' : '23:00');
+    const fallbackAlertTime = section === 'documents' ? '09:00' : '23:00';
+    const alertSchedule = normalizeAlertTimes(
+        value.alert?.times || value.alert?.time,
+        fallbackAlertTime
+    );
     const source = value.source && typeof value.source === 'object' && !Array.isArray(value.source)
         ? {
             kind: ['maintenance', 'tracker'].includes(value.source.kind)
@@ -228,7 +232,8 @@ function normalizeCard(value, fallbackOrder = 0) {
         alertKey,
         alert: {
             enabled: value.alert?.enabled !== false,
-            time: alertTime
+            time: alertSchedule.time,
+            times: alertSchedule.times
         },
         source: source?.kind && source.key ? source : null,
         legacyAlertGroup: ['vehicle_docs_check', 'vehicle_fluids_check'].includes(value.legacyAlertGroup)
@@ -372,7 +377,7 @@ export function migrateVehicleCatalog({
         const card = normalizeCard({
             ...definition,
             order,
-            alert: { enabled: true, time: definition.alertTime },
+            alert: { enabled: true, time: definition.alertTime, times: [definition.alertTime] },
             createdAt: timestamp,
             updatedAt: timestamp
         }, order);
@@ -594,6 +599,7 @@ export function buildVehicleAlertDefinitions(catalogValue) {
             type: 'interval',
             defaultEnabled: card.alert.enabled === true,
             defaultTime: card.alert.time,
+            defaultTimes: [...card.alert.times],
             defaultDays: []
         }));
 }
@@ -602,6 +608,6 @@ export function getLegacyVehicleCards() {
     return LEGACY_CARDS.map((card, order) => normalizeCard({
         ...card,
         order,
-        alert: { enabled: true, time: card.alertTime }
+        alert: { enabled: true, time: card.alertTime, times: [card.alertTime] }
     }, order));
 }

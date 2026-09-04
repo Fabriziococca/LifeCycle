@@ -5,6 +5,7 @@ export const RESOURCE_KEYS = Object.freeze({
     TASKS: 'tasks',
     PROJECTS: 'projects',
     PROJECT_TEMPLATES: 'project_templates',
+    SUBSCRIPTIONS: 'subscriptions',
     FINANCE_TRANSACTIONS: 'finance_transactions',
     FINANCE_RECURRING_RULES: 'finance_recurring_rules',
     TRADING_EVENTS: 'trading_events',
@@ -24,6 +25,7 @@ export const FALLBACK_FRIEND_LIMITS = Object.freeze({
     [RESOURCE_KEYS.TASKS]: 5_000,
     [RESOURCE_KEYS.PROJECTS]: 500,
     [RESOURCE_KEYS.PROJECT_TEMPLATES]: 100,
+    [RESOURCE_KEYS.SUBSCRIPTIONS]: 500,
     [RESOURCE_KEYS.FINANCE_TRANSACTIONS]: 25_000,
     [RESOURCE_KEYS.FINANCE_RECURRING_RULES]: 500,
     [RESOURCE_KEYS.TRADING_EVENTS]: 1_000,
@@ -45,6 +47,7 @@ const RESOURCE_LABELS = Object.freeze({
     [RESOURCE_KEYS.TASKS]: 'tareas',
     [RESOURCE_KEYS.PROJECTS]: 'proyectos',
     [RESOURCE_KEYS.PROJECT_TEMPLATES]: 'plantillas de proyectos',
+    [RESOURCE_KEYS.SUBSCRIPTIONS]: 'suscripciones',
     [RESOURCE_KEYS.FINANCE_TRANSACTIONS]: 'movimientos financieros',
     [RESOURCE_KEYS.FINANCE_RECURRING_RULES]: 'movimientos recurrentes',
     [RESOURCE_KEYS.TRADING_EVENTS]: 'eventos de Trading',
@@ -64,6 +67,7 @@ const RESOURCE_DELETE_HINTS = Object.freeze({
     [RESOURCE_KEYS.TASKS]: 'Completá o eliminá tareas que ya no necesites antes de crear otra.',
     [RESOURCE_KEYS.PROJECTS]: 'Eliminá un proyecto que ya no necesites antes de crear otro.',
     [RESOURCE_KEYS.PROJECT_TEMPLATES]: 'Eliminá una plantilla antes de crear otra.',
+    [RESOURCE_KEYS.SUBSCRIPTIONS]: 'Eliminá una suscripción que ya no necesites antes de crear otra.',
     [RESOURCE_KEYS.FINANCE_TRANSACTIONS]: 'Eliminá movimientos que ya no necesites antes de registrar otro.',
     [RESOURCE_KEYS.FINANCE_RECURRING_RULES]: 'Eliminá una regla recurrente antes de crear otra.',
     [RESOURCE_KEYS.TRADING_EVENTS]: 'Eliminá un evento de Trading antes de crear otro.',
@@ -224,6 +228,12 @@ export function getProjectResourceUsage({
     };
 }
 
+export function getSubscriptionResourceUsage(registry) {
+    return {
+        [RESOURCE_KEYS.SUBSCRIPTIONS]: asArray(registry?.subscriptions).length
+    };
+}
+
 export function getFinanceResourceUsage(financeData) {
     const data = financeData && typeof financeData === 'object'
         ? financeData
@@ -273,6 +283,7 @@ export function getSynchronizedResourceUsage(storedValues = {}) {
     const projectHistory = read('projectPulseHistory');
     const templateRegistry = read('projectPulseTemplates');
     const financeData = read('finanzasData');
+    const subscriptions = read('lifecycle_subscriptions');
 
     return {
         ...getTrackerRegistryResourceUsage(hygieneData.__trackers_v2),
@@ -287,6 +298,7 @@ export function getSynchronizedResourceUsage(storedValues = {}) {
             projectHistory,
             templateRegistry
         }),
+        ...getSubscriptionResourceUsage(subscriptions),
         ...getFinanceResourceUsage(financeData),
         ...getGymResourceUsage({
             routine: read('gym_routine'),

@@ -41,9 +41,14 @@ test('isBlockedStaticPath denies backend and secret-bearing paths', () => {
     assert.equal(isBlockedStaticPath('/%E0%A4%A'), true);
     assert.equal(isBlockedStaticPath('/.env.production'), true);
     assert.equal(isBlockedStaticPath('/node_modules/example/index.js'), true);
+    assert.equal(isBlockedStaticPath('/android/app/src/main/AndroidManifest.xml'), true);
+    assert.equal(isBlockedStaticPath('/scripts/build-capacitor-web.mjs'), true);
     assert.equal(isBlockedStaticPath('/supabase/migrations/secure_storage.sql'), true);
     assert.equal(isBlockedStaticPath('/tests/security-utils.test.js'), true);
     assert.equal(isBlockedStaticPath('/registration-utils.js'), true);
+    assert.equal(isBlockedStaticPath('/transcription-worker.js'), true);
+    assert.equal(isBlockedStaticPath('/capacitor.config.json'), true);
+    assert.equal(isBlockedStaticPath('/transcription-service.mjs'), false);
     assert.equal(isBlockedStaticPath('/modules/AuthSyncModule.js'), false);
     assert.equal(isBlockedStaticPath('/shared_rules.json'), false);
 });

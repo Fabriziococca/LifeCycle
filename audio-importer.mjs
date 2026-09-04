@@ -1,65 +1,57 @@
-/**
- * audio-importer.mjs
- * Validador e importador de archivos de audio/video existentes para transcripción.
- * Fase E (Tanda 20B).
- */
-
 import { AUDIO_CONSTRAINTS } from './audio-transcription-config.mjs';
-import { SUPPORTED_AUDIO_EXTENSIONS } from './transcription-utils.mjs';
+import {
+    SUPPORTED_MEDIA_EXTENSIONS,
+    normalizeMimeType
+} from './transcription-utils.mjs';
 
-/**
- * Valida si un archivo de audio/video cumple con las restricciones de tamaño y formato.
- *
- * @param {File|{ name: string, size: number, type: string }} file
- * @returns {{ valid: boolean, error?: string }}
- */
-export function validateAudioFile(file) {
-    if (!file) {
-        return { valid: false, error: 'No se seleccionó ningún archivo.' };
-    }
-
+export function validateMediaFile(file) {
+    if (!file) return { valid: false, error: 'No se seleccionó ningún archivo.' };
     const name = String(file.name || '').toLowerCase();
-    const hasValidExt = SUPPORTED_AUDIO_EXTENSIONS.some(ext => name.endsWith(ext));
-    const isAudioOrVideoType = file.type?.startsWith('audio/') || file.type?.startsWith('video/');
-
-    if (!hasValidExt && !isAudioOrVideoType) {
+    const extensionAllowed = SUPPORTED_MEDIA_EXTENSIONS.some(extension => name.endsWith(extension));
+    const mimeType = normalizeMimeType(file.type);
+    if (!extensionAllowed || !mimeType) {
         return {
             valid: false,
-            error: `Formato no soportado. Formatos admitidos: ${SUPPORTED_AUDIO_EXTENSIONS.join(', ')}`
+            error: `Formato no admitido. Usá ${SUPPORTED_MEDIA_EXTENSIONS.join(', ')}.`
         };
     }
-
-    if (file.size > AUDIO_CONSTRAINTS.maxFileSizeBytes) {
-        const maxMB = Math.round(AUDIO_CONSTRAINTS.maxFileSizeBytes / (1024 * 1024));
-        const fileMB = (file.size / (1024 * 1024)).toFixed(1);
+    if (!Number.isFinite(file.size) || file.size < 1) {
+        return { valid: false, error: 'El archivo está vacío o no puede leerse.' };
+    }
+    if (file.size > AUDIO_CONSTRAINTS.maxImportedFileBytes) {
         return {
             valid: false,
-            error: `El archivo (${fileMB} MB) supera el límite máximo permitido de ${maxMB} MB.`
+            error: 'El archivo supera 50 MB. Las grabaciones largas deben realizarse desde LifeCycle para guardarlas en fragmentos recuperables.'
         };
     }
-
-    return { valid: true };
+    return { valid: true, mimeType };
 }
 
-/**
- * Convierte un Blob o File a base64 para envío a la API de Gemini.
- *
- * @param {Blob|File} blob
- * @returns {Promise<string>} base64 data string (sin encabezado data:mime;base64,)
- */
-export function blobToBase64(blob) {
-    return new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onloadend = () => {
-            const result = reader.result;
-            if (typeof result === 'string') {
-                const base64 = result.split(',')[1] || result;
-                resolve(base64);
-            } else {
-                reject(new Error('Error al convertir audio a base64.'));
-            }
-        };
-        reader.onerror = reject;
-        reader.readAsDataURL(blob);
-    });
+// Backwards-compatible name for callers outside the Transcriptions module.
+export const validateAudioFile = validateMediaFile;
+
+export async function readMediaDuration(file) {
+    if (!file || typeof document === 'undefined') return 0;
+    const element = document.createElement(file.type?.startsWith('video/') ? 'video' : 'audio');
+    element.preload = 'metadata';
+    const objectUrl = URL.createObjectURL(file);
+    try {
+        const duration = await new Promise((resolve, reject) => {
+            const timeout = setTimeout(() => reject(new Error('No se pudo leer la duración.')), 10_000);
+            element.onloadedmetadata = () => {
+                clearTimeout(timeout);
+                resolve(Number.isFinite(element.duration) ? element.duration : 0);
+            };
+            element.onerror = () => {
+                clearTimeout(timeout);
+                reject(new Error('El formato multimedia no pudo analizarse.'));
+            };
+            element.src = objectUrl;
+        });
+        return Math.max(0, Math.round(duration * 1000));
+    } finally {
+        element.removeAttribute('src');
+        element.load?.();
+        URL.revokeObjectURL(objectUrl);
+    }
 }

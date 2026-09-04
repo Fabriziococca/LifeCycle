@@ -387,6 +387,9 @@ export class AuthSyncModule {
             this.pushManagement.refreshAll().catch(error => {
                 console.error('[Push] No se pudo cargar la administración de notificaciones:', error);
             });
+            window.dispatchEvent(new CustomEvent('lifecycle:auth-ready', {
+                detail: { user }
+            }));
         } else {
             // Logged out
             this.resourcePolicy = createFallbackResourcePolicy();
@@ -405,6 +408,9 @@ export class AuthSyncModule {
 
             this.setLoading(false);
             this.setAccessGateState('logged-out');
+            window.dispatchEvent(new CustomEvent('lifecycle:auth-ready', {
+                detail: { user: null }
+            }));
         }
     }
 
@@ -808,6 +814,9 @@ export class AuthSyncModule {
                 if (this.app.projects) {
                     try { this.app.projects.loadData(); } catch (e) { console.error("Error reloading projects:", e); }
                 }
+                if (this.app.subscriptions) {
+                    try { this.app.subscriptions.loadData(); } catch (e) { console.error("Error reloading subscriptions:", e); }
+                }
                 if (this.app.finanzas) {
                     try { this.app.finanzas.data = this.app.finanzas.loadData(); } catch (e) { console.error("Error reloading finanzas:", e); }
                 }
@@ -845,6 +854,12 @@ export class AuthSyncModule {
             }
             if (this.app.projects) {
                 try { this.app.projects.render(); } catch (e) { console.error("Error rendering projects:", e); }
+            }
+            if (this.app.subscriptions) {
+                try {
+                    this.app.subscriptions.render();
+                    void this.app.subscriptions.processDueAutomaticRenewals?.();
+                } catch (e) { console.error("Error rendering subscriptions:", e); }
             }
             if (this.app.finanzas) {
                 try { this.app.finanzas.render(); } catch (e) { console.error("Error rendering finanzas:", e); }

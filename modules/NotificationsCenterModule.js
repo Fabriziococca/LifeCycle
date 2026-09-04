@@ -20,7 +20,6 @@ const COMPLETABLE_MODULES = new Set([
     'lenses',
     'custom_tracker',
     'vehicle',
-    'workana',
     'tareas',
     'projects_tasks'
 ]);
@@ -231,15 +230,17 @@ export class NotificationsCenterModule {
                     const alertDays = sub.alert?.daysBefore ?? 3;
                     if (Number.isFinite(diffDays) && diffDays <= alertDays) {
                         items.push({
-                            module: 'workana',
-                            id: `sub_${sub.id}`,
+                            module: 'subscriptions',
+                            id: sub.id,
                             name: sub.name,
                             icon: 'ph-receipt',
                             desc: diffDays < 0
                                 ? `Plazo de suscripción vencido hace ${Math.abs(diffDays)} días.`
                                 : (diffDays === 0 ? 'La suscripción renueva o vence hoy.' : `Renueva en ${diffDays} días (${sub.nextRenewalDate}).`),
                             overdue: diffDays <= 0,
-                            targetSection: 'suscripciones-section'
+                            targetSection: 'suscripciones-section',
+                            targetElementId: `subscription-${sub.id}`,
+                            completable: false
                         });
                     }
                 });
@@ -261,34 +262,35 @@ export class NotificationsCenterModule {
                         }
                     }
                 }
-                // 5.2. PROYECTOS ACTIVOS (Entrega demorada o muy próxima)
-                if (this.app.projects.projects) {
-                    this.app.projects.projects.forEach(p => {
-                        if (!p.isDelivered) {
-                            const deadline = new Date(p.deadline);
-                            const remainingMs = deadline - now;
-                            const totalMs = deadline - new Date(p.accepted);
-                            
-                            if (totalMs > 0) {
-                                const remPct = (remainingMs / totalMs) * 100;
-                                if (remainingMs <= 0 || remPct <= 10) {
-                                    const days = Math.max(0, Math.floor(remainingMs / 86400000));
-                                    items.push({
-                                        module: 'projects',
-                                        id: p.id,
-                                        name: `Proyecto: ${p.project}`,
-                                        icon: 'ph-briefcase',
-                                        desc: remainingMs <= 0
-                                            ? '¡Entrega demorada!'
-                                            : `Vence pronto. ${days === 1 ? 'Queda 1 día' : `Quedan ${days} días`}.`,
-                                        overdue: remainingMs <= 0,
-                                        deadline: p.deadline
-                                    });
-                                }
+            }
+
+            // 5.2. PROYECTOS ACTIVOS (independiente de que haya suscripciones)
+            if (this.app.projects?.projects) {
+                this.app.projects.projects.forEach(p => {
+                    if (!p.isDelivered) {
+                        const deadline = new Date(p.deadline);
+                        const remainingMs = deadline - now;
+                        const totalMs = deadline - new Date(p.accepted);
+
+                        if (totalMs > 0) {
+                            const remPct = (remainingMs / totalMs) * 100;
+                            if (remainingMs <= 0 || remPct <= 10) {
+                                const days = Math.max(0, Math.floor(remainingMs / 86400000));
+                                items.push({
+                                    module: 'projects',
+                                    id: p.id,
+                                    name: `Proyecto: ${p.project}`,
+                                    icon: 'ph-briefcase',
+                                    desc: remainingMs <= 0
+                                        ? '¡Entrega demorada!'
+                                        : `Vence pronto. ${days === 1 ? 'Queda 1 día' : `Quedan ${days} días`}.`,
+                                    overdue: remainingMs <= 0,
+                                    deadline: p.deadline
+                                });
                             }
                         }
-                    });
-                }
+                    }
+                });
             }
 
             // 6. VITAMINA D
@@ -312,7 +314,7 @@ export class NotificationsCenterModule {
                                 module: 'gym',
                                 id: 'vit_d',
                                 name: 'Vitamina D',
-                                icon: 'ph-capsule',
+                                icon: 'ph-pill',
                                 desc: remaining === 0 ? 'Te toca tomarla hoy.' : `Pendiente hace ${Math.abs(remaining)} días.`,
                                 gymTab: 'nutrition',
                                 targetElementId: 'vitd-timer-box'
@@ -412,6 +414,9 @@ export class NotificationsCenterModule {
             }
             sectionId = 'tareas-section';
             targetElementId = targetElementId || `task-item-${item.id}`;
+        } else if (item.module === 'subscriptions') {
+            sectionId = 'suscripciones-section';
+            targetElementId = targetElementId || `subscription-${item.id}`;
         } else if (item.module === 'projects' || item.module === 'workana') {
             if (item.targetSection === 'suscripciones-section') {
                 sectionId = 'suscripciones-section';
@@ -449,7 +454,7 @@ export class NotificationsCenterModule {
                 hygiene: 'higiene-section',
                 robot: 'higiene-section',
                 grooming: 'cuidado-section',
-                lenses: 'lenses-section',
+                lenses: 'lentes-section',
                 vehicle: 'vehiculo-section',
                 gym: 'gym-section',
                 finanzas: 'finanzas-section',

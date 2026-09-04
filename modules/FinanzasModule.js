@@ -1604,50 +1604,111 @@ export class FinanzasModule {
         ));
     }
 
-    recordSubscriptionExpense({ subscriptionId, name, amount, currency, date, period }) {
+    async recordSubscriptionExpense({
+        subscriptionId,
+        name,
+        amount,
+        currency,
+        date,
+        period,
+        occurrenceKey,
+        automatic = false
+    }) {
         let amountInUSD = Math.max(0, Number(amount) || 0);
         if (currency === 'ARS') {
-            const rate = Number(this.app.currencyRate) || 0;
-            if (rate > 0) {
-                amountInUSD = amountInUSD / rate;
+            const rate = Number(
+                this.app.getValidCachedLemonRate?.()
+                ?? await this.app.fetchLemonRate?.()
+            );
+            if (!Number.isFinite(rate) || rate <= 0) {
+                const error = new Error('No hay una cotización USD/ARS válida para registrar este gasto.');
+                this.app.showToast?.('No se pudo convertir el gasto en ARS. Actualizá la cotización e intentá de nuevo.');
+                return { created: false, duplicate: false, error };
             }
+            amountInUSD /= rate;
         }
 
         const dateVal = date || new Date().toISOString().slice(0, 10);
         const description = `[Suscripción: ${name}] ${period || 'Renovación'}`;
+        const safeOccurrenceKey = String(
+            occurrenceKey || `subscription:${subscriptionId}:renewal:${dateVal}`
+        ).slice(0, 180);
 
-        // Prevenir duplicado exacto para la misma suscripción y fecha
+        // La clave de ocurrencia es estable entre dispositivos y distingue cada ciclo.
         const existing = this.data.expenses.find(e =>
-            e.subscriptionId === subscriptionId && e.date === dateVal
+            e.subscriptionOccurrenceKey === safeOccurrenceKey
+            || (
+                !e.subscriptionOccurrenceKey
+                && e.subscriptionId === subscriptionId
+                && e.date === dateVal
+            )
         );
         if (existing) {
-            return false;
+            return { created: false, duplicate: true };
         }
 
         const newExpense = {
-            id: Date.now(),
-            category: 'Suscripciones',
+            id: `subexpense_${String(subscriptionId).replace(/[^a-zA-Z0-9_-]/g, '_')}_${dateVal}`,
+            category: 'servicios',
             date: dateVal,
             amount: Math.round(amountInUSD * 100) / 100,
             description,
             subscriptionId,
-            autoRecorded: true
+            subscriptionOccurrenceKey: safeOccurrenceKey,
+            autoRecorded: automatic === true
         };
 
         const capacity = this.getFinanceResourceCapacity(
             RESOURCE_KEYS.FINANCE_TRANSACTIONS
         );
-        if (!capacity) return false;
+        if (!capacity) return { created: false, duplicate: false };
+
+        if (this.app.auth?.supabase && this.app.auth?.user) {
+            const { data, error } = await this.app.auth.supabase.rpc(
+                'record_subscription_expense',
+                {
+                    p_subscription_id: String(subscriptionId),
+                    p_subscription_name: String(name || 'Suscripción'),
+                    p_amount_usd: newExpense.amount,
+                    p_expense_date: dateVal,
+                    p_occurrence_key: safeOccurrenceKey,
+                    p_period: String(period || 'Renovación'),
+                    p_automatic: automatic === true
+                }
+            );
+            if (error) {
+                console.error('[Finanzas] No se pudo registrar atómicamente la renovación:', error);
+                this.app.showToast?.('No se pudo registrar el gasto de la suscripción. Reintentá cuando haya conexión.');
+                return { created: false, duplicate: false, error };
+            }
+            const result = Array.isArray(data) ? data[0] : data;
+            const cloudFinance = result?.finance_data;
+            if (cloudFinance && typeof cloudFinance === 'object') {
+                this.data = {
+                    ...cloudFinance,
+                    entries: Array.isArray(cloudFinance.entries) ? cloudFinance.entries : [],
+                    expenses: Array.isArray(cloudFinance.expenses) ? cloudFinance.expenses : [],
+                    recurringRules: normalizeFinanceRecurringRules(cloudFinance.recurringRules),
+                    tradingEvents: normalizeTradingEvents(cloudFinance.tradingEvents)
+                };
+                this.saveData();
+                this.render();
+            }
+            return {
+                created: result?.created === true,
+                duplicate: result?.duplicate === true
+            };
+        }
 
         this.data.expenses.push(newExpense);
         this.saveData();
         this.app.auth?.syncToCloud(false).catch(() => {});
         this.render();
-        return true;
+        return { created: true, duplicate: false };
     }
 
     async deleteExpense(id) {
-        const expense = this.data.expenses.find(item => item.id === id);
+        const expense = this.data.expenses.find(item => String(item.id) === String(id));
         if (!expense) return;
         const confirmed = await this.app.confirmAction({
             title: 'Eliminar gasto',
@@ -1668,7 +1729,7 @@ export class FinanzasModule {
         });
         if (!confirmed) return;
 
-        const index = this.data.expenses.findIndex(item => item.id === id);
+        const index = this.data.expenses.findIndex(item => String(item.id) === String(id));
         if (index < 0) return;
         const deletedExpense = this.data.expenses[index];
         this.data.expenses.splice(index, 1);
@@ -2576,8 +2637,7 @@ export class FinanzasModule {
 
         this.listContainer.querySelectorAll('.btn-delete-fin-expense-item').forEach(btn => {
             btn.addEventListener('click', () => {
-                const id = parseInt(btn.dataset.id);
-                this.deleteExpense(id);
+                this.deleteExpense(btn.dataset.id);
             });
         });
     }

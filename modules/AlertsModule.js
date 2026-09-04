@@ -1,4 +1,8 @@
-import { normalizeAlertTimes } from '../alert-schedule-utils.mjs';
+import {
+    getSuggestedAlertTime,
+    MAX_ALERT_TIMES_PER_DAY,
+    normalizeAlertTimes
+} from '../alert-schedule-utils.mjs';
 import { ALERT_DEFINITIONS, CATEGORY_NAMES } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import {
@@ -116,7 +120,7 @@ export class AlertsModule {
             this.getDefinitions().forEach(def => {
                 const config = {
                     enabled: def.defaultEnabled !== false,
-                    time: def.defaultTime,
+                    ...normalizeAlertTimes(def.defaultTimes || def.defaultTime, def.defaultTime),
                     schedule: def.type === 'recurring'
                         ? normalizeRecurringSchedule(
                             def.defaultSchedule || { type: 'weekly', days: def.defaultDays || [] }
@@ -151,6 +155,12 @@ export class AlertsModule {
                         ? storedConfig.days
                         : defaultConfigs[key].days
                 };
+                const normalizedTimes = normalizeAlertTimes(
+                    this.configs[key].times || this.configs[key].time,
+                    defaultConfigs[key].time
+                );
+                this.configs[key].time = normalizedTimes.time;
+                this.configs[key].times = normalizedTimes.times;
             });
             this.saveData();
             if (localVal && !hadRecurringRegistry) {
@@ -169,6 +179,44 @@ export class AlertsModule {
         const container = document.getElementById('alerts-categories-container');
         if (container) {
             container.onclick = (e) => {
+                const addTimeButton = e.target.closest('.btn-add-extra-time');
+                if (addTimeButton) {
+                    const row = addTimeButton.closest('[data-alert-key]');
+                    const list = row?.querySelector('.alert-extra-times-list');
+                    const inputs = row ? [...row.querySelectorAll('.alert-time-input')] : [];
+                    const times = inputs.map(input => input.value).filter(Boolean);
+                    const nextTime = getSuggestedAlertTime(times);
+                    if (!row || !list || !nextTime || times.length >= MAX_ALERT_TIMES_PER_DAY) return;
+
+                    const extraRow = document.createElement('div');
+                    extraRow.className = 'alert-extra-time-row';
+                    extraRow.style.cssText = 'display:flex;align-items:center;justify-content:flex-end;gap:4px;margin-top:4px;';
+                    const input = document.createElement('input');
+                    input.type = 'time';
+                    input.className = 'alert-time-input alert-extra-time-input';
+                    input.value = nextTime;
+                    input.setAttribute('aria-label', 'Horario adicional');
+                    input.style.cssText = 'width:95px;padding:4px 8px;border-radius:6px;border:1px solid var(--surface-border);background:var(--control-bg);color:var(--text-primary);font-size:.85rem;';
+                    const removeButton = document.createElement('button');
+                    removeButton.type = 'button';
+                    removeButton.className = 'icon-btn btn-remove-extra-time';
+                    removeButton.setAttribute('aria-label', 'Eliminar horario adicional');
+                    removeButton.setAttribute('title', 'Eliminar horario');
+                    removeButton.style.cssText = 'font-size:.85rem;padding:4px;color:var(--status-red);';
+                    removeButton.innerHTML = '<i class="ph ph-trash"></i>';
+                    extraRow.append(input, removeButton);
+                    list.appendChild(extraRow);
+                    addTimeButton.disabled = row.querySelectorAll('.alert-time-input').length >= MAX_ALERT_TIMES_PER_DAY;
+                    return;
+                }
+                const removeTimeButton = e.target.closest('.btn-remove-extra-time');
+                if (removeTimeButton) {
+                    const row = removeTimeButton.closest('[data-alert-key]');
+                    removeTimeButton.closest('.alert-extra-time-row')?.remove();
+                    const addButton = row?.querySelector('.btn-add-extra-time');
+                    if (addButton) addButton.disabled = false;
+                    return;
+                }
                 const actionButton = e.target.closest('[data-recurring-reminder-action]');
                 if (actionButton) {
                     const reminderId = actionButton.dataset.reminderId;
@@ -229,7 +277,7 @@ export class AlertsModule {
             addReminderTimeBtn.dataset.bound = 'true';
             addReminderTimeBtn.addEventListener('click', () => {
                 const container = document.getElementById('recurring-reminder-extra-times-list');
-                const existingExtraInputs = document.querySelectorAll('.recurring-extra-time-input');
+                const existingExtraInputs = reminderModal?.querySelectorAll('.recurring-extra-time-input') || [];
                 if (existingExtraInputs.length < 5) {
                     const extraRow = document.createElement('div');
                     extraRow.style.cssText = 'display: flex; gap: 6px; align-items: center;';
@@ -606,7 +654,8 @@ export class AlertsModule {
 
         const category = document.getElementById('recurring-reminder-category').value;
         const primaryTime = document.getElementById('recurring-reminder-time').value;
-        const extraTimeInputs = document.querySelectorAll('.recurring-extra-time-input');
+        const extraTimeInputs = document.getElementById('recurring-reminder-modal')
+            ?.querySelectorAll('.recurring-extra-time-input') || [];
         const candidateTimes = [primaryTime];
         extraTimeInputs.forEach(input => {
             if (input.value) candidateTimes.push(input.value);
@@ -777,7 +826,12 @@ export class AlertsModule {
         grid.className = 'alerts-grid';
 
         list.forEach(def => {
-            const conf = this.configs[def.key] || { enabled: true, time: def.defaultTime, days: def.defaultDays || [] };
+            const fallbackSchedule = normalizeAlertTimes(def.defaultTimes || def.defaultTime, def.defaultTime);
+            const conf = this.configs[def.key] || {
+                enabled: true,
+                ...fallbackSchedule,
+                days: def.defaultDays || []
+            };
             const isRecurring = def.type === 'recurring';
             const schedule = isRecurring
                 ? normalizeRecurringSchedule(

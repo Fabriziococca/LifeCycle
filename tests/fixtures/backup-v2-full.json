@@ -30,6 +30,7 @@
     "projectPulseData": null,
     "projectPulseHistory": null,
     "projectPulseSubscription": null,
+    "lifecycle_subscriptions": null,
     "projectPulseTemplates": null,
     "alerts_config": null,
     "finanzasData": null,

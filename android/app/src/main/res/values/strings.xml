@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">LifeCycle</string>
+    <string name="title_activity_main">LifeCycle</string>
+    <string name="package_name">com.fabriziococca.lifecycle</string>
+    <string name="custom_url_scheme">com.fabriziococca.lifecycle</string>
+</resources>

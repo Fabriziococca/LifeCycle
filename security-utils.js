@@ -9,6 +9,7 @@ const BLOCKED_STATIC_FILES = new Set([
     '/registration-utils.js',
     '/security-utils.js',
     '/server.js',
+    '/transcription-worker.js',
     '/vapid-keys.json'
 ]);
 
@@ -16,7 +17,9 @@ const BLOCKED_STATIC_PREFIXES = [
     '/.agents/',
     '/.codex/',
     '/.git/',
+    '/android/',
     '/node_modules/',
+    '/scripts/',
     '/supabase/',
     '/tests/'
 ];
@@ -56,6 +59,7 @@ function isBlockedStaticPath(requestPath) {
     const fileName = normalized.split('/').pop() || '';
 
     if (fileName === '.env' || fileName.startsWith('.env.')) return true;
+    if (normalized === '/capacitor.config.json') return true;
     if (BLOCKED_STATIC_FILES.has(normalized)) return true;
     return BLOCKED_STATIC_PREFIXES.some(prefix => normalized.startsWith(prefix));
 }

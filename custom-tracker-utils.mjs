@@ -1582,6 +1582,7 @@ export function buildCustomAlertDefinitions(registryValue) {
             type: 'interval',
             defaultEnabled: tracker.alert.enabled === true,
             defaultTime: tracker.alert.time,
+            defaultTimes: [...tracker.alert.times],
             defaultDays: [],
             ...(isStateReminderTracker(tracker)
                 ? {

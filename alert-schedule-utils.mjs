@@ -93,6 +93,18 @@ export function getScheduleDeliveryKey(baseKey, time) {
 }
 
 /**
+ * Elige un horario válido que todavía no esté usado. Devuelve null al alcanzar
+ * el máximo; nunca duplica silenciosamente un horario existente.
+ */
+export function getSuggestedAlertTime(times = []) {
+    const used = new Set(normalizeAlertTimes(times).times);
+    const preferred = ['09:00', '14:00', '20:00', '22:00', '08:00', '12:00', '16:00', '18:00', '21:00', '23:00'];
+    const suggestion = preferred.find(time => !used.has(time));
+    if (suggestion && used.size < MAX_ALERT_TIMES_PER_DAY) return suggestion;
+    return null;
+}
+
+/**
  * Renderiza un editor reutilizable de horarios con soporte para agregar y quitar horas.
  *
  * @param {HTMLElement} container
@@ -152,7 +164,7 @@ export function renderAlertTimesEditor(container, {
             if (currentTimes.length > min) {
                 const removeBtn = document.createElement('button');
                 removeBtn.type = 'button';
-                removeBtn.className = 'btn-icon-danger btn-remove-time';
+                removeBtn.className = 'icon-btn is-danger btn-remove-time';
                 removeBtn.setAttribute('aria-label', 'Eliminar este horario');
                 removeBtn.setAttribute('title', 'Eliminar horario');
                 removeBtn.innerHTML = '<i class="ph ph-trash"></i>';
@@ -180,10 +192,8 @@ export function renderAlertTimesEditor(container, {
             addBtn.style.padding = '4px 10px';
             addBtn.addEventListener('click', () => {
                 // Generar siguiente horario sugerido (ej. +4 horas o 20:00)
-                let nextTime = '20:00';
-                if (currentTimes.includes('20:00')) nextTime = '14:00';
-                if (currentTimes.includes('14:00')) nextTime = '08:00';
-                if (currentTimes.includes('08:00')) nextTime = '22:00';
+                const nextTime = getSuggestedAlertTime(currentTimes);
+                if (!nextTime) return;
                 currentTimes.push(nextTime);
                 currentTimes = normalizeAlertTimes(currentTimes).times;
                 render();

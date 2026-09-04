@@ -169,6 +169,7 @@ test('mobile navigation explains horizontal overflow and reacts after authentica
 });
 
 test('adaptive navigation uses a desktop sidebar and four mobile favorites plus More', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
     const appSource = await readFile(path.join(ROOT, 'app.js'), 'utf8');
     const navigationSource = await readFile(
         path.join(ROOT, 'modules', 'AdaptiveNavigationModule.js'),
@@ -189,7 +190,8 @@ test('adaptive navigation uses a desktop sidebar and four mobile favorites plus 
     );
     assert.match(navigationSource, /favorites\.slice\(0, 4\)/);
     assert.match(navigationSource, /className = 'nav-btn adaptive-nav-more'/);
-    assert.match(navigationSource, /data-adaptive-nav-profile="preferencias"/);
+    assert.doesNotMatch(navigationSource, /data-adaptive-nav-profile=/);
+    assert.match(index, /id="header-profile-btn"/);
     assert.match(trackerSource, /data-module-favorite-action="toggle"/);
     assert.match(trackerSource, /toggleNavigationFavorite/);
     assert.match(styles, /@media \(min-width: 1100px\)[\s\S]*\.main-nav\s*\{[\s\S]*position:\s*fixed/);
@@ -561,6 +563,26 @@ test('appearance, recurring schedules and lightweight custom modules expose thei
     assert.match(styles, /\.custom-module-runtime-section/);
     assert.match(styles, /\.custom-module-delete-choice/);
     assert.match(styles, /\.custom-module-delete-destination/);
+});
+
+test('new subscription and transcription controls use existing responsive design-system classes', async () => {
+    const index = await readFile(path.join(ROOT, 'index.html'), 'utf8');
+    const subscriptionSource = await readFile(
+        path.join(ROOT, 'modules', 'SubscriptionsModule.js'),
+        'utf8'
+    );
+    const transcriptionSource = await readFile(
+        path.join(ROOT, 'modules', 'TranscriptionsModule.js'),
+        'utf8'
+    );
+    const styles = await readFile(path.join(ROOT, 'style.css'), 'utf8');
+
+    assert.doesNotMatch(`${index}\n${subscriptionSource}\n${transcriptionSource}`, /btn-icon-danger/);
+    assert.match(subscriptionSource, /class="icon-btn is-danger"/);
+    assert.match(transcriptionSource, /class="icon-btn is-danger"/);
+    assert.match(styles, /\.card\.transcription-availability\s*\{[\s\S]*?flex-direction:\s*row/);
+    assert.match(styles, /\.transcription-card-actions\s*,/);
+    assert.match(styles, /\.transcription-capture-settings\s*\{/);
 });
 
 test('schema upgrades never render or count the legacy tracker catalog beside unified cards', async () => {

@@ -1,484 +1,864 @@
-/**
- * TranscriptionsModule.js
- * Módulo de grabación, importación, transcripción y resumen de notas de voz.
- * Fase E (Tandas 19 a 25).
- */
-
 import {
-    TRANSCRIPTION_STORAGE_KEY,
-    normalizeTranscription,
-    normalizeTranscriptionRegistry,
-    searchTranscriptions,
-    exportAsPlainText,
-    exportAsMarkdown,
-    formatDuration
-} from '../transcription-utils.mjs';
-
-import { TRANSCRIPTION_PRIVACY_NOTICE, AUDIO_CONSTRAINTS } from '../audio-transcription-config.mjs';
+    AUDIO_CONSTRAINTS,
+    TRANSCRIPTION_PRIVACY_NOTICE
+} from '../audio-transcription-config.mjs';
 import { AudioRecorder } from '../audio-recorder.mjs';
-import { validateAudioFile, blobToBase64 } from '../audio-importer.mjs';
-import { transcribeAudio, generateSummary } from '../transcription-service.mjs';
+import { readMediaDuration, validateMediaFile } from '../audio-importer.mjs';
+import { NativeAudioRecorder, isNativeAudioRecorderAvailable } from '../native-audio-recorder.mjs';
+import { TranscriptionCache } from '../transcription-cache.mjs';
+import { TranscriptionCloudService } from '../transcription-service.mjs';
+import {
+    createDownloadFilename,
+    exportAsMarkdown,
+    exportAsPlainText,
+    formatBytes,
+    formatDuration,
+    getTranscriptionStatusLabel,
+    searchTranscriptions,
+    sha256Blob
+} from '../transcription-utils.mjs';
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+
+const PROCESSING_STATUSES = new Set(['queued', 'processing']);
+const RETRYABLE_STATUSES = new Set(['uploaded', 'partial', 'failed']);
+
+function defaultRecordingTitle() {
+    return `Grabación ${new Date().toLocaleString('es-AR', {
+        day: '2-digit',
+        month: '2-digit',
+        hour: '2-digit',
+        minute: '2-digit'
+    })}`;
+}
+
+function errorMessage(error) {
+    return String(error?.message || error || 'Error desconocido').slice(0, 500);
+}
 
 export class TranscriptionsModule {
     constructor(app) {
         this.app = app;
-        this.registry = normalizeTranscriptionRegistry(null);
+        this.cloud = new TranscriptionCloudService(app);
+        this.cache = new TranscriptionCache();
+        this.webRecorder = new AudioRecorder();
+        this.nativeRecorder = new NativeAudioRecorder();
+        this.folders = [];
+        this.sessions = [];
         this.activeFolderId = 'all';
         this.searchQuery = '';
-        this.activeTranscriptionId = null;
-        this.recorder = new AudioRecorder();
-        this.init();
-    }
-
-    init() {
-        this.loadData();
+        this.activeSessionId = null;
+        this.recordingSession = null;
+        this.recordingMode = null;
+        this.recordingStartedAt = 0;
+        this.nativeTimer = null;
+        this.uploadChain = Promise.resolve();
+        this.finishingRecording = false;
+        this.loading = false;
+        this.available = null;
+        this.lastAvailabilityMessage = '';
+        this.pollTimer = null;
         this.bindEvents();
-    }
-
-    loadData() {
-        try {
-            const raw = localStorage.getItem(TRANSCRIPTION_STORAGE_KEY);
-            this.registry = normalizeTranscriptionRegistry(raw ? JSON.parse(raw) : null);
-        } catch (e) {
-            console.error('[TranscriptionsModule] Error al cargar transcripciones:', e);
-            this.registry = normalizeTranscriptionRegistry(null);
-        }
-    }
-
-    saveData() {
-        localStorage.setItem(TRANSCRIPTION_STORAGE_KEY, JSON.stringify(this.registry));
+        this.bindNativeEvents();
+        queueMicrotask(() => void this.handleAuthenticated());
+        void this.recoverNativeRecording();
     }
 
     bindEvents() {
-        // Botón iniciar / detener grabación
-        const recordBtn = document.getElementById('btn-toggle-record-voice');
-        if (recordBtn && !recordBtn.dataset.bound) {
-            recordBtn.dataset.bound = 'true';
-            recordBtn.addEventListener('click', () => this.handleToggleRecord());
-        }
-
-        // Botón importar archivo de audio
-        const importBtn = document.getElementById('btn-import-audio-file');
-        const fileInput = document.getElementById('transcription-file-input');
-        if (importBtn && fileInput && !importBtn.dataset.bound) {
-            importBtn.dataset.bound = 'true';
-            importBtn.addEventListener('click', () => fileInput.click());
-            fileInput.addEventListener('change', (e) => this.handleFileSelected(e));
-        }
-
-        // Búsqueda en vivo
-        const searchInput = document.getElementById('transcription-search-input');
-        if (searchInput && !searchInput.dataset.bound) {
-            searchInput.dataset.bound = 'true';
-            searchInput.addEventListener('input', (e) => {
-                this.searchQuery = e.target.value;
-                this.renderList();
-            });
-        }
-
-        // Cerrar modal de detalle
-        const closeButtons = document.querySelectorAll('[data-transcription-modal-close]');
-        closeButtons.forEach(btn => {
-            if (!btn.dataset.bound) {
-                btn.dataset.bound = 'true';
-                btn.addEventListener('click', () => this.closeDetailModal());
-            }
+        document.getElementById('btn-toggle-record-voice')?.addEventListener('click', () => {
+            void this.handleToggleRecord();
         });
+        const input = document.getElementById('transcription-file-input');
+        document.getElementById('btn-import-audio-file')?.addEventListener('click', () => input?.click());
+        input?.addEventListener('change', event => void this.handleFileSelected(event));
+        document.getElementById('transcription-search-input')?.addEventListener('input', event => {
+            this.searchQuery = event.currentTarget.value;
+            this.renderList();
+        });
+        document.getElementById('btn-new-transcription-folder')?.addEventListener('click', () => {
+            void this.createFolder();
+        });
+        document.getElementById('transcriptions-folder-tabs')?.addEventListener('click', event => {
+            const button = event.target.closest('[data-transcription-folder]');
+            if (!button) return;
+            this.activeFolderId = button.dataset.transcriptionFolder;
+            this.renderFolders();
+            this.renderList();
+        });
+        document.getElementById('transcriptions-list')?.addEventListener('click', event => {
+            const button = event.target.closest('[data-transcription-action]');
+            if (!button) return;
+            const sessionId = button.closest('[data-transcription-id]')?.dataset.transcriptionId;
+            const action = button.dataset.transcriptionAction;
+            if (action === 'open') this.openDetailModal(sessionId);
+            else if (action === 'delete') void this.deleteTranscription(sessionId);
+            else if (action === 'process') void this.enqueueSession(sessionId);
+            else if (action === 'audio') void this.downloadAudio(sessionId);
+        });
+        document.querySelectorAll('[data-transcription-modal-close]').forEach(button => {
+            button.addEventListener('click', () => this.closeDetailModal());
+        });
+        const modal = document.getElementById('transcription-detail-modal');
+        modal?.addEventListener('click', event => {
+            if (event.target === modal) this.closeDetailModal();
+        });
+        modal?.addEventListener('keydown', event => {
+            if (event.key === 'Escape') this.closeDetailModal();
+        });
+        document.getElementById('btn-save-transcription-detail')?.addEventListener('click', () => {
+            void this.saveActiveTranscriptionChanges();
+        });
+        document.getElementById('btn-generate-ai-summary')?.addEventListener('click', () => {
+            void this.requestArtifact('summary');
+        });
+        document.getElementById('btn-generate-ai-notes')?.addEventListener('click', () => {
+            void this.requestArtifact('notes');
+        });
+        document.getElementById('btn-copy-transcription')?.addEventListener('click', () => {
+            void this.copyActiveTranscript();
+        });
+        document.getElementById('btn-export-transcription-txt')?.addEventListener('click', () => this.downloadExport('txt'));
+        document.getElementById('btn-export-transcription-md')?.addEventListener('click', () => this.downloadExport('md'));
+        document.getElementById('btn-download-transcription-audio')?.addEventListener('click', () => {
+            if (this.activeSessionId) void this.downloadAudio(this.activeSessionId);
+        });
+        document.getElementById('btn-retry-transcription')?.addEventListener('click', () => {
+            if (this.activeSessionId) void this.enqueueSession(this.activeSessionId);
+        });
+        window.addEventListener('online', () => void this.resumePendingUploads());
+        window.addEventListener('lifecycle:auth-ready', event => {
+            if (event.detail?.user) void this.handleAuthenticated();
+            else this.handleSignedOut();
+        });
+    }
 
-        // Guardar cambios en el modal
-        const saveBtn = document.getElementById('btn-save-transcription-detail');
-        if (saveBtn && !saveBtn.dataset.bound) {
-            saveBtn.dataset.bound = 'true';
-            saveBtn.addEventListener('click', () => this.saveActiveTranscriptionChanges());
+    bindNativeEvents() {
+        if (!isNativeAudioRecorderAvailable()) return;
+        this.nativeRecorder.addListener('recordingInterrupted', event => {
+            this.app.showToast?.(event?.message || 'La grabación se interrumpió. Abrí Transcripciones para revisarla.');
+            void this.finishNativeRecording({ interrupted: true });
+        });
+        this.nativeRecorder.addListener('recordingStopped', event => {
+            if (event?.automatic) void this.finishNativeRecording({ automatic: true });
+        });
+    }
+
+    async handleAuthenticated() {
+        if (!this.app.auth?.user || !this.app.auth?.supabase) {
+            this.updateAvailability(false, 'Iniciá sesión para acceder a tu biblioteca privada.');
+            return;
         }
+        await this.loadLibrary();
+        if (this.available) await this.resumePendingUploads();
+    }
 
-        // Botón generar resumen IA en el modal
-        const summaryBtn = document.getElementById('btn-generate-ai-summary');
-        if (summaryBtn && !summaryBtn.dataset.bound) {
-            summaryBtn.dataset.bound = 'true';
-            summaryBtn.addEventListener('click', () => this.requestAiSummary());
+    handleSignedOut() {
+        this.sessions = [];
+        this.folders = [];
+        this.available = false;
+        clearInterval(this.pollTimer);
+        this.pollTimer = null;
+        this.render();
+    }
+
+    async loadLibrary({ quiet = false } = {}) {
+        if (this.loading || !this.app.auth?.user) return false;
+        this.loading = true;
+        try {
+            const library = await this.cloud.listLibrary();
+            this.folders = library.folders;
+            this.sessions = library.sessions;
+            this.updateAvailability(
+                true,
+                isNativeAudioRecorderAvailable()
+                    ? 'Grabador Android listo: puede continuar con la pantalla apagada mediante una notificación persistente.'
+                    : 'Modo web listo. Para grabar con la pantalla apagada se necesita la instalación Android de LifeCycle.'
+            );
+            void this.cleanupCompletedLocalCache().catch(error => {
+                console.warn('[Transcripciones] No se pudo limpiar la caché completada:', errorMessage(error));
+            });
+            this.ensurePolling();
+            this.render();
+            return true;
+        } catch (error) {
+            const message = errorMessage(error);
+            const missingMigration = /transcription_|schema cache|does not exist|PGRST20/i.test(message);
+            const forbidden = /row-level security|permission denied|42501|not enabled/i.test(message);
+            this.updateAvailability(false, missingMigration
+                ? 'Transcripciones está preparada, pero falta aplicar su migración de Supabase.'
+                : (forbidden
+                    ? 'Transcripciones está habilitada sólo para la cuenta principal.'
+                    : 'No se pudo abrir la biblioteca. Se conservarán los audios locales pendientes.'));
+            if (!quiet) console.warn('[Transcripciones] Biblioteca no disponible:', message);
+            this.render();
+            return false;
+        } finally {
+            this.loading = false;
         }
+    }
 
-        // Botones de exportar
-        const exportTxtBtn = document.getElementById('btn-export-transcription-txt');
-        if (exportTxtBtn && !exportTxtBtn.dataset.bound) {
-            exportTxtBtn.dataset.bound = 'true';
-            exportTxtBtn.addEventListener('click', () => this.downloadExport('txt'));
+    updateAvailability(available, message) {
+        this.available = available;
+        this.lastAvailabilityMessage = message;
+        const root = document.getElementById('transcription-availability');
+        if (root) {
+            root.classList.toggle('is-error', available === false);
+            const span = root.querySelector('span');
+            if (span) span.textContent = message;
         }
+        ['btn-toggle-record-voice', 'btn-import-audio-file', 'btn-new-transcription-folder']
+            .forEach(id => {
+                const button = document.getElementById(id);
+                if (button && this.recordingMode === null) button.disabled = available !== true;
+            });
+    }
 
-        const exportMdBtn = document.getElementById('btn-export-transcription-md');
-        if (exportMdBtn && !exportMdBtn.dataset.bound) {
-            exportMdBtn.dataset.bound = 'true';
-            exportMdBtn.addEventListener('click', () => this.downloadExport('md'));
+    ensurePolling() {
+        const hasProcessing = this.sessions.some(session => PROCESSING_STATUSES.has(session.status));
+        if (hasProcessing && !this.pollTimer) {
+            this.pollTimer = setInterval(() => void this.loadLibrary({ quiet: true }), 15_000);
+        } else if (!hasProcessing && this.pollTimer) {
+            clearInterval(this.pollTimer);
+            this.pollTimer = null;
         }
     }
 
     async ensurePrivacyConsent() {
-        const hasConsent = localStorage.getItem(TRANSCRIPTION_PRIVACY_NOTICE.consentStorageKey);
-        if (hasConsent === 'true') return true;
-
+        if (localStorage.getItem(TRANSCRIPTION_PRIVACY_NOTICE.consentStorageKey) === 'true') return true;
         const confirmed = await this.app.confirmAction?.({
             title: TRANSCRIPTION_PRIVACY_NOTICE.title,
             message: TRANSCRIPTION_PRIVACY_NOTICE.text,
-            confirmLabel: 'Acepto y deseo continuar',
+            confirmLabel: 'Acepto y continuar',
             cancelLabel: 'Cancelar',
-            tone: 'primary'
+            tone: 'warning'
         });
-
-        if (confirmed) {
-            localStorage.setItem(TRANSCRIPTION_PRIVACY_NOTICE.consentStorageKey, 'true');
-            return true;
-        }
-        return false;
+        if (confirmed) localStorage.setItem(TRANSCRIPTION_PRIVACY_NOTICE.consentStorageKey, 'true');
+        return confirmed === true;
     }
 
     async handleToggleRecord() {
-        if (this.recorder.state === 'recording') {
-            await this.stopAndProcessRecording();
-        } else {
-            const consentGranted = await this.ensurePrivacyConsent();
-            if (!consentGranted) return;
+        if (this.recordingMode) {
+            await this.stopRecording();
+            return;
+        }
+        if (!this.available || !(await this.ensurePrivacyConsent())) return;
+        await this.startRecording();
+    }
 
-            try {
-                const timerEl = document.getElementById('recording-timer');
-                const pulseEl = document.getElementById('recording-pulse');
-                const btnEl = document.getElementById('btn-toggle-record-voice');
+    getCaptureSettings() {
+        return {
+            title: document.getElementById('transcription-new-title')?.value.trim() || defaultRecordingTitle(),
+            folderId: document.getElementById('transcription-new-folder')?.value || null,
+            autoProcess: document.getElementById('transcription-auto-process')?.checked !== false
+        };
+    }
 
-                await this.recorder.start({
-                    onTick: (seconds) => {
-                        if (timerEl) timerEl.textContent = formatDuration(seconds);
-                    }
+    async startRecording() {
+        const settings = this.getCaptureSettings();
+        if (!isNativeAudioRecorderAvailable()) {
+            const accepted = await this.app.confirmAction?.({
+                title: 'Grabación web en primer plano',
+                message: 'El navegador puede pausar el micrófono al bloquear la pantalla o cerrar esta pestaña. Los fragmentos ya cerrados quedan recuperables. Para grabar con pantalla apagada usá la instalación Android de LifeCycle.',
+                confirmLabel: 'Grabar en primer plano',
+                cancelLabel: 'Cancelar',
+                tone: 'warning'
+            });
+            if (!accepted) return;
+        }
+        let sessionId = null;
+        try {
+            sessionId = globalThis.crypto?.randomUUID?.();
+            if (!sessionId) throw new Error('Este dispositivo no pudo generar una identidad segura para la grabación.');
+            const session = await this.cloud.createSession({
+                id: sessionId,
+                ...settings,
+                sourceType: 'recording',
+                status: 'recording',
+                mimeType: isNativeAudioRecorderAvailable() ? 'audio/aac' : AudioRecorder.getBestMimeType()
+            });
+            this.recordingSession = { ...session, ...settings };
+            await this.cache.putSession({
+                id: sessionId,
+                ...settings,
+                sourceType: 'recording',
+                cloudCreated: true
+            });
+            this.uploadChain = Promise.resolve();
+            this.recordingStartedAt = Date.now();
+            if (isNativeAudioRecorderAvailable()) {
+                await this.nativeRecorder.start({
+                    sessionId,
+                    title: settings.title,
+                    maxDurationSeconds: AUDIO_CONSTRAINTS.maxDurationSeconds,
+                    segmentDurationSeconds: AUDIO_CONSTRAINTS.segmentDurationSeconds
                 });
-
-                if (pulseEl) pulseEl.classList.remove('hidden');
-                if (btnEl) {
-                    btnEl.innerHTML = '<i class="ph ph-stop-circle" style="color: #ef4444;"></i> Detener y Transcribir';
-                    btnEl.classList.add('recording-active');
-                }
-                this.app.showToast?.('Grabando nota de voz... La pantalla permanecerá encendida.');
-            } catch (err) {
-                this.app.showToast?.(`No se pudo iniciar la grabación: ${err.message}`);
+                this.recordingMode = 'native';
+                this.startNativeTimer();
+            } else {
+                this.recordingMode = 'web';
+                await this.webRecorder.start({
+                    onTick: seconds => this.updateRecordingTimer(seconds),
+                    onSegment: segment => this.queueSegmentUpload(sessionId, segment),
+                    onBackgroundRisk: () => this.app.showToast?.('La grabación web puede interrumpirse en segundo plano. Los fragmentos cerrados siguen guardados.'),
+                    onInterrupted: result => void this.finishWebRecording(result),
+                    onAutomaticStop: result => void this.finishWebRecording(result),
+                    onError: error => this.app.showToast?.(`Problema con el micrófono: ${errorMessage(error)}`)
+                });
             }
+            this.setRecordingUi(true);
+        } catch (error) {
+            if (sessionId) {
+                await this.cache.deleteSession(sessionId).catch(() => {});
+                await this.cloud.deleteSession(sessionId).catch(() => {});
+            }
+            this.recordingMode = null;
+            this.recordingSession = null;
+            this.setRecordingUi(false);
+            this.app.showToast?.(`No se pudo iniciar: ${errorMessage(error)}`);
         }
     }
 
-    async stopAndProcessRecording() {
-        const timerEl = document.getElementById('recording-timer');
-        const pulseEl = document.getElementById('recording-pulse');
-        const btnEl = document.getElementById('btn-toggle-record-voice');
-
-        if (pulseEl) pulseEl.classList.add('hidden');
-        if (timerEl) timerEl.textContent = '00:00';
-        if (btnEl) {
-            btnEl.innerHTML = '<i class="ph ph-microphone"></i> Grabar Nota de Voz';
-            btnEl.classList.remove('recording-active');
-        }
-
-        const result = await this.recorder.stop();
-        if (!result || !result.blob || result.sizeBytes === 0) {
-            this.app.showToast?.('La grabación no generó contenido.');
-            return;
-        }
-
-        this.app.showToast?.('Procesando audio con Gemini gratuito...');
-
-        try {
-            const base64 = await blobToBase64(result.blob);
-            const transcriptionResult = await transcribeAudio({
-                audioBase64: base64,
-                mimeType: result.mimeType
+    queueSegmentUpload(sessionId, segment) {
+        this.uploadChain = this.uploadChain.then(async () => {
+            const checksum = await sha256Blob(segment.blob);
+            await this.cache.putChunk({
+                sessionId,
+                sequenceNumber: segment.sequenceNumber,
+                blob: segment.blob,
+                durationMs: segment.durationMs,
+                mimeType: segment.mimeType,
+                sha256: checksum
             });
+            try {
+                const cloudChunk = await this.cloud.uploadChunk(sessionId, { ...segment, sha256: checksum });
+                await this.cache.markChunkUploaded(
+                    sessionId,
+                    segment.sequenceNumber,
+                    cloudChunk.id,
+                    cloudChunk.storage_path
+                );
+            } catch (error) {
+                console.warn('[Transcripciones] Fragmento guardado localmente, pendiente de subir:', errorMessage(error));
+            }
+        });
+        return this.uploadChain;
+    }
 
-            if (!transcriptionResult.success) {
-                // Guardar como fallida pero no perder el registro
-                this.addTranscriptionRecord({
-                    title: `Nota de voz (${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })})`,
-                    durationSeconds: result.durationSeconds,
-                    sizeBytes: result.sizeBytes,
-                    mimeType: result.mimeType,
-                    status: 'failed',
-                    rawText: `[Error al transcribir]: ${transcriptionResult.error}`
+    async stopRecording() {
+        if (this.recordingMode === 'native') {
+            await this.nativeRecorder.stop().catch(error => {
+                this.app.showToast?.(`No se pudo detener limpiamente: ${errorMessage(error)}`);
+            });
+            await this.finishNativeRecording();
+        } else if (this.recordingMode === 'web') {
+            const result = await this.webRecorder.stop();
+            await this.finishWebRecording(result);
+        }
+    }
+
+    async finishWebRecording(result = {}) {
+        if (this.finishingRecording || !this.recordingSession) return;
+        this.finishingRecording = true;
+        const session = this.recordingSession;
+        try {
+            await this.uploadChain;
+            await this.finishUploadedSession(session.id, session.autoProcess);
+            if (result.interrupted) this.app.showToast?.('La grabación se interrumpió; se conservaron los fragmentos disponibles.');
+        } finally {
+            this.finishRecordingUi();
+        }
+    }
+
+    async finishNativeRecording({ interrupted = false } = {}) {
+        if (this.finishingRecording || !this.recordingSession) return;
+        this.finishingRecording = true;
+        const session = this.recordingSession;
+        try {
+            const chunks = await this.nativeRecorder.listChunks(session.id);
+            for (const chunk of chunks) {
+                const blob = await this.nativeRecorder.readChunk(chunk.path, chunk.mimeType || 'audio/mp4');
+                await this.queueSegmentUpload(session.id, {
+                    sequenceNumber: Number(chunk.sequenceNumber),
+                    blob,
+                    mimeType: chunk.mimeType || 'audio/mp4',
+                    durationMs: Number(chunk.durationMs) || 0
                 });
-                this.app.showToast?.(transcriptionResult.error || 'Fallo en la transcripción.');
+            }
+            await this.uploadChain;
+            await this.finishUploadedSession(session.id, session.autoProcess);
+            await this.nativeRecorder.deleteSessionAudio(session.id).catch(() => {});
+            if (interrupted) this.app.showToast?.('La grabación nativa se interrumpió. Se recuperó todo fragmento que había quedado cerrado.');
+        } catch (error) {
+            await this.showRecoveryState(session.id, error);
+        } finally {
+            this.finishRecordingUi();
+        }
+    }
+
+    async finishUploadedSession(sessionId, autoProcess) {
+        try {
+            const localChunks = await this.cache.listChunks(sessionId);
+            if (
+                localChunks.length === 0
+                || localChunks.some(chunk => chunk.uploadStatus !== 'uploaded')
+            ) {
+                throw new Error('Todavía quedan fragmentos locales pendientes de subir.');
+            }
+            await this.cloud.finalizeUpload(sessionId);
+            await this.cache.updateSession(sessionId, { finalized: true }).catch(() => {});
+            if (autoProcess) {
+                await this.cloud.enqueueSession(sessionId);
+                await this.cache.updateSession(sessionId, { enqueued: true }).catch(() => {});
+            }
+            await this.loadLibrary({ quiet: true });
+            this.app.showToast?.(autoProcess ? 'Grabación guardada y enviada a la cola.' : 'Grabación guardada. Podés transcribirla cuando quieras.');
+        } catch (error) {
+            await this.showRecoveryState(sessionId, error);
+        }
+    }
+
+    async showRecoveryState(sessionId, error) {
+        const panel = document.getElementById('transcription-recovery-panel');
+        if (panel) {
+            panel.classList.remove('hidden');
+            panel.textContent = `La grabación ${sessionId.slice(0, 8)} quedó guardada localmente. Reintentaremos al recuperar conexión. ${errorMessage(error)}`;
+        }
+        this.app.showToast?.('El audio quedó guardado localmente y pendiente de subir.');
+    }
+
+    finishRecordingUi() {
+        clearInterval(this.nativeTimer);
+        this.nativeTimer = null;
+        this.recordingMode = null;
+        this.recordingSession = null;
+        this.recordingStartedAt = 0;
+        this.finishingRecording = false;
+        this.setRecordingUi(false);
+        void this.resumePendingUploads();
+    }
+
+    startNativeTimer() {
+        clearInterval(this.nativeTimer);
+        this.nativeTimer = setInterval(() => {
+            this.updateRecordingTimer(Math.floor((Date.now() - this.recordingStartedAt) / 1000));
+        }, 1000);
+    }
+
+    updateRecordingTimer(seconds) {
+        const timer = document.getElementById('recording-timer');
+        if (timer) timer.textContent = formatDuration(seconds);
+    }
+
+    setRecordingUi(active) {
+        document.getElementById('recording-pulse')?.classList.toggle('hidden', !active);
+        const button = document.getElementById('btn-toggle-record-voice');
+        if (button) {
+            button.disabled = false;
+            button.innerHTML = active
+                ? '<i class="ph ph-stop-circle"></i> Detener grabación'
+                : '<i class="ph ph-microphone"></i> Grabar audio';
+            button.classList.toggle('recording-active', active);
+        }
+        const hint = document.getElementById('recording-mode-hint');
+        if (hint) hint.textContent = active
+            ? (this.recordingMode === 'native'
+                ? 'Podés bloquear la pantalla; Android mostrará una notificación persistente.'
+                : 'Mantené esta pestaña visible y el dispositivo desbloqueado.')
+            : '';
+        ['btn-import-audio-file', 'btn-new-transcription-folder'].forEach(id => {
+            const element = document.getElementById(id);
+            if (element) element.disabled = active || this.available !== true;
+        });
+    }
+
+    async recoverNativeRecording() {
+        if (!isNativeAudioRecorderAvailable()) return;
+        try {
+            const status = await this.nativeRecorder.getStatus();
+            if (!status?.sessionId || (!status.active && !status.recoverable)) return;
+            const cached = await this.cache.getSession(status.sessionId);
+            this.recordingSession = {
+                id: status.sessionId,
+                title: cached?.title || status.title || defaultRecordingTitle(),
+                autoProcess: cached?.autoProcess !== false
+            };
+            if (!status.active && status.recoverable) {
+                await this.finishNativeRecording({ interrupted: true });
                 return;
             }
+            this.recordingMode = 'native';
+            this.recordingStartedAt = Number(status.startedAt) || Date.now();
+            this.startNativeTimer();
+            this.setRecordingUi(true);
+        } catch (error) {
+            console.warn('[Transcripciones] No se pudo recuperar el estado nativo:', errorMessage(error));
+        }
+    }
 
-            this.addTranscriptionRecord({
-                title: `Nota de voz (${new Date().toLocaleTimeString('es-AR', { hour: '2-digit', minute: '2-digit' })})`,
-                durationSeconds: result.durationSeconds,
-                sizeBytes: result.sizeBytes,
-                mimeType: result.mimeType,
-                status: 'completed',
-                rawText: transcriptionResult.text
-            });
+    async resumePendingUploads(targetSessionId = null) {
+        if (!navigator.onLine || !this.available || !this.cache.isSupported() || this.recordingMode) return;
+        try {
+            const sessions = await this.cache.listSessions();
+            for (const session of sessions) {
+                if (targetSessionId && session.id !== targetSessionId) continue;
+                const chunks = await this.cache.listChunks(session.id);
+                const pending = chunks.filter(chunk => chunk.uploadStatus !== 'uploaded');
+                for (const chunk of pending) {
+                    let blob = chunk.blob;
+                    if (!blob && chunk.nativePath && isNativeAudioRecorderAvailable()) {
+                        blob = await this.nativeRecorder.readChunk(chunk.nativePath, chunk.mimeType);
+                    }
+                    if (!blob) continue;
+                    const uploaded = await this.cloud.uploadChunk(session.id, {
+                        sequenceNumber: chunk.sequenceNumber,
+                        blob,
+                        mimeType: chunk.mimeType,
+                        mediaRole: chunk.mediaRole,
+                        durationMs: chunk.durationMs,
+                        sha256: chunk.sha256
+                    });
+                    await this.cache.markChunkUploaded(session.id, chunk.sequenceNumber, uploaded.id, uploaded.storage_path);
+                }
+                if (chunks.length > 0) {
+                    const refreshed = await this.cache.listChunks(session.id);
+                    if (refreshed.every(chunk => chunk.uploadStatus === 'uploaded')) {
+                        const remote = this.sessions.find(item => item.id === session.id);
+                        const alreadyQueued = ['queued', 'processing', 'completed'].includes(remote?.status);
+                        if (!session.finalized && !alreadyQueued) {
+                            await this.cloud.finalizeUpload(session.id);
+                            await this.cache.updateSession(session.id, { finalized: true });
+                        }
+                        if (session.autoProcess !== false && !session.enqueued && !alreadyQueued) {
+                            await this.cloud.enqueueSession(session.id);
+                            await this.cache.updateSession(session.id, { enqueued: true, finalized: true });
+                        } else if (alreadyQueued && (!session.enqueued || !session.finalized)) {
+                            await this.cache.updateSession(session.id, { enqueued: true, finalized: true });
+                        }
+                    }
+                }
+            }
+            const panel = document.getElementById('transcription-recovery-panel');
+            panel?.classList.add('hidden');
+            await this.loadLibrary({ quiet: true });
+        } catch (error) {
+            console.warn('[Transcripciones] La recuperación seguirá pendiente:', errorMessage(error));
+        }
+    }
 
-            this.app.showToast?.('¡Nota de voz transcripta con éxito!');
-        } catch (err) {
-            this.app.showToast?.(`Error al procesar audio: ${err.message}`);
+    async cleanupCompletedLocalCache() {
+        if (!this.cache.isSupported()) return;
+        const completedIds = new Set(this.sessions.filter(session => session.status === 'completed').map(session => session.id));
+        const localSessions = await this.cache.listSessions().catch(() => []);
+        for (const local of localSessions) {
+            if (completedIds.has(local.id)) await this.cache.deleteSession(local.id).catch(() => {});
         }
     }
 
     async handleFileSelected(event) {
-        const file = event.target.files?.[0];
-        if (!file) return;
-
-        const validation = validateAudioFile(file);
+        const file = event.currentTarget.files?.[0];
+        event.currentTarget.value = '';
+        if (!file || !this.available) return;
+        const validation = validateMediaFile(file);
         if (!validation.valid) {
             this.app.showToast?.(validation.error);
-            event.target.value = '';
             return;
         }
-
-        const consentGranted = await this.ensurePrivacyConsent();
-        if (!consentGranted) {
-            event.target.value = '';
-            return;
-        }
-
-        this.app.showToast?.(`Importando y transcribiendo "${file.name}"...`);
-
+        if (!(await this.ensurePrivacyConsent())) return;
+        let sessionId = null;
         try {
-            const base64 = await blobToBase64(file);
-            const result = await transcribeAudio({
-                audioBase64: base64,
-                mimeType: file.type || 'audio/webm'
-            });
-
-            if (!result.success) {
-                this.app.showToast?.(result.error || 'Error al transcribir archivo importado.');
-                return;
+            const durationMs = await readMediaDuration(file).catch(() => 0);
+            if (durationMs > AUDIO_CONSTRAINTS.maxDurationSeconds * 1000) {
+                throw new Error('El archivo supera el límite de tres horas.');
             }
-
-            const cleanName = file.name.replace(/\.[^/.]+$/, '');
-            this.addTranscriptionRecord({
-                title: cleanName,
-                durationSeconds: 0,
-                sizeBytes: file.size,
-                mimeType: file.type || 'audio/webm',
-                status: 'completed',
-                rawText: result.text
+            const settings = this.getCaptureSettings();
+            const title = document.getElementById('transcription-new-title')?.value.trim()
+                || file.name.replace(/\.[^.]+$/, '').slice(0, 160);
+            sessionId = globalThis.crypto?.randomUUID?.();
+            if (!sessionId) throw new Error('Este dispositivo no pudo generar una identidad segura para el archivo.');
+            const session = await this.cloud.createSession({
+                id: sessionId,
+                ...settings,
+                title,
+                sourceType: 'import',
+                status: 'uploading',
+                mimeType: validation.mimeType
             });
-
-            this.app.showToast?.(`Archivo "${cleanName}" transcripto con éxito.`);
-        } catch (err) {
-            this.app.showToast?.(`Error: ${err.message}`);
-        } finally {
-            event.target.value = '';
+            await this.cache.putSession({
+                id: session.id,
+                ...settings,
+                title,
+                sourceType: 'import',
+                cloudCreated: true
+            });
+            const checksum = await sha256Blob(file);
+            await this.cache.putChunk({
+                sessionId: session.id,
+                sequenceNumber: 0,
+                blob: file,
+                durationMs,
+                mimeType: validation.mimeType,
+                mediaRole: 'import_source',
+                sha256: checksum
+            });
+            const chunk = await this.cloud.uploadChunk(session.id, {
+                sequenceNumber: 0,
+                blob: file,
+                durationMs,
+                mimeType: validation.mimeType,
+                mediaRole: 'import_source',
+                sha256: checksum
+            }, { filename: file.name });
+            await this.cache.markChunkUploaded(session.id, 0, chunk.id, chunk.storage_path);
+            await this.finishUploadedSession(session.id, settings.autoProcess);
+        } catch (error) {
+            const cached = sessionId ? await this.cache.getSession(sessionId).catch(() => null) : null;
+            if (cached) await this.showRecoveryState(sessionId, error);
+            this.app.showToast?.(`No se pudo importar el archivo: ${errorMessage(error)}`);
         }
     }
 
-    addTranscriptionRecord(data) {
-        const item = normalizeTranscription({
-            ...data,
-            folderId: this.activeFolderId === 'all' ? 'folder_general' : this.activeFolderId
-        });
+    async createFolder() {
+        const name = globalThis.prompt?.('Nombre de la nueva carpeta:')?.trim();
+        if (!name) return;
+        try {
+            const folder = await this.cloud.createFolder(name);
+            this.folders.push(folder);
+            this.folders.sort((a, b) => a.name.localeCompare(b.name, 'es'));
+            this.renderFolders();
+            this.renderFolderSelects();
+        } catch (error) {
+            this.app.showToast?.(`No se pudo crear la carpeta: ${errorMessage(error)}`);
+        }
+    }
 
-        this.registry.transcriptions.unshift(item);
-        this.saveData();
-        this.render();
+    async enqueueSession(sessionId) {
+        try {
+            await this.cloud.enqueueSession(sessionId);
+            await this.cache.updateSession(sessionId, { enqueued: true, finalized: true }).catch(() => {});
+            this.closeDetailModal();
+            await this.loadLibrary({ quiet: true });
+            this.app.showToast?.('Transcripción agregada a la cola.');
+        } catch (error) {
+            this.app.showToast?.(`No se pudo iniciar el procesamiento: ${errorMessage(error)}`);
+        }
+    }
+
+    async requestArtifact(kind) {
+        if (!this.activeSessionId) return;
+        try {
+            await this.cloud.enqueueArtifact(this.activeSessionId, kind);
+            this.app.showToast?.(kind === 'summary' ? 'Resumen agregado a la cola.' : 'Apuntes agregados a la cola.');
+            this.ensurePolling();
+        } catch (error) {
+            this.app.showToast?.(`No se pudo generar el resultado: ${errorMessage(error)}`);
+        }
     }
 
     render() {
         this.renderFolders();
+        this.renderFolderSelects();
         this.renderList();
+        this.updateAvailability(this.available, this.lastAvailabilityMessage || 'Comprobando acceso...');
     }
 
     renderFolders() {
-        const tabsRoot = document.getElementById('transcriptions-folder-tabs');
-        if (!tabsRoot) return;
-
-        const allActive = this.activeFolderId === 'all' ? 'active' : '';
-        let html = `<button type="button" class="tab-btn ${allActive}" data-transcription-folder="all">Todas</button>`;
-
-        this.registry.folders.forEach(f => {
-            const active = this.activeFolderId === f.id ? 'active' : '';
-            html += `<button type="button" class="tab-btn ${active}" data-transcription-folder="${f.id}"><i class="ph ${f.icon}"></i> ${f.name}</button>`;
-        });
-
-        tabsRoot.innerHTML = html;
-
-        tabsRoot.querySelectorAll('[data-transcription-folder]').forEach(btn => {
-            btn.addEventListener('click', () => {
-                this.activeFolderId = btn.dataset.transcriptionFolder;
-                this.render();
-            });
-        });
+        const root = document.getElementById('transcriptions-folder-tabs');
+        if (!root) return;
+        const buttons = [
+            { id: 'all', name: 'Todas', icon: 'ph-squares-four' },
+            { id: 'inbox', name: 'Bandeja', icon: 'ph-tray' },
+            ...this.folders.map(folder => ({ id: folder.id, name: folder.name, icon: 'ph-folder' }))
+        ];
+        root.innerHTML = buttons.map(folder => `
+            <button type="button" class="tab-btn ${this.activeFolderId === folder.id ? 'active' : ''}" data-transcription-folder="${escapeHtml(folder.id)}">
+                <i class="ph ${folder.icon}"></i> ${escapeHtml(folder.name)}
+            </button>`).join('');
     }
 
-    getFilteredItems() {
-        let items = this.registry.transcriptions;
-        if (this.activeFolderId !== 'all') {
-            items = items.filter(t => t.folderId === this.activeFolderId);
+    renderFolderSelects() {
+        const options = [
+            '<option value="">Bandeja de entrada</option>',
+            ...this.folders.map(folder => `<option value="${escapeHtml(folder.id)}">${escapeHtml(folder.name)}</option>`)
+        ].join('');
+        const creationSelect = document.getElementById('transcription-new-folder');
+        if (creationSelect) {
+            const selected = creationSelect.value;
+            creationSelect.innerHTML = options;
+            if ([...creationSelect.options].some(option => option.value === selected)) creationSelect.value = selected;
         }
-        if (this.searchQuery) {
-            items = searchTranscriptions(items, this.searchQuery);
-        }
-        return items;
+        const detailSelect = document.getElementById('trans-detail-folder');
+        if (detailSelect) detailSelect.innerHTML = options;
+    }
+
+    getFilteredSessions() {
+        let sessions = this.sessions;
+        if (this.activeFolderId === 'inbox') sessions = sessions.filter(session => !session.folderId);
+        else if (this.activeFolderId !== 'all') sessions = sessions.filter(session => session.folderId === this.activeFolderId);
+        return searchTranscriptions(sessions, this.searchQuery);
     }
 
     renderList() {
-        const container = document.getElementById('transcriptions-list');
-        if (!container) return;
-
-        const items = this.getFilteredItems();
-        if (items.length === 0) {
-            container.innerHTML = `
-                <div class="empty-state" style="text-align: center; padding: 3rem 1rem; color: var(--text-secondary); grid-column: 1 / -1;">
-                    <i class="ph ph-waveform" style="font-size: 2.5rem; opacity: 0.6; display: block; margin-bottom: 0.75rem;"></i>
-                    <p>No hay transcripciones en esta carpeta o búsqueda.</p>
-                    <p style="font-size: 0.85rem;">Tocá "Grabar Nota de Voz" o importá un audio para comenzar.</p>
-                </div>
-            `;
+        const root = document.getElementById('transcriptions-list');
+        if (!root) return;
+        if (!this.available) {
+            root.innerHTML = '<div class="empty-state transcription-empty"><i class="ph ph-lock-key"></i><p>La biblioteca privada todavía no está disponible.</p></div>';
             return;
         }
-
-        container.innerHTML = items.map(item => {
-            const textToDisplay = item.editedText || item.rawText;
-            const snippet = textToDisplay.length > 140
-                ? textToDisplay.slice(0, 140) + '...'
-                : (textToDisplay || '(Sin contenido)');
-            const dateStr = new Date(item.createdAt).toLocaleDateString('es-AR', {
-                day: '2-digit', month: 'short', hour: '2-digit', minute: '2-digit'
-            });
-            const durationStr = item.durationSeconds > 0 ? formatDuration(item.durationSeconds) : '';
-
+        const sessions = this.getFilteredSessions();
+        if (sessions.length === 0) {
+            root.innerHTML = '<div class="empty-state transcription-empty"><i class="ph ph-waveform"></i><p>No hay transcripciones en esta vista.</p></div>';
+            return;
+        }
+        root.innerHTML = sessions.map(session => {
+            const snippet = String(session.transcript || session.errorMessage || 'Audio guardado; todavía no hay texto.').slice(0, 180);
+            const progress = session.expectedChunks > 0
+                ? `${session.completedChunks}/${session.expectedChunks} fragmentos`
+                : formatBytes(session.totalBytes);
+            const retry = RETRYABLE_STATUSES.has(session.status)
+                ? '<button type="button" class="btn btn-secondary" data-transcription-action="process"><i class="ph ph-play"></i> Procesar</button>'
+                : '';
             return `
-                <div class="card transcription-card" data-transcription-id="${item.id}" style="padding: 1.25rem; display: flex; flex-direction: column; gap: 0.75rem; border: 1px solid var(--surface-border); border-radius: 12px; background: var(--surface-inset);">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start;">
-                        <div>
-                            <h3 style="margin: 0; font-size: 1.1rem; color: var(--text-primary); font-weight: 700;">${item.title}</h3>
-                            <span style="font-size: 0.78rem; color: var(--text-secondary);">${dateStr} ${durationStr ? `· ${durationStr}` : ''}</span>
-                        </div>
-                        ${item.summary ? '<span class="badge green" title="Contiene resumen generado por IA"><i class="ph ph-sparkle"></i> Resumen</span>' : ''}
+                <article class="card transcription-card" data-transcription-id="${escapeHtml(session.id)}">
+                    <div class="transcription-card-heading">
+                        <div><small>${session.sourceType === 'import' ? 'Archivo importado' : 'Grabación'}</small><h3>${escapeHtml(session.title)}</h3></div>
+                        <span class="badge ${session.status === 'completed' ? 'green' : (session.status === 'failed' || session.status === 'partial' ? 'red' : 'yellow')}">${escapeHtml(getTranscriptionStatusLabel(session.status))}</span>
                     </div>
-
-                    <p style="font-size: 0.85rem; color: var(--text-secondary); line-height: 1.45; margin: 0; flex: 1;">
-                        ${snippet}
-                    </p>
-
-                    <div style="display: flex; justify-content: flex-end; gap: 6px; border-top: 1px solid var(--surface-border); padding-top: 0.75rem;">
-                        <button type="button" class="btn btn-secondary" onclick="window.app.transcriptions?.openDetailModal('${item.id}')" style="padding: 4px 10px; font-size: 0.8rem;">
-                            <i class="ph ph-eye"></i> Ver / Editar
-                        </button>
-                        <button type="button" class="btn-icon-danger" onclick="window.app.transcriptions?.deleteTranscription('${item.id}')" title="Eliminar transcripción" style="padding: 4px 8px; font-size: 0.8rem;">
-                            <i class="ph ph-trash"></i>
-                        </button>
+                    <p>${escapeHtml(snippet)}</p>
+                    <div class="transcription-card-meta"><span>${escapeHtml(progress)}</span><span>${formatDuration(session.durationSeconds)}</span></div>
+                    <div class="transcription-card-actions">
+                        <button type="button" class="btn btn-secondary" data-transcription-action="open"><i class="ph ph-eye"></i> Ver</button>
+                        ${retry}
+                        ${session.audioDeletedAt ? '' : '<button type="button" class="btn btn-secondary" data-transcription-action="audio"><i class="ph ph-download-simple"></i> Audio</button>'}
+                        <button type="button" class="icon-btn is-danger" data-transcription-action="delete" aria-label="Eliminar ${escapeHtml(session.title)}"><i class="ph ph-trash"></i></button>
                     </div>
-                </div>
-            `;
+                </article>`;
         }).join('');
     }
 
-    openDetailModal(transcriptionId) {
-        this.activeTranscriptionId = transcriptionId;
-        const item = this.registry.transcriptions.find(t => t.id === transcriptionId);
-        if (!item) return;
-
+    openDetailModal(sessionId) {
+        const session = this.sessions.find(item => item.id === sessionId);
         const modal = document.getElementById('transcription-detail-modal');
-        if (!modal) return;
-
-        document.getElementById('trans-detail-title').value = item.title;
-        document.getElementById('trans-detail-text').value = item.editedText || item.rawText;
-
+        if (!session || !modal) return;
+        this.activeSessionId = sessionId;
+        document.getElementById('trans-detail-title').value = session.title;
+        document.getElementById('trans-detail-folder').value = session.folderId || '';
+        document.getElementById('trans-detail-text').value = session.transcript || '';
+        const status = document.getElementById('trans-detail-status');
+        if (status) status.textContent = `${getTranscriptionStatusLabel(session.status)} · ${session.completedChunks}/${session.expectedChunks || 0} fragmentos · ${formatBytes(session.totalBytes)}`;
         const summaryContainer = document.getElementById('trans-detail-summary-container');
-        const summaryText = document.getElementById('trans-detail-summary-text');
-        if (item.summary) {
-            summaryContainer?.classList.remove('hidden');
-            if (summaryText) summaryText.textContent = item.summary;
-        } else {
-            summaryContainer?.classList.add('hidden');
-        }
-
+        summaryContainer?.classList.toggle('hidden', !session.summary);
+        const summary = document.getElementById('trans-detail-summary-text');
+        if (summary) summary.textContent = session.summary || '';
+        const notesContainer = document.getElementById('trans-detail-notes-container');
+        notesContainer?.classList.toggle('hidden', !session.notes);
+        const notes = document.getElementById('trans-detail-notes-text');
+        if (notes) notes.textContent = session.notes || '';
+        document.getElementById('btn-retry-transcription')?.classList.toggle('hidden', !RETRYABLE_STATUSES.has(session.status));
+        const download = document.getElementById('btn-download-transcription-audio');
+        if (download) download.disabled = Boolean(session.audioDeletedAt);
+        const hasTranscript = Boolean(session.transcript);
+        ['btn-generate-ai-summary', 'btn-generate-ai-notes', 'btn-copy-transcription']
+            .forEach(id => {
+                const button = document.getElementById(id);
+                if (button) button.disabled = !hasTranscript;
+            });
         modal.classList.remove('hidden');
     }
 
     closeDetailModal() {
-        const modal = document.getElementById('transcription-detail-modal');
-        modal?.classList.add('hidden');
-        this.activeTranscriptionId = null;
+        document.getElementById('transcription-detail-modal')?.classList.add('hidden');
+        this.activeSessionId = null;
     }
 
-    saveActiveTranscriptionChanges() {
-        if (!this.activeTranscriptionId) return;
-        const item = this.registry.transcriptions.find(t => t.id === this.activeTranscriptionId);
-        if (!item) return;
-
-        const newTitle = document.getElementById('trans-detail-title')?.value.trim();
-        const newText = document.getElementById('trans-detail-text')?.value.trim();
-
-        if (newTitle) item.title = newTitle;
-        item.editedText = newText;
-        item.updatedAt = new Date().toISOString();
-
-        this.saveData();
-        this.closeDetailModal();
-        this.render();
-        this.app.showToast?.('Transcripción guardada.');
-    }
-
-    async requestAiSummary() {
-        if (!this.activeTranscriptionId) return;
-        const item = this.registry.transcriptions.find(t => t.id === this.activeTranscriptionId);
-        if (!item) return;
-
-        const text = item.editedText || item.rawText;
-        if (!text || text.length < 20) {
-            this.app.showToast?.('El texto es muy corto para generar un resumen.');
+    async saveActiveTranscriptionChanges() {
+        const session = this.sessions.find(item => item.id === this.activeSessionId);
+        if (!session) return;
+        const title = document.getElementById('trans-detail-title')?.value.trim();
+        const folderId = document.getElementById('trans-detail-folder')?.value || null;
+        const transcript = document.getElementById('trans-detail-text')?.value || '';
+        if (!title) {
+            this.app.showToast?.('El título no puede quedar vacío.');
             return;
         }
-
-        this.app.showToast?.('Generando resumen con Gemini...');
-        const result = await generateSummary({ text });
-
-        if (!result.success) {
-            this.app.showToast?.(result.error || 'Error al generar resumen.');
-            return;
+        try {
+            await this.cloud.updateSession(session.id, { title, folderId });
+            if (transcript !== session.transcript) await this.cloud.saveTranscript(session.id, transcript);
+            this.closeDetailModal();
+            await this.loadLibrary({ quiet: true });
+            this.app.showToast?.('Cambios guardados.');
+        } catch (error) {
+            this.app.showToast?.(`No se pudieron guardar los cambios: ${errorMessage(error)}`);
         }
-
-        item.summary = result.summary;
-        this.saveData();
-
-        const summaryContainer = document.getElementById('trans-detail-summary-container');
-        const summaryText = document.getElementById('trans-detail-summary-text');
-        summaryContainer?.classList.remove('hidden');
-        if (summaryText) summaryText.textContent = result.summary;
-
-        this.renderList();
-        this.app.showToast?.('¡Resumen generado con éxito!');
     }
 
-    downloadExport(format = 'txt') {
-        if (!this.activeTranscriptionId) return;
-        const item = this.registry.transcriptions.find(t => t.id === this.activeTranscriptionId);
-        if (!item) return;
+    async copyActiveTranscript() {
+        const session = this.sessions.find(item => item.id === this.activeSessionId);
+        if (!session?.transcript) return;
+        try {
+            await navigator.clipboard.writeText(session.transcript);
+            this.app.showToast?.('Transcripción copiada.');
+        } catch {
+            this.app.showToast?.('El navegador no permitió copiar el texto.');
+        }
+    }
 
-        const content = format === 'md' ? exportAsMarkdown(item) : exportAsPlainText(item);
-        const filename = `${item.title.replace(/[^a-z0-9_-]/gi, '_')}.${format}`;
-        const blob = new Blob([content], { type: format === 'md' ? 'text/markdown' : 'text/plain' });
+    downloadExport(format) {
+        const session = this.sessions.find(item => item.id === this.activeSessionId);
+        if (!session) return;
+        const content = format === 'md' ? exportAsMarkdown(session) : exportAsPlainText(session);
+        const blob = new Blob([content], { type: format === 'md' ? 'text/markdown;charset=utf-8' : 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
-        a.download = filename;
-        a.click();
-        URL.revokeObjectURL(url);
+        const anchor = document.createElement('a');
+        anchor.href = url;
+        anchor.download = createDownloadFilename(session.title, format);
+        anchor.click();
+        setTimeout(() => URL.revokeObjectURL(url), 1000);
     }
 
-    async deleteTranscription(transcriptionId) {
-        const item = this.registry.transcriptions.find(t => t.id === transcriptionId);
-        if (!item) return;
+    async downloadAudio(sessionId) {
+        const session = this.sessions.find(item => item.id === sessionId);
+        if (!session || session.audioDeletedAt) {
+            this.app.showToast?.('El audio temporal ya fue eliminado.');
+            return;
+        }
+        try {
+            const files = await this.cloud.getAudioDownloadUrls(sessionId);
+            if (files.length === 0) throw new Error('No quedan fragmentos de audio disponibles.');
+            for (const file of files) {
+                const response = await fetch(file.signedUrl);
+                if (!response.ok) throw new Error(`No se pudo descargar el fragmento ${file.sequenceNumber + 1}.`);
+                const blob = await response.blob();
+                const extension = file.path.split('.').pop() || 'audio';
+                const url = URL.createObjectURL(blob);
+                const anchor = document.createElement('a');
+                anchor.href = url;
+                anchor.download = `${createDownloadFilename(session.title, '')}_parte_${String(file.sequenceNumber + 1).padStart(2, '0')}.${extension}`;
+                anchor.click();
+                setTimeout(() => URL.revokeObjectURL(url), 1000);
+            }
+            this.app.showToast?.(files.length === 1 ? 'Audio descargado.' : `Se descargaron ${files.length} fragmentos ordenados.`);
+        } catch (error) {
+            this.app.showToast?.(`No se pudo descargar el audio: ${errorMessage(error)}`);
+        }
+    }
 
+    async deleteTranscription(sessionId) {
+        const session = this.sessions.find(item => item.id === sessionId);
+        if (!session) return;
         const confirmed = await this.app.confirmAction?.({
-            title: '¿Eliminar transcripción?',
-            message: `¿Seguro que deseás eliminar "${item.title}"? Esta acción liberará el espacio local inmediatamente.`,
-            tone: 'danger',
-            confirmLabel: 'Eliminar'
+            title: 'Eliminar transcripción',
+            message: `Se eliminarán “${session.title}”, su texto y cualquier audio temporal. Esta acción no se puede deshacer.`,
+            confirmLabel: 'Eliminar definitivamente',
+            tone: 'danger'
         });
-
         if (!confirmed) return;
-
-        this.registry.transcriptions = this.registry.transcriptions.filter(t => t.id !== transcriptionId);
-        this.saveData();
-        this.render();
-        this.app.showToast?.('Transcripción eliminada.');
+        try {
+            await this.cloud.deleteSession(sessionId);
+            await this.cache.deleteSession(sessionId).catch(() => {});
+            this.sessions = this.sessions.filter(item => item.id !== sessionId);
+            this.renderList();
+            this.app.showToast?.('Transcripción eliminada.');
+        } catch (error) {
+            this.app.showToast?.(`No se pudo eliminar: ${errorMessage(error)}`);
+        }
     }
 }

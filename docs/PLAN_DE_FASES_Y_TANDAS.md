@@ -1,90 +1,81 @@
-# Plan Definitivo de LifeCycle — Fases y Tandas
+# Plan definitivo de LifeCycle — estado auditado
 
-Este documento es la referencia oficial del avance y ejecución del plan maestro de LifeCycle.
+**Actualizado:** 4 de septiembre de 2026
 
----
+La implementación puede agruparse en bloques grandes cuando sea seguro. No existe un límite artificial de 20–30 minutos: cada cierre debe ser coherente, probado y recuperable. Se mantiene confirmación explícita para migraciones productivas, facturación y acciones destructivas.
 
-## Estado General de Avance
+## Estado general
 
-| Fase | Descripción | Tandas Totales | Completadas | Estado |
-|---|---|---|---|---|
-| **Fase A** | Base local y organización | 6 (0 a 5) | 6 | 🟢 Completada |
-| **Fase B** | Varios horarios de notificación | 6 (6 a 10) | 6 | 🟢 Completada |
-| **Fase C** | Suscripciones | 5 (11 a 15) | 5 | 🟢 Completada |
-| **Fase D** | Viabilidad, presupuesto operativo y Android | 8 (16A a 18C) | 8 | 🟢 Completada |
-| **Fase E** | Transcripciones completas | 7 (19 a 25) | 7 | 🟢 Completada |
-| **Fase F** | Inicio de cuentas y entrega | 4 (26 a 27C) | 4 | 🟢 Completada |
+| Fase | Alcance | Código local | Cierre externo |
+|---|---|---|---|
+| A | Organización, cuenta, navegación, iconos y destinos | Implementado y auditado | QA visual final pendiente |
+| B | Varios horarios diarios por entidad | Implementado y auditado | Prueba Push real pendiente |
+| C | Suscripciones y Finanzas | Implementado y auditado | Migración y prueba productiva pendientes |
+| D | Presupuesto, PWA y Android nativo | Implementado y compilable | Prueba física Android pendiente |
+| E | Pipeline completo de transcripciones | Implementado y auditado | Migración, clave Gemini y prueba real pendientes |
+| F | Presets iniciales, QA y publicación | Presets y pruebas locales implementados | QA visual, despliegue y entrega pendientes |
 
----
+## Fase A — Base y organización
 
-## Detalle por Fases y Tandas
+- **Tanda 0:** reconciliar Git, conservar un respaldo del estado recibido y separar temporales.
+- **Tanda 1:** corregir destinos profundos desde Hoy, campana y notificaciones, incluida Vitamina D.
+- **Tanda 2:** completar iconos faltantes y corregir el tooltip residual de “Más”.
+- **Tanda 3:** ordenar Cuenta en identidad/sesión, preferencias, organización, notificaciones/dispositivos y datos/aplicación.
+- **Tanda 4:** acceso visible a Cuenta en móvil; cuatro favoritos; “Más” contiene sólo módulos.
+- **Tanda 5:** distinguir funciones especializadas, módulos y tarjetas; ocultar opcionalmente plantillas sin eliminarlas; conservar Hoy, búsqueda y tarea rápida.
 
-### Fase A — Base local y organización
+## Fase B — Varios horarios de notificación
 
-- [x] **Tanda 0 — Reconciliación de Git**: Respaldar el estado local, contrastarlo con GitHub y producción, recuperar las referencias correspondientes y separar archivos temporales del código. Conservar todos los cambios legítimos, sin commits duplicados ni reescrituras de historial. Dejar el plan y el estado de avance documentados en el repositorio. *(Completada: 2026-09-02)*
-- [x] **Tanda 1 — Destinos de los avisos**: Corregir enlaces como Vitamina D para abrir el módulo, la pestaña y el elemento correspondiente. Revisar los recorridos desde la campana, Hoy y las notificaciones que utilicen esos destinos. *(Completada: 2026-09-02)*
-- [x] **Tanda 2 — Iconos y tooltip**: Inventariar los iconos utilizados, corregir referencias incorrectas y verificar su carga y visualización. Cubrir también selectores y contenido dinámico. Corregir el tooltip que queda visible al cerrar “Más”. *(Completada: 2026-09-02)*
-- [x] **Tanda 3 — Cuenta y preferencias**: Reorganizar la sección en **Mi cuenta**, **Preferencias**, **Organización**, **Notificaciones y dispositivos**, y **Datos y aplicación**. Ubicar moneda, apariencia y comportamiento en Preferencias; mantener diagnósticos avanzados desplegables y preservar las configuraciones existentes. *(Completada: 2026-09-02)*
-- [x] **Tanda 4 — Navegación móvil**: Incorporar un acceso visible a la cuenta en la cabecera. Mantener cuatro favoritos y reservar “Más” exclusivamente para módulos. Verificar selección, regreso, foco, accesibilidad y adaptación a pantallas pequeñas. *(Completada: 2026-09-02)*
-- [x] **Tanda 5 — Personalización y funciones**: Distinguir funciones especializadas de la aplicación, módulos personalizados y contenido creado por el usuario. Aclarar el selector de iconos. Añadir una preferencia para ocultar las plantillas de proyectos sin eliminarlas. Mantener Hoy, la búsqueda y la creación rápida de tareas. *(Completada: 2026-09-02)*
+- **Tanda 6:** modelo común de varios horarios dentro del mismo día calendario, sin duplicados.
+- **Tanda 7:** migración compatible desde configuraciones de un horario y claves de envío por horario.
+- **Tanda 8A:** editor compartido para agregar, ordenar y quitar horarios.
+- **Tanda 8B:** cobertura de tarjetas, recordatorios, vehículo, gimnasio, proyectos, Trading y futuros avisos de suscripciones.
+- **Tanda 9:** servidor con deduplicación por horario; reintentos técnicos separados; supresión de avisos restantes si la entidad deja de estar pendiente.
+- **Tanda 10:** regresión, cambio de día, sincronización, reinicio y prueba Push en dispositivo.
 
-### Fase B — Varios horarios de notificación
+## Fase C — Suscripciones
 
-- [x] **Tanda 6 — Reglas comunes de horarios**: Permitir varios horarios dentro del mismo día calendario para una única tarjeta o recordatorio. Mantener días, vencimientos y condiciones existentes. Validar horarios, evitar repeticiones idénticas y respetar la zona horaria utilizada por la aplicación. No incorporar ciclos especiales que agrupen noches entre dos fechas. *(Completada: 2026-09-02)*
-- [x] **Tanda 7 — Persistencia y compatibilidad**: Adaptar configuraciones y registros de envío para identificar cada aviso programado. Conservar las configuraciones antiguas como un único horario. Definir límites técnicos y compatibilidad entre versiones durante la transición. *(Completada: 2026-09-02)*
-- [x] **Tanda 8A — Editor compartido**: Incorporar controles reutilizables para agregar y quitar horarios en tarjetas, recordatorios y gimnasio. Mantener una sola entidad, configuración e historial. *(Completada: 2026-09-02)*
-- [x] **Tanda 8B — Resto de avisos configurables**: Aplicar el modelo a vehículo, salud, proyectos, tareas, Trading y demás avisos existentes. Preservar las reglas propias de anticipaciones, intervalos y vencimientos de cada dominio. *(Completada: 2026-09-02)*
-- [x] **Tanda 9 — Servidor, deduplicación y reintentos**: Adaptar el motor de envíos para admitir varios avisos diarios. Separar horarios solicitados de reintentos técnicos. Conservar las protecciones contra duplicados y avisos vencidos. Suprimir los avisos posteriores cuando el elemento registrado como realizado deje de cumplir la condición de pendiente. *(Completada: 2026-09-02)*
-- [x] **Tanda 10 — Verificación integrada**: Probar varios horarios, cambio de día, modificación de configuraciones, elementos realizados o archivados, sincronización y reinicios. Verificar compatibilidad con los reintentos existentes, aislamiento entre cuentas y recepción en el dispositivo. *(Completada: 2026-09-02)*
+- **Tanda 11:** modelo versionado con moneda, precio, periodo, próxima renovación, estado e historial.
+- **Tanda 12:** módulo especializado y ocultable con alta, edición, pausa/cancelación lógica y reactivación.
+- **Tanda 13:** gasto manual o automático, como máximo uno por periodo y de forma atómica entre dispositivos.
+- **Tanda 14:** recordatorios multihorario y traslado idempotente de Workana sin avisos dobles.
+- **Tanda 15:** migración productiva, pruebas de renovación/fin de mes/ARS-USD y validación integrada.
 
-### Fase C — Suscripciones
+## Fase D — Presupuesto y Android
 
-- [x] **Tanda 11 — Modelo e historial**: Definir suscripciones con nombre, importe, moneda, inicio, periodo, próxima renovación, vigencia y estado de renovación automática. Mantener historial y contemplar cambios de precio y fechas de fin de mes. *(Completada: 2026-09-02)*
-- [x] **Tanda 12 — Gestión del módulo**: Crear el módulo especializado y ocultable de Suscripciones. Incorporar listado, detalle, creación, edición, desactivación de renovación y reactivación. Conservar la vigencia hasta la fecha correspondiente y distinguir el registro en LifeCycle de una cancelación real en el proveedor externo. *(Completada: 2026-09-02)*
-- [x] **Tanda 13 — Gastos vinculados**: Incorporar registro manual por defecto y registro automático como opción explícita. Generar como máximo un gasto por periodo, evitar duplicados entre dispositivos y reintentos, identificar los registros automáticos y permitir su corrección sin borrar el historial financiero. *(Completada: 2026-09-02)*
-- [x] **Tanda 14 — Recordatorios y traslado de Workana**: Integrar avisos previos y de vencimiento con varios horarios. Trasladar Workana desde Proyectos conservando sus datos y referencias. Verificar que repetir la migración no duplique información. *(Completada: 2026-09-02)*
-- [x] **Tanda 15 — Cierre del bloque**: Probar alta, edición, renovación, avisos, generación de gastos, cancelación y reactivación. Verificar persistencia, sincronización e interfaz. Publicar el bloque cuando esté integrado y validado. *(Completada: 2026-09-02)*
+- **Tanda 16A:** Gemini como proveedor inicial gratuito, consentimiento explícito y calidad medida con muestras no confidenciales.
+- **Tanda 16B:** límites propios, telemetría y pausa segura sin activar facturación.
+- **Tanda 17A:** conservar PWA y sumar Capacitor Android sin duplicar interfaz ni migrar backend.
+- **Tanda 17B:** servicio foreground de micrófono, notificación persistente y `PARTIAL_WAKE_LOCK`.
+- **Tanda 17C:** interrupciones, recuperación local, permisos y experiencia Android.
+- **Tanda 18A:** AAC mono a 48 kbit/s, sesiones de hasta tres horas, fragmentos de cinco minutos y retención 24 h/7 días.
+- **Tanda 18B:** grabación web y Android, caché local y subidas recuperables.
+- **Tanda 18C:** compilación APK y prueba física en Galaxy S24 FE / Android 16.
 
-### Fase D — Viabilidad, presupuesto operativo y Android
+## Fase E — Transcripciones
 
-- [x] **Tanda 16A — Gemini gratuito y calidad**: Verificar el proyecto, los modelos disponibles, las cuotas y la configuración necesaria para utilizar Gemini gratuito como único proveedor inicial. Evaluar precisión con muestras autorizadas. Definir avisos de privacidad y activación expresa del envío a la nube. No activar facturación ni proveedores de pago. *(Completada: 2026-09-02)*
-- [x] **Tanda 16B — Presupuesto operativo**: Consultar el consumo real de Supabase y Render y las cuotas de Gemini. Medir tamaños y transferencias previstas. Reservar margen para LifeCycle y definir límites, avisos y condiciones de pausa antes de habilitar tráfico de audio. Aplicar los controles de audio también a la cuenta propietaria. *(Completada: 2026-09-02)*
-- [x] **Tanda 17A — Base Android y evaluación de arquitectura**: Comparar PWA pura versus envoltorio nativo (Capacitor/TWA). Validar permisos de micrófono y acceso en Android manteniendo compatibilidad web. *(Completada: 2026-09-02)*
-- [x] **Tanda 17B — Arquitectura PWA y WakeLock**: Implementar Screen Wake Lock API para evitar suspensión del procesador con pantalla bloqueada o en segundo plano. *(Completada: 2026-09-02)*
-- [x] **Tanda 17C — Notificaciones y comportamiento móvil**: Integrar canales push web para móviles, control de permisos y experiencia táctil en Android. *(Completada: 2026-09-02)*
-- [x] **Tanda 18A — Almacenamiento, códecs y retención**: Definir códec Opus/WebM a 32kbps mono, límite de 30 minutos por nota, tamaño máximo y retención efímera de audios en servidor. *(Completada: 2026-09-02)*
-- [x] **Tanda 18B — Grabador y subida por fragmentos**: Implementar AudioRecorder en cliente, temporizador, visualización, compresión y fragmentación (chunking) de 1 MB para subida resiliente. *(Completada: 2026-09-02)*
-- [x] **Tanda 18C — Verificación móvil y pruebas**: Validar suite automatizada con pruebas de cuotas, límites de audio, fragmentación y contratos de prompt en tests/fase-d-audio-mobile.test.mjs. *(Completada: 2026-09-02)*
+- **Tanda 19:** tablas separadas, RLS, relación compuesta de propietario, bucket privado y presupuestos.
+- **Tanda 20A:** subida Android fragmentada e idempotente sin borrar audio local antes de confirmar.
+- **Tanda 20B:** importación de audio/video hasta 50 MB, TUS desde 6 MB y preparación con FFmpeg.
+- **Tanda 21:** cola persistente, reclamo concurrente seguro, reintentos acotados y espera diaria por cuota.
+- **Tanda 22:** transcripción fiel por fragmento y unión determinista completa.
+- **Tanda 23:** biblioteca, carpetas, títulos, edición, copia, exportación, descarga y eliminación.
+- **Tanda 24:** módulo ocultable integrado en navegación y búsqueda.
+- **Tanda 25:** resumen y apuntes opcionales como documentos separados del texto fuente.
 
-### Fase E — Transcripciones completas
+## Fase F — Inicio de cuentas y entrega
 
-- [x] **Tanda 19 — Datos, permisos y límites**: Crear una estructura separada para carpetas, sesiones, fragmentos, trabajos y textos. Aplicar aislamiento entre usuarios, acceso inicial restringido a la cuenta propietaria y límites antes de aceptar subidas. No incorporar audios ni transcripciones extensas al gran estado general de sincronización. *(Completada: 2026-09-02)*
-- [x] **Tanda 20A — Subida recuperable desde Android**: Subir fragmentos comprobando presupuesto, tamaño e integridad. Reanudar transferencias interrumpidas y evitar repetir archivos ya subidos. Conservar el audio local pendiente cuando falte conexión o cuota, dentro de los límites de espacio definidos. *(Completada: 2026-09-02)*
-- [x] **Tanda 20B — Importación desde la web**: Permitir importar audios y videos existentes. Validar formatos, tamaños y duración, y preparar el audio para procesamiento por fragmentos. No borrar los originales de las carpetas personales del usuario. *(Completada: 2026-09-02)*
-- [x] **Tanda 21 — Cola de procesamiento**: Implementar trabajos persistentes con Gemini gratuito, reintentos acotados, espera por cuota y reanudación después de interrupciones. Guardar resultados conforme se completen. No bloquear el motor de notificaciones ni cambiar automáticamente a un servicio de pago. *(Completada: 2026-09-02)*
-- [x] **Tanda 22 — Transcripción completa y unificada**: Ensamblar los resultados por código, respetando orden y límites entre fragmentos. Detectar trabajos incompletos y respuestas truncadas. Verificar que las uniones no dupliquen ni eliminen contenido legítimo. Mantener la transcripción completa, sin convertirla en un resumen. *(Completada: 2026-09-02)*
-- [x] **Tanda 23 — Biblioteca, organización y edición**: Incorporar carpetas, títulos opcionales, bandeja de entrada, movimiento de sesiones y estados de progreso. Permitir procesamiento manual o automático activado por el usuario. Añadir edición, copia, exportación (.txt, .md), descarga y eliminación con las confirmaciones correspondientes. *(Completada: 2026-09-02)*
-- [x] **Tanda 24 — Módulo de Transcripciones en la navegación**: Integrar Transcripciones en la navegación, la cuenta y el flujo habitual de la aplicación. Proteger la carga inicial y verificar que el módulo permanezca ocultable y configurable como el resto. *(Completada: 2026-09-02)*
-- [x] **Tanda 25 — Resúmenes y apuntes opcionales**: Generar resultados adicionales mediante Gemini, claramente separados de la transcripción original. Mantenerlos opcionales, exportables y sujetos al mismo presupuesto gratuito. No reemplazar ni modificar automáticamente el texto fuente. *(Completada: 2026-09-02)*
+- **Tanda 26:** presets opcionales y neutrales, con vista previa, selección granular, prevención de duplicados y aplicación atómica respecto de cuotas.
+- **Tanda 27A:** suite completa, migraciones reales sobre PostgreSQL 17 aislado, RLS con dos cuentas, idempotencia y recuperación.
+- **Tanda 27B:** QA visual escritorio/celular, claro/oscuro, estados vacíos/errores y prueba física Android.
+- **Tanda 27C:** migraciones productivas confirmadas, variables seguras, commit/push, despliegue, health/logs y comprobación final.
 
-### Fase F — Inicio de cuentas y entrega
+## Secuencia de cierre pendiente
 
-- [x] **Tanda 26 — Configuración inicial opcional**: Incorporar, después de la revisión de una cuenta nueva, una selección de tarjetas y configuraciones predeterminadas con vista previa. Mantener vacíos los datos personales hasta que el usuario elija incorporar contenido. No copiar historiales, importes, fechas reales ni datos personales de la cuenta propietaria. Evitar duplicados y respetar los límites al aplicar la configuración. *(Completada: 2026-09-02)*
-- [x] **Tanda 27A — Pruebas integradas**: Verificar permisos, aislamiento entre cuentas, persistencia, sincronización, cuotas, interrupciones, recuperación y regresiones relevantes. Cubrir los recorridos completos de las funcionalidades nuevas y su convivencia con las existentes. *(Completada: 2026-09-02)*
-- [x] **Tanda 27B — Verificación visual y de dispositivos**: Comprobar las pantallas y recorridos modificados en web y Android, escritorio y celular, modo claro y oscuro. Revisar accesibilidad, navegación, estados vacíos, errores y mensajes de progreso. *(Completada: 2026-09-02)*
-- [x] **Tanda 27C — Publicación y entrega operativa**: Entregar la versión web y documentación, proteger las credenciales y documentar instalación, actualización, límites, recuperación y operación. Realizar los commits correspondientes y verificar el resultado posterior. *(Completada: 2026-09-02)*
-
----
-
-## Reglas de Ejecución
-
-1. **Una tanda por ejecución**, salvo que dos pequeñas puedan completarse juntas de forma segura.
-2. Objetivo de ejecuciones de aproximadamente **20–30 minutos**, subdividiendo antes de comenzar las piezas que puedan excederlo.
-3. Cada tanda incluye implementación, revisión, pruebas pertinentes y corrección de los problemas encontrados.
-4. Cada cierre deja un estado estable, documentado y recuperable.
-5. Las pruebas prolongadas se preparan con registros persistentes y se revisan cuando concluyan.
-6. Se utilizan checkpoints y commits para cambios coherentes; los despliegues se agrupan por bloques completos y verificados.
-7. Se solicita confirmación antes de las migraciones productivas acordadas, cambios de facturación o acciones destructivas.
-8. Si falta cuota, se pausa el procesamiento correspondiente sin contratar capacidad automáticamente ni borrar material pendiente.
-9. Al finalizar cada tanda se informa: **completado, verificado, riesgos o pendientes y siguiente tanda**.
-10. Se espera el **OK del usuario** antes de ejecutar la tanda siguiente.
+1. Finalizar suite, compilación APK, revisión visual local, diff y escaneo de secretos.
+2. Crear un checkpoint local coherente.
+3. Solicitar confirmación para las dos migraciones productivas pendientes.
+4. Aplicarlas y ejecutar el verificador SQL más los asesores de Supabase.
+5. Configurar Gemini en Render si la clave todavía no existe.
+6. Publicar y verificar web, health, logs, Push, suscripciones y una transcripción corta.
+7. Instalar el APK y completar la prueba física Android antes de declarar cerrado el plan.

@@ -52,6 +52,17 @@ function normalizeNotificationTime(value, fallback = '23:00') {
         : '23:00';
 }
 
+function normalizeNotificationTimes(value, fallback = '23:00') {
+    const source = Array.isArray(value) ? value : [value];
+    const times = [...new Set(source
+        .map(time => String(time || ''))
+        .filter(time => /^([01]\d|2[0-3]):([0-5]\d)$/.test(time)))]
+        .sort()
+        .slice(0, 6);
+    if (times.length === 0) times.push(normalizeNotificationTime(fallback));
+    return times;
+}
+
 function getCalendarDayDifference(startValue, endValue) {
     const start = parseDateOnly(String(startValue || '').split('T')[0]);
     const end = parseDateOnly(String(endValue || '').split('T')[0]);
@@ -397,12 +408,14 @@ function ensureVehicleCatalogAlertConfigs(alertsConfig, trackerData = {}) {
         const legacyConfig = typeof card.legacyAlertGroup === 'string'
             ? alertsConfig[card.legacyAlertGroup]
             : null;
-        const time = /^([01]\d|2[0-3]):[0-5]\d$/.test(card.alert?.time || '')
-            ? card.alert.time
-            : (card.section === 'documents' ? '09:00' : '23:00');
+        const times = normalizeNotificationTimes(
+            legacyConfig?.times || card.alert?.times || legacyConfig?.time || card.alert?.time,
+            card.section === 'documents' ? '09:00' : '23:00'
+        );
         alertsConfig[key] = {
             enabled: legacyConfig?.enabled ?? (card.alert?.enabled === true),
-            time: legacyConfig?.time || time,
+            time: times[0],
+            times,
             days: Array.isArray(legacyConfig?.days) ? legacyConfig.days : []
         };
         changed = true;
@@ -566,23 +579,38 @@ function ensureCustomTrackerAlertConfigs(alertsConfig, hygieneData = {}) {
             ? normalizeIntervalHours(tracker.behavior?.intervalHours, 6)
             : null;
         if (!alertsConfig[key]) {
-            const time = typeof tracker.alert?.time === 'string'
-                && /^([01]\d|2[0-3]):([0-5]\d)$/.test(tracker.alert.time)
-                ? tracker.alert.time
-                : '23:00';
+            const times = normalizeNotificationTimes(
+                tracker.alert?.times || tracker.alert?.time,
+                '23:00'
+            );
             alertsConfig[key] = {
                 enabled: tracker.alert?.enabled === true,
-                time,
+                time: times[0],
+                times,
                 days: [],
                 ...(isStateReminder ? { interval_hours: intervalHours } : {})
             };
             changed = true;
-        } else if (
-            isStateReminder
-            && alertsConfig[key].interval_hours !== intervalHours
-        ) {
-            alertsConfig[key].interval_hours = intervalHours;
-            changed = true;
+        } else {
+            const times = normalizeNotificationTimes(
+                alertsConfig[key].times || alertsConfig[key].time,
+                tracker.alert?.time || '23:00'
+            );
+            if (
+                alertsConfig[key].time !== times[0]
+                || JSON.stringify(alertsConfig[key].times) !== JSON.stringify(times)
+            ) {
+                alertsConfig[key].time = times[0];
+                alertsConfig[key].times = times;
+                changed = true;
+            }
+            if (
+                isStateReminder
+                && alertsConfig[key].interval_hours !== intervalHours
+            ) {
+                alertsConfig[key].interval_hours = intervalHours;
+                changed = true;
+            }
         }
     });
     return changed;
@@ -691,6 +719,7 @@ module.exports = {
     isExpiredPushError,
     isIntervalReminderDue,
     normalizeNotificationTime,
+    normalizeNotificationTimes,
     normalizeIntervalHours,
     parseJsonValue
 };

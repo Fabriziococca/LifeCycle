@@ -68,6 +68,38 @@ test('public config exposes only registration availability', async () => {
     assert.equal(JSON.stringify(result).includes('REGISTRATION_ACCESS_CODE_SHA256'), false);
 });
 
+test('native Android origin can call the API while arbitrary origins receive no CORS grant', async () => {
+    const nativePreflight = await fetch(`${baseUrl}/api/config`, {
+        method: 'OPTIONS',
+        headers: {
+            Origin: 'https://lifecycle.local',
+            'Access-Control-Request-Method': 'GET',
+            'Access-Control-Request-Headers': 'authorization,content-type'
+        }
+    });
+    assert.equal(nativePreflight.status, 204);
+    assert.equal(
+        nativePreflight.headers.get('access-control-allow-origin'),
+        'https://lifecycle.local'
+    );
+    assert.match(nativePreflight.headers.get('vary') || '', /origin/i);
+
+    const nativeResponse = await fetch(`${baseUrl}/api/config`, {
+        headers: { Origin: 'https://lifecycle.local' }
+    });
+    assert.equal(nativeResponse.status, 200);
+    assert.equal(
+        nativeResponse.headers.get('access-control-allow-origin'),
+        'https://lifecycle.local'
+    );
+
+    const untrustedResponse = await fetch(`${baseUrl}/api/config`, {
+        headers: { Origin: 'https://malicious.example' }
+    });
+    assert.equal(untrustedResponse.status, 200);
+    assert.equal(untrustedResponse.headers.get('access-control-allow-origin'), null);
+});
+
 test('invited registration fails closed without backend secrets', async () => {
     const response = await fetch(`${baseUrl}/api/auth/register`, {
         method: 'POST',

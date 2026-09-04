@@ -77,6 +77,7 @@ const {
     throwIfAborted,
     waitForDelay
 } = require('./operational-resilience');
+const { TranscriptionWorker } = require('./transcription-worker');
 
 // Búfer en memoria para depuración de logs en Render
 const logBuffer = [];
@@ -173,6 +174,9 @@ const PENDING_DELIVERY_RECOVERY_INTERVAL_MS = 60 * 1000;
 const NOTIFICATION_HISTORY_RETENTION_DAYS = 90;
 const NOTIFICATION_HISTORY_CLEANUP_INTERVAL_MS = 24 * 60 * 60 * 1000;
 const MAX_TRADING_NOTIFICATIONS_PER_RUN = 25;
+const NATIVE_APP_ORIGINS = new Set([
+    'https://lifecycle.local'
+]);
 let lastNotificationHistoryCleanupAt = 0;
 let lastPendingDeliveryRecoveryAt = 0;
 
@@ -277,6 +281,9 @@ const registrationAccessCodeHash = process.env.REGISTRATION_ACCESS_CODE_SHA256 |
 const registrationEnabled = isInvitedRegistrationConfigured({
     authAdmin: hasSupabaseServiceRole ? supabase?.auth?.admin : null,
     accessCodeHash: registrationAccessCodeHash
+});
+const transcriptionWorker = new TranscriptionWorker({
+    supabase: hasSupabaseServiceRole ? supabase : null
 });
 
 if (!supabase) {
@@ -482,13 +489,24 @@ function ensureRecurringReminderConfigs(alertsConfig, oldReminders = {}) {
                     : definition.defaultSchedule
             )
         );
+        const timeCandidates = Array.isArray(current.times)
+            ? current.times
+            : (Array.isArray(legacy.times) ? legacy.times : [
+                RECURRING_TIME_PATTERN.test(current.time || '')
+                    ? current.time
+                    : (RECURRING_TIME_PATTERN.test(legacy.time || '')
+                        ? legacy.time
+                        : definition.defaultTime)
+            ]);
+        const times = [...new Set(timeCandidates
+            .filter(time => RECURRING_TIME_PATTERN.test(time)))]
+            .sort()
+            .slice(0, 6);
+        if (times.length === 0) times.push(definition.defaultTime);
         alertsConfig[id] = {
             enabled: current.enabled ?? legacy.enabled ?? true,
-            time: RECURRING_TIME_PATTERN.test(current.time || '')
-                ? current.time
-                : (RECURRING_TIME_PATTERN.test(legacy.time || '')
-                    ? legacy.time
-                    : definition.defaultTime),
+            time: times[0],
+            times,
             schedule,
             days: schedule.type === 'weekly' ? [...schedule.days] : []
         };
@@ -545,9 +563,65 @@ function ensureAlertConfigs(alertsConfig, oldReminders = {}) {
             alertsConfig[key].days = defaults.days;
             changed = true;
         }
+        const timeCandidates = Array.isArray(alertsConfig[key].times)
+            ? alertsConfig[key].times
+            : [alertsConfig[key].time];
+        const times = [...new Set(timeCandidates
+            .filter(time => RECURRING_TIME_PATTERN.test(time)))]
+            .sort()
+            .slice(0, 6);
+        if (times.length === 0) times.push(defaults.time);
+        if (
+            alertsConfig[key].time !== times[0]
+            || JSON.stringify(alertsConfig[key].times) !== JSON.stringify(times)
+        ) {
+            alertsConfig[key].time = times[0];
+            alertsConfig[key].times = times;
+            changed = true;
+        }
     });
 
     return changed;
+}
+
+function getSubscriptionRegistry(userData = {}) {
+    const direct = parseJsonValue(userData.lifecycle_subscriptions, null);
+    if (Array.isArray(direct?.subscriptions)) return direct;
+    const legacy = parseJsonValue(userData.projectPulseSubscription, {});
+    const embedded = legacy?._subscriptionsRegistry;
+    return Array.isArray(embedded?.subscriptions)
+        ? embedded
+        : { version: 2, subscriptions: [] };
+}
+
+function ensureSubscriptionAlertConfigs(alertsConfig, registry) {
+    const subscriptions = Array.isArray(registry?.subscriptions)
+        ? registry.subscriptions.slice(0, 500)
+        : [];
+    const hasMigratedWorkana = subscriptions.some(subscription => (
+        subscription?.id === 'sub_workana_plan'
+        || String(subscription?.name || '').toLowerCase().includes('workana')
+    ));
+    if (hasMigratedWorkana) delete alertsConfig.workana;
+    subscriptions.forEach(subscription => {
+        const id = String(subscription?.id || '');
+        if (!/^sub_[a-z0-9][a-z0-9_-]{2,95}$/.test(id)) return;
+        const rawTimes = Array.isArray(subscription.alert?.times)
+            ? subscription.alert.times
+            : [subscription.alert?.time || '09:00'];
+        const times = [...new Set(rawTimes
+            .filter(time => RECURRING_TIME_PATTERN.test(time)))]
+            .sort()
+            .slice(0, 6);
+        if (times.length === 0) times.push('09:00');
+        alertsConfig[`sub_${id}`] = {
+            enabled: subscription.status === 'active' && subscription.alert?.enabled !== false,
+            time: times[0],
+            times,
+            days: [],
+            subscriptionId: id
+        };
+    });
 }
 
 async function mergeServerUserDataKeys(userId, updates) {
@@ -1566,8 +1640,25 @@ app.use((req, res, next) => {
     res.setHeader('X-Content-Type-Options', 'nosniff');
     res.setHeader('X-Frame-Options', 'DENY');
     res.setHeader('Referrer-Policy', 'no-referrer');
-    res.setHeader('Permissions-Policy', 'camera=(), microphone=(), geolocation=()');
+    res.setHeader('Permissions-Policy', 'camera=(), microphone=(self), geolocation=()');
     res.setHeader('Strict-Transport-Security', 'max-age=31536000; includeSubDomains');
+    next();
+});
+app.use('/api', (req, res, next) => {
+    const requestOrigin = req.get('Origin');
+    if (!NATIVE_APP_ORIGINS.has(requestOrigin)) {
+        next();
+        return;
+    }
+    res.setHeader('Access-Control-Allow-Origin', requestOrigin);
+    res.setHeader('Access-Control-Allow-Methods', 'GET, POST, PATCH, DELETE, OPTIONS');
+    res.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type');
+    res.setHeader('Access-Control-Max-Age', '600');
+    res.vary('Origin');
+    if (req.method === 'OPTIONS') {
+        res.status(204).end();
+        return;
+    }
     next();
 });
 app.use(express.json({ limit: '32kb' }));
@@ -1675,6 +1766,10 @@ app.get('/api/health', (req, res) => {
             lastSkippedAt: notificationRuntimeState.lastSkippedAt,
             lastRetryCheckAt: notificationRuntimeState.lastRetryCheckAt,
             lastRetryCount: notificationRuntimeState.lastRetryCount
+        },
+        transcriptions: {
+            ...transcriptionWorker.runtime,
+            pipelineAvailable: transcriptionWorker.pipelineAvailable
         }
     });
 });
@@ -2352,6 +2447,26 @@ app.get('/api/test-robot-reminder', checkAdminToken, async (req, res) => {
     }
 });
 
+app.post(
+    '/api/transcriptions/run',
+    requireSupabaseUser,
+    authenticatedMutationRateLimiter,
+    (req, res) => {
+        if (!transcriptionWorker.runtime.configured) {
+            return res.status(503).json({
+                error: 'El procesamiento de transcripciones todavía no está configurado.'
+            });
+        }
+        if (transcriptionWorker.pipelineAvailable === false) {
+            return res.status(503).json({
+                error: 'Falta aplicar la migración del pipeline de transcripciones.'
+            });
+        }
+        transcriptionWorker.kick();
+        return res.status(202).json({ accepted: true });
+    }
+);
+
 // Fallback to index.html for SPA/PWA routing
 app.get('*', (req, res) => {
     res.sendFile(path.join(__dirname, 'index.html'));
@@ -2364,6 +2479,7 @@ const httpServer = app.listen(PORT, () => {
         ? address.port
         : PORT;
     console.log(`LifeCycle backend running on port ${activePort}`);
+    transcriptionWorker.start();
 });
 
 // ==========================================================================
@@ -2583,6 +2699,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
             const gymSupplements = parseJsonValue(data.gym_supplements, {});
             const oldReminders = gymSupplements?.custom_reminders || {};
             const hygieneTrackerData = parseJsonValue(data.hygiene_tracker_data, {});
+            const subscriptionRegistry = getSubscriptionRegistry(data);
             ensureAlertConfigs(alertsConfig, oldReminders);
             const recurringReminderMap = ensureRecurringReminderConfigs(
                 alertsConfig,
@@ -2600,6 +2717,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                 alertsConfig,
                 parseJsonValue(data.vehicle_tracker_data, {})
             );
+            ensureSubscriptionAlertConfigs(alertsConfig, subscriptionRegistry);
 
             // Inicializar log de envíos diarios si no existe
             if (!data.alerts_sent_log) {
@@ -3142,9 +3260,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                             break;
                         default:
                             if (key.startsWith('sub_')) {
-                                const subRaw = data.projectPulseSubscription;
-                                const parsed = typeof subRaw === 'string' ? JSON.parse(subRaw || '{}') : (subRaw || {});
-                                const reg = parsed._subscriptionsRegistry?.subscriptions || [];
+                                const reg = subscriptionRegistry.subscriptions || [];
                                 const subId = key.replace(/^sub_/, '');
                                 const targetSub = reg.find(s => s.id === subId);
                                 if (targetSub && targetSub.status === 'active' && targetSub.alert?.enabled !== false) {
@@ -3190,7 +3306,10 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                                         }
                                         
                                         if (state !== 'green') {
-                                            const logKey = `project_${p.id}_${state}`;
+                                            const baseLogKey = `project_${p.id}_${state}`;
+                                            const logKey = alertTimes.length > 1
+                                                ? `${baseLogKey}@${activeTime}`
+                                                : baseLogKey;
                                             if (
                                                 forceAll
                                                 || (
@@ -3308,7 +3427,10 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
 
                             if (allUrgentItems.length > 0) {
                                 for (const item of allUrgentItems) {
-                                    const itemLogKey = `tareas_urgentes_${item.id}`;
+                                    const baseItemLogKey = `tareas_urgentes_${item.id}`;
+                                    const itemLogKey = alertTimes.length > 1
+                                        ? `${baseItemLogKey}@${activeTime}`
+                                        : baseItemLogKey;
                                     if (
                                         forceAll
                                         || (
@@ -3354,8 +3476,10 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                         let targetUrl = '/';
                         if (key === 'vitamina_d') targetUrl = '/?open=vitamina_d';
                         else if (key === 'robot') targetUrl = '/?open=robot';
-                        else if (key === 'workana') targetUrl = '/?open=workana';
-                        else if (key.startsWith('sub_')) targetUrl = '/?open=suscripciones';
+                        else if (key === 'workana') targetUrl = '/?open=subscription&id=sub_workana_plan';
+                        else if (key.startsWith('sub_')) {
+                            targetUrl = `/?open=subscription&id=${encodeURIComponent(key.replace(/^sub_/, ''))}`;
+                        }
                         else if (key.startsWith('vehicle_')) targetUrl = '/?open=vehicle&tab=' + (key.includes('docs') ? 'docs' : 'maint');
 
                         const payload = JSON.stringify({
@@ -3369,7 +3493,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                             subscriptions: userSubs,
                             payload,
                             context: key,
-                            alertKey: key,
+                            alertKey: activeDeliveryKey,
                             delayMs: 250,
                             scheduledAt: deliveryWindow.scheduledAt,
                             expiresAt: deliveryWindow.expiresAt,
@@ -3656,6 +3780,7 @@ module.exports = {
     getLastIntervalDelivery,
     httpServer,
     notificationRuntimeState,
+    transcriptionWorker,
     rememberIntervalDelivery,
     rememberSentForDate,
     wasSentForDate,

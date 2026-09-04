@@ -12,6 +12,7 @@
     <meta name="theme-color" content="#0f172a">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <script src="native-runtime.js"></script>
     <script>
         (() => {
             const storageKey = 'lifecycle_theme_preference';
@@ -37,6 +38,8 @@
     <script src="https://unpkg.com/@phosphor-icons/web"></script>
     <!-- Supabase JS Client -->
     <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <!-- Resumable uploads for imported media larger than 6 MB -->
+    <script src="vendor/tus.min.js?v=4.3.1"></script>
     <!-- Styles -->
     <link rel="stylesheet" href="style.css">
 </head>
@@ -1430,7 +1433,7 @@
             </div>
 
             <!-- Suscripción Workana Card -->
-            <div class="card" id="workana-subscription-card" style="margin-bottom: 2rem;">
+            <div class="card hidden" id="legacy-workana-subscription-card" aria-hidden="true">
                 <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 12px; margin-bottom: 12px;">
                     <div style="display: flex; align-items: center; gap: 0.75rem;">
                         <div class="icon-container" style="background: rgba(192, 132, 252, 0.15); color: #c084fc;">
@@ -1438,32 +1441,32 @@
                         </div>
                         <div>
                             <h3 style="margin: 0; font-size: 1.1rem; color: white;">Plan Workana</h3>
-                            <p style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-secondary);" id="sub-plan-name">Cargando plan...</p>
+                            <p style="margin: 3px 0 0 0; font-size: 0.75rem; color: var(--text-secondary);" id="legacy-sub-plan-name">Cargando plan...</p>
                         </div>
                     </div>
-                    <span id="sub-badge" class="badge">Cargando...</span>
+                    <span id="legacy-sub-badge" class="badge">Cargando...</span>
                 </div>
                 <div class="card-body" style="padding-top: 0;">
                     <!-- Detalle de la suscripción -->
                     <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:1rem;">
                         <div>
-                            <p style="font-size:0.9rem; margin-bottom: 0.3rem; color: white;">📅 <strong>Inicio:</strong> <span id="sub-start-date" style="color: var(--text-secondary);">-</span></p>
-                            <p style="font-size:0.9rem; margin-bottom: 0.3rem; color: white;">⏰ <strong>Vence:</strong> <span id="sub-end-date" style="color: var(--text-secondary);">-</span></p>
-                            <p style="font-size:0.9rem; margin-bottom: 0.3rem; color: white;">💵 <strong>Costo:</strong> <span id="sub-cost-val" style="color: var(--status-green);">-</span></p>
+                            <p style="font-size:0.9rem; margin-bottom: 0.3rem; color: white;">📅 <strong>Inicio:</strong> <span id="legacy-sub-start-date" style="color: var(--text-secondary);">-</span></p>
+                            <p style="font-size:0.9rem; margin-bottom: 0.3rem; color: white;">⏰ <strong>Vence:</strong> <span id="legacy-sub-end-date" style="color: var(--text-secondary);">-</span></p>
+                            <p style="font-size:0.9rem; margin-bottom: 0.3rem; color: white;">💵 <strong>Costo:</strong> <span id="legacy-sub-cost-val" style="color: var(--status-green);">-</span></p>
                         </div>
                         <div style="text-align: center; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 8px; border: 1px solid var(--surface-border); min-width: 100px;">
                             <div style="font-size: 0.7rem; color: var(--text-secondary);">Días restantes</div>
-                            <div id="sub-days-count" style="font-size: 1.6rem; font-weight: bold;">-</div>
+                            <div id="legacy-sub-days-count" style="font-size: 1.6rem; font-weight: bold;">-</div>
                         </div>
                     </div>
 
                     <!-- Botón para Editar Configuración de Suscripción -->
-                    <button id="btn-edit-sub" class="btn btn-secondary" style="width: 100%; border-color: rgba(192, 132, 252, 0.3); color: #c084fc; display: flex; align-items: center; justify-content: center; gap: 8px;">
+                    <button id="legacy-btn-edit-sub" class="btn btn-secondary" style="width: 100%; border-color: rgba(192, 132, 252, 0.3); color: #c084fc; display: flex; align-items: center; justify-content: center; gap: 8px;">
                         <i class="ph ph-gear"></i> Ajustar Suscripción
                     </button>
 
                     <!-- Formulario oculto para editar configuración -->
-                    <form id="sub-settings-form" class="hidden" style="margin-top: 1rem; border-top: 1px solid var(--surface-border); padding-top: 1rem;">
+                    <form id="legacy-sub-settings-form" class="hidden" style="margin-top: 1rem; border-top: 1px solid var(--surface-border); padding-top: 1rem;">
                         <div class="form-row">
                             <div class="input-group">
                                 <label for="sub-input-plan">Nombre del Plan</label>
@@ -1896,12 +1899,12 @@
             <header class="section-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1.5rem; flex-wrap: wrap; gap: 1rem;">
                 <div>
                     <h2>Transcripciones</h2>
-                    <p style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">Notas de voz, reuniones e ideas transcriptas con IA gratuita (Gemini).</p>
+                    <p style="color: var(--text-secondary); margin: 0; font-size: 0.9rem;">Grabaciones recuperables y transcripciones completas procesadas con Gemini.</p>
                 </div>
                 <div style="display: flex; gap: 8px; flex-wrap: wrap;">
                     <input type="file" id="transcription-file-input" class="hidden" accept="audio/*,video/*">
                     <button type="button" id="btn-import-audio-file" class="btn btn-secondary">
-                        <i class="ph ph-upload-simple"></i> Importar Audio
+                        <i class="ph ph-upload-simple"></i> Importar audio o video
                     </button>
                     <button type="button" id="btn-toggle-record-voice" class="btn btn-primary" style="display: inline-flex; align-items: center; gap: 6px;">
                         <i class="ph ph-microphone"></i> Grabar Nota de Voz
@@ -1909,12 +1912,34 @@
                 </div>
             </header>
 
+            <div id="transcription-availability" class="card transcription-availability" role="status">
+                <i class="ph ph-info"></i>
+                <span>Comprobando el grabador y el acceso privado...</span>
+            </div>
+
+            <div class="card transcription-capture-settings">
+                <div class="input-group">
+                    <label for="transcription-new-title">Título opcional</label>
+                    <input id="transcription-new-title" class="text-input" maxlength="160" placeholder="Ej: Ingeniería de software · Clase 4">
+                </div>
+                <div class="input-group">
+                    <label for="transcription-new-folder">Carpeta</label>
+                    <select id="transcription-new-folder" class="text-input">
+                        <option value="">Bandeja de entrada</option>
+                    </select>
+                </div>
+                <label class="subscription-check">
+                    <input type="checkbox" id="transcription-auto-process" checked>
+                    <span><strong>Transcribir automáticamente</strong><small>Empieza al terminar de subir todos los fragmentos.</small></span>
+                </label>
+            </div>
+
             <!-- Banner de grabación activa -->
             <div id="recording-pulse" class="hidden" style="background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); border-radius: 10px; padding: 12px 18px; margin-bottom: 1.25rem; display: flex; align-items: center; justify-content: space-between;">
                 <div style="display: flex; align-items: center; gap: 10px;">
                     <span style="width: 12px; height: 12px; border-radius: 50%; background: #ef4444; display: inline-block; animation: pulse 1.2s infinite ease-in-out;"></span>
-                    <strong style="color: #ef4444; font-size: 0.95rem;">Grabando nota de voz...</strong>
-                    <span style="color: var(--text-secondary); font-size: 0.85rem;">(Pantalla bloqueada protegida por WakeLock)</span>
+                    <strong style="color: #ef4444; font-size: 0.95rem;">Grabando audio...</strong>
+                    <span id="recording-mode-hint" style="color: var(--text-secondary); font-size: 0.85rem;"></span>
                 </div>
                 <span id="recording-timer" style="font-family: monospace; font-size: 1.2rem; font-weight: 700; color: var(--text-primary);">00:00</span>
             </div>
@@ -1924,6 +1949,9 @@
                 <div id="transcriptions-folder-tabs" class="tabs-container" style="display: flex; gap: 6px; flex-wrap: wrap;">
                     <!-- Carpetas dinámicas -->
                 </div>
+                <button type="button" id="btn-new-transcription-folder" class="btn btn-secondary">
+                    <i class="ph ph-folder-plus"></i> Nueva carpeta
+                </button>
                 <div style="min-width: 240px; flex: 1; max-width: 380px;">
                     <input type="text" id="transcription-search-input" class="text-input" placeholder="Buscar en transcripciones..." style="width: 100%;">
                 </div>
@@ -1933,6 +1961,8 @@
             <div id="transcriptions-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 1rem;">
                 <!-- Dinámico -->
             </div>
+
+            <div id="transcription-recovery-panel" class="card hidden" role="status"></div>
         </section>
 
         <!-- SECCIÓN 4: AJUSTES Y MIGRACIÓN -->
@@ -2032,7 +2062,7 @@
                                     </label>
                                 </div>
                             </div>
-                        <
+                        </div>
                         <!-- Panel de Preferencias de Moneda -->
                         <div class="card appearance-preference-card">
                             <div class="card-header">
@@ -2051,7 +2081,7 @@
                                 </div>
                                 <p id="currency-rate-info" style="font-size: 0.8rem; color: var(--text-secondary); margin-top: 0.75rem; text-align: center; display: none;">Cotización no disponible.</p>
                             </div>
-                        </div>/div>
+                        </div>
                         <div class="card appearance-preference-card">
                             <div class="card-header">
                                 <div class="icon-container">
@@ -2080,6 +2110,28 @@
                                     </button>
                                 </div>
                                 <p class="theme-choice-help">La elección se guarda solamente en este navegador y no modifica tus datos.</p>
+                            </div>
+                        </div>
+                        <div class="card starter-pack-card">
+                            <div class="card-header">
+                                <div class="icon-container">
+                                    <i class="ph ph-magic-wand"></i>
+                                </div>
+                                <div>
+                                    <h3>Configuración inicial opcional</h3>
+                                    <p>Elegí una base de tarjetas útiles sin copiar datos de otra cuenta.</p>
+                                </div>
+                            </div>
+                            <div class="card-body">
+                                <p id="starter-pack-status" class="starter-pack-status" aria-live="polite"></p>
+                                <div class="starter-pack-safety-note">
+                                    <i class="ph ph-shield-check"></i>
+                                    <span>Antes de guardar vas a ver y elegir cada tarjeta. No se importan historiales, fechas, importes ni datos personales.</span>
+                                </div>
+                                <button id="btn-open-starter-pack" type="button" class="btn btn-secondary">
+                                    <i class="ph ph-list-checks"></i>
+                                    Revisar selección sugerida
+                                </button>
                             </div>
                         </div>
                         <div class="card keyboard-shortcuts-card">
@@ -2669,7 +2721,7 @@
 
     <!-- MODAL DE SUSCRIPCIÓN (Fase C) -->
     <div id="subscription-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="subscription-modal-title">
-        <div class="modal-content" style="max-width: 500px;">
+        <div class="modal-content subscription-modal-content">
             <div class="modal-header">
                 <h3 id="subscription-modal-title">Nueva Suscripción</h3>
                 <button type="button" class="icon-btn" data-subscription-modal-close aria-label="Cerrar modal">
@@ -2681,12 +2733,12 @@
                     <label for="sub-name">Servicio o plataforma</label>
                     <input type="text" id="sub-name" class="text-input" placeholder="Ej: Workana, Spotify, GitHub, ChatGPT..." required>
                 </div>
-                <div class="input-row" style="display: flex; gap: 10px;">
-                    <div class="input-group" style="flex: 1;">
+                <div class="subscription-form-row subscription-form-row--money">
+                    <div class="input-group">
                         <label for="sub-cost">Costo del ciclo</label>
                         <input type="number" id="sub-cost" class="text-input" step="0.01" min="0" placeholder="Ej: 15.00" required>
                     </div>
-                    <div class="input-group" style="width: 110px;">
+                    <div class="input-group">
                         <label for="sub-currency">Moneda</label>
                         <select id="sub-currency" class="text-input">
                             <option value="USD">USD</option>
@@ -2694,8 +2746,8 @@
                         </select>
                     </div>
                 </div>
-                <div class="input-row" style="display: flex; gap: 10px;">
-                    <div class="input-group" style="flex: 1;">
+                <div class="subscription-form-row">
+                    <div class="input-group">
                         <label for="sub-period">Frecuencia / Ciclo</label>
                         <select id="sub-period" class="text-input">
                             <option value="1">Mensual (1 mes)</option>
@@ -2704,7 +2756,7 @@
                             <option value="12">Anual (1 año)</option>
                         </select>
                     </div>
-                    <div class="input-group" style="flex: 1;">
+                    <div class="input-group">
                         <label for="sub-category">Categoría</label>
                         <select id="sub-category" class="text-input">
                             <option value="trabajo">💼 Trabajo</option>
@@ -2715,54 +2767,66 @@
                         </select>
                     </div>
                 </div>
-                <div class="input-row" style="display: flex; gap: 10px;">
-                    <div class="input-group" style="flex: 1;">
+                <div class="subscription-form-row">
+                    <div class="input-group">
                         <label for="sub-start-date">Fecha de inicio</label>
                         <input type="date" id="sub-start-date" class="text-input" required>
                     </div>
-                    <div class="input-group" style="flex: 1;">
+                    <div class="input-group">
                         <label for="sub-renewal-date">Próxima renovación</label>
                         <input type="date" id="sub-renewal-date" class="text-input">
                     </div>
                 </div>
 
-                <div class="input-group" style="margin-top: 6px;">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
-                        <input type="checkbox" id="sub-autorenew" checked>
+                <div class="input-group">
+                    <label for="sub-payment-method">Medio de pago</label>
+                    <input type="text" id="sub-payment-method" class="text-input" maxlength="80" placeholder="Ej: Visa, Mercado Pago, transferencia">
+                </div>
+
+                <div class="input-group subscription-toggle-group">
+                    <label class="subscription-toggle" for="sub-autorenew">
+                        <input type="checkbox" id="sub-autorenew" aria-describedby="sub-autorenew-help" checked>
                         <span>Renovación automática activa</span>
                     </label>
+                    <small id="sub-autorenew-help">Es un dato de seguimiento: desactivarlo acá no cancela el servicio en el proveedor.</small>
                 </div>
                 <div class="input-group">
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer;">
+                    <label class="subscription-toggle" for="sub-auto-record-expense">
                         <input type="checkbox" id="sub-auto-record-expense">
                         <span>Registrar gasto automáticamente en Finanzas al renovar</span>
                     </label>
                 </div>
 
-                <fieldset style="border: 1px solid var(--surface-border); border-radius: 8px; padding: 10px 14px; margin-top: 10px;">
-                    <legend style="padding: 0 6px; font-size: 0.85rem; color: var(--text-secondary);">Recordatorios push</legend>
-                    <label style="display: flex; align-items: center; gap: 8px; cursor: pointer; margin-bottom: 8px;">
+                <fieldset class="subscription-alert-card">
+                    <legend>Recordatorios push</legend>
+                    <label class="subscription-toggle subscription-alert-enabled" for="sub-alert-enabled">
                         <input type="checkbox" id="sub-alert-enabled" checked>
                         <span>Avisarme antes de la renovación</span>
                     </label>
-                    <div id="sub-alert-settings" class="input-row" style="display: flex; gap: 10px;">
-                        <div class="input-group" style="flex: 1;">
+                    <div id="sub-alert-settings" class="subscription-alert-settings">
+                        <div class="input-group">
                             <label for="sub-alert-days">Días previos</label>
                             <input type="number" id="sub-alert-days" class="text-input" min="0" max="30" value="3">
                         </div>
-                        <div class="input-group" style="flex: 1;">
-                            <label for="sub-alert-time">Hora del aviso</label>
+                        <div class="input-group">
+                            <label for="sub-alert-time">Horarios del aviso</label>
                             <input type="time" id="sub-alert-time" class="text-input" value="09:00">
+                            <div id="sub-alert-extra-times"></div>
+                            <button type="button" id="btn-add-subscription-alert-time" class="btn btn-secondary">
+                                <i class="ph ph-plus"></i> Agregar horario
+                            </button>
                         </div>
                     </div>
                 </fieldset>
 
-                <div class="input-group" style="margin-top: 10px;">
+                <div class="input-group">
                     <label for="sub-notes">Notas u observaciones</label>
                     <textarea id="sub-notes" class="text-input" rows="2" placeholder="Detalles del plan, datos de facturación..."></textarea>
                 </div>
 
-                <div class="modal-actions" style="display: flex; justify-content: flex-end; gap: 10px; margin-top: 1.5rem;">
+                <p id="subscription-form-error" class="form-error hidden" role="alert"></p>
+
+                <div class="modal-actions subscription-modal-actions">
                     <button type="button" class="btn btn-secondary" data-subscription-modal-close>Cancelar</button>
                     <button type="submit" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Guardar</button>
                 </div>
@@ -2785,10 +2849,17 @@
                 <input type="text" id="trans-detail-title" class="text-input" style="font-weight: 600;">
             </div>
 
+            <div class="input-group" style="margin-bottom: 1rem;">
+                <label for="trans-detail-folder">Carpeta</label>
+                <select id="trans-detail-folder" class="text-input"></select>
+            </div>
+
+            <p id="trans-detail-status" class="transcription-detail-status" role="status"></p>
+
             <!-- Resumen IA opcional (Tanda 25) -->
             <div id="trans-detail-summary-container" class="hidden" style="background: rgba(59, 130, 246, 0.08); border: 1px solid rgba(59, 130, 246, 0.25); border-radius: 8px; padding: 14px; margin-bottom: 1rem;">
                 <div style="display: flex; align-items: center; gap: 6px; margin-bottom: 6px; color: #3b82f6; font-size: 0.85rem; font-weight: 700;">
-                    <i class="ph ph-sparkle"></i> Resumen y Acciones (Generado por IA)
+                    <i class="ph ph-sparkle"></i> Resumen (resultado opcional; no reemplaza la transcripción)
                 </div>
                 <div id="trans-detail-summary-text" style="font-size: 0.88rem; line-height: 1.5; color: var(--text-primary); white-space: pre-line;"></div>
             </div>
@@ -2796,11 +2867,18 @@
             <div class="input-group">
                 <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
                     <label for="trans-detail-text">Texto transcripto completo</label>
-                    <button type="button" id="btn-generate-ai-summary" class="btn btn-secondary" style="padding: 3px 8px; font-size: 0.78rem; display: inline-flex; align-items: center; gap: 4px;">
-                        <i class="ph ph-sparkle"></i> Generar Resumen IA
-                    </button>
+                    <div class="transcription-artifact-actions">
+                        <button type="button" id="btn-copy-transcription" class="btn btn-secondary"><i class="ph ph-copy"></i> Copiar</button>
+                        <button type="button" id="btn-generate-ai-summary" class="btn btn-secondary"><i class="ph ph-sparkle"></i> Resumen</button>
+                        <button type="button" id="btn-generate-ai-notes" class="btn btn-secondary"><i class="ph ph-notebook"></i> Apuntes</button>
+                    </div>
                 </div>
                 <textarea id="trans-detail-text" class="text-input" rows="10" style="font-size: 0.9rem; line-height: 1.5;"></textarea>
+            </div>
+
+            <div id="trans-detail-notes-container" class="hidden transcription-derived-result">
+                <strong><i class="ph ph-notebook"></i> Apuntes generados</strong>
+                <div id="trans-detail-notes-text"></div>
             </div>
 
             <div class="modal-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; flex-wrap: wrap; gap: 8px;">
@@ -2810,6 +2888,12 @@
                     </button>
                     <button type="button" id="btn-export-transcription-md" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
                         <i class="ph ph-markdown-logo"></i> .md
+                    </button>
+                    <button type="button" id="btn-download-transcription-audio" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
+                        <i class="ph ph-download-simple"></i> Audio
+                    </button>
+                    <button type="button" id="btn-retry-transcription" class="btn btn-secondary hidden" style="padding: 6px 12px; font-size: 0.8rem;">
+                        <i class="ph ph-arrow-clockwise"></i> Procesar
                     </button>
                 </div>
                 <div style="display: flex; gap: 8px;">
@@ -3917,7 +4001,7 @@
 
     <script type="module" src="app.js"></script>
     <script>
-        if ('serviceWorker' in navigator) {
+        if (!window.__LIFECYCLE_IS_NATIVE__ && 'serviceWorker' in navigator) {
             window.addEventListener('load', () => {
                 navigator.serviceWorker.register('sw.js').then(reg => {
                     // Chequear actualizaciones en segundo plano cada 60 segundos

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -56,8 +56,23 @@ const OPERATIONAL_LIMITS_MIGRATION = path.join(
     '20260829214500_harden_storage_and_push_limits.sql'
 );
 
+async function readLatestFunctionDefinition(functionName) {
+    const migrationsDirectory = path.join(ROOT, 'supabase', 'migrations');
+    const migrationNames = (await readdir(migrationsDirectory))
+        .filter(name => name.endsWith('.sql'))
+        .sort();
+    const marker = new RegExp(`create\\s+or\\s+replace\\s+function\\s+public\\.${functionName}\\b`, 'i');
+    let latest = null;
+    for (const name of migrationNames) {
+        const source = await readFile(path.join(migrationsDirectory, name), 'utf8');
+        if (marker.test(source)) latest = { name, source };
+    }
+    assert.ok(latest, `missing migration definition for public.${functionName}`);
+    return latest;
+}
+
 test('the latest client sync migration allows every cloud-owned key', async () => {
-    const migration = await readFile(FOUNDATION_MIGRATION, 'utf8');
+    const { source: migration } = await readLatestFunctionDefinition('merge_user_data_keys');
 
     for (const key of CLOUD_SYNC_KEYS) {
         assert.match(migration, new RegExp(`'${key}'`), `missing ${key} in database allowlist`);
@@ -428,6 +443,58 @@ test('the Tanda 8 verification script is read-only and covers security plus pari
         'trading_projection_parity',
         'trading_dispatch_security',
         'trading_dispatch_rpc_security'
+    ]) {
+        assert.match(verification, new RegExp(`'${checkName}'`));
+    }
+});
+
+test('transcription relationships enforce the same user across every pipeline table', async () => {
+    const migration = await readFile(path.join(
+        ROOT,
+        'supabase',
+        'migrations',
+        '20260904035623_transcription_pipeline.sql'
+    ), 'utf8');
+
+    for (const constraintName of [
+        'transcription_sessions_folder_owner_fkey',
+        'transcription_chunks_session_owner_fkey',
+        'transcription_jobs_session_owner_fkey',
+        'transcription_jobs_chunk_owner_fkey',
+        'transcription_provider_attempts_job_owner_fkey',
+        'transcription_documents_session_owner_fkey'
+    ]) {
+        assert.match(migration, new RegExp(constraintName));
+    }
+    assert.match(migration, /foreign key \(folder_id, user_id\)[\s\S]+on delete set null \(folder_id\)/i);
+    assert.match(migration, /foreign key \(session_id, user_id\)[\s\S]+on delete cascade/i);
+});
+
+test('LifeCycle expansion verification is read-only and covers every production invariant', async () => {
+    const verification = await readFile(path.join(
+        ROOT,
+        'supabase',
+        'verification',
+        '20260904_lifecycle_expansion_security_check.sql'
+    ), 'utf8');
+
+    assert.doesNotMatch(
+        verification,
+        /^\s*(insert|update|delete|alter|create|drop|grant|revoke|truncate)\b/im
+    );
+    for (const checkName of [
+        'subscription_sync_and_limit',
+        'subscription_expense_rpc_security',
+        'transcription_rls',
+        'transcription_client_privileges',
+        'transcription_rpc_security',
+        'transcription_relationship_constraints',
+        'transcription_indexes',
+        'transcription_storage_bucket',
+        'transcription_storage_policies',
+        'transcription_data_invariants',
+        'transcription_storage_metadata',
+        'owner_profile_cardinality'
     ]) {
         assert.match(verification, new RegExp(`'${checkName}'`));
     }

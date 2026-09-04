@@ -45,6 +45,11 @@ import {
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import { createIconPicker } from '../icon-picker-utils.mjs?v=20260818-icon-preview';
 import {
+    getSuggestedAlertTime,
+    MAX_ALERT_TIMES_PER_DAY,
+    normalizeAlertTimes
+} from '../alert-schedule-utils.mjs';
+import {
     normalizeTodayPreferences,
     TODAY_QUICK_ACTIONS
 } from '../product-preferences.mjs?v=20260729-product-preferences';
@@ -2597,7 +2602,7 @@ export class CustomTrackersModule {
                             <span class="custom-alert-icon"><i class="ph ph-bell"></i></span>
                             <span class="custom-alert-copy">
                                 <strong>Notificación push</strong>
-                                <small>Avisarme una vez al día mientras la tarjeta esté vencida.</small>
+                                <small>Avisarme en los horarios elegidos mientras la tarjeta esté vencida.</small>
                             </span>
                             <span class="custom-alert-switch" aria-hidden="true">
                                 <span></span>
@@ -2654,6 +2659,23 @@ export class CustomTrackersModule {
         });
 
         dialog.addEventListener('click', event => {
+            const addTimeButton = event.target.closest('#btn-custom-tracker-add-time');
+            if (addTimeButton) {
+                const primary = dialog.querySelector('#custom-tracker-alert-time')?.value;
+                const extras = [...dialog.querySelectorAll('.custom-tracker-extra-time-input')]
+                    .map(input => input.value);
+                const nextTime = getSuggestedAlertTime([primary, ...extras]);
+                if (nextTime) this.renderCustomTrackerExtraTimes([...extras, nextTime]);
+                return;
+            }
+            const removeTimeButton = event.target.closest('[data-custom-tracker-remove-time]');
+            if (removeTimeButton) {
+                const extras = [...dialog.querySelectorAll('.custom-tracker-extra-time-input')]
+                    .filter(input => input !== removeTimeButton.previousElementSibling)
+                    .map(input => input.value);
+                this.renderCustomTrackerExtraTimes(extras);
+                return;
+            }
             if (
                 event.target === dialog
                 || event.target.closest('[data-dialog-action="close"]')
@@ -2951,6 +2973,37 @@ export class CustomTrackersModule {
         this.lastDialogTrigger = null;
     }
 
+    renderCustomTrackerExtraTimes(times = []) {
+        const list = this.dialog?.querySelector('#custom-tracker-extra-times-list');
+        const addButton = this.dialog?.querySelector('#btn-custom-tracker-add-time');
+        if (!list) return;
+        list.innerHTML = '';
+        const normalized = normalizeAlertTimes(times, '23:00').times;
+        const safeTimes = times.length === 0 ? [] : normalized;
+        safeTimes.slice(0, MAX_ALERT_TIMES_PER_DAY - 1).forEach((time, index) => {
+            const row = document.createElement('div');
+            row.style.cssText = 'display:flex;gap:6px;align-items:center;';
+            const input = document.createElement('input');
+            input.type = 'time';
+            input.className = 'time-input custom-tracker-extra-time-input';
+            input.value = time;
+            input.setAttribute('aria-label', `Horario adicional ${index + 1}`);
+            const removeButton = document.createElement('button');
+            removeButton.type = 'button';
+            removeButton.className = 'icon-btn';
+            removeButton.dataset.customTrackerRemoveTime = '';
+            removeButton.setAttribute('aria-label', 'Eliminar horario adicional');
+            removeButton.setAttribute('title', 'Eliminar horario');
+            removeButton.style.color = 'var(--status-red)';
+            removeButton.innerHTML = '<i class="ph ph-trash"></i>';
+            row.append(input, removeButton);
+            list.appendChild(row);
+        });
+        if (addButton) {
+            addButton.disabled = safeTimes.length + 1 >= MAX_ALERT_TIMES_PER_DAY;
+        }
+    }
+
     saveEditor() {
         const errorElement = this.dialog.querySelector('#custom-tracker-form-error');
         const creationCapacity = this.editingId
@@ -2972,6 +3025,13 @@ export class CustomTrackersModule {
             : actionChoice;
         const alertEnabled = this.dialog.querySelector('#custom-tracker-alert-enabled').checked;
         const alertTime = this.dialog.querySelector('#custom-tracker-alert-time').value || '23:00';
+        const alertExtraTimes = [...this.dialog.querySelectorAll('.custom-tracker-extra-time-input')]
+            .map(input => input.value)
+            .filter(Boolean);
+        const normalizedAlertSchedule = normalizeAlertTimes(
+            [alertTime, ...alertExtraTimes],
+            alertTime
+        );
         const existing = this.editingId ? this.getTracker(this.editingId) : null;
         const template = this.isTrackerTemplateLocked(existing)
             ? existing.template

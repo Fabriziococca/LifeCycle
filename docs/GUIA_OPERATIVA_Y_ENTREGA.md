@@ -1,89 +1,92 @@
-# Guía Operativa, Verificación y Entrega Final
-**LifeCycle — Sistema Unificado de Gestión Personal y Profesional**
-**Fase F (Tandas 26, 27A, 27B y 27C)**
-**Fecha:** Septiembre 2026
+# Guía operativa y de entrega
 
-Este documento compila las instrucciones de operación, arquitectura validada, configuración de entorno y protocolos de resguardo técnico de LifeCycle.
+**LifeCycle — revisión técnica del 4 de septiembre de 2026**
 
----
+## Componentes nuevos
 
-## 1. Resumen de Fases y Funcionalidades Entregadas
+- avisos con varios horarios para una misma entidad y deduplicación por horario;
+- módulo especializado de Suscripciones y gastos financieros idempotentes;
+- PWA existente más aplicación Android mediante Capacitor;
+- grabación nativa Android con servicio foreground y fragmentos recuperables;
+- biblioteca de transcripciones, importación, cola persistente, Gemini, exportación y borrado diferido;
+- configuración inicial opcional con presets neutrales, sin copiar datos privados.
 
-1. **Fase A — Base local y organización:**
-   * Reconciliación limpia del repositorio Git sin pérdida de código.
-   * Corrección de destinos de avisos (campana, panel Hoy, Vitamina D).
-   * Inventario unificado de iconos Phosphor y resolución de tooltips persistentes.
-   * Reorganización modular de Mi Cuenta y Preferencias.
-   * Navegación móvil con acceso directo a perfil y menú adaptativo de módulos.
+## Configuración
 
-2. **Fase B — Varios horarios de notificación:**
-   * Soporte multi-horario dentro del mismo día calendario para tarjetas, recordatorios, vehículo, salud y gimnasio.
-   * Motor de despacho en servidor con deduplicación y supresión automática de avisos posteriores al completarse la tarea.
-   * Compatibilidad total hacia atrás con registros antiguos de un solo horario.
+Usar `.env.example` como inventario. Las claves privadas nunca deben incluirse en el cliente, el APK, Git ni los logs.
 
-3. **Fase C — Módulo de Suscripciones:**
-   * Gestión de servicios recurrentes (USD / ARS) con cálculo de consumo mensualizado (burn rate).
-   * Alertas multihorario previas y el día de la renovación.
-   * Integración con Finanzas: registro automático o manual con prevención de dobles cargos en el mismo periodo.
-   * Traslado limpio e idempotente de la suscripción legacy de Workana.
-
-4. **Fase D — Viabilidad, presupuesto operativo y Android:**
-   * Presupuesto operativo $0/mes en Google AI Studio (Gemini Free Tier: 15 RPM, 1.500 RPD), Supabase (500 MB) y Render (750 hs).
-   * Pausa de seguridad al 95% de cuota diaria para impedir cualquier cobro no previsto.
-   * Arquitectura PWA Pura con **Screen Wake Lock API**, evitando que Android suspenda la grabación al bloquear la pantalla.
-   * Grabador de voz con compresión Opus/WebM a 32 kbps y subida por fragmentos de 1 MB.
-
-5. **Fase E — Transcripciones completas:**
-   * Módulo de Transcripciones integrado en navegación y búsqueda global (`Ctrl+K`).
-   * Grabación directa con micrófono o importación de archivos de audio/video (`.mp3`, `.wav`, `.m4a`, `.webm`).
-   * Transcripción verbatim con Gemini 1.5 Flash y generación opcional de resúmenes ejecutivos con viñetas de acción.
-   * Exportación instantánea en formatos `.txt` y `.md`.
-
-6. **Fase F — Inicio de cuentas y entrega:**
-   * Plantillas de inicio (Starter Pack) opcionales y neutrales para cuentas nuevas, sin datos privados.
-   * Aislamiento estricto de historiales y prevención de duplicados.
-
----
-
-## 2. Variables de Entorno y Configuración de Infraestructura
-
-Cuando se conecte la infraestructura de producción (Render / Supabase / Google AI Studio), configurar:
+Variables necesarias para el backend actual:
 
 ```env
-# Servidor y Sesión
-PORT=3000
-NODE_ENV=production
-
-# Base de Datos y Autenticación (Supabase)
-SUPABASE_URL=https://<tu-proyecto>.supabase.co
-SUPABASE_KEY=<tu-service-role-o-anon-key>
-
-# Notificaciones Push Web
-VAPID_PUBLIC_KEY=<clave-publica-vapid>
-VAPID_PRIVATE_KEY=<clave-privada-vapid>
-VAPID_SUBJECT=mailto:soporte@lifecycle.app
-
-# Transcripciones Gratuitas (Google AI Studio)
-GEMINI_API_KEY=<tu-gemini-api-key-gratuita>
+SUPABASE_URL=
+SUPABASE_ANON_KEY=
+SUPABASE_SERVICE_ROLE_KEY=
+VAPID_PUBLIC_KEY=
+VAPID_PRIVATE_KEY=
+GEMINI_API_KEY=
 ```
 
----
+Opciones de transcripción:
 
-## 3. Comandos de Verificación y Pruebas
+```env
+GEMINI_TRANSCRIPTION_MODEL=gemini-3.5-transcribe
+GEMINI_ARTIFACT_MODEL=gemini-2.5-flash
+TRANSCRIPTION_DAILY_JOB_LIMIT=100
+TRANSCRIPTION_SEGMENT_SECONDS=300
+```
 
-* **Ejecutar suite completa de pruebas unitarias e integradas:**
-  ```bash
-  npm test
-  ```
-  *(Actualmente 351 pruebas pasando al 100%).*
+## Orden de publicación
 
-* **Iniciar servidor local en modo desarrollo:**
-  ```bash
-  npm start
-  ```
+1. Confirmar que Git sólo contiene cambios intencionales y que la suite completa pasa.
+2. Aplicar, en orden, las migraciones pendientes:
+   - `20260904034548_lifecycle_subscriptions_and_transcription_foundation.sql`;
+   - `20260904035623_transcription_pipeline.sql`.
+3. Ejecutar `supabase/verification/20260904_lifecycle_expansion_security_check.sql`; todos los controles deben devolver `true`.
+4. Ejecutar los asesores de seguridad y rendimiento de Supabase y resolver hallazgos nuevos relevantes.
+5. Configurar `GEMINI_API_KEY` en Render sin copiar su valor a archivos o mensajes.
+6. Publicar el commit validado y esperar el despliegue.
+7. Comprobar `/api/health`, la web y los logs del worker.
+8. Hacer una transcripción corta no confidencial y comprobar texto, descarga y limpieza programada.
+9. Instalar el APK de prueba y ejecutar el protocolo físico Android.
 
----
+Las migraciones son aditivas, pero cambian contratos de sincronización y crean tablas/bucket. No se despliega el frontend nuevo antes de que la base esté preparada.
 
-## 4. Estado de Entrega
+## Comandos locales
 
-El proyecto se encuentra 100% implementado, organizado en ramas limpias de Git local y verificado sin errores conocidos ni regresiones.
+```powershell
+npm test
+npm run android:debug
+npm start
+```
+
+El APK debug queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+## Protocolo Android mínimo
+
+En el Galaxy S24 FE con Android 16:
+
+1. conceder micrófono y notificaciones;
+2. grabar dos fragmentos con la aplicación visible;
+3. bloquear la pantalla durante más de cinco minutos;
+4. desbloquear y comprobar continuidad, orden y duración;
+5. cambiar a otra aplicación sin usar el micrófono y repetir;
+6. provocar una interrupción tomando el micrófono desde otra aplicación y comprobar el aviso y la recuperación;
+7. cortar la red, grabar, restaurarla y verificar subida pendiente;
+8. detener desde la notificación persistente;
+9. transcribir y verificar que el original pueda descargarse antes de su limpieza.
+
+No se declara validada la grabación prolongada hasta completar esta prueba física.
+
+## Diagnóstico
+
+- `/api/health` expone si el worker está configurado, disponible, ejecutando, en pausa por cuota o fallando.
+- La cola diferencia `queued`, `processing`, `waiting_quota`, `completed` y `failed`.
+- Los reintentos de red no consumen horarios adicionales de notificaciones ni duplican gastos de suscripción.
+- Un 503 en `/api/transcriptions/run` indica clave ausente o migración no aplicada; no debe ocultarse con reintentos infinitos.
+
+## Recuperación
+
+- Los audios locales sólo se eliminan después de confirmar la persistencia remota correspondiente.
+- Los trabajos bloqueados se recuperan tras 15 minutos y respetan su máximo de intentos.
+- Las sesiones correctas programan limpieza a 24 horas; las fallidas conservan audio hasta siete días.
+- La eliminación manual vuelve a intentar retirar objetos aunque una ejecución previa haya quedado incompleta.

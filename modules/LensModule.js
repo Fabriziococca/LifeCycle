@@ -223,7 +223,7 @@ export class LensModule {
             { key: 'solutionDate', name: 'Solución Limpiadora', limit: LENS_LIMITS.solution, icon: 'ph-drop', actionText: 'Abrir Solución' },
             { key: 'caseDate', name: 'Estuche de Lentes', limit: LENS_LIMITS.case, icon: 'ph-archive', actionText: 'Cambiar Estuche' },
             { key: 'systaneDate', name: 'Gotas Systane', limit: LENS_LIMITS.systane, icon: 'ph-eyedropper', actionText: 'Abrir Gotas' },
-            { key: 'clothWashDate', name: 'Pañuelo (Lavado)', limit: LENS_LIMITS.clothWash, icon: 'ph-spray', actionText: 'Lavar Pañuelo' },
+            { key: 'clothWashDate', name: 'Pañuelo (Lavado)', limit: LENS_LIMITS.clothWash, icon: 'ph-hand-palm', actionText: 'Lavar Pañuelo' },
             { key: 'clothChangeDate', name: 'Pañuelo (Cambio)', limit: LENS_LIMITS.clothChange, icon: 'ph-arrows-clockwise', actionText: 'Cambiar Pañuelo' }
         ];
 

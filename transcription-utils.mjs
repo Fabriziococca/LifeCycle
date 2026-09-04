@@ -1,199 +1,221 @@
-/**
- * transcription-utils.mjs
- * Utilidades para modelo de datos de transcripciones, carpetas,
- * búsqueda, edición, exportación y limpieza.
- * Fase E (Tandas 19, 22, 23, 25).
- */
-
-export const TRANSCRIPTION_STORAGE_KEY = 'lifecycle_transcriptions';
-export const TRANSCRIPTION_SCHEMA_VERSION = 1;
-export const MAX_STORED_TRANSCRIPTIONS = 100;
+export const TRANSCRIPTION_BUCKET = 'transcription-audio';
+export const TRANSCRIPTION_CACHE_DB = 'lifecycle_transcription_cache_v2';
+export const TRANSCRIPTION_CACHE_VERSION = 1;
 
 export const DEFAULT_TRANSCRIPTION_FOLDERS = Object.freeze([
-    { id: 'folder_general', name: 'General', icon: 'ph-folder' },
-    { id: 'folder_reuniones', name: 'Reuniones', icon: 'ph-users' },
-    { id: 'folder_ideas', name: 'Ideas y Notas', icon: 'ph-lightbulb' },
-    { id: 'folder_trabajo', name: 'Trabajo Freelance', icon: 'ph-briefcase' }
+    { id: null, name: 'Bandeja de entrada', icon: 'ph-tray' }
 ]);
 
 export const SUPPORTED_AUDIO_EXTENSIONS = Object.freeze([
-    '.webm', '.ogg', '.mp3', '.wav', '.m4a', '.mp4', '.aac'
+    '.webm', '.ogg', '.opus', '.mp3', '.wav', '.m4a', '.aac', '.flac', '.aiff'
 ]);
 
-/**
- * Normaliza una transcripción garantizando integridad de campos.
- *
- * @param {Object} raw
- * @param {Date} [now=new Date()]
- * @returns {Object|null}
- */
-export function normalizeTranscription(raw, now = new Date()) {
-    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+export const SUPPORTED_VIDEO_EXTENSIONS = Object.freeze([
+    '.mp4', '.mov', '.mkv', '.webm', '.mpeg', '.mpg', '.m4v'
+]);
 
-    const id = String(raw.id || '').trim() || `trans_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`;
-    const title = String(raw.title || '').trim() || 'Nota de voz sin título';
-    const folderId = String(raw.folderId || 'folder_general').trim();
-    const createdAt = raw.createdAt || new Date(now).toISOString();
-    const durationSeconds = Math.max(0, parseInt(raw.durationSeconds, 10) || 0);
-    const sizeBytes = Math.max(0, parseInt(raw.sizeBytes, 10) || 0);
-    const mimeType = String(raw.mimeType || 'audio/webm').trim();
-    const status = ['completed', 'processing', 'failed', 'recording'].includes(raw.status)
-        ? raw.status
-        : 'completed';
+export const SUPPORTED_MEDIA_EXTENSIONS = Object.freeze([
+    ...new Set([...SUPPORTED_AUDIO_EXTENSIONS, ...SUPPORTED_VIDEO_EXTENSIONS])
+]);
 
-    const rawText = String(raw.rawText || '').trim();
-    const editedText = raw.editedText ? String(raw.editedText).trim() : null;
-    const summary = raw.summary ? String(raw.summary).trim() : null;
-    const language = String(raw.language || 'es-AR').trim();
-    const tags = Array.isArray(raw.tags) ? raw.tags.map(t => String(t).trim()).filter(Boolean) : [];
+export const SUPPORTED_AUDIO_MIME_TYPES = Object.freeze([
+    'audio/webm', 'audio/ogg', 'audio/mp4', 'audio/mpeg', 'audio/wav',
+    'audio/aac', 'audio/flac', 'audio/aiff', 'audio/opus'
+]);
 
-    return {
-        id,
-        title,
-        folderId,
-        createdAt,
-        updatedAt: raw.updatedAt || createdAt,
-        durationSeconds,
-        sizeBytes,
-        mimeType,
-        status,
-        rawText,
-        editedText,
-        summary,
-        language,
-        tags
-    };
-}
+export const SUPPORTED_VIDEO_MIME_TYPES = Object.freeze([
+    'video/mp4', 'video/quicktime', 'video/x-matroska', 'video/webm',
+    'video/mpeg', 'video/x-m4v'
+]);
 
-/**
- * Normaliza el registro completo de transcripciones y carpetas.
- *
- * @param {Object} value
- * @returns {{ version: number, folders: Object[], transcriptions: Object[] }}
- */
-export function normalizeTranscriptionRegistry(value) {
-    const hasRegistry = value && typeof value === 'object' && !Array.isArray(value);
-    const rawFolders = hasRegistry && Array.isArray(value.folders)
-        ? value.folders
-        : DEFAULT_TRANSCRIPTION_FOLDERS;
+export const SUPPORTED_MEDIA_MIME_TYPES = Object.freeze([
+    ...SUPPORTED_AUDIO_MIME_TYPES,
+    ...SUPPORTED_VIDEO_MIME_TYPES
+]);
 
-    const rawItems = hasRegistry && Array.isArray(value.transcriptions)
-        ? value.transcriptions
-        : (Array.isArray(value) ? value : []);
+const AUDIO_MIME_ALIASES = Object.freeze({
+    'audio/x-wav': 'audio/wav',
+    'audio/wave': 'audio/wav',
+    'audio/x-m4a': 'audio/mp4',
+    'audio/m4a': 'audio/mp4',
+    'audio/mp3': 'audio/mpeg',
+    'application/ogg': 'audio/ogg',
+    'video/x-m4v': 'video/x-m4v'
+});
 
-    const transcriptions = [];
-    const seenIds = new Set();
+const STATUS_LABELS = Object.freeze({
+    draft: 'Preparando',
+    recording: 'Grabando',
+    uploading: 'Subiendo',
+    uploaded: 'Listo para transcribir',
+    queued: 'En cola',
+    processing: 'Transcribiendo',
+    completed: 'Completada',
+    partial: 'Incompleta',
+    failed: 'Requiere atención',
+    canceled: 'Cancelada'
+});
 
-    for (const raw of rawItems) {
-        const item = normalizeTranscription(raw);
-        if (item && !seenIds.has(item.id)) {
-            seenIds.add(item.id);
-            transcriptions.push(item);
-        }
-    }
-
-    // Ordenar de más reciente a más antiguo
-    transcriptions.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-
-    // Aplicar límite máximo para proteger localStorage
-    if (transcriptions.length > MAX_STORED_TRANSCRIPTIONS) {
-        transcriptions.length = MAX_STORED_TRANSCRIPTIONS;
-    }
-
-    return {
-        version: TRANSCRIPTION_SCHEMA_VERSION,
-        folders: rawFolders.map(f => ({
-            id: String(f.id || '').trim(),
-            name: String(f.name || '').trim(),
-            icon: String(f.icon || 'ph-folder').trim()
-        })).filter(f => Boolean(f.id && f.name)),
-        transcriptions
-    };
-}
-
-/**
- * Busca transcripciones por texto en título, contenido o resumen.
- *
- * @param {Object[]} transcriptions
- * @param {string} query
- * @returns {Object[]}
- */
-export function searchTranscriptions(transcriptions = [], query = '') {
-    const q = String(query || '').trim().toLowerCase();
-    if (!q) return transcriptions;
-
-    return transcriptions.filter(t => {
-        const titleMatch = t.title.toLowerCase().includes(q);
-        const textMatch = (t.editedText || t.rawText).toLowerCase().includes(q);
-        const summaryMatch = t.summary ? t.summary.toLowerCase().includes(q) : false;
-        const tagMatch = t.tags.some(tag => tag.toLowerCase().includes(q));
-        return titleMatch || textMatch || summaryMatch || tagMatch;
-    });
-}
-
-/**
- * Exporta una transcripción en formato texto plano (.txt).
- *
- * @param {Object} transcription
- * @returns {string}
- */
-export function exportAsPlainText(transcription) {
-    const text = transcription.editedText || transcription.rawText || '(Sin contenido transcripto)';
-    const dateStr = new Date(transcription.createdAt).toLocaleString('es-AR');
-    const header = [
-        `Título: ${transcription.title}`,
-        `Fecha: ${dateStr}`,
-        `Duración: ${Math.floor(transcription.durationSeconds / 60)}m ${transcription.durationSeconds % 60}s`,
-        '----------------------------------------',
-        ''
-    ].join('\n');
-
-    let output = header + text;
-    if (transcription.summary) {
-        output += `\n\n----------------------------------------\nRESUMEN Y APUNTES:\n${transcription.summary}`;
-    }
-    return output;
-}
-
-/**
- * Exporta una transcripción en formato Markdown (.md).
- *
- * @param {Object} transcription
- * @returns {string}
- */
-export function exportAsMarkdown(transcription) {
-    const text = transcription.editedText || transcription.rawText || '(Sin contenido transcripto)';
-    const dateStr = new Date(transcription.createdAt).toLocaleString('es-AR');
-
-    let md = [
-        `# ${transcription.title}`,
-        '',
-        `* **Fecha:** ${dateStr}`,
-        `* **Duración:** ${Math.floor(transcription.durationSeconds / 60)}m ${transcription.durationSeconds % 60}s`,
-        `* **Idioma:** ${transcription.language}`,
-        '',
-        '## Transcripción Completa',
-        '',
-        text,
-        ''
-    ].join('\n');
-
-    if (transcription.summary) {
-        md += `## Resumen y Puntos Clave\n\n${transcription.summary}\n`;
-    }
-
-    return md;
-}
-
-/**
- * Formatea duración en segundos a minutos y segundos legibles (ej: 03:25).
- *
- * @param {number} seconds
- * @returns {string}
- */
 export function formatDuration(seconds = 0) {
-    const totalSec = Math.max(0, Math.floor(seconds));
-    const mins = Math.floor(totalSec / 60);
-    const secs = totalSec % 60;
-    return `${String(mins).padStart(2, '0')}:${String(secs).padStart(2, '0')}`;
+    const total = Math.max(0, Math.floor(Number(seconds) || 0));
+    const hours = Math.floor(total / 3600);
+    const minutes = Math.floor((total % 3600) / 60);
+    const remaining = total % 60;
+    return hours > 0
+        ? `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`
+        : `${String(minutes).padStart(2, '0')}:${String(remaining).padStart(2, '0')}`;
+}
+
+export function formatBytes(bytes = 0) {
+    const value = Math.max(0, Number(bytes) || 0);
+    if (value < 1024) return `${Math.round(value)} B`;
+    if (value < 1024 ** 2) return `${(value / 1024).toFixed(1)} KB`;
+    if (value < 1024 ** 3) return `${(value / 1024 ** 2).toFixed(1)} MB`;
+    return `${(value / 1024 ** 3).toFixed(2)} GB`;
+}
+
+export function getTranscriptionStatusLabel(status) {
+    return STATUS_LABELS[status] || 'Desconocido';
+}
+
+export function getFileExtension(name = '', mimeType = '') {
+    const match = String(name).toLowerCase().match(/\.([a-z0-9]{2,5})$/);
+    if (match && SUPPORTED_MEDIA_EXTENSIONS.includes(`.${match[1]}`)) return match[1];
+    return ({
+        'audio/webm': 'webm',
+        'audio/ogg': 'ogg',
+        'audio/mp4': 'm4a',
+        'audio/mpeg': 'mp3',
+        'audio/wav': 'wav',
+        'audio/aac': 'aac',
+        'audio/flac': 'flac',
+        'audio/aiff': 'aiff',
+        'audio/opus': 'opus',
+        'video/mp4': 'mp4',
+        'video/quicktime': 'mov',
+        'video/x-matroska': 'mkv',
+        'video/webm': 'webm',
+        'video/mpeg': 'mpeg',
+        'video/x-m4v': 'm4v'
+    })[String(mimeType).split(';')[0].toLowerCase()] || 'bin';
+}
+
+export function normalizeMimeType(value = '') {
+    const rawMimeType = String(value).split(';')[0].trim().toLowerCase();
+    const mimeType = AUDIO_MIME_ALIASES[rawMimeType] || rawMimeType;
+    return SUPPORTED_MEDIA_MIME_TYPES.includes(mimeType) ? mimeType : null;
+}
+
+export function isVideoMimeType(value = '') {
+    return SUPPORTED_VIDEO_MIME_TYPES.includes(String(value).split(';')[0].trim().toLowerCase());
+}
+
+export async function sha256Blob(blob) {
+    if (!blob || typeof blob.arrayBuffer !== 'function' || !globalThis.crypto?.subtle) {
+        throw new TypeError('No se puede calcular la integridad del fragmento.');
+    }
+    const digest = await globalThis.crypto.subtle.digest('SHA-256', await blob.arrayBuffer());
+    return [...new Uint8Array(digest)]
+        .map(value => value.toString(16).padStart(2, '0'))
+        .join('');
+}
+
+export function normalizeSessionRow(row, documents = []) {
+    if (!row || typeof row !== 'object') return null;
+    const byKind = Object.fromEntries(
+        (documents || [])
+            .filter(document => document?.session_id === row.id)
+            .map(document => [document.kind, document])
+    );
+    return {
+        id: String(row.id || ''),
+        folderId: row.folder_id || null,
+        title: String(row.title || 'Transcripción sin título'),
+        sourceType: row.source_type === 'import' ? 'import' : 'recording',
+        status: String(row.status || 'draft'),
+        language: String(row.language || 'es-AR'),
+        context: String(row.context || ''),
+        autoProcess: row.auto_process !== false,
+        mimeType: row.mime_type || null,
+        durationSeconds: Math.max(0, Math.round((Number(row.duration_ms) || 0) / 1000)),
+        totalBytes: Math.max(0, Number(row.total_bytes) || 0),
+        expectedChunks: Math.max(0, Number(row.expected_chunks) || 0),
+        completedChunks: Math.max(0, Number(row.completed_chunks) || 0),
+        errorCode: row.error_code || null,
+        errorMessage: row.error_message || null,
+        audioDeleteAfter: row.audio_delete_after || null,
+        audioDeletedAt: row.audio_deleted_at || null,
+        createdAt: row.created_at || null,
+        updatedAt: row.updated_at || null,
+        completedAt: row.completed_at || null,
+        transcript: byKind.transcript?.content || '',
+        transcriptEdited: byKind.transcript?.user_edited === true,
+        summary: byKind.summary?.content || '',
+        notes: byKind.notes?.content || ''
+    };
+}
+
+export function combineChunkTranscripts(chunks = []) {
+    return [...chunks]
+        .sort((a, b) => Number(a.sequence_number) - Number(b.sequence_number))
+        .map(chunk => String(chunk.transcript_text || '').trim())
+        .filter(Boolean)
+        .join('\n\n');
+}
+
+export function searchTranscriptions(sessions = [], query = '') {
+    const term = String(query || '').trim().toLocaleLowerCase('es');
+    if (!term) return sessions;
+    return sessions.filter(session => [
+        session.title,
+        session.transcript,
+        session.summary,
+        session.notes
+    ].some(value => String(value || '').toLocaleLowerCase('es').includes(term)));
+}
+
+function safeDateLabel(value) {
+    const date = new Date(value);
+    return Number.isNaN(date.getTime()) ? 'Sin fecha' : date.toLocaleString('es-AR');
+}
+
+export function exportAsPlainText(session) {
+    const body = session.transcript || '(Sin transcripción completa)';
+    return [
+        `Título: ${session.title}`,
+        `Fecha: ${safeDateLabel(session.createdAt)}`,
+        `Duración: ${formatDuration(session.durationSeconds)}`,
+        '',
+        body,
+        session.summary ? `\n\nRESUMEN\n${session.summary}` : '',
+        session.notes ? `\n\nAPUNTES\n${session.notes}` : ''
+    ].filter(value => value !== '').join('\n');
+}
+
+export function exportAsMarkdown(session) {
+    const body = session.transcript || '(Sin transcripción completa)';
+    return [
+        `# ${session.title}`,
+        '',
+        `- **Fecha:** ${safeDateLabel(session.createdAt)}`,
+        `- **Duración:** ${formatDuration(session.durationSeconds)}`,
+        `- **Idioma:** ${session.language}`,
+        '',
+        '## Transcripción completa',
+        '',
+        body,
+        session.summary ? `\n## Resumen\n\n${session.summary}` : '',
+        session.notes ? `\n## Apuntes\n\n${session.notes}` : ''
+    ].filter(value => value !== '').join('\n');
+}
+
+export function createDownloadFilename(title, extension) {
+    const base = String(title || 'transcripcion')
+        .normalize('NFD')
+        .replace(/[\u0300-\u036f]/g, '')
+        .replace(/[^a-zA-Z0-9_-]+/g, '_')
+        .replace(/^_+|_+$/g, '')
+        .slice(0, 80) || 'transcripcion';
+    const safeExtension = String(extension || '').replace(/^\.+/, '');
+    return safeExtension ? `${base}.${safeExtension}` : base;
 }

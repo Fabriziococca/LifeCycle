@@ -1,57 +1,65 @@
-# Presupuesto Operativo Global y Límites de Capa Gratuita
-**LifeCycle — Fase D (Tandas 16A y 16B)**
-**Última actualización:** Septiembre 2026
+# Presupuesto operativo de transcripciones
 
-Este documento detalla el modelo de costos operativos proyectados, los límites técnicos de cada proveedor gratuito y las reglas de resguardo para garantizar que LifeCycle opere con costo **$0/mes**, evitando cualquier desborde de cuota o activación accidental de cargos de facturación.
+**LifeCycle — revisión técnica del 4 de septiembre de 2026**
 
----
+## Objetivo
 
-## 1. Servicios y Capas Gratuitas (Free Tiers)
+El modo inicial busca costo adicional **USD 0**, sin activar automáticamente facturación ni cambiar a proveedores pagos. Esto es un objetivo operativo, no una garantía absoluta: las cuotas y condiciones comerciales pertenecen a Google, Supabase y Render y pueden cambiar. Antes de ampliar uso se deben consultar los paneles reales del proyecto.
 
-| Proveedor | Servicio | Límite Gratuito Mensual | Consumo Estimado LifeCycle | Margen de Seguridad |
-|---|---|---|---|---|
-| **Google AI Studio (Gemini)** | Gemini 1.5/2.0 Flash (Transcripciones) | • 15 solicitudes / minuto (RPM)<br>• 1.500 solicitudes / día (RPD)<br>• 1.000.000 tokens / minuto (TPM) | • ~5 a 20 notas de voz / día<br>• ~15.000 tokens / día | **> 98% libre** (riesgo nulo de saturación diaria) |
-| **Supabase** | Base de datos PostgreSQL | • 500 MB almacenamiento de datos<br>• 1 GB almacenamiento de archivos<br>• 50.000 usuarios activos mensuales | • ~12 a 25 MB en base de datos<br>• Cero audio persistido (efímero) | **> 95% libre** |
-| **Render** | Web Service (Node.js backend) | • 750 horas de cómputo / mes<br>• 512 MB memoria RAM<br>• 100 GB ancho de banda | • 1 servicio continuo (720-744 hs/mes)<br>• ~85-130 MB RAM en uso | **Dentro de la cuota mensual gratuita** |
+## Límites propios de LifeCycle
 
----
+| Recurso | Límite de seguridad |
+|---|---:|
+| Duración por sesión grabada | 3 horas |
+| Duración nominal de cada fragmento | 5 minutos |
+| Tamaño máximo por objeto/importación | 50 MB |
+| Audio temporal contabilizado por sesión | 256 MB |
+| Audio temporal total del propietario | 750 MiB |
+| Intentos de proveedor por día | 100, configurable |
+| Retención tras transcripción correcta | 24 horas |
+| Retención de una sesión fallida | hasta 7 días |
 
-## 2. Modelo de Notas de Voz y Audio
+El límite diario de 100 cuenta cada llamada de transcripción, resumen o apuntes. Es independiente de la cuota que Google aplique al proyecto. Cuando se alcanza, los trabajos pasan a espera hasta las 00:05 UTC; el audio no se borra ni se contrata capacidad.
 
-### Compresión y Consumo de Datos
-* **Códec:** Opus en contenedor WebM (audio/webm;codecs=opus).
-* **Canal:** Mono (1 canal, óptimo para voz humana).
-* **Tasa de bits (Bitrate):** 32 kbps (4 KB/segundo).
-* **Tamaño por duración:**
-  * 1 minuto de audio: **~240 KB**.
-  * 5 minutos de audio: **~1.2 MB**.
-  * 15 minutos de audio: **~3.6 MB**.
-  * 30 minutos de audio (límite máximo permitido por nota): **~7.2 MB**.
+## Tamaños esperables
 
-### Política de Retención Efímera de Audios
-1. El archivo de audio se almacena temporalmente en el backend únicamente para ser enviado a Gemini.
-2. Una vez que Gemini retorna la transcripción validada, el audio original **se elimina automáticamente del servidor**.
-3. En la base de datos de Supabase únicamente se persiste el **texto transcrito**, notas y metadatos (tamaño promedio: 2 a 8 KB por nota).
-4. Esto garantiza que el almacenamiento de base de datos nunca crezca por acumulación de archivos binarios de audio.
+La grabación Android usa AAC mono a 48 kbit/s. Sin contar pequeños encabezados:
 
----
+- cinco minutos: aproximadamente 1,8 MB;
+- una hora: aproximadamente 21,6 MB;
+- tres horas: aproximadamente 64,8 MB.
 
-## 3. Umbrales de Alerta y Control de Cuotas
+Por eso una sesión larga cabe en muchos objetos pequeños aunque su suma supere 50 MB. Los archivos ya existentes importados desde web sí deben caber individualmente en 50 MB. Los formatos sin compresión y los videos consumen mucho más y se normalizan en Render antes de enviarse al proveedor.
 
-Para evitar interrupciones o superar límites, el sistema implementa tres niveles de protección:
+El borrado reduce el almacenamiento ocupado, pero no revierte la transferencia ya consumida. Además, una importación necesita temporalmente el original y los fragmentos preparados, por lo que su pico de almacenamiento puede ser cercano al doble del audio normalizado.
 
-1. **Nivel 1 (Umbral Preventivo - 70% de cuota):**
-   * El sistema registra advertencia en diagnósticos y notifica en el panel de administración.
-2. **Nivel 2 (Umbral de Restricción - 85% de cuota):**
-   * El intervalo de captura de audio limita las notas a un máximo de 10 minutos por sesión.
-   * Se espacian las solicitudes a Gemini a un máximo de 5 por minuto.
-3. **Nivel 3 (Pausa de Seguridad - 95% de cuota):**
-   * Se suspenden temporalmente nuevas solicitudes de transcripción hasta la renovación de la cuota diaria (00:00 UTC).
-   * La aplicación informa al usuario en pantalla con mensaje claro: "Límite gratuito diario alcanzado. Podrás transcribir nuevas notas a partir de mañana".
-   * **Bajo ninguna circunstancia se activan tarjetas de crédito ni servicios de pago.**
+## Google Gemini
 
----
+- Modelo de transcripción predeterminado: `gemini-3.5-transcribe`.
+- Modelo para resumen/apuntes: `gemini-2.5-flash`.
+- La clave vive sólo en Render como `GEMINI_API_KEY`.
+- LifeCycle reintenta únicamente errores temporales y registra cada intento antes de llamar al proveedor.
+- Un error 429 espera; no cambia a una API paga.
 
-## 4. Conclusión Técnica
+Las cuotas gratuitas no se codifican como “15 RPM” o “1.500 solicitudes diarias” porque dependen del modelo, la cuenta y el proyecto. El límite local de 100 es un freno conservador, no una afirmación sobre la cuota oficial.
 
-Con una arquitectura orientada a texto en base de datos, compresión Opus a 32 kbps en cliente, retención efímera de audios y respeto de los 15 RPM de Gemini Free Tier, LifeCycle puede operar con estabilidad absoluta para el usuario propietario y usuarios de prueba manteniendo el costo en **$0.00 USD**.
+La modalidad gratuita puede tratar los datos conforme a las condiciones de Google. La interfaz exige consentimiento y advierte no usar material confidencial mientras no se adopte una vía contractual, local o paga más apropiada.
+
+## Supabase y Render
+
+- Supabase conserva metadatos y documentos en PostgreSQL, y audio temporal en un bucket privado con RLS.
+- El bucket restringe cada archivo a 50 MB y LifeCycle frena nuevas cargas al llegar a 750 MiB contabilizados.
+- El worker de Render usa FFmpeg y puede necesitar CPU y memoria apreciables con video o formatos pesados.
+- En un servicio gratuito, una suspensión o reinicio puede demorar el procesamiento; la cola persistente permite recuperarlo.
+
+Antes de aumentar límites hay que revisar almacenamiento, egreso, uso de base, memoria del servicio y consumo real de Gemini. Borrar archivos no reemplaza esa medición.
+
+## Cuándo considerar un servicio pago
+
+Evaluar una alternativa paga o local si ocurre cualquiera de estas condiciones:
+
+- material confidencial que no deba procesarse bajo condiciones gratuitas;
+- calidad insuficiente en muestras reales;
+- cuotas recurrentemente agotadas;
+- necesidad de tiempos de respuesta garantizados;
+- almacenamiento o transferencia sostenidos cerca de los topes del proyecto.

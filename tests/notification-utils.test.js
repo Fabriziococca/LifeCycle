@@ -25,6 +25,7 @@ const {
     isExpiredPushError,
     isIntervalReminderDue,
     normalizeNotificationTime,
+    normalizeNotificationTimes,
     normalizeIntervalHours,
     parseJsonValue
 } = require('../notification-utils');
@@ -33,6 +34,13 @@ test('parseJsonValue accepts native values and JSON strings', () => {
     assert.deepEqual(parseJsonValue('[1,2]', []), [1, 2]);
     assert.deepEqual(parseJsonValue({ enabled: true }, {}), { enabled: true });
     assert.deepEqual(parseJsonValue('not-json', []), []);
+});
+
+test('notification schedules normalize, sort and deduplicate independent daily slots', () => {
+    assert.deepEqual(
+        normalizeNotificationTimes(['21:00', '14:00', '21:00', '99:00']),
+        ['14:00', '21:00']
+    );
 });
 
 test('getPendingVeryUrgentTasks reads the real cloud keys', () => {
@@ -337,6 +345,7 @@ test('vehicle catalog creates individual alert configs while preserving legacy c
     assert.deepEqual(alertsConfig['vehicle_card:vc_coolant'], {
         enabled: false,
         time: '08:30',
+        times: ['08:30'],
         days: []
     });
 });
@@ -440,6 +449,7 @@ test('custom tracker alert defaults are recovered from the synced registry', () 
     assert.deepEqual(alertsConfig['custom_tracker:ct_sillones_1'], {
         enabled: true,
         time: '20:30',
+        times: ['20:30'],
         days: []
     });
 });
@@ -537,6 +547,7 @@ test('state reminder cards use interval alerts and never enter the daily tracker
     assert.deepEqual(alertsConfig['custom_tracker:ct_robot_001'], {
         enabled: true,
         time: '22:00',
+        times: ['22:00'],
         days: [],
         interval_hours: 8
     });

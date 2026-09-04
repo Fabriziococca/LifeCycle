@@ -18,6 +18,11 @@ import {
 import { getLocalISODate } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import { createIconPicker } from '../icon-picker-utils.mjs?v=20260818-icon-preview';
+import {
+    getSuggestedAlertTime,
+    MAX_ALERT_TIMES_PER_DAY,
+    normalizeAlertTimes
+} from '../alert-schedule-utils.mjs';
 
 const DEPRECATED_VEHICLE_ALERT_KEYS = Object.freeze([
     'vehicle_oil',
@@ -171,7 +176,10 @@ export class VehicleCatalogModule {
                 : null;
             configs[key] = {
                 enabled: legacyConfig?.enabled ?? card.alert.enabled,
-                time: legacyConfig?.time || card.alert.time,
+                ...normalizeAlertTimes(
+                    legacyConfig?.times || legacyConfig?.time || card.alert.times || card.alert.time,
+                    card.alert.time
+                ),
                 days: Array.isArray(legacyConfig?.days) ? legacyConfig.days : []
             };
         });
@@ -189,10 +197,12 @@ export class VehicleCatalogModule {
             }
         }
         const key = getVehicleAlertKey(card);
+        const schedule = normalizeAlertTimes(card.alert.times || card.alert.time, card.alert.time);
         configs[key] = {
             ...(configs[key] || {}),
             enabled: card.alert.enabled === true,
-            time: card.alert.time,
+            time: schedule.time,
+            times: schedule.times,
             days: Array.isArray(configs[key]?.days) ? configs[key].days : []
         };
         localStorage.setItem('alerts_config', JSON.stringify(configs));
@@ -795,8 +805,12 @@ export class VehicleCatalogModule {
                             <span class="custom-alert-switch" aria-hidden="true"><span></span></span>
                         </label>
                         <div class="input-group custom-tracker-alert-time-wrap">
-                            <label for="vehicle-card-alert-time">Hora</label>
-                            <input id="vehicle-card-alert-time" type="time" class="time-input" value="23:00">
+                            <label for="vehicle-card-alert-time">Horarios de aviso</label>
+                            <div style="display:flex; gap:6px; align-items:center;">
+                                <input id="vehicle-card-alert-time" type="time" class="time-input" value="23:00">
+                                <button id="btn-add-vehicle-alert-time" type="button" class="btn btn-secondary" style="padding:4px 8px; font-size:.8rem; white-space:nowrap;">+ Horario</button>
+                            </div>
+                            <div id="vehicle-card-extra-alert-times" style="display:flex; flex-direction:column; gap:6px; margin-top:6px;"></div>
                         </div>
                     </div>
                     <p id="vehicle-card-form-error" class="custom-tracker-form-error hidden" role="alert"></p>
@@ -818,6 +832,20 @@ export class VehicleCatalogModule {
             }
         );
         dialog.addEventListener('click', event => {
+            if (event.target.closest('#btn-add-vehicle-alert-time')) {
+                const currentTimes = this.readEditorAlertTimes();
+                const next = getSuggestedAlertTime(currentTimes);
+                if (next) this.renderEditorAlertTimes([...currentTimes.slice(1), next]);
+                return;
+            }
+            const removeTime = event.target.closest('[data-remove-vehicle-alert-time]');
+            if (removeTime) {
+                const index = Number(removeTime.dataset.removeVehicleAlertTime);
+                const extras = this.readEditorAlertTimes().slice(1);
+                extras.splice(index, 1);
+                this.renderEditorAlertTimes(extras);
+                return;
+            }
             if (event.target === dialog || event.target.closest('[data-vehicle-editor-action="close"]')) {
                 this.closeEditor();
             }
@@ -850,7 +878,12 @@ export class VehicleCatalogModule {
         this.editorDialog.querySelector('#vehicle-card-interval-days').value = card?.intervalDays || '';
         this.editorDialog.querySelector('#vehicle-card-warning-days').value = card?.warningDays || '';
         this.editorDialog.querySelector('#vehicle-card-alert-enabled').checked = alertConfig?.enabled !== false;
-        this.editorDialog.querySelector('#vehicle-card-alert-time').value = alertConfig?.time || card?.alert?.time || '23:00';
+        const alertTimes = normalizeAlertTimes(
+            alertConfig?.times || alertConfig?.time || card?.alert?.times || card?.alert?.time,
+            card?.alert?.time || '23:00'
+        ).times;
+        this.editorDialog.querySelector('#vehicle-card-alert-time').value = alertTimes[0];
+        this.renderEditorAlertTimes(alertTimes.slice(1));
         const hasHistory = card ? this.getRecords(card.id).length > 0 : false;
         this.editorDialog.querySelector('#vehicle-card-type').disabled = hasHistory;
         this.editorDialog.querySelector('#vehicle-card-form-error').classList.add('hidden');
@@ -868,6 +901,29 @@ export class VehicleCatalogModule {
         const trigger = this.lastDialogTrigger;
         this.lastDialogTrigger = null;
         requestAnimationFrame(() => trigger?.isConnected && trigger.focus?.());
+    }
+
+    readEditorAlertTimes() {
+        const primary = this.editorDialog?.querySelector('#vehicle-card-alert-time')?.value || '23:00';
+        const extras = [...(this.editorDialog?.querySelectorAll('.vehicle-card-extra-alert-time') || [])]
+            .map(input => input.value)
+            .filter(Boolean);
+        return normalizeAlertTimes([primary, ...extras], primary).times;
+    }
+
+    renderEditorAlertTimes(times = []) {
+        const list = this.editorDialog?.querySelector('#vehicle-card-extra-alert-times');
+        if (!list) return;
+        const primary = this.editorDialog.querySelector('#vehicle-card-alert-time')?.value || '23:00';
+        const normalized = normalizeAlertTimes([primary, ...times], primary).times.slice(1);
+        list.innerHTML = normalized.map((time, index) => `
+            <div style="display:flex; gap:6px; align-items:center;">
+                <input type="time" class="time-input vehicle-card-extra-alert-time" value="${time}" aria-label="Horario adicional ${index + 2}">
+                <button type="button" class="icon-btn" data-remove-vehicle-alert-time="${index}" aria-label="Quitar horario ${time}"><i class="ph ph-trash"></i></button>
+            </div>
+        `).join('');
+        const addButton = this.editorDialog.querySelector('#btn-add-vehicle-alert-time');
+        if (addButton) addButton.disabled = normalized.length + 1 >= MAX_ALERT_TIMES_PER_DAY;
     }
 
     updateEditorFields() {
@@ -911,7 +967,8 @@ export class VehicleCatalogModule {
                 warningDays: parseOptionalInteger(this.editorDialog.querySelector('#vehicle-card-warning-days').value),
                 alert: {
                     enabled: this.editorDialog.querySelector('#vehicle-card-alert-enabled').checked,
-                    time: this.editorDialog.querySelector('#vehicle-card-alert-time').value || '23:00'
+                    time: this.readEditorAlertTimes()[0],
+                    times: this.readEditorAlertTimes()
                 }
             };
             if (this.editingId) {

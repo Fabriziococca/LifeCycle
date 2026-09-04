@@ -45,7 +45,7 @@ export class AdaptiveNavigationModule {
         this.moreButton.className = 'nav-btn adaptive-nav-more';
         this.moreButton.setAttribute('aria-haspopup', 'dialog');
         this.moreButton.setAttribute('aria-expanded', 'false');
-        this.moreButton.setAttribute('data-tooltip', 'Más módulos y ajustes');
+        this.moreButton.setAttribute('data-tooltip', 'Más módulos');
         this.moreButton.innerHTML = `
             <i class="ph ph-dots-three-circle" aria-hidden="true"></i>
             <span class="nav-label">Más</span>
@@ -93,22 +93,14 @@ export class AdaptiveNavigationModule {
             <div class="adaptive-navigation-sheet">
                 <header>
                     <div>
-                        <span>MÓDULOS Y AJUSTES</span>
-                        <h2 id="adaptive-navigation-title">Más en LifeCycle</h2>
+                        <span>MÓDULOS</span>
+                        <h2 id="adaptive-navigation-title">Más módulos</h2>
                     </div>
                     <button type="button" class="icon-btn" data-adaptive-nav-action="close" aria-label="Cerrar menú" data-tooltip="Cerrar">
                         <i class="ph ph-x"></i>
                     </button>
                 </header>
                 <div class="adaptive-navigation-list" data-adaptive-navigation-list></div>
-                <div class="adaptive-navigation-system-actions">
-                    <button type="button" data-adaptive-nav-profile="cuenta">
-                        <i class="ph ph-user"></i><span><strong>Mi cuenta</strong><small>Sesión y moneda</small></span>
-                    </button>
-                    <button type="button" data-adaptive-nav-profile="preferencias">
-                        <i class="ph ph-sliders"></i><span><strong>Preferencias</strong><small>Atajos y comportamiento</small></span>
-                    </button>
-                </div>
             </div>
         `;
         this.moreList = this.moreLayer.querySelector('[data-adaptive-navigation-list]');
@@ -137,11 +129,6 @@ export class AdaptiveNavigationModule {
                     smooth: true
                 });
                 return;
-            }
-            const profileButton = event.target.closest('[data-adaptive-nav-profile]');
-            if (profileButton) {
-                this.closeMore({ restoreFocus: false });
-                this.app.openProfileTab?.(profileButton.dataset.adaptiveNavProfile);
             }
         });
         document.addEventListener('keydown', event => {

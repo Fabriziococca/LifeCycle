@@ -7,6 +7,7 @@ import { GymModule } from './modules/GymModule.js';
 import { ProjectsModule } from './modules/ProjectsModule.js';
 import { SubscriptionsModule } from './modules/SubscriptionsModule.js';
 import { TranscriptionsModule } from './modules/TranscriptionsModule.js';
+import { StarterPackModule } from './modules/StarterPackModule.js';
 import { BackupModule } from './modules/BackupModule.js';
 import { AuthSyncModule } from './modules/AuthSyncModule.js';
 import { FinanzasModule } from './modules/FinanzasModule.js';
@@ -502,7 +503,7 @@ class AppController {
             this.today?.render();
         } else if (sectionId === 'cuidado-section') {
             this.grooming?.render();
-        } else if (sectionId === 'lenses-section') {
+        } else if (sectionId === 'lentes-section') {
             this.lenses?.updateUI();
             this.lenses?.loadDatesAndStock();
             this.lenses?.renderHistory();
@@ -665,7 +666,19 @@ class AppController {
         } else if (openParam === 'robot' || hash.includes('robot')) {
             itemToOpen = { module: 'robot', id: 'robot_cleaner' };
         } else if (openParam === 'workana' || hash.includes('workana')) {
-            itemToOpen = { module: 'workana', id: 'workana_sub' };
+            itemToOpen = {
+                module: 'subscriptions',
+                id: 'sub_workana_plan',
+                targetElementId: 'subscription-sub_workana_plan'
+            };
+        } else if (openParam === 'suscripciones' || openParam === 'subscription') {
+            itemToOpen = {
+                module: 'subscriptions',
+                id: searchParams.get('id'),
+                targetElementId: searchParams.get('id')
+                    ? `subscription-${searchParams.get('id')}`
+                    : null
+            };
         } else if (openParam === 'vehicle' || hash.includes('vehiculo')) {
             const tab = searchParams.get('tab') || (hash.includes('docs') ? 'docs' : 'maint');
             itemToOpen = { module: 'vehicle', vehicleTab: tab, id: searchParams.get('id') };
@@ -677,11 +690,7 @@ class AppController {
             itemToOpen = { module: 'custom_tracker', id: searchParams.get('trackerId') || searchParams.get('id') };
         }
 
-        if (itemToOpen) {
-            setTimeout(() => {
-                this.notificationsCenter?.openItem(itemToOpen);
-            }, 120);
-        }
+        if (itemToOpen) this.notificationsCenter?.openItem(itemToOpen);
     }
 
     initProfileOverlay() {
@@ -927,8 +936,6 @@ class AppController {
         this.vehicle = new VehicleModule(this);
         this.gym = new GymModule(this);
         this.projects = new ProjectsModule(this);
-        this.subscriptions = new SubscriptionsModule(this);
-        this.transcriptions = new TranscriptionsModule(this);
         this.finanzas = new FinanzasModule(this);
         this.trading = new TradingModule(this);
         this.tareas = new TareasModule(this);
@@ -936,6 +943,9 @@ class AppController {
         this.backups = new BackupModule(this);
         this.auth = new AuthSyncModule(this);
         this.alerts = new AlertsModule(this);
+        this.starterPack = new StarterPackModule(this);
+        this.subscriptions = new SubscriptionsModule(this);
+        this.transcriptions = new TranscriptionsModule(this);
         this.notificationsCenter = new NotificationsCenterModule(this);
         this.today = new TodayModule(this);
         this.globalSearch = new GlobalSearchModule(this);
@@ -951,7 +961,7 @@ class AppController {
                 if (activeSection.id === 'hoy-section') this.today.render();
                 else if (activeSection.id === 'higiene-section') this.hygiene.render();
                 else if (activeSection.id === 'cuidado-section') this.grooming.render();
-                else if (activeSection.id === 'lenses-section') this.lenses.loadDatesAndStock();
+                else if (activeSection.id === 'lentes-section') this.lenses.loadDatesAndStock();
                 else if (activeSection.id === 'salud-section') this.health.render();
                 else if (activeSection.id === 'vehiculo-section') this.vehicle.render();
                 else if (activeSection.id === 'gym-section') this.gym.render();

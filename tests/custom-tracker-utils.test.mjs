@@ -329,6 +329,7 @@ test('custom tracker alerts use stable unique keys and section categories', () =
         type: 'interval',
         defaultEnabled: true,
         defaultTime: '20:30',
+        defaultTimes: ['20:30'],
         defaultDays: []
     });
 });
@@ -370,6 +371,7 @@ test('state reminders remain inactive until started and expose repeat configurat
         type: 'interval',
         defaultEnabled: true,
         defaultTime: '20:30',
+        defaultTimes: ['20:30'],
         defaultDays: [],
         repeatWhileActive: true,
         intervalHours: 4

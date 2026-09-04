@@ -1,163 +1,223 @@
-/**
- * SubscriptionsModule.js
- * Módulo de gestión y seguimiento de suscripciones en LifeCycle.
- * Implementa Fase C (Tandas 11 a 15).
- */
-
 import {
-    SUBSCRIPTION_STORAGE_KEY,
-    SUBSCRIPTION_CATEGORIES,
     SUBSCRIPTION_CATEGORY_LABELS,
-    SUBSCRIPTION_STATUSES,
-    calculateNextRenewalDate,
-    getDaysUntilRenewal,
+    SUBSCRIPTION_SCHEMA_VERSION,
+    SUBSCRIPTION_STORAGE_KEY,
+    appendSubscriptionHistoryEvent,
     calculateMonthlyEquivalent,
+    calculateNextRenewalDate,
+    createSubscriptionId,
+    advanceSubscriptionRenewal,
+    extractLegacySubscriptionRegistry,
+    getDaysUntilRenewal,
+    getSubscriptionExpenseOccurrenceKey,
+    migrateWorkanaToSubscriptions,
     normalizeSubscription,
     normalizeSubscriptionRegistry,
-    migrateWorkanaToSubscriptions,
-    addMonthsToDate
+    parseSubscriptionDate
 } from '../subscription-utils.mjs';
+import {
+    getSuggestedAlertTime,
+    MAX_ALERT_TIMES_PER_DAY,
+    normalizeAlertTimes
+} from '../alert-schedule-utils.mjs';
+import {
+    RESOURCE_KEYS,
+    createFallbackResourcePolicy,
+    evaluateResourceCapacity,
+    getResourceCapacityNotice,
+    getResourceLimitMessage
+} from '../resource-policy.mjs?v=20260904-subscriptions';
+import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 
-import { normalizeAlertTimes } from '../alert-schedule-utils.mjs';
+const STATUS_LABELS = Object.freeze({
+    active: 'Activa',
+    paused: 'Pausada',
+    canceled: 'Cancelada'
+});
+
+function todayKey(now = new Date()) {
+    return [
+        now.getFullYear(),
+        String(now.getMonth() + 1).padStart(2, '0'),
+        String(now.getDate()).padStart(2, '0')
+    ].join('-');
+}
+
+function eventLabel(type) {
+    return ({
+        created: 'Creada',
+        updated: 'Actualizada',
+        renewed: 'Renovada',
+        'expense-recorded': 'Gasto registrado',
+        paused: 'Pausada',
+        canceled: 'Cancelada',
+        reactivated: 'Reactivada'
+    })[type] || 'Actualizada';
+}
 
 export class SubscriptionsModule {
     constructor(app) {
         this.app = app;
         this.subscriptions = [];
-        this.activeFilter = 'all'; // all, active, expiring, canceled
+        this.activeFilter = 'all';
         this.editingSubscriptionId = null;
-        this.init();
-    }
-
-    init() {
-        this.loadData();
+        this.processingAutomaticRenewals = false;
+        this.loadData({ persistMigration: true });
         this.bindEvents();
+        queueMicrotask(() => this.processDueAutomaticRenewals());
     }
 
-    loadData() {
+    loadData({ persistMigration = false } = {}) {
         try {
-            const rawStored = localStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
-            const legacyWorkana = localStorage.getItem('projectPulseSubscription');
-
-            let registry = normalizeSubscriptionRegistry(rawStored ? JSON.parse(rawStored) : []);
-
-            // Si hay una suscripción previa de Workana y no fue migrada, migrarla automáticamente
-            if (legacyWorkana) {
-                const migrationResult = migrateWorkanaToSubscriptions(legacyWorkana, registry);
-                if (migrationResult.migrated) {
-                    registry.subscriptions = migrationResult.subscriptions;
-                }
+            const directValue = localStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
+            const legacyValue = localStorage.getItem('projectPulseSubscription');
+            const embeddedRegistry = !directValue
+                ? extractLegacySubscriptionRegistry(legacyValue)
+                : null;
+            const registry = normalizeSubscriptionRegistry(directValue || embeddedRegistry || []);
+            const workana = migrateWorkanaToSubscriptions(legacyValue, registry);
+            this.subscriptions = workana.subscriptions;
+            if (persistMigration && (workana.migrated || (!directValue && embeddedRegistry))) {
+                this.saveData();
+            } else {
+                this.syncAlerts();
             }
-
-            this.subscriptions = registry.subscriptions;
-            this.syncAlerts();
-        } catch (e) {
-            console.error('[SubscriptionsModule] Error al cargar suscripciones:', e);
+            return workana.migrated || Boolean(!directValue && embeddedRegistry);
+        } catch (error) {
+            console.error('[Subscriptions] No se pudieron cargar los datos:', error);
             this.subscriptions = [];
+            return false;
         }
     }
 
-    saveData() {
-        const registry = {
-            version: 1,
-            subscriptions: this.subscriptions.map(s => normalizeSubscription(s))
-        };
-        localStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(registry));
-
-        // Espejar para sincronización en la nube mediante projectPulseSubscription
-        // garantizando compatibilidad con clientes existentes y respaldo cloud.
-        const workanaSub = this.subscriptions.find(s => s.id === 'sub_workana_plan' || s.name.toLowerCase().includes('workana'));
-        if (workanaSub) {
-            const legacyMirror = {
-                plan: workanaSub.name.replace(/.*\((.*?)\).*/, '$1').replace('Plan ', '') || 'Pro',
-                cost: workanaSub.cost,
-                cycle: workanaSub.periodMonths,
-                startDate: workanaSub.startDate,
-                _subscriptionsRegistry: registry
-            };
-            localStorage.setItem('projectPulseSubscription', JSON.stringify(legacyMirror));
-        } else {
-            localStorage.setItem('projectPulseSubscription', JSON.stringify({
-                plan: null,
-                _subscriptionsRegistry: registry
-            }));
+    getCreationCapacity(requestedCount = 1) {
+        if (typeof this.app.auth?.canCreateResource === 'function') {
+            return this.app.auth.canCreateResource(
+                RESOURCE_KEYS.SUBSCRIPTIONS,
+                this.subscriptions.length,
+                requestedCount
+            );
         }
+        return evaluateResourceCapacity(
+            createFallbackResourcePolicy(),
+            RESOURCE_KEYS.SUBSCRIPTIONS,
+            this.subscriptions.length,
+            requestedCount
+        );
+    }
 
+    saveData({ sync = true } = {}) {
+        const registry = normalizeSubscriptionRegistry({
+            version: SUBSCRIPTION_SCHEMA_VERSION,
+            subscriptions: this.subscriptions
+        });
+        this.subscriptions = registry.subscriptions;
+        localStorage.setItem(SUBSCRIPTION_STORAGE_KEY, JSON.stringify(registry));
         this.syncAlerts();
-        this.app.triggerDataSync?.('projectPulseSubscription');
+        if (sync) this.app.triggerDataSync?.(SUBSCRIPTION_STORAGE_KEY);
     }
 
     syncAlerts() {
-        if (!this.app.alerts) return;
-
-        // Registrar o actualizar alertas de cada suscripción activa
-        this.subscriptions.forEach(sub => {
-            const alertKey = `sub_${sub.id}`;
-            if (sub.status === 'active' && sub.alert?.enabled) {
-                this.app.alerts.configs[alertKey] = {
-                    enabled: true,
-                    time: sub.alert.time || '09:00',
-                    times: sub.alert.times || [sub.alert.time || '09:00'],
-                    days: [],
-                    subscriptionId: sub.id,
-                    name: sub.name
-                };
-            } else if (this.app.alerts.configs[alertKey]) {
-                this.app.alerts.configs[alertKey].enabled = false;
+        if (!this.app.alerts?.configs) return false;
+        const activeKeys = new Set();
+        let changed = false;
+        const hasMigratedWorkana = this.subscriptions.some(subscription => (
+            subscription.id === 'sub_workana_plan'
+            || subscription.name.toLowerCase().includes('workana')
+        ));
+        if (hasMigratedWorkana && this.app.alerts.configs.workana) {
+            delete this.app.alerts.configs.workana;
+            changed = true;
+        }
+        this.subscriptions.forEach(subscription => {
+            const key = `sub_${subscription.id}`;
+            activeKeys.add(key);
+            const times = normalizeAlertTimes(
+                subscription.alert?.times || subscription.alert?.time,
+                '09:00'
+            );
+            const next = {
+                enabled: subscription.status === 'active' && subscription.alert.enabled,
+                time: times.time,
+                times: times.times,
+                days: [],
+                subscriptionId: subscription.id,
+                name: subscription.name
+            };
+            if (JSON.stringify(this.app.alerts.configs[key]) !== JSON.stringify(next)) {
+                this.app.alerts.configs[key] = next;
+                changed = true;
             }
         });
+        Object.keys(this.app.alerts.configs).forEach(key => {
+            if (!key.startsWith('sub_sub_') || activeKeys.has(key)) return;
+            delete this.app.alerts.configs[key];
+            changed = true;
+        });
+        if (changed) {
+            this.app.alerts.saveData?.();
+            this.app.triggerDataSync?.('alerts_config');
+        }
+        return changed;
     }
 
     bindEvents() {
-        // Botón nueva suscripción
-        const newBtn = document.getElementById('btn-new-subscription');
-        if (newBtn && !newBtn.dataset.bound) {
-            newBtn.dataset.bound = 'true';
-            newBtn.addEventListener('click', () => this.openModal());
-        }
-
-        // Filtros de estado
-        const filterButtons = document.querySelectorAll('[data-subscription-filter]');
-        filterButtons.forEach(btn => {
-            if (!btn.dataset.bound) {
-                btn.dataset.bound = 'true';
-                btn.addEventListener('click', () => {
-                    filterButtons.forEach(b => b.classList.remove('active'));
-                    btn.classList.add('active');
-                    this.activeFilter = btn.dataset.subscriptionFilter;
-                    this.renderList();
-                });
-            }
+        document.getElementById('btn-new-subscription')?.addEventListener('click', event => {
+            this.openModal(null, event.currentTarget);
+        });
+        document.querySelectorAll('[data-subscription-filter]').forEach(button => {
+            button.addEventListener('click', () => {
+                document.querySelectorAll('[data-subscription-filter]')
+                    .forEach(item => item.classList.toggle('active', item === button));
+                this.activeFilter = button.dataset.subscriptionFilter;
+                this.renderList();
+            });
         });
 
-        // Formulario del modal
-        const form = document.getElementById('subscription-form');
-        if (form && !form.dataset.bound) {
-            form.dataset.bound = 'true';
-            form.addEventListener('submit', (e) => {
-                e.preventDefault();
-                this.saveSubscriptionFromModal();
-            });
-        }
-
-        // Cerrar modal
-        const closeButtons = document.querySelectorAll('[data-subscription-modal-close]');
-        closeButtons.forEach(btn => {
-            if (!btn.dataset.bound) {
-                btn.dataset.bound = 'true';
-                btn.addEventListener('click', () => this.closeModal());
-            }
+        const list = document.getElementById('subscriptions-list');
+        list?.addEventListener('click', event => {
+            const button = event.target.closest('[data-subscription-action]');
+            if (!button) return;
+            const id = button.closest('[data-subscription-id]')?.dataset.subscriptionId;
+            const action = button.dataset.subscriptionAction;
+            if (action === 'new') this.openModal(null, button);
+            else if (action === 'edit') this.openModal(id, button);
+            else if (action === 'expense') void this.recordExpense(id);
+            else if (action === 'pause') void this.setStatus(id, 'paused');
+            else if (action === 'cancel') void this.setStatus(id, 'canceled');
+            else if (action === 'reactivate') void this.setStatus(id, 'active');
+            else if (action === 'delete') void this.deleteSubscription(id);
         });
 
-        // Toggle alert time inputs
-        const alertCheck = document.getElementById('sub-alert-enabled');
-        if (alertCheck && !alertCheck.dataset.bound) {
-            alertCheck.dataset.bound = 'true';
-            alertCheck.addEventListener('change', () => {
-                const wrap = document.getElementById('sub-alert-settings');
-                wrap?.classList.toggle('hidden', !alertCheck.checked);
-            });
-        }
+        const modal = document.getElementById('subscription-modal');
+        modal?.addEventListener('click', event => {
+            if (event.target === modal || event.target.closest('[data-subscription-modal-close]')) {
+                this.closeModal();
+                return;
+            }
+            if (event.target.closest('#btn-add-subscription-alert-time')) {
+                const times = this.readAlertTimes();
+                const next = getSuggestedAlertTime(times);
+                if (next) this.renderExtraAlertTimes([...times.slice(1), next]);
+                return;
+            }
+            const remove = event.target.closest('[data-remove-subscription-alert-time]');
+            if (remove) {
+                remove.closest('.subscription-extra-alert-time')?.remove();
+                this.updateAddTimeState();
+            }
+        });
+        modal?.addEventListener('keydown', event => {
+            if (event.key === 'Escape') this.closeModal();
+        });
+        document.getElementById('subscription-form')?.addEventListener('submit', event => {
+            event.preventDefault();
+            this.saveSubscriptionFromModal();
+        });
+        document.getElementById('sub-alert-enabled')?.addEventListener('change', event => {
+            document.getElementById('sub-alert-settings')
+                ?.classList.toggle('hidden', !event.currentTarget.checked);
+        });
     }
 
     render() {
@@ -166,58 +226,42 @@ export class SubscriptionsModule {
     }
 
     renderSummary() {
-        const totalSubsEl = document.getElementById('subs-summary-total');
-        const monthlyUsdEl = document.getElementById('subs-summary-monthly-usd');
-        const monthlyArsEl = document.getElementById('subs-summary-monthly-ars');
-        const upcomingCountEl = document.getElementById('subs-summary-upcoming');
-
-        const activeSubs = this.subscriptions.filter(s => s.status === 'active');
-        const totalCount = this.subscriptions.length;
-
-        // Calcular costo mensualizado en USD
-        let totalMonthlyUsd = 0;
-        let totalMonthlyArs = 0;
-        const rate = Number(this.app.currencyRate) || 0;
-
-        activeSubs.forEach(sub => {
-            const monthlyEquiv = calculateMonthlyEquivalent(sub.cost, sub.periodMonths);
-            if (sub.currency === 'ARS') {
-                totalMonthlyArs += monthlyEquiv;
-                if (rate > 0) totalMonthlyUsd += (monthlyEquiv / rate);
+        const active = this.subscriptions.filter(item => item.status === 'active');
+        let usd = 0;
+        let ars = 0;
+        const rate = Number(this.app.getValidCachedLemonRate?.()) || 0;
+        active.forEach(item => {
+            const monthly = calculateMonthlyEquivalent(item.cost, item.periodMonths);
+            if (item.currency === 'ARS') {
+                ars += monthly;
+                if (rate > 0) usd += monthly / rate;
             } else {
-                totalMonthlyUsd += monthlyEquiv;
-                if (rate > 0) totalMonthlyArs += (monthlyEquiv * rate);
+                usd += monthly;
+                if (rate > 0) ars += monthly * rate;
             }
         });
-
-        // Renovaciones próximas (en los próximos 7 días)
-        const upcomingCount = activeSubs.filter(s => {
-            const days = getDaysUntilRenewal(s.nextRenewalDate);
-            return days >= 0 && days <= 7;
+        const upcoming = active.filter(item => {
+            const days = getDaysUntilRenewal(item.nextRenewalDate);
+            return Number.isFinite(days) && days >= 0 && days <= 7;
         }).length;
-
-        if (totalSubsEl) totalSubsEl.textContent = totalCount;
-        if (monthlyUsdEl) monthlyUsdEl.textContent = `$${totalMonthlyUsd.toFixed(2)} USD`;
-        if (monthlyArsEl) {
-            monthlyArsEl.textContent = totalMonthlyArs > 0
-                ? `$${Math.round(totalMonthlyArs).toLocaleString('es-AR')} ARS`
-                : '—';
-        }
-        if (upcomingCountEl) {
-            upcomingCountEl.textContent = upcomingCount;
-            upcomingCountEl.style.color = upcomingCount > 0 ? 'var(--status-yellow)' : 'var(--text-primary)';
-        }
+        const setText = (id, value) => {
+            const element = document.getElementById(id);
+            if (element) element.textContent = value;
+        };
+        setText('subs-summary-total', String(this.subscriptions.length));
+        setText('subs-summary-monthly-usd', `$${usd.toFixed(2)} USD`);
+        setText('subs-summary-monthly-ars', ars > 0 ? `$${Math.round(ars).toLocaleString('es-AR')} ARS` : '—');
+        setText('subs-summary-upcoming', String(upcoming));
     }
 
     getFilteredSubscriptions() {
-        return this.subscriptions.filter(sub => {
-            if (this.activeFilter === 'all') return true;
-            if (this.activeFilter === 'active') return sub.status === 'active';
+        return this.subscriptions.filter(item => {
+            if (this.activeFilter === 'active') return item.status === 'active';
             if (this.activeFilter === 'expiring') {
-                const days = getDaysUntilRenewal(sub.nextRenewalDate);
-                return sub.status === 'active' && days >= 0 && days <= 7;
+                const days = getDaysUntilRenewal(item.nextRenewalDate);
+                return item.status === 'active' && Number.isFinite(days) && days >= 0 && days <= 7;
             }
-            if (this.activeFilter === 'canceled') return sub.status === 'canceled' || sub.status === 'paused';
+            if (this.activeFilter === 'canceled') return item.status !== 'active';
             return true;
         });
     }
@@ -225,284 +269,398 @@ export class SubscriptionsModule {
     renderList() {
         const container = document.getElementById('subscriptions-list');
         if (!container) return;
-
-        const filtered = this.getFilteredSubscriptions();
-        if (filtered.length === 0) {
+        const items = this.getFilteredSubscriptions();
+        if (items.length === 0) {
             container.innerHTML = `
-                <div class="empty-state" style="text-align: center; padding: 3rem 1rem; color: var(--text-secondary);">
-                    <i class="ph ph-receipt" style="font-size: 2.5rem; margin-bottom: 0.75rem; display: block; opacity: 0.6;"></i>
+                <div class="empty-state subscription-card" data-subscription-id="">
+                    <i class="ph ph-receipt" aria-hidden="true"></i>
                     <p>No hay suscripciones en esta vista.</p>
-                    <button type="button" class="btn btn-primary" onclick="window.app.subscriptions?.openModal()" style="margin-top: 1rem;">
-                        <i class="ph ph-plus"></i> Nueva Suscripción
+                    <button type="button" class="btn btn-primary" data-subscription-action="new">
+                        <i class="ph ph-plus"></i> Nueva suscripción
                     </button>
-                </div>
-            `;
+                </div>`;
             return;
         }
-
-        container.innerHTML = filtered.map(sub => {
-            const daysLeft = getDaysUntilRenewal(sub.nextRenewalDate);
-            const monthlyEquiv = calculateMonthlyEquivalent(sub.cost, sub.periodMonths);
-            const categoryLabel = SUBSCRIPTION_CATEGORY_LABELS[sub.category] || 'Otros';
-
-            let badgeClass = 'badge';
-            let badgeText = 'Activa';
-            let borderColor = 'var(--surface-border)';
-
-            if (sub.status === 'canceled') {
-                badgeClass = 'badge red';
-                badgeText = daysLeft >= 0 ? `Cancelada (vigente ${daysLeft}d)` : 'Vencida';
-                borderColor = 'rgba(239, 68, 68, 0.3)';
-            } else if (sub.status === 'paused') {
-                badgeClass = 'badge yellow';
-                badgeText = 'Pausada';
-            } else {
-                if (daysLeft < 0) {
-                    badgeClass = 'badge red';
-                    badgeText = 'Venció hace ' + Math.abs(daysLeft) + 'd';
-                    borderColor = 'var(--status-red)';
-                } else if (daysLeft <= 2) {
-                    badgeClass = 'badge red';
-                    badgeText = daysLeft === 0 ? '¡Vence hoy!' : `Vence en ${daysLeft}d`;
-                    borderColor = 'var(--status-red)';
-                } else if (daysLeft <= 7) {
-                    badgeClass = 'badge yellow';
-                    badgeText = `Renueva en ${daysLeft}d`;
-                    borderColor = 'var(--status-yellow)';
-                } else {
-                    badgeClass = 'badge green';
-                    badgeText = `Renueva en ${daysLeft}d`;
-                }
-            }
-
-            const periodText = sub.periodMonths === 1
-                ? 'mes'
-                : (sub.periodMonths === 12 ? 'año' : `${sub.periodMonths} meses`);
-
-            return `
-                <div class="subscription-card" data-sub-id="${sub.id}" style="border: 1px solid ${borderColor}; border-radius: 12px; background: var(--surface-inset); padding: 1.25rem; display: flex; flex-direction: column; gap: 0.85rem; transition: transform 0.15s ease;">
-                    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 8px;">
-                        <div>
-                            <span style="font-size: 0.75rem; color: var(--text-secondary); text-transform: uppercase; font-weight: 600; letter-spacing: 0.05em;">${categoryLabel}</span>
-                            <h3 style="margin: 2px 0 0 0; font-size: 1.15rem; color: var(--text-primary); font-weight: 700;">${sub.name}</h3>
-                        </div>
-                        <span class="${badgeClass}">${badgeText}</span>
-                    </div>
-
-                    <div style="display: flex; justify-content: space-between; align-items: baseline; margin-top: 4px;">
-                        <div>
-                            <strong style="font-size: 1.35rem; color: var(--text-primary);">${sub.currency === 'USD' ? '$' : 'ARS$'}${sub.cost.toFixed(2)}</strong>
-                            <span style="font-size: 0.82rem; color: var(--text-secondary);"> / ${periodText}</span>
-                        </div>
-                        <span style="font-size: 0.8rem; color: var(--text-secondary);">~${sub.currency === 'USD' ? '$' : 'ARS$'}${monthlyEquiv.toFixed(2)}/mes</span>
-                    </div>
-
-                    <div style="font-size: 0.82rem; color: var(--text-secondary); border-top: 1px solid var(--surface-border); padding-top: 0.75rem; display: flex; justify-content: space-between;">
-                        <span>Próxima renovación: <strong style="color: var(--text-primary);">${sub.nextRenewalDate}</strong></span>
-                        <span>${sub.autoRenew ? '<i class="ph ph-arrows-clockwise" title="Renovación automática"></i> Auto' : 'Manual'}</span>
-                    </div>
-
-                    <div style="display: flex; gap: 6px; margin-top: 4px; justify-content: flex-end;">
-                        <button type="button" class="btn btn-secondary" onclick="window.app.subscriptions?.recordExpense('${sub.id}')" title="Registrar gasto de este ciclo en Finanzas" style="padding: 5px 9px; font-size: 0.78rem;">
-                            <i class="ph ph-receipt"></i> Gasto
-                        </button>
-                        <button type="button" class="btn btn-secondary" onclick="window.app.subscriptions?.openModal('${sub.id}')" title="Editar suscripción" style="padding: 5px 9px; font-size: 0.78rem;">
-                            <i class="ph ph-pencil"></i> Editar
-                        </button>
-                        <button type="button" class="btn btn-secondary" onclick="window.app.subscriptions?.toggleAutoRenew('${sub.id}')" title="${sub.autoRenew ? 'Desactivar renovación automática' : 'Activar renovación automática'}" style="padding: 5px 9px; font-size: 0.78rem;">
-                            <i class="ph ${sub.autoRenew ? 'ph-pause' : 'ph-play'}"></i>
-                        </button>
-                        <button type="button" class="btn-icon-danger" onclick="window.app.subscriptions?.deleteSubscription('${sub.id}')" title="Eliminar" style="padding: 5px 8px; font-size: 0.78rem;">
-                            <i class="ph ph-trash"></i>
-                        </button>
-                    </div>
-                </div>
-            `;
-        }).join('');
+        container.innerHTML = items.map(item => this.renderCard(item)).join('');
     }
 
-    openModal(subscriptionId = null) {
-        this.editingSubscriptionId = subscriptionId;
-        const modal = document.getElementById('subscription-modal');
-        const titleEl = document.getElementById('subscription-modal-title');
-        if (!modal) return;
+    renderCard(subscription) {
+        const days = getDaysUntilRenewal(subscription.nextRenewalDate);
+        const category = SUBSCRIPTION_CATEGORY_LABELS[subscription.category] || 'Otros';
+        const period = subscription.periodMonths === 1
+            ? 'mes'
+            : (subscription.periodMonths === 12 ? 'año' : `${subscription.periodMonths} meses`);
+        const statusClass = subscription.status === 'active'
+            ? (days !== null && days <= 2 ? 'red' : (days !== null && days <= 7 ? 'yellow' : 'green'))
+            : (subscription.status === 'paused' ? 'yellow' : 'red');
+        const statusText = subscription.status === 'active'
+            ? (days === null ? 'Fecha inválida' : (days < 0 ? `Venció hace ${Math.abs(days)} d` : (days === 0 ? 'Renueva hoy' : `Renueva en ${days} d`)))
+            : STATUS_LABELS[subscription.status];
+        const alerts = subscription.alert.enabled
+            ? subscription.alert.times.join(', ')
+            : 'Desactivados';
+        const history = [...subscription.history].reverse().slice(0, 8);
+        const inactiveActions = subscription.status === 'active'
+            ? `<button type="button" class="btn btn-secondary" data-subscription-action="pause">Pausar</button>
+               <button type="button" class="btn btn-secondary" data-subscription-action="cancel">Cancelar</button>`
+            : '<button type="button" class="btn btn-secondary" data-subscription-action="reactivate">Reactivar</button>';
 
-        const sub = subscriptionId
-            ? this.subscriptions.find(s => s.id === subscriptionId)
-            : null;
+        return `
+            <article id="subscription-${escapeHtml(subscription.id)}" class="subscription-card card" data-subscription-id="${escapeHtml(subscription.id)}">
+                <div class="subscription-card-heading">
+                    <div>
+                        <span class="subscription-category">${escapeHtml(category)}</span>
+                        <h3>${escapeHtml(subscription.name)}</h3>
+                    </div>
+                    <span class="badge ${statusClass}">${escapeHtml(statusText)}</span>
+                </div>
+                <div class="subscription-price">
+                    <strong>${subscription.currency === 'USD' ? '$' : 'ARS$'}${subscription.cost.toFixed(2)}</strong>
+                    <span>/ ${escapeHtml(period)}</span>
+                    <small>≈ ${subscription.currency === 'USD' ? '$' : 'ARS$'}${calculateMonthlyEquivalent(subscription.cost, subscription.periodMonths).toFixed(2)}/mes</small>
+                </div>
+                <dl class="subscription-meta">
+                    <div><dt>Próxima renovación</dt><dd>${escapeHtml(subscription.nextRenewalDate)}</dd></div>
+                    <div><dt>Avisos</dt><dd>${escapeHtml(alerts)}</dd></div>
+                    <div><dt>Gasto</dt><dd>${subscription.autoRecordExpense ? 'Automático' : 'Confirmación manual'}</dd></div>
+                </dl>
+                ${history.length > 0 ? `
+                    <details class="subscription-history">
+                        <summary>Historial (${subscription.history.length})</summary>
+                        <ul>${history.map(event => `<li><strong>${escapeHtml(eventLabel(event.type))}</strong> · ${escapeHtml(event.effectiveDate)}${event.note ? ` — ${escapeHtml(event.note)}` : ''}</li>`).join('')}</ul>
+                    </details>` : ''}
+                <div class="subscription-actions">
+                    <button type="button" class="btn btn-secondary" data-subscription-action="expense"><i class="ph ph-receipt"></i> Registrar gasto</button>
+                    <button type="button" class="btn btn-secondary" data-subscription-action="edit"><i class="ph ph-pencil"></i> Editar</button>
+                    ${inactiveActions}
+                    <button type="button" class="icon-btn is-danger" data-subscription-action="delete" aria-label="Eliminar ${escapeHtml(subscription.name)}"><i class="ph ph-trash"></i></button>
+                </div>
+            </article>`;
+    }
 
-        if (titleEl) {
-            titleEl.textContent = sub ? 'Editar Suscripción' : 'Nueva Suscripción';
+    renderExtraAlertTimes(times = []) {
+        const list = document.getElementById('sub-alert-extra-times');
+        if (!list) return;
+        list.innerHTML = '';
+        const primary = document.getElementById('sub-alert-time')?.value || '09:00';
+        const normalized = normalizeAlertTimes([primary, ...times], primary).times;
+        normalized.filter(time => time !== primary).slice(0, MAX_ALERT_TIMES_PER_DAY - 1)
+            .forEach((time, index) => {
+                const row = document.createElement('div');
+                row.className = 'subscription-extra-alert-time';
+                const input = document.createElement('input');
+                input.type = 'time';
+                input.className = 'text-input sub-alert-extra-time';
+                input.value = time;
+                input.setAttribute('aria-label', `Horario adicional ${index + 1}`);
+                const remove = document.createElement('button');
+                remove.type = 'button';
+                remove.className = 'icon-btn';
+                remove.dataset.removeSubscriptionAlertTime = '';
+                remove.setAttribute('aria-label', 'Eliminar horario adicional');
+                remove.innerHTML = '<i class="ph ph-trash"></i>';
+                row.append(input, remove);
+                list.appendChild(row);
+            });
+        this.updateAddTimeState();
+    }
+
+    readAlertTimes() {
+        const primary = document.getElementById('sub-alert-time')?.value || '09:00';
+        const extras = [...document.querySelectorAll('#sub-alert-extra-times .sub-alert-extra-time')]
+            .map(input => input.value);
+        return normalizeAlertTimes([primary, ...extras], primary).times;
+    }
+
+    updateAddTimeState() {
+        const button = document.getElementById('btn-add-subscription-alert-time');
+        if (button) button.disabled = this.readAlertTimes().length >= MAX_ALERT_TIMES_PER_DAY;
+    }
+
+    openModal(subscriptionId = null, trigger = null) {
+        if (!subscriptionId) {
+            const capacity = this.getCreationCapacity();
+            if (!capacity.allowed) {
+                void this.app.showMessage?.({
+                    title: 'Límite alcanzado',
+                    message: getResourceLimitMessage(RESOURCE_KEYS.SUBSCRIPTIONS, capacity.limit),
+                    tone: 'warning'
+                });
+                return;
+            }
         }
-
-        document.getElementById('sub-name').value = sub?.name || '';
-        document.getElementById('sub-category').value = sub?.category || 'software';
-        document.getElementById('sub-cost').value = sub?.cost ?? '';
-        document.getElementById('sub-currency').value = sub?.currency || 'USD';
-        document.getElementById('sub-period').value = sub?.periodMonths || 1;
-        document.getElementById('sub-start-date').value = sub?.startDate || new Date().toISOString().slice(0, 10);
-        document.getElementById('sub-renewal-date').value = sub?.nextRenewalDate || '';
-        document.getElementById('sub-autorenew').checked = sub ? sub.autoRenew : true;
-        document.getElementById('sub-auto-record-expense').checked = sub ? sub.autoRecordExpense : false;
-        document.getElementById('sub-notes').value = sub?.notes || '';
-
-        const alertEnabled = sub ? sub.alert?.enabled !== false : true;
-        document.getElementById('sub-alert-enabled').checked = alertEnabled;
-        document.getElementById('sub-alert-days').value = sub?.alert?.daysBefore ?? 3;
-        document.getElementById('sub-alert-time').value = sub?.alert?.time || '09:00';
-
-        const alertWrap = document.getElementById('sub-alert-settings');
-        alertWrap?.classList.toggle('hidden', !alertEnabled);
-
+        const modal = document.getElementById('subscription-modal');
+        if (!modal) return;
+        this.editingSubscriptionId = subscriptionId;
+        this.modalReturnFocus = trigger instanceof HTMLElement ? trigger : null;
+        const subscription = subscriptionId
+            ? this.subscriptions.find(item => item.id === subscriptionId)
+            : null;
+        document.getElementById('subscription-modal-title').textContent = subscription ? 'Editar suscripción' : 'Nueva suscripción';
+        document.getElementById('sub-name').value = subscription?.name || '';
+        document.getElementById('sub-category').value = subscription?.category || 'software';
+        document.getElementById('sub-cost').value = subscription?.cost ?? '';
+        document.getElementById('sub-currency').value = subscription?.currency || 'USD';
+        document.getElementById('sub-period').value = String(subscription?.periodMonths || 1);
+        document.getElementById('sub-start-date').value = subscription?.startDate || todayKey();
+        document.getElementById('sub-renewal-date').value = subscription?.nextRenewalDate || '';
+        document.getElementById('sub-payment-method').value = subscription?.paymentMethod || 'Tarjeta';
+        document.getElementById('sub-autorenew').checked = subscription?.autoRenew !== false;
+        document.getElementById('sub-auto-record-expense').checked = subscription?.autoRecordExpense === true;
+        document.getElementById('sub-notes').value = subscription?.notes || '';
+        document.getElementById('sub-alert-enabled').checked = subscription?.alert?.enabled !== false;
+        document.getElementById('sub-alert-days').value = String(subscription?.alert?.daysBefore ?? 3);
+        const times = normalizeAlertTimes(subscription?.alert?.times || '09:00', '09:00').times;
+        document.getElementById('sub-alert-time').value = times[0];
+        this.renderExtraAlertTimes(times.slice(1));
+        document.getElementById('sub-alert-settings')?.classList.toggle('hidden', subscription?.alert?.enabled === false);
+        document.getElementById('subscription-form-error')?.classList.add('hidden');
         modal.classList.remove('hidden');
+        document.body.classList.add('modal-open');
+        document.getElementById('sub-name')?.focus();
     }
 
     closeModal() {
-        const modal = document.getElementById('subscription-modal');
-        modal?.classList.add('hidden');
+        document.getElementById('subscription-modal')?.classList.add('hidden');
+        document.body.classList.remove('modal-open');
         this.editingSubscriptionId = null;
+        this.modalReturnFocus?.focus?.();
+        this.modalReturnFocus = null;
+    }
+
+    showFormError(message) {
+        const element = document.getElementById('subscription-form-error');
+        if (!element) return;
+        element.textContent = message;
+        element.classList.remove('hidden');
     }
 
     saveSubscriptionFromModal() {
-        const name = document.getElementById('sub-name')?.value.trim();
-        const category = document.getElementById('sub-category')?.value;
-        const cost = parseFloat(document.getElementById('sub-cost')?.value) || 0;
-        const currency = document.getElementById('sub-currency')?.value;
-        const periodMonths = parseInt(document.getElementById('sub-period')?.value, 10) || 1;
-        const startDate = document.getElementById('sub-start-date')?.value;
-        let nextRenewalDate = document.getElementById('sub-renewal-date')?.value;
-        const autoRenew = document.getElementById('sub-autorenew')?.checked;
-        const autoRecordExpense = document.getElementById('sub-auto-record-expense')?.checked;
-        const notes = document.getElementById('sub-notes')?.value.trim();
-
-        if (!name) {
-            this.app.showToast?.('Por favor ingresá un nombre para la suscripción.');
-            return;
-        }
-
-        if (!nextRenewalDate) {
-            nextRenewalDate = calculateNextRenewalDate(startDate, periodMonths);
-        }
-
-        const alertEnabled = document.getElementById('sub-alert-enabled')?.checked;
-        const alertDaysBefore = parseInt(document.getElementById('sub-alert-days')?.value, 10) || 3;
-        const alertTime = document.getElementById('sub-alert-time')?.value || '09:00';
-        const normalizedAlert = normalizeAlertTimes(alertTime, '09:00');
-
-        const existingSub = this.editingSubscriptionId
-            ? this.subscriptions.find(s => s.id === this.editingSubscriptionId)
+        const existing = this.editingSubscriptionId
+            ? this.subscriptions.find(item => item.id === this.editingSubscriptionId)
             : null;
+        const capacity = existing ? null : this.getCreationCapacity();
+        if (capacity && !capacity.allowed) {
+            return this.showFormError(
+                getResourceLimitMessage(RESOURCE_KEYS.SUBSCRIPTIONS, capacity.limit)
+            );
+        }
+        const name = document.getElementById('sub-name')?.value.replace(/\s+/g, ' ').trim();
+        const startDate = document.getElementById('sub-start-date')?.value;
+        const periodMonths = Number(document.getElementById('sub-period')?.value);
+        let nextRenewalDate = document.getElementById('sub-renewal-date')?.value;
+        if (!name) return this.showFormError('Ingresá el nombre del servicio o plataforma.');
+        if (!parseSubscriptionDate(startDate)) return this.showFormError('Elegí una fecha de inicio válida.');
+        if (!nextRenewalDate) nextRenewalDate = calculateNextRenewalDate(startDate, periodMonths);
+        if (!parseSubscriptionDate(nextRenewalDate)) return this.showFormError('Elegí una fecha de renovación válida.');
 
-        const candidate = normalizeSubscription({
-            id: this.editingSubscriptionId || undefined,
+        const now = new Date().toISOString();
+        const id = existing?.id || createSubscriptionId(this.subscriptions.map(item => item.id));
+        const renewalAnchorChanged = Boolean(existing) && (
+            existing.nextRenewalDate !== nextRenewalDate
+            || existing.startDate !== startDate
+        );
+        let candidate = normalizeSubscription({
+            ...existing,
+            id,
             name,
-            category,
-            cost,
-            currency,
+            category: document.getElementById('sub-category')?.value,
+            cost: document.getElementById('sub-cost')?.value,
+            currency: document.getElementById('sub-currency')?.value,
             periodMonths,
             startDate,
             nextRenewalDate,
-            autoRenew,
-            status: existingSub ? existingSub.status : 'active',
-            paymentMethod: existingSub?.paymentMethod || 'Tarjeta',
-            notes,
-            autoRecordExpense,
-            lastExpenseRecordedPeriod: existingSub?.lastExpenseRecordedPeriod || null,
+            billingAnchorDay: renewalAnchorChanged ? undefined : existing?.billingAnchorDay,
+            billingAnchorIsMonthEnd: renewalAnchorChanged
+                ? undefined
+                : existing?.billingAnchorIsMonthEnd,
+            paymentMethod: document.getElementById('sub-payment-method')?.value,
+            autoRenew: document.getElementById('sub-autorenew')?.checked,
+            autoRecordExpense: document.getElementById('sub-auto-record-expense')?.checked,
+            notes: document.getElementById('sub-notes')?.value,
+            status: existing?.status || 'active',
             alert: {
-                enabled: alertEnabled,
-                time: normalizedAlert.time,
-                times: normalizedAlert.times,
-                daysBefore: alertDaysBefore
+                enabled: document.getElementById('sub-alert-enabled')?.checked,
+                times: this.readAlertTimes(),
+                daysBefore: document.getElementById('sub-alert-days')?.value
             },
-            history: existingSub?.history || []
+            createdAt: existing?.createdAt || now,
+            updatedAt: now
+        }, new Date(now));
+        candidate = appendSubscriptionHistoryEvent(candidate, {
+            type: existing ? 'updated' : 'created',
+            occurredAt: now,
+            effectiveDate: todayKey(),
+            note: existing ? 'Configuración actualizada' : 'Suscripción creada'
         });
-
-        if (this.editingSubscriptionId) {
-            const idx = this.subscriptions.findIndex(s => s.id === this.editingSubscriptionId);
-            if (idx >= 0) {
-                this.subscriptions[idx] = candidate;
-            }
+        if (existing) {
+            this.subscriptions[this.subscriptions.findIndex(item => item.id === id)] = candidate;
         } else {
             this.subscriptions.unshift(candidate);
         }
-
+        const wasEditing = Boolean(existing);
         this.saveData();
         this.closeModal();
         this.render();
-        this.app.showToast?.(this.editingSubscriptionId ? 'Suscripción actualizada.' : 'Suscripción creada.');
+        const notice = capacity ? getResourceCapacityNotice(RESOURCE_KEYS.SUBSCRIPTIONS, capacity) : '';
+        this.app.showToast?.(`${wasEditing ? 'Suscripción actualizada.' : 'Suscripción creada.'}${notice ? ` ${notice}` : ''}`);
     }
 
-    async toggleAutoRenew(subscriptionId) {
-        const sub = this.subscriptions.find(s => s.id === subscriptionId);
-        if (!sub) return;
-
-        sub.autoRenew = !sub.autoRenew;
-        if (!sub.autoRenew) {
-            // Nota explicativa conforme a Tanda 12: distinguir registro en LifeCycle de cancelación externa
-            this.app.showToast?.('Renovación automática desactivada en LifeCycle. Recordá cancelarla en el proveedor externo si deseás darla de baja.');
-        } else {
-            this.app.showToast?.('Renovación automática activada.');
+    async setStatus(subscriptionId, status) {
+        const index = this.subscriptions.findIndex(item => item.id === subscriptionId);
+        if (index < 0 || !['active', 'paused', 'canceled'].includes(status)) return;
+        const current = this.subscriptions[index];
+        if (status === 'canceled') {
+            const confirmed = await this.app.confirmAction?.({
+                title: 'Cancelar seguimiento',
+                message: `LifeCycle dejará de avisar y registrar renovaciones de “${current.name}”. Esto no cancela el servicio en el proveedor.`,
+                confirmLabel: 'Marcar cancelada',
+                tone: 'warning'
+            });
+            if (!confirmed) return;
         }
-
+        const now = new Date().toISOString();
+        const type = status === 'active' ? 'reactivated' : status;
+        this.subscriptions[index] = appendSubscriptionHistoryEvent({
+            ...current,
+            status,
+            statusChangedAt: now,
+            updatedAt: now
+        }, { type, occurredAt: now, effectiveDate: todayKey() });
         this.saveData();
         this.render();
+        this.app.showToast?.(status === 'active' ? 'Suscripción reactivada.' : `Suscripción ${status === 'paused' ? 'pausada' : 'cancelada'}.`);
     }
 
     async deleteSubscription(subscriptionId) {
-        const sub = this.subscriptions.find(s => s.id === subscriptionId);
-        if (!sub) return;
-
+        const subscription = this.subscriptions.find(item => item.id === subscriptionId);
+        if (!subscription) return;
         const confirmed = await this.app.confirmAction?.({
-            title: '¿Eliminar suscripción?',
-            message: `¿Seguro que deseás eliminar "${sub.name}"? Los gastos ya registrados en Finanzas no se borrarán.`,
-            tone: 'danger',
-            confirmLabel: 'Eliminar'
+            title: 'Eliminar suscripción',
+            message: `Se eliminarán “${subscription.name}” y su historial. Los gastos de Finanzas se conservarán.`,
+            confirmLabel: 'Eliminar definitivamente',
+            tone: 'danger'
         });
-
         if (!confirmed) return;
-
-        this.subscriptions = this.subscriptions.filter(s => s.id !== subscriptionId);
+        this.subscriptions = this.subscriptions.filter(item => item.id !== subscriptionId);
         this.saveData();
         this.render();
         this.app.showToast?.('Suscripción eliminada.');
     }
 
-    recordExpense(subscriptionId) {
-        const sub = this.subscriptions.find(s => s.id === subscriptionId);
-        if (!sub) return;
-
-        if (!this.app.finanzas) {
-            this.app.showToast?.('El módulo de Finanzas no está disponible.');
-            return;
+    async recordExpense(subscriptionId, { automatic = false, silent = false } = {}) {
+        const index = this.subscriptions.findIndex(item => item.id === subscriptionId);
+        if (index < 0 || !this.app.finanzas) return false;
+        const subscription = this.subscriptions[index];
+        const renewalDate = subscription.nextRenewalDate;
+        const occurrenceKey = getSubscriptionExpenseOccurrenceKey(subscription, renewalDate);
+        if (!occurrenceKey) return false;
+        if (subscription.lastExpenseRecordedPeriod === occurrenceKey) {
+            if (subscription.autoRenew && getDaysUntilRenewal(renewalDate) <= 0) {
+                this.subscriptions[index] = appendSubscriptionHistoryEvent(
+                    advanceSubscriptionRenewal(subscription, renewalDate),
+                    {
+                        type: 'renewed',
+                        effectiveDate: renewalDate,
+                        occurrenceKey,
+                        note: 'Período ya registrado; fecha de renovación recuperada'
+                    }
+                );
+                this.saveData();
+                this.render();
+            }
+            if (!silent) this.app.showToast?.('Este período ya está registrado en Finanzas.');
+            return true;
         }
-
-        const periodKey = `${sub.id}_${sub.nextRenewalDate}`;
-        if (sub.lastExpenseRecordedPeriod === periodKey) {
-            this.app.showToast?.('El gasto correspondiente a esta renovación ya fue registrado en Finanzas.');
-            return;
-        }
-
-        const success = this.app.finanzas.recordSubscriptionExpense({
-            subscriptionId: sub.id,
-            name: sub.name,
-            amount: sub.cost,
-            currency: sub.currency,
-            date: new Date().toISOString().slice(0, 10),
-            period: `Renovación ${sub.nextRenewalDate}`
-        });
-
-        if (success) {
-            sub.lastExpenseRecordedPeriod = periodKey;
-            sub.history = sub.history || [];
-            sub.history.push({
-                date: new Date().toISOString().slice(0, 10),
-                cost: sub.cost,
-                currency: sub.currency,
-                note: `Gasto registrado para el periodo ${sub.nextRenewalDate}`
+        if (!automatic) {
+            const confirmed = await this.app.confirmAction?.({
+                title: 'Registrar gasto de suscripción',
+                message: `Se agregará el pago de “${subscription.name}” correspondiente a ${renewalDate}.`,
+                confirmLabel: 'Registrar gasto',
+                tone: 'primary',
+                details: [
+                    {
+                        label: 'Importe',
+                        value: `${subscription.currency === 'ARS' ? 'ARS$' : '$'}${subscription.cost.toFixed(2)}`
+                    },
+                    { label: 'Próxima renovación', value: renewalDate }
+                ]
             });
-            this.saveData();
-            this.render();
-            this.app.showToast?.('Gasto registrado con éxito en Finanzas.');
+            if (!confirmed) return false;
+        }
+        const result = await this.app.finanzas.recordSubscriptionExpense({
+            subscriptionId: subscription.id,
+            name: subscription.name,
+            amount: subscription.cost,
+            currency: subscription.currency,
+            date: renewalDate,
+            period: `Renovación ${renewalDate}`,
+            occurrenceKey,
+            automatic
+        });
+        const recorded = result === true || result?.created === true || result?.duplicate === true;
+        if (!recorded) return false;
+        const now = new Date().toISOString();
+        let updated = appendSubscriptionHistoryEvent({
+            ...subscription,
+            lastExpenseRecordedPeriod: occurrenceKey,
+            updatedAt: now
+        }, {
+            type: 'expense-recorded',
+            occurredAt: now,
+            effectiveDate: renewalDate,
+            occurrenceKey,
+            note: automatic ? 'Registro automático' : 'Confirmación manual'
+        });
+        if (updated.autoRenew) {
+            updated = appendSubscriptionHistoryEvent({
+                ...advanceSubscriptionRenewal(updated, renewalDate),
+                updatedAt: now
+            }, {
+                type: 'renewed',
+                occurredAt: now,
+                effectiveDate: renewalDate,
+                occurrenceKey
+            });
+        }
+        this.subscriptions[index] = updated;
+        this.saveData();
+        this.render();
+        if (!silent) this.app.showToast?.(result?.duplicate ? 'Ese gasto ya existía en Finanzas.' : 'Gasto registrado en Finanzas.');
+        return true;
+    }
+
+    async processDueAutomaticRenewals() {
+        // Automatic charges must be serialized by the authenticated database RPC.
+        // Waiting for cloud restore also prevents a stale local snapshot from being
+        // charged before the current account has finished loading.
+        if (
+            this.processingAutomaticRenewals
+            || !this.app.finanzas
+            || !this.app.auth?.user
+            || !this.app.auth?.supabase
+        ) return;
+        this.processingAutomaticRenewals = true;
+        try {
+            for (const subscription of [...this.subscriptions]) {
+                if (
+                    subscription.status !== 'active'
+                    || !subscription.autoRenew
+                    || !subscription.autoRecordExpense
+                ) continue;
+                let guard = 0;
+                let current = this.subscriptions.find(item => item.id === subscription.id);
+                while (current && getDaysUntilRenewal(current.nextRenewalDate) <= 0 && guard < 24) {
+                    const previousDate = current.nextRenewalDate;
+                    const recorded = await this.recordExpense(current.id, { automatic: true, silent: true });
+                    if (!recorded) break;
+                    current = this.subscriptions.find(item => item.id === subscription.id);
+                    if (!current || current.nextRenewalDate === previousDate) break;
+                    guard += 1;
+                }
+            }
+        } finally {
+            this.processingAutomaticRenewals = false;
         }
     }
 }
