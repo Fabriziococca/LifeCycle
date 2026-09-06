@@ -538,7 +538,9 @@ class TranscriptionWorker {
                 config: {
                     mimeType: providerMimeType,
                     displayName: `LifeCycle ${session.id} fragment ${chunk.sequence_number + 1}`,
-                    httpOptions: getProviderHttpOptions(this.providerRequestTimeoutMs),
+                    // Inherit timeout/retries from the client. Upload-specific
+                    // httpOptions replace the SDK's resumable headers and empty
+                    // apiVersion, producing /v1beta/upload/v1beta/files (404).
                     abortSignal: signal
                 }
             }), this.providerRequestTimeoutMs, 'La carga del audio en Gemini');
