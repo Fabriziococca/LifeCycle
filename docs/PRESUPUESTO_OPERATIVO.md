@@ -36,12 +36,16 @@ El borrado reduce el almacenamiento ocupado, pero no revierte la transferencia y
 ## Google Gemini
 
 - Modelo de transcripción predeterminado: `gemini-3.5-transcribe`.
-- Modelo para resumen/apuntes: `gemini-2.5-flash`.
+- Modelo para resumen/apuntes: `gemini-3.6-flash`.
 - La clave vive sólo en Render como `GEMINI_API_KEY`.
 - LifeCycle reintenta únicamente errores temporales y registra cada intento antes de llamar al proveedor.
 - Un error 429 espera; no cambia a una API paga.
 
 La [tabla oficial de precios](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-transcribe), consultada el 5/9/2026, incluye entrada y salida gratuitas para `gemini-3.5-transcribe` en Free tier. El nombre del modelo no obliga a pagar. La facturación depende del proyecto de la clave: hay que verificar ese nivel antes de activarla; usar Gemini en el navegador no acredita el nivel de la API.
+
+El 6/9/2026 el propietario confirmó que ese proyecto está en Free tier sin facturación. Se configuró la clave en Render y se verificó una transcripción corta real con el mismo modelo; no se activó facturación ni se modificaron planes. Esta confirmación describe la configuración actual y no garantiza las cuotas ni las condiciones futuras del proveedor.
+
+En la prueba de resumen Google rechazó `gemini-2.5-flash` con 404, indicando que ya no estaba disponible para nuevas cuentas de ese modelo. El reemplazo explícito es `gemini-3.6-flash`, también con entrada y salida gratuitas en la [tabla oficial de Free tier](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.6-flash), comprobada el 6/9/2026. No hay cambio automático de modelos ante cuotas ni activación de servicios pagos.
 
 Las cuotas se aplican por proyecto, no por clave. Los 429 no consumen los intentos máximos de fallos del trabajo: se persiste la espera, se respeta `Retry-After` y el reinicio de cuota diaria de Google ocurre a medianoche del Pacífico, con margen de cinco minutos. El límite interno independiente continúa a las 00:05 UTC. No hay rotación automática a modelos pagos ni promesa de velocidad fija. Los audios en cola se conservan mientras esperan; si se acumulan, el límite de almacenamiento puede impedir nuevas cargas.
 

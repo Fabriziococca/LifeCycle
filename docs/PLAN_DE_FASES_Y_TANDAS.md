@@ -1,6 +1,6 @@
 # Plan definitivo de LifeCycle — estado auditado
 
-**Actualizado:** 5 de septiembre de 2026
+**Actualizado:** 6 de septiembre de 2026
 
 La implementación puede agruparse en bloques grandes cuando sea seguro. No existe un límite artificial de 20–30 minutos: cada cierre debe ser coherente, probado y recuperable. Se mantiene confirmación explícita para migraciones productivas, facturación y acciones destructivas.
 
@@ -12,8 +12,8 @@ La implementación puede agruparse en bloques grandes cuando sea seguro. No exis
 | B | Varios horarios diarios por entidad | Implementado y auditado | Prueba Push real pendiente |
 | C | Suscripciones y Finanzas | Implementado; alta multihorario y búsqueda verificadas | Migración y pruebas SQL productivas correctas, sin conservar fixtures |
 | D | Presupuesto, PWA y Android nativo | Implementado y compilable | Prueba física Android pendiente |
-| E | Pipeline completo de transcripciones | Implementado; cuotas recuperables y reservas protegidas | Migraciones y aislamiento correctos; activación gratuita y prueba Gemini pendientes |
-| F | Presets iniciales, QA y publicación | Presets, suite y QA visual correctos | Publicación y verificaciones de dispositivo separadas del cierre local |
+| E | Pipeline completo de transcripciones | Implementado; cuotas recuperables, reservas y transporte Gemini corregidos | Migraciones, aislamiento y prueba productiva corta correctos; Gemini gratuito activado |
+| F | Presets iniciales, QA y publicación | Presets, 386 pruebas y QA visual correctos | Publicado y comprobado en Render; verificaciones físicas pendientes |
 
 ## Fase A — Base y organización
 
@@ -72,9 +72,8 @@ La implementación puede agruparse en bloques grandes cuando sea seguro. No exis
 
 ## Secuencia de cierre pendiente
 
-1. Cerrar revisión de diff y secretos, crear checkpoint y publicar la entrega validada.
-2. Verificar el commit activo, web, health y logs de Render; registrar la entrega.
-3. Confirmar Free tier del proyecto de la clave, activar Gemini y probar una transcripción corta no confidencial.
-4. Verificar recepción Push y grabación física en Galaxy S24 FE / Android 16 antes de declarar cerrado el plan completo. No utilizar el emulador que pertenece a otro proyecto.
+1. Verificar recepción Push real, incluidos varios horarios de una misma entidad y cancelación del aviso restante al completarla.
+2. Ejecutar el protocolo físico de grabación en Galaxy S24 FE / Android 16: pantalla bloqueada, otras aplicaciones, interrupción de micrófono, pérdida de red y continuidad prolongada. No utilizar el emulador que pertenece a otro proyecto.
+3. Registrar esos resultados antes de declarar cerrado el plan completo. La transcripción productiva de audio sintético ya se verificó; no reemplaza una grabación real de tres horas.
 
 Las tres migraciones nuevas se aplicaron con autorización explícita, quedaron alineadas con el historial remoto y pasaron 12 controles SQL más 8 resultados de pruebas transaccionales con rollback. No quedan migraciones de esta entrega pendientes. Detalles y comandos en `GUIA_OPERATIVA_Y_ENTREGA.md`.

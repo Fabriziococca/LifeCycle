@@ -1,6 +1,6 @@
 # Guía operativa y de entrega
 
-**LifeCycle — revisión técnica del 5 de septiembre de 2026 (migraciones del 6/9 UTC)**
+**LifeCycle — revisión técnica y publicación del 6 de septiembre de 2026**
 
 ## Componentes nuevos
 
@@ -30,7 +30,7 @@ Opciones de transcripción:
 
 ```env
 GEMINI_TRANSCRIPTION_MODEL=gemini-3.5-transcribe
-GEMINI_ARTIFACT_MODEL=gemini-2.5-flash
+GEMINI_ARTIFACT_MODEL=gemini-3.6-flash
 TRANSCRIPTION_DAILY_JOB_LIMIT=100
 TRANSCRIPTION_SEGMENT_SECONDS=300
 ```
@@ -71,14 +71,26 @@ El APK debug queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Evidencia de esta revisión
 
-- 382 pruebas automatizadas, incluido análisis explícito de sintaxis ES module de todos los scripts propios publicados y compatibilidad de dependencias corregidas.
+- 386 pruebas automatizadas, incluido análisis explícito de sintaxis ES module de todos los scripts propios publicados, compatibilidad de dependencias y transporte HTTP del SDK de Gemini.
 - Cuatro combinaciones visuales, con alta y apertura de suscripción desde búsqueda: correctas.
 - APK debug compilado correctamente; sin instalar ni accionar el emulador de otro proyecto.
 - 23 migraciones locales/remotas alineadas; 12/12 controles de seguridad SQL correctos.
 - `supabase/verification/20260906_transcription_behavior_rollback.sql`: 8/8 resultados correctos en producción. Usa las dos cuentas existentes para verificar aislamiento, permisos, gastos idempotentes, cuotas, recuperación y retención; revierte todos los datos de prueba.
 - Asesores: sin errores y sin claves foráneas compuestas nuevas sin índice. Las tablas de trabajo son privadas para el backend; no necesitan políticas de acceso de cliente. Se mantiene la observación preexistente sobre contraseñas filtradas.
 - `npm audit` y `npm audit --omit=dev`: cero vulnerabilidades conocidas tras fijar `qs` 6.16.0 y `uuid` 11.1.1 sólo dentro de `xcode` (dependencia de desarrollo de Capacitor). Se verifican la API CommonJS y el generador de identificadores que utiliza `xcode`; no equivale a validar iOS.
-- Pendientes externos: confirmar Free tier y activar/probar Gemini con audio no confidencial, recepción Push real y protocolo físico Android. Compilar no demuestra continuidad durante tres horas.
+- Gemini activado después de que el propietario confirmó Free tier sin facturación. No se cambió de plan ni se incorporaron servicios pagos.
+- Prueba real de la cola productiva: dos fragmentos de voz sintética en español (24,099 segundos en total), transcripción completa y unión exacta en orden. Ambos audios se descargaron con checksum idéntico al original. La retención quedó programada exactamente 24 horas después de completar la sesión; no equivale a haber esperado esas 24 horas en producción.
+- Pendientes externos: recepción Push real y protocolo físico Android. La prueba sintética de procesamiento y la compilación no demuestran continuidad de grabación durante tres horas.
+
+### Corrección encontrada al activar Gemini
+
+La primera prueba productiva devolvió 404 antes de transcribir. Se reprodujo con el SDK instalado: pasar `config.httpOptions` a `files.upload` reemplazaba los encabezados del protocolo resumible y la versión vacía que necesita la ruta de subida, creando `/v1beta/upload/v1beta/files` en lugar de `/upload/v1beta/files`.
+
+El commit `eeb67d2` conserva esos valores internos y hereda timeout/reintentos del cliente. Se mantiene el límite de tiempo exterior. La regresión usa el SDK real contra un servidor HTTP local y comprueba rutas, encabezados, contenido, ausencia de reintentos duplicados y limpieza tanto con éxito como con errores 404/429. La suite local y GitHub Actions pasaron; el despliegue manual de esa corrección quedó activo antes de repetir satisfactoriamente la prueba productiva.
+
+La prueba de servidor utilizó una sesión ficticia y el RPC bajo el rol autenticado del propietario; no utilizó el micrófono, sesiones de navegador personales ni el emulador de otro proyecto. No sustituye la validación física ni la recepción Push.
+
+El resumen opcional detectó además que Google ya no admite `gemini-2.5-flash` para esta clave. Se verificó una generación real con su reemplazo `gemini-3.6-flash`, también disponible en Free tier, y se actualizó el valor predeterminado de resúmenes/apuntes. El modelo de transcripción no cambió. La configuración permite elegir explícitamente otro modelo, pero no existe rotación automática que pueda cambiar los costos.
 
 ## Protocolo Android mínimo
 

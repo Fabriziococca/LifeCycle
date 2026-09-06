@@ -161,3 +161,39 @@ test('un resumen truncado no se guarda como documento terminado', async () => {
     worker.ai = { models: { generateContent: async () => ({ text: 'Texto cortado', candidates: [{ finishReason: 'MAX_TOKENS' }] }) } };
     await assert.rejects(worker.processArtifactJob({ session_id: 's', job_type: 'summary' }), /incompleto/);
 });
+
+test('resumen y apuntes usan el modelo vigente sin modificar la transcripción fuente', async () => {
+    const source = 'Texto original completo e inmutable';
+    const saved = [];
+    const requests = [];
+    const worker = new TranscriptionWorker({ apiKey: '', supabase: {
+        from: () => ({ select() { return this; }, eq() { return this; }, single: async () => ({ data: { content: source } }) }),
+        rpc: async (name, parameters) => {
+            if (name === 'reserve_transcription_provider_attempt') return { data: true };
+            assert.equal(name, 'complete_transcription_artifact_job');
+            saved.push(parameters);
+            return { error: null };
+        }
+    } });
+    assert.equal(worker.artifactModel, 'gemini-3.6-flash');
+    assert.equal(new TranscriptionWorker({ apiKey: '', artifactModel: 'configured-model' }).artifactModel, 'configured-model');
+    worker.ai = { models: { generateContent: async request => {
+        requests.push(request);
+        return { text: 'Documento derivado', candidates: [{ finishReason: 'STOP' }] };
+    } } };
+    for (const kind of ['summary', 'notes']) {
+        await worker.processArtifactJob({ id: `job-${kind}`, session_id: 's', job_type: kind });
+    }
+    assert.equal(worker.runtime.providerAttempts, 2);
+    assert.deepEqual(saved.map(item => item.p_job_id), ['job-summary', 'job-notes']);
+    assert.ok(saved.every(item => item.p_content === 'Documento derivado'));
+    assert.match(requests[0].contents, /resumen fiel/);
+    assert.match(requests[1].contents, /apuntes ordenados/);
+    for (const request of requests) {
+        assert.equal(request.model, 'gemini-3.6-flash');
+        assert.ok(request.contents.endsWith(source));
+        assert.equal(request.config.httpOptions.retryOptions.attempts, 1);
+        assert.equal(request.config.httpOptions.timeout, worker.providerRequestTimeoutMs);
+        assert.ok(request.config.abortSignal instanceof AbortSignal);
+    }
+});

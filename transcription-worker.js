@@ -12,7 +12,7 @@ const { runWithTimeout } = require('./operational-resilience.js');
 
 const TRANSCRIPTION_BUCKET = 'transcription-audio';
 const DEFAULT_TRANSCRIPTION_MODEL = 'gemini-3.5-transcribe';
-const DEFAULT_ARTIFACT_MODEL = 'gemini-2.5-flash';
+const DEFAULT_ARTIFACT_MODEL = 'gemini-3.6-flash';
 const DEFAULT_SEGMENT_DURATION_SECONDS = 5 * 60;
 const MEDIA_PREPARATION_TIMEOUT_MS = 10 * 60 * 1000;
 const DEFAULT_PROVIDER_REQUEST_TIMEOUT_MS = 10 * 60 * 1000;
