@@ -41,7 +41,8 @@ TRANSCRIPTION_SEGMENT_SECONDS=300
 2. Confirmar estas migraciones, ya aplicadas en producción y necesarias en instalaciones nuevas:
    - `20260906020420_lifecycle_subscriptions_and_transcription_foundation.sql`;
    - `20260906020429_transcription_pipeline.sql`;
-   - `20260906020827_transcription_owner_fk_indexes.sql`.
+   - `20260906020827_transcription_owner_fk_indexes.sql`;
+   - `20260906032609_retain_transcription_daily_usage.sql`.
 3. Ejecutar `supabase/verification/20260904_lifecycle_expansion_security_check.sql`; todos los controles deben devolver `true`.
 4. Ejecutar los asesores de seguridad y rendimiento de Supabase y resolver hallazgos nuevos relevantes.
 5. Confirmar que el proyecto de la clave en Google AI Studio está en Free tier, sin facturación de pago; después configurar `GEMINI_API_KEY` en Render sin exponer su valor. Mientras falte, la grabación permanece disponible y la interfaz advierte que el procesamiento está pendiente de activación.
@@ -74,12 +75,14 @@ El APK debug queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
 - 386 pruebas automatizadas, incluido análisis explícito de sintaxis ES module de todos los scripts propios publicados, compatibilidad de dependencias y transporte HTTP del SDK de Gemini.
 - Cuatro combinaciones visuales, con alta y apertura de suscripción desde búsqueda: correctas.
 - APK debug compilado correctamente; sin instalar ni accionar el emulador de otro proyecto.
-- 23 migraciones locales/remotas alineadas; 12/12 controles de seguridad SQL correctos.
+- 24 migraciones locales/remotas alineadas; 12/12 controles de seguridad SQL correctos.
 - `supabase/verification/20260906_transcription_behavior_rollback.sql`: 8/8 resultados correctos en producción. Usa las dos cuentas existentes para verificar aislamiento, permisos, gastos idempotentes, cuotas, recuperación y retención; revierte todos los datos de prueba.
 - Asesores: sin errores y sin claves foráneas compuestas nuevas sin índice. Las tablas de trabajo son privadas para el backend; no necesitan políticas de acceso de cliente. Se mantiene la observación preexistente sobre contraseñas filtradas.
 - `npm audit` y `npm audit --omit=dev`: cero vulnerabilidades conocidas tras fijar `qs` 6.16.0 y `uuid` 11.1.1 sólo dentro de `xcode` (dependencia de desarrollo de Capacitor). Se verifican la API CommonJS y el generador de identificadores que utiliza `xcode`; no equivale a validar iOS.
 - Gemini activado después de que el propietario confirmó Free tier sin facturación. No se cambió de plan ni se incorporaron servicios pagos.
 - Prueba real de la cola productiva: dos fragmentos de voz sintética en español (24,099 segundos en total), transcripción completa y unión exacta en orden. Ambos audios se descargaron con checksum idéntico al original. La retención quedó programada exactamente 24 horas después de completar la sesión; no equivale a haber esperado esas 24 horas en producción.
+- Resumen opcional generado también desde la cola de Render, como documento separado de la transcripción completa. Se retiraron la sesión, los dos audios y los documentos ficticios; no quedaron archivos temporales de esa prueba en Gemini. No se borraron registros personales.
+- `supabase/verification/20260906_transcription_usage_rollback.sql`: 5/5 controles correctos en PostgreSQL aislado y producción. Borrar contenido ya no devuelve intentos al límite diario; la tabla de consumo permanece privada y conserva la validación de propietario de los trabajos existentes. La limpieza final dejó cero filas/objetos de contenido de prueba y conservó los seis intentos contabilizados.
 - Pendientes externos: recepción Push real y protocolo físico Android. La prueba sintética de procesamiento y la compilación no demuestran continuidad de grabación durante tres horas.
 
 ### Corrección encontrada al activar Gemini
@@ -120,5 +123,6 @@ No se declara validada la grabación prolongada hasta completar esta prueba fís
 - Los audios locales sólo se eliminan después de confirmar la persistencia remota correspondiente.
 - Las reservas se renuevan cada minuto; los trabajos abandonados se recuperan tras 15 minutos. Sólo el worker que conserva la reserva puede confirmar sus resultados.
 - Los errores transitorios tienen intentos acotados. Las cuotas 429 no agotan esos intentos: esperan con backoff persistente y respetan `Retry-After`; la cuota diaria de Google se retoma después de medianoche del Pacífico. No se rotan claves para evadir la cuota del proyecto.
+- El consumo ya realizado sigue contando aunque se borre la sesión: sólo se conserva el registro privado de operación/fecha/propietario, sin audio ni texto y sin vínculo al trabajo eliminado.
 - Las sesiones correctas programan limpieza a 24 horas; las fallidas conservan audio hasta siete días.
 - La limpieza enumera el prefijo privado completo de la sesión, incluidos fragmentos huérfanos de intentos interrumpidos. Una respuesta SQL perdida no provoca el borrado inmediato de objetos que otro intento podría haber confirmado.

@@ -21,6 +21,8 @@ El modo inicial busca costo adicional **USD 0**, sin activar automáticamente fa
 
 El límite diario de 100 cuenta cada llamada de transcripción, resumen o apuntes. Es independiente de la cuota que Google aplique al proyecto. Cuando se alcanza, los trabajos pasan a espera hasta las 00:05 UTC; el audio no se borra ni se contrata capacidad.
 
+Eliminar una sesión no devuelve ese consumo al cupo diario. Se conserva únicamente el registro privado del intento (fecha, operación y propietario), sin audio, texto ni relación con el trabajo eliminado. Esta protección se verificó tanto al alcanzar el límite como al borrar contenido desde el rol autenticado.
+
 ## Tamaños esperables
 
 La grabación Android usa AAC mono a 48 kbit/s. Sin contar pequeños encabezados:
