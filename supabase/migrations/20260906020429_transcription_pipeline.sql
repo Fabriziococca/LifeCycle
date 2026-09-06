@@ -153,6 +153,7 @@ create table if not exists public.transcription_jobs (
     job_type text not null default 'transcribe',
     status text not null default 'queued',
     attempts integer not null default 0,
+    quota_waits integer not null default 0 check (quota_waits >= 0),
     max_attempts integer not null default 3,
     available_at timestamptz not null default now(),
     locked_at timestamptz,
@@ -735,6 +736,12 @@ begin
     where job.status in ('queued', 'waiting_quota')
       and job.available_at <= v_now
       and job.attempts < job.max_attempts
+      -- Quotas apply to the project: pause other provider jobs as well.
+      -- Preparing media locally does not consume a Gemini request.
+      and (job.job_type = 'prepare' or not exists (
+          select 1 from public.transcription_jobs as paused
+          where paused.status = 'waiting_quota' and paused.available_at > v_now
+      ))
     order by job.available_at, job.created_at
     for update skip locked
     limit 1;
@@ -770,7 +777,8 @@ to service_role;
 
 create or replace function public.complete_transcription_prepare_job(
     p_job_id uuid,
-    p_segments jsonb
+    p_segments jsonb,
+    p_worker_id text
 )
 returns jsonb
 language plpgsql
@@ -813,7 +821,7 @@ begin
     if v_job.status = 'completed' then
         return jsonb_build_object('completed', true, 'alreadyCompleted', true);
     end if;
-    if v_job.status <> 'processing' then
+    if v_job.status <> 'processing' or v_job.locked_by is distinct from p_worker_id or p_worker_id is null then
         raise exception 'Preparation job is not processing'
             using errcode = '55000';
     end if;
@@ -901,15 +909,16 @@ begin
 end;
 $$;
 
-revoke all on function public.complete_transcription_prepare_job(uuid, jsonb)
+revoke all on function public.complete_transcription_prepare_job(uuid, jsonb, text)
 from public, anon, authenticated;
-grant execute on function public.complete_transcription_prepare_job(uuid, jsonb)
+grant execute on function public.complete_transcription_prepare_job(uuid, jsonb, text)
 to service_role;
 
 create or replace function public.complete_transcription_chunk_job(
     p_job_id uuid,
     p_transcript text,
-    p_finish_reason text default 'completed'
+    p_finish_reason text,
+    p_worker_id text
 )
 returns jsonb
 language plpgsql
@@ -942,7 +951,7 @@ begin
     if v_job.status = 'completed' then
         return jsonb_build_object('completed', true, 'alreadyCompleted', true);
     end if;
-    if v_job.status <> 'processing' then
+    if v_job.status <> 'processing' or v_job.locked_by is distinct from p_worker_id or p_worker_id is null then
         raise exception 'Transcription job is not processing'
             using errcode = '55000';
     end if;
@@ -1030,14 +1039,15 @@ begin
 end;
 $$;
 
-revoke all on function public.complete_transcription_chunk_job(uuid, text, text)
+revoke all on function public.complete_transcription_chunk_job(uuid, text, text, text)
 from public, anon, authenticated;
-grant execute on function public.complete_transcription_chunk_job(uuid, text, text)
+grant execute on function public.complete_transcription_chunk_job(uuid, text, text, text)
 to service_role;
 
 create or replace function public.complete_transcription_artifact_job(
     p_job_id uuid,
-    p_content text
+    p_content text,
+    p_worker_id text
 )
 returns jsonb
 language plpgsql
@@ -1067,7 +1077,7 @@ begin
     if v_job.status = 'completed' then
         return jsonb_build_object('completed', true, 'alreadyCompleted', true);
     end if;
-    if v_job.status <> 'processing' then
+    if v_job.status <> 'processing' or v_job.locked_by is distinct from p_worker_id or p_worker_id is null then
         raise exception 'Transcription artifact job is not processing'
             using errcode = '55000';
     end if;
@@ -1096,9 +1106,9 @@ begin
 end;
 $$;
 
-revoke all on function public.complete_transcription_artifact_job(uuid, text)
+revoke all on function public.complete_transcription_artifact_job(uuid, text, text)
 from public, anon, authenticated;
-grant execute on function public.complete_transcription_artifact_job(uuid, text)
+grant execute on function public.complete_transcription_artifact_job(uuid, text, text)
 to service_role;
 
 create or replace function public.fail_transcription_job(
@@ -1106,7 +1116,8 @@ create or replace function public.fail_transcription_job(
     p_status text,
     p_available_at timestamptz,
     p_error_code text,
-    p_error_message text
+    p_error_message text,
+    p_worker_id text
 )
 returns boolean
 language plpgsql
@@ -1140,7 +1151,7 @@ begin
     if v_job.status = 'completed' then
         return false;
     end if;
-    if v_job.status <> 'processing' then
+    if v_job.status <> 'processing' or v_job.locked_by is distinct from p_worker_id or p_worker_id is null then
         return false;
     end if;
 
@@ -1148,10 +1159,11 @@ begin
     update public.transcription_jobs
     set status = p_status,
         attempts = case
-            when p_status = 'waiting_quota' and p_error_code = 'daily_safety_limit'
+            when p_status = 'waiting_quota' and p_error_code in ('daily_safety_limit', '429')
                 then greatest(attempts - 1, 0)
             else attempts
         end,
+        quota_waits = quota_waits + case when p_status = 'waiting_quota' then 1 else 0 end,
         available_at = greatest(coalesce(p_available_at, v_now), v_now),
         locked_at = null,
         locked_by = null,
@@ -1174,7 +1186,7 @@ begin
             error_code = nullif(left(coalesce(p_error_code, ''), 120), ''),
             error_message = nullif(left(coalesce(p_error_message, ''), 2000), ''),
             audio_delete_after = case
-                when v_retryable then audio_delete_after
+                when v_retryable then null
                 else coalesce(audio_delete_after, v_now + interval '7 days')
             end,
             updated_at = v_now
@@ -1186,9 +1198,9 @@ begin
 end;
 $$;
 
-revoke all on function public.fail_transcription_job(uuid, text, timestamptz, text, text)
+revoke all on function public.fail_transcription_job(uuid, text, timestamptz, text, text, text)
 from public, anon, authenticated;
-grant execute on function public.fail_transcription_job(uuid, text, timestamptz, text, text)
+grant execute on function public.fail_transcription_job(uuid, text, timestamptz, text, text, text)
 to service_role;
 
 insert into storage.buckets (

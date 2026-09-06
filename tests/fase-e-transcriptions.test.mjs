@@ -116,7 +116,7 @@ test('persistent queue separates preparation, transcription and optional artifac
         ROOT,
         'supabase',
         'migrations',
-        '20260904035623_transcription_pipeline.sql'
+        '20260906020429_transcription_pipeline.sql'
     ), 'utf8');
     const worker = fs.readFileSync(path.join(ROOT, 'transcription-worker.js'), 'utf8');
 

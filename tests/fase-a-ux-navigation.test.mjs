@@ -2,8 +2,19 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
+import { APP_MODULES } from '../custom-tracker-utils.mjs';
 
 const ROOT = process.cwd();
+
+test('cada módulo integrado tiene sección y botón real en la navegación principal', () => {
+    const index = fs.readFileSync(path.join(ROOT, 'index.html'), 'utf8');
+    const nav = index.match(/<nav\b[^>]*id="main-nav"[^>]*>([\s\S]*?)<\/nav>/)?.[1];
+    assert.ok(nav);
+    for (const moduleId of Object.keys(APP_MODULES)) {
+        assert.ok(nav.includes(`data-section="${moduleId}"`), `Falta el acceso a ${moduleId}`);
+        assert.ok(index.includes(`id="${moduleId}"`), `Falta la sección ${moduleId}`);
+    }
+});
 
 test('Tanda 2: all configurable tracker and module icons have Spanish human-readable labels', async () => {
     const trackerModuleSource = fs.readFileSync(path.join(ROOT, 'modules', 'CustomTrackersModule.js'), 'utf8');

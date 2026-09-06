@@ -15,11 +15,11 @@ import { AudioRecorder } from '../audio-recorder.mjs';
 
 const ROOT = process.cwd();
 
-test('Gemini starts behind a zero-cost safety budget and explicit privacy consent', () => {
+test('Gemini tiene objetivo gratuito, límite de uso y consentimiento; no promete una factura fija', () => {
     assert.equal(TRANSCRIPTION_PROVIDER.mode, 'google-ai-studio-free');
     assert.equal(TRANSCRIPTION_PROVIDER.transcriptionModel, 'gemini-3.5-transcribe');
     assert.equal(TRANSCRIPTION_PROVIDER.hardDailyJobLimit, 100);
-    assert.equal(TRANSCRIPTION_PROVIDER.costPerMonthUSD, 0);
+    assert.equal(TRANSCRIPTION_PROVIDER.targetMonthlySpendUSD, 0);
     assert.equal(TRANSCRIPTION_PRIVACY_NOTICE.required, true);
     assert.match(TRANSCRIPTION_PRIVACY_NOTICE.text, /Google Gemini/);
     assert.match(TRANSCRIPTION_PRIVACY_NOTICE.text, /24 horas/);

@@ -154,6 +154,7 @@ export class TranscriptionsModule {
     handleSignedOut() {
         this.sessions = [];
         this.folders = [];
+        this.cloud.workerWakeWarning = '';
         this.available = false;
         clearInterval(this.pollTimer);
         this.pollTimer = null;
@@ -203,7 +204,10 @@ export class TranscriptionsModule {
         if (root) {
             root.classList.toggle('is-error', available === false);
             const span = root.querySelector('span');
-            if (span) span.textContent = message;
+            const pendingConfiguration = this.app.auth?.config?.transcriptionConfigured === false
+                ? 'La grabación está disponible; la transcripción quedará en cola hasta configurar Gemini en el servidor.'
+                : '';
+            if (span) span.textContent = [message, this.cloud.workerWakeWarning || pendingConfiguration].filter(Boolean).join(' ');
         }
         ['btn-toggle-record-voice', 'btn-import-audio-file', 'btn-new-transcription-folder']
             .forEach(id => {

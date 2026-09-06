@@ -453,7 +453,7 @@ test('transcription relationships enforce the same user across every pipeline ta
         ROOT,
         'supabase',
         'migrations',
-        '20260904035623_transcription_pipeline.sql'
+        '20260906020429_transcription_pipeline.sql'
     ), 'utf8');
 
     for (const constraintName of [

@@ -64,6 +64,8 @@ test('public config exposes only registration availability', async () => {
 
     assert.equal(response.status, 200);
     assert.equal(result.registrationEnabled, false);
+    assert.equal(result.transcriptionConfigured, false);
+    assert.equal(Object.hasOwn(result, 'geminiApiKey'), false);
     assert.equal(Object.hasOwn(result, 'registrationAccessCodeHash'), false);
     assert.equal(JSON.stringify(result).includes('REGISTRATION_ACCESS_CODE_SHA256'), false);
 });
@@ -163,6 +165,7 @@ test('successful deliveries remain throttled in memory if database logging fails
 });
 
 test('forced notification checks fail visibly when infrastructure is unavailable', async () => {
+    const failuresBeforeRequest = notificationRuntimeState.consecutiveFailures;
     const response = await fetch(`${baseUrl}/api/check-reminders`, {
         headers: {
             'X-Admin-Token': process.env.ADMIN_TOKEN
@@ -172,7 +175,8 @@ test('forced notification checks fail visibly when infrastructure is unavailable
 
     assert.equal(response.status, 500);
     assert.equal(result.success, false);
-    assert.equal(notificationRuntimeState.consecutiveFailures, 1);
+    // Startup checks can legitimately run first on slower CI machines.
+    assert.ok(notificationRuntimeState.consecutiveFailures >= failuresBeforeRequest + 1);
     assert.equal(notificationRuntimeState.engines.retry.ok, true);
     assert.equal(notificationRuntimeState.engines.recurring.ok, false);
     assert.equal(notificationRuntimeState.engines.configured.ok, false);

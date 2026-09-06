@@ -1,4 +1,5 @@
 import { AUDIO_CONSTRAINTS } from './audio-transcription-config.mjs';
+import { removeSessionAudioObjects } from './transcription-storage-utils.mjs';
 import {
     TRANSCRIPTION_BUCKET,
     getFileExtension,
@@ -32,6 +33,7 @@ export function getResumableUploadEndpoint(supabaseUrl) {
 export class TranscriptionCloudService {
     constructor(app) {
         this.app = app;
+        this.workerWakeWarning = '';
     }
 
     get client() {
@@ -317,10 +319,24 @@ export class TranscriptionCloudService {
         const { data } = await this.client.auth.getSession();
         const token = data?.session?.access_token;
         if (!token) return;
-        await fetch('/api/transcriptions/run', {
-            method: 'POST',
-            headers: { Authorization: `Bearer ${token}` }
-        }).catch(() => {});
+        try {
+            const response = await fetch('/api/transcriptions/run', {
+                method: 'POST',
+                headers: { Authorization: `Bearer ${token}` },
+                signal: AbortSignal.timeout(15000)
+            });
+            if (!response.ok) {
+                this.workerWakeWarning = response.status === 503
+                    ? 'El audio quedó en cola, pero falta habilitar el procesamiento de Gemini en el servidor.'
+                    : 'El audio quedó en cola. El servidor no pudo comenzar ahora; volverá a intentarlo cuando esté disponible.';
+            } else {
+                this.workerWakeWarning = '';
+            }
+        } catch {
+            this.workerWakeWarning = 'El audio quedó en cola. No se pudo contactar al servidor; no necesitás volver a cargarlo.';
+        }
+        this.app.transcriptions?.render?.();
+        return !this.workerWakeWarning;
     }
 
     async saveTranscript(sessionId, content) {
@@ -340,18 +356,7 @@ export class TranscriptionCloudService {
 
     async deleteSession(sessionId) {
         this.assertReady();
-        const { data: chunks, error: chunksError } = await this.client
-            .from('transcription_chunks')
-            .select('storage_path')
-            .eq('session_id', sessionId);
-        if (chunksError) throw chunksError;
-        const paths = (chunks || []).map(chunk => chunk.storage_path).filter(Boolean);
-        if (paths.length > 0) {
-            const { error: storageError } = await this.client.storage
-                .from(TRANSCRIPTION_BUCKET)
-                .remove(paths);
-            if (storageError) throw storageError;
-        }
+        await removeSessionAudioObjects(this.client.storage.from(TRANSCRIPTION_BUCKET), this.user.id, sessionId);
         const { error } = await this.client
             .from('transcription_sessions')
             .delete()

@@ -1,6 +1,6 @@
 # Plan definitivo de LifeCycle — estado auditado
 
-**Actualizado:** 4 de septiembre de 2026
+**Actualizado:** 5 de septiembre de 2026
 
 La implementación puede agruparse en bloques grandes cuando sea seguro. No existe un límite artificial de 20–30 minutos: cada cierre debe ser coherente, probado y recuperable. Se mantiene confirmación explícita para migraciones productivas, facturación y acciones destructivas.
 
@@ -8,12 +8,12 @@ La implementación puede agruparse en bloques grandes cuando sea seguro. No exis
 
 | Fase | Alcance | Código local | Cierre externo |
 |---|---|---|---|
-| A | Organización, cuenta, navegación, iconos y destinos | Implementado y auditado | QA visual final pendiente |
+| A | Organización, cuenta, navegación, iconos y destinos | Implementado; corregidos buscador y accesos faltantes | QA local escritorio/móvil y claro/oscuro correcto |
 | B | Varios horarios diarios por entidad | Implementado y auditado | Prueba Push real pendiente |
-| C | Suscripciones y Finanzas | Implementado y auditado | Migración y prueba productiva pendientes |
+| C | Suscripciones y Finanzas | Implementado; alta multihorario y búsqueda verificadas | Migración y pruebas SQL productivas correctas, sin conservar fixtures |
 | D | Presupuesto, PWA y Android nativo | Implementado y compilable | Prueba física Android pendiente |
-| E | Pipeline completo de transcripciones | Implementado y auditado | Migración, clave Gemini y prueba real pendientes |
-| F | Presets iniciales, QA y publicación | Presets y pruebas locales implementados | QA visual, despliegue y entrega pendientes |
+| E | Pipeline completo de transcripciones | Implementado; cuotas recuperables y reservas protegidas | Migraciones y aislamiento correctos; activación gratuita y prueba Gemini pendientes |
+| F | Presets iniciales, QA y publicación | Presets, suite y QA visual correctos | Publicación y verificaciones de dispositivo separadas del cierre local |
 
 ## Fase A — Base y organización
 
@@ -72,10 +72,9 @@ La implementación puede agruparse en bloques grandes cuando sea seguro. No exis
 
 ## Secuencia de cierre pendiente
 
-1. Finalizar suite, compilación APK, revisión visual local, diff y escaneo de secretos.
-2. Crear un checkpoint local coherente.
-3. Solicitar confirmación para las dos migraciones productivas pendientes.
-4. Aplicarlas y ejecutar el verificador SQL más los asesores de Supabase.
-5. Configurar Gemini en Render si la clave todavía no existe.
-6. Publicar y verificar web, health, logs, Push, suscripciones y una transcripción corta.
-7. Instalar el APK y completar la prueba física Android antes de declarar cerrado el plan.
+1. Cerrar revisión de diff y secretos, crear checkpoint y publicar la entrega validada.
+2. Verificar el commit activo, web, health y logs de Render; registrar la entrega.
+3. Confirmar Free tier del proyecto de la clave, activar Gemini y probar una transcripción corta no confidencial.
+4. Verificar recepción Push y grabación física en Galaxy S24 FE / Android 16 antes de declarar cerrado el plan completo. No utilizar el emulador que pertenece a otro proyecto.
+
+Las tres migraciones nuevas se aplicaron con autorización explícita, quedaron alineadas con el historial remoto y pasaron 12 controles SQL más 8 resultados de pruebas transaccionales con rollback. No quedan migraciones de esta entrega pendientes. Detalles y comandos en `GUIA_OPERATIVA_Y_ENTREGA.md`.

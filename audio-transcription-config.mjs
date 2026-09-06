@@ -3,7 +3,7 @@ export const TRANSCRIPTION_PROVIDER = Object.freeze({
     summaryModel: 'gemini-2.5-flash',
     mode: 'google-ai-studio-free',
     hardDailyJobLimit: 100,
-    costPerMonthUSD: 0
+    targetMonthlySpendUSD: 0
 });
 
 export const AUDIO_CONSTRAINTS = Object.freeze({

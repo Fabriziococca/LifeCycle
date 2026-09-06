@@ -126,7 +126,56 @@ function getErrorStatus(error) {
 function isRetryableError(error) {
     const status = getErrorStatus(error);
     return status === 408 || status === 409 || status === 429 || (status >= 500 && status <= 599)
+        || error?.code === 'OPERATION_TIMEOUT' || error?.name === 'OperationTimeoutError'
         || /timeout|network|fetch failed|temporar/i.test(String(error?.message || ''));
+}
+
+function getProviderErrorDetails(error) {
+    if (Array.isArray(error?.error?.details)) return error.error.details;
+    if (Array.isArray(error?.details)) return error.details;
+    try {
+        const parsed = JSON.parse(error?.message || '{}');
+        return parsed.error?.details || parsed.details || [];
+    } catch {
+        return [];
+    }
+}
+
+function getNextPacificQuotaWindow(now = new Date()) {
+    // Google resets daily project quotas at midnight Pacific, including DST.
+    const formatter = new Intl.DateTimeFormat('en-CA', {
+        timeZone: 'America/Los_Angeles', year: 'numeric', month: '2-digit', day: '2-digit'
+    });
+    const day = formatter.format(now);
+    const next = new Date(now);
+    next.setUTCMinutes(0, 0, 0);
+    do {
+        next.setUTCHours(next.getUTCHours() + 1);
+    } while (formatter.format(next) === day);
+    next.setUTCMinutes(5);
+    return next;
+}
+
+function getQuotaResumeAt(error, quotaWaits = 0, now = new Date()) {
+    const details = getProviderErrorDetails(error);
+    const safeDetails = Array.isArray(details) ? details : [];
+    const dailyQuota = safeDetails.some(detail => (detail.violations || []).some(violation =>
+        /per_?day|daily/i.test(`${violation.quotaMetric || ''} ${violation.quotaId || ''}`)
+    ));
+    const backoffMs = Math.min(60 * 60 * 1000, 60_000 * (2 ** Math.min(6, Math.max(0, Number(quotaWaits) || 0))));
+    let nextMs = dailyQuota ? getNextPacificQuotaWindow(now).getTime() : now.getTime() + backoffMs;
+    const headers = error?.headers || error?.response?.headers;
+    const retryAfter = headers?.get?.('retry-after') ?? headers?.['retry-after'];
+    if (retryAfter != null && String(retryAfter).trim()) {
+        const seconds = Number(retryAfter);
+        const headerMs = Number.isFinite(seconds) ? now.getTime() + Math.max(0, seconds) * 1000 : Date.parse(retryAfter);
+        if (Number.isFinite(headerMs)) nextMs = Math.max(nextMs, headerMs);
+    }
+    for (const detail of safeDetails) {
+        const duration = /^(\d+(?:\.\d+)?)s$/.exec(String(detail.retryDelay || ''));
+        if (duration) nextMs = Math.max(nextMs, now.getTime() + Number(duration[1]) * 1000);
+    }
+    return new Date(Math.min(nextMs, 8_640_000_000_000_000));
 }
 
 function isMissingPipelineError(error) {
@@ -334,6 +383,22 @@ class TranscriptionWorker {
     }
 
     async processJob(job) {
+        let refreshing = false;
+        const leaseTimer = setInterval(async () => {
+            if (refreshing) return;
+            refreshing = true;
+            try {
+                const { error } = await this.supabase.from('transcription_jobs')
+                    .update({ locked_at: new Date().toISOString() })
+                    .eq('id', job.id).eq('status', 'processing').eq('locked_by', this.workerId);
+                if (error) this.logger.warn('[Transcriptions] No se pudo renovar la reserva:', sanitizeError(error));
+            } catch (error) {
+                this.logger.warn('[Transcriptions] No se pudo renovar la reserva:', sanitizeError(error));
+            } finally {
+                refreshing = false;
+            }
+        }, 60_000);
+        leaseTimer.unref?.();
         try {
             if (job.job_type === 'prepare') {
                 await this.processPreparationJob(job);
@@ -345,8 +410,10 @@ class TranscriptionWorker {
                 throw new Error(`Tipo de trabajo desconocido: ${job.job_type}`);
             }
         } catch (error) {
-            this.runtime.failedJobs += 1;
+            if (!(error instanceof DailyQuotaError) && getErrorStatus(error) !== 429) this.runtime.failedJobs += 1;
             await this.failJob(job, error);
+        } finally {
+            clearInterval(leaseTimer);
         }
     }
 
@@ -381,8 +448,6 @@ class TranscriptionWorker {
         const temporaryDirectory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'lifecycle-prepare-'));
         const inputPath = path.join(temporaryDirectory, `source${extension}`);
         const outputDirectory = path.join(temporaryDirectory, 'segments');
-        const uploadedPaths = [];
-        let committed = false;
         try {
             await fs.promises.writeFile(inputPath, Buffer.from(await sourceBlob.arrayBuffer()));
             const segmentPaths = await prepareMediaSegments({
@@ -412,10 +477,9 @@ class TranscriptionWorker {
                         upsert: false
                     });
                 if (uploadError && !isStorageConflict(uploadError)) throw uploadError;
-                // A deterministic path may already exist after a worker crash. Only
-                // remove objects created by this attempt if the SQL commit fails;
-                // deleting a pre-existing object would break the next retry.
-                if (!uploadError) uploadedPaths.push(storagePath);
+                // Keep content-addressed outputs until session retention cleanup.
+                // A stale worker or a lost SQL response cannot safely decide that
+                // another attempt has not already committed/reused these objects.
                 const remainingDuration = Math.max(0, totalDurationMs - index * nominalDurationMs);
                 preparedSegments.push({
                     sequenceNumber: index,
@@ -428,10 +492,10 @@ class TranscriptionWorker {
             }
             const { error: completionError } = await this.supabase.rpc('complete_transcription_prepare_job', {
                 p_job_id: job.id,
+                p_worker_id: this.workerId,
                 p_segments: preparedSegments
             });
             if (completionError) throw completionError;
-            committed = true;
             const { error: removeError } = await this.supabase.storage
                 .from(TRANSCRIPTION_BUCKET)
                 .remove([chunk.storage_path]);
@@ -440,9 +504,6 @@ class TranscriptionWorker {
             }
             this.runtime.preparedImports += 1;
         } finally {
-            if (!committed && uploadedPaths.length > 0) {
-                await this.supabase.storage.from(TRANSCRIPTION_BUCKET).remove(uploadedPaths).catch(() => {});
-            }
             await fs.promises.rm(temporaryDirectory, { recursive: true, force: true }).catch(() => {});
         }
     }
@@ -494,7 +555,7 @@ class TranscriptionWorker {
                     max_output_tokens: 65_536,
                     transcription_config: {
                         language_codes: getProviderLanguageCodes(session.language),
-                        mode: 'verbatim',
+                        mode: { type: 'verbatim' },
                         ...(customVocabulary.length > 0 ? { custom_vocabulary: customVocabulary } : {})
                     }
                 },
@@ -512,6 +573,7 @@ class TranscriptionWorker {
             if (!text) throw new Error('Gemini devolvió una transcripción vacía.');
             const { error: completionError } = await this.supabase.rpc('complete_transcription_chunk_job', {
                 p_job_id: job.id,
+                p_worker_id: this.workerId,
                 p_transcript: text,
                 p_finish_reason: finishReason
             });
@@ -569,9 +631,12 @@ class TranscriptionWorker {
             }
         }), this.providerRequestTimeoutMs, 'La generación del documento de Gemini');
         const content = String(response.text || '').trim();
+        const finishReason = response.candidates?.[0]?.finishReason;
+        if (finishReason !== 'STOP') throw new Error(`Gemini devolvió un documento incompleto (${finishReason || 'sin estado'}).`);
         if (!content) throw new Error('Gemini devolvió un resultado vacío.');
         const { error: completionError } = await this.supabase.rpc('complete_transcription_artifact_job', {
             p_job_id: job.id,
+            p_worker_id: this.workerId,
             p_content: content
         });
         if (completionError) throw completionError;
@@ -579,27 +644,30 @@ class TranscriptionWorker {
 
     async failJob(job, error) {
         const dailyQuotaReached = error instanceof DailyQuotaError;
-        const retryable = dailyQuotaReached
-            || (isRetryableError(error) && Number(job.attempts) < Number(job.max_attempts));
         const statusCode = getErrorStatus(error);
+        const quotaReached = dailyQuotaReached || statusCode === 429;
+        const retryable = quotaReached
+            || (isRetryableError(error) && Number(job.attempts) < Number(job.max_attempts));
         const message = sanitizeError(error);
         const now = new Date();
         const retryDelayMs = Math.min(60 * 60 * 1000, 30_000 * (2 ** Math.max(0, Number(job.attempts) - 1)));
-        const jobStatus = dailyQuotaReached || (retryable && statusCode === 429)
+        const jobStatus = quotaReached
             ? 'waiting_quota'
             : (retryable ? 'queued' : 'failed');
         const availableAt = dailyQuotaReached
             ? getNextUtcQuotaWindow(now)
-            : (retryable ? new Date(now.getTime() + retryDelayMs) : now);
-        if (dailyQuotaReached) this.runtime.quotaPauses += 1;
+            : statusCode === 429 ? getQuotaResumeAt(error, job.quota_waits, now)
+                : (retryable ? new Date(now.getTime() + retryDelayMs) : now);
+        if (quotaReached) this.runtime.quotaPauses += 1;
         const { error: jobError } = await this.supabase.rpc('fail_transcription_job', {
             p_job_id: job.id,
+            p_worker_id: this.workerId,
             p_status: jobStatus,
             p_available_at: availableAt.toISOString(),
             p_error_code: dailyQuotaReached ? error.code : (statusCode ? String(statusCode) : 'provider_error'),
             p_error_message: message
         });
-        if (jobError) this.logger.error('[Transcriptions] No se pudo persistir el fallo del job:', jobError.message);
+        if (jobError) throw jobError;
     }
 
     async cleanupExpiredAudioIfDue(force = false) {
@@ -608,25 +676,18 @@ class TranscriptionWorker {
         this.lastCleanupAt = now;
         const { data: sessions, error } = await this.supabase
             .from('transcription_sessions')
-            .select('id')
+            .select('id, user_id')
             .is('audio_deleted_at', null)
+            .in('status', ['completed', 'partial', 'failed', 'canceled'])
             .lte('audio_delete_after', new Date(now).toISOString())
             .limit(25);
         if (error) throw error;
         let deleted = 0;
+        const { removeSessionAudioObjects } = await import('./transcription-storage-utils.mjs');
         for (const session of sessions || []) {
-            const { data: chunks, error: chunkError } = await this.supabase
-                .from('transcription_chunks')
-                .select('id, storage_path')
-                .eq('session_id', session.id);
-            if (chunkError) throw chunkError;
-            const paths = (chunks || []).map(chunk => chunk.storage_path).filter(Boolean);
-            if (paths.length > 0) {
-                const { error: removeError } = await this.supabase.storage
-                    .from(TRANSCRIPTION_BUCKET)
-                    .remove(paths);
-                if (removeError) throw removeError;
-            }
+            const removed = await removeSessionAudioObjects(
+                this.supabase.storage.from(TRANSCRIPTION_BUCKET), session.user_id, session.id
+            );
             const timestamp = new Date().toISOString();
             const { error: chunkUpdateError } = await this.supabase.from('transcription_chunks').update({
                 status: 'deleted', transcript_text: null, updated_at: timestamp
@@ -636,7 +697,7 @@ class TranscriptionWorker {
                 audio_deleted_at: timestamp, updated_at: timestamp
             }).eq('id', session.id);
             if (sessionUpdateError) throw sessionUpdateError;
-            deleted += paths.length;
+            deleted += removed;
         }
         this.runtime.lastCleanupAt = new Date().toISOString();
         this.runtime.deletedAudioObjects += deleted;
@@ -652,6 +713,8 @@ module.exports = {
     buildArtifactPrompt,
     buildTranscriptionPrompt,
     getNextUtcQuotaWindow,
+    getNextPacificQuotaWindow,
+    getQuotaResumeAt,
     getProviderAudioMimeType,
     getProviderCustomVocabulary,
     getProviderHttpOptions,

@@ -1,6 +1,6 @@
 # Guía operativa y de entrega
 
-**LifeCycle — revisión técnica del 4 de septiembre de 2026**
+**LifeCycle — revisión técnica del 5 de septiembre de 2026 (migraciones del 6/9 UTC)**
 
 ## Componentes nuevos
 
@@ -38,12 +38,13 @@ TRANSCRIPTION_SEGMENT_SECONDS=300
 ## Orden de publicación
 
 1. Confirmar que Git sólo contiene cambios intencionales y que la suite completa pasa.
-2. Aplicar, en orden, las migraciones pendientes:
-   - `20260904034548_lifecycle_subscriptions_and_transcription_foundation.sql`;
-   - `20260904035623_transcription_pipeline.sql`.
+2. Confirmar estas migraciones, ya aplicadas en producción y necesarias en instalaciones nuevas:
+   - `20260906020420_lifecycle_subscriptions_and_transcription_foundation.sql`;
+   - `20260906020429_transcription_pipeline.sql`;
+   - `20260906020827_transcription_owner_fk_indexes.sql`.
 3. Ejecutar `supabase/verification/20260904_lifecycle_expansion_security_check.sql`; todos los controles deben devolver `true`.
 4. Ejecutar los asesores de seguridad y rendimiento de Supabase y resolver hallazgos nuevos relevantes.
-5. Configurar `GEMINI_API_KEY` en Render sin copiar su valor a archivos o mensajes.
+5. Confirmar que el proyecto de la clave en Google AI Studio está en Free tier, sin facturación de pago; después configurar `GEMINI_API_KEY` en Render sin exponer su valor. Mientras falte, la grabación permanece disponible y la interfaz advierte que el procesamiento está pendiente de activación.
 6. Publicar el commit validado y esperar el despliegue.
 7. Comprobar `/api/health`, la web y los logs del worker.
 8. Hacer una transcripción corta no confidencial y comprobar texto, descarga y limpieza programada.
@@ -55,11 +56,25 @@ Las migraciones son aditivas, pero cambian contratos de sincronización y crean 
 
 ```powershell
 npm test
+npm run test:ui
 npm run android:debug
 npm start
 ```
 
 El APK debug queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
+
+`test:ui` usa Playwright con Chrome aislado y datos ficticios. Necesita el módulo `playwright` disponible o su ruta en `LIFECYCLE_PLAYWRIGHT_MODULE`; guarda capturas en `.tmp-sb/ui-smoke`. No usa sesiones personales, Supabase productivo ni emuladores. Comprueba carga real de módulos, preferencias, alta de suscripción con dos horarios, búsqueda, biblioteca y cierre de Más en 1440/390 px y claro/oscuro. No reemplaza la prueba física.
+
+## Evidencia de esta revisión
+
+- 381 pruebas automatizadas, incluido análisis explícito de sintaxis ES module de todos los scripts propios publicados.
+- Cuatro combinaciones visuales, con alta y apertura de suscripción desde búsqueda: correctas.
+- APK debug compilado correctamente; sin instalar ni accionar el emulador de otro proyecto.
+- 23 migraciones locales/remotas alineadas; 12/12 controles de seguridad SQL correctos.
+- `supabase/verification/20260906_transcription_behavior_rollback.sql`: 8/8 resultados correctos en producción. Usa las dos cuentas existentes para verificar aislamiento, permisos, gastos idempotentes, cuotas, recuperación y retención; revierte todos los datos de prueba.
+- Asesores: sin errores y sin claves foráneas compuestas nuevas sin índice. Las tablas de trabajo son privadas para el backend; no necesitan políticas de acceso de cliente. Se mantiene la observación preexistente sobre contraseñas filtradas.
+- `npm audit --omit=dev`: cero vulnerabilidades conocidas tras fijar `qs` 6.16.0.
+- Pendientes externos: confirmar Free tier y activar/probar Gemini con audio no confidencial, recepción Push real y protocolo físico Android. Compilar no demuestra continuidad durante tres horas.
 
 ## Protocolo Android mínimo
 
@@ -87,6 +102,7 @@ No se declara validada la grabación prolongada hasta completar esta prueba fís
 ## Recuperación
 
 - Los audios locales sólo se eliminan después de confirmar la persistencia remota correspondiente.
-- Los trabajos bloqueados se recuperan tras 15 minutos y respetan su máximo de intentos.
+- Las reservas se renuevan cada minuto; los trabajos abandonados se recuperan tras 15 minutos. Sólo el worker que conserva la reserva puede confirmar sus resultados.
+- Los errores transitorios tienen intentos acotados. Las cuotas 429 no agotan esos intentos: esperan con backoff persistente y respetan `Retry-After`; la cuota diaria de Google se retoma después de medianoche del Pacífico. No se rotan claves para evadir la cuota del proyecto.
 - Las sesiones correctas programan limpieza a 24 horas; las fallidas conservan audio hasta siete días.
-- La eliminación manual vuelve a intentar retirar objetos aunque una ejecución previa haya quedado incompleta.
+- La limpieza enumera el prefijo privado completo de la sesión, incluidos fragmentos huérfanos de intentos interrumpidos. Una respuesta SQL perdida no provoca el borrado inmediato de objetos que otro intento podría haber confirmado.

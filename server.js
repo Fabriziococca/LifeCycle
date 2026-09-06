@@ -1712,6 +1712,7 @@ app.get('/api/config', (req, res) => {
         supabaseUrl: process.env.SUPABASE_URL || '',
         supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
         vapidPublicKey: publicKey,
+        transcriptionConfigured: transcriptionWorker.runtime.configured,
         registrationEnabled
     });
 });

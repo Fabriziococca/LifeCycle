@@ -1,6 +1,6 @@
 # Presupuesto operativo de transcripciones
 
-**LifeCycle — revisión técnica del 4 de septiembre de 2026**
+**LifeCycle — revisión técnica del 5 de septiembre de 2026**
 
 ## Objetivo
 
@@ -40,6 +40,10 @@ El borrado reduce el almacenamiento ocupado, pero no revierte la transferencia y
 - La clave vive sólo en Render como `GEMINI_API_KEY`.
 - LifeCycle reintenta únicamente errores temporales y registra cada intento antes de llamar al proveedor.
 - Un error 429 espera; no cambia a una API paga.
+
+La [tabla oficial de precios](https://ai.google.dev/gemini-api/docs/pricing#gemini-3.5-transcribe), consultada el 5/9/2026, incluye entrada y salida gratuitas para `gemini-3.5-transcribe` en Free tier. El nombre del modelo no obliga a pagar. La facturación depende del proyecto de la clave: hay que verificar ese nivel antes de activarla; usar Gemini en el navegador no acredita el nivel de la API.
+
+Las cuotas se aplican por proyecto, no por clave. Los 429 no consumen los intentos máximos de fallos del trabajo: se persiste la espera, se respeta `Retry-After` y el reinicio de cuota diaria de Google ocurre a medianoche del Pacífico, con margen de cinco minutos. El límite interno independiente continúa a las 00:05 UTC. No hay rotación automática a modelos pagos ni promesa de velocidad fija. Los audios en cola se conservan mientras esperan; si se acumulan, el límite de almacenamiento puede impedir nuevas cargas.
 
 Las cuotas gratuitas no se codifican como “15 RPM” o “1.500 solicitudes diarias” porque dependen del modelo, la cuenta y el proyecto. El límite local de 100 es un freno conservador, no una afirmación sobre la cuota oficial.
 

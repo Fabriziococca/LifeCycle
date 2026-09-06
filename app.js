@@ -519,6 +519,10 @@ class AppController {
             this.projects?.render();
         } else if (sectionId === 'finanzas-section') {
             this.finanzas?.render();
+        } else if (sectionId === 'suscripciones-section') {
+            this.subscriptions?.render();
+        } else if (sectionId === 'transcripciones-section') {
+            this.transcriptions?.render();
         } else if (sectionId === 'trading-section') {
             this.trading?.activate();
         } else if (sectionId === 'tareas-section') {

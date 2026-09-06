@@ -138,10 +138,10 @@ with checks as (
             where procedure.oid in (
                 'public.reserve_transcription_provider_attempt(uuid,integer)'::regprocedure,
                 'public.claim_transcription_job(text)'::regprocedure,
-                'public.complete_transcription_prepare_job(uuid,jsonb)'::regprocedure,
-                'public.complete_transcription_chunk_job(uuid,text,text)'::regprocedure,
-                'public.complete_transcription_artifact_job(uuid,text)'::regprocedure,
-                'public.fail_transcription_job(uuid,text,timestamptz,text,text)'::regprocedure
+                'public.complete_transcription_prepare_job(uuid,jsonb,text)'::regprocedure,
+                'public.complete_transcription_chunk_job(uuid,text,text,text)'::regprocedure,
+                'public.complete_transcription_artifact_job(uuid,text,text)'::regprocedure,
+                'public.fail_transcription_job(uuid,text,timestamptz,text,text,text)'::regprocedure
             )
         )
 

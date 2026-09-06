@@ -66,7 +66,7 @@ test('subscription expenses use the authenticated atomic RPC and stable occurren
         ROOT,
         'supabase',
         'migrations',
-        '20260904034548_lifecycle_subscriptions_and_transcription_foundation.sql'
+        '20260906020420_lifecycle_subscriptions_and_transcription_foundation.sql'
     ), 'utf8');
 
     assert.match(finanzasSource, /recordSubscriptionExpense/);

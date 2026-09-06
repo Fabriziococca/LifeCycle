@@ -10,7 +10,9 @@ const GROUP_META = Object.freeze({
     command: Object.freeze({ label: 'Acciones', icon: 'ph-lightning' }),
     tracker: Object.freeze({ label: 'Tarjetas', icon: 'ph-stack' }),
     task: Object.freeze({ label: 'Tareas', icon: 'ph-check-square' }),
-    project: Object.freeze({ label: 'Proyectos', icon: 'ph-briefcase' })
+    project: Object.freeze({ label: 'Proyectos', icon: 'ph-briefcase' }),
+    subscription: Object.freeze({ label: 'Suscripciones', icon: 'ph-credit-card' }),
+    transcription: Object.freeze({ label: 'Transcripciones', icon: 'ph-microphone' })
 });
 
 const URGENCY_LABELS = Object.freeze({
@@ -354,18 +356,19 @@ export class GlobalSearchModule {
 
     getTranscriptionItems() {
         const transModule = this.app.transcriptions;
-        return (transModule?.registry?.transcriptions || []).map(item => ({
+        return (transModule?.sessions || []).map(item => ({
             id: uniqueSearchId('transcription', item.id),
             kind: 'transcription',
             title: item.title,
-            subtitle: `Nota de voz · ${(item.editedText || item.rawText || '').slice(0, 70)}...`,
+            subtitle: `Transcripción · ${String(item.transcript || '').slice(0, 70) || 'Pendiente de procesar'}`,
             keywords: [
                 'transcripción',
                 'transcripcion',
                 'audio',
                 'voz',
                 item.title,
-                ...(item.tags || [])
+                item.context,
+                item.transcript
             ],
             target: {
                 transcriptionId: item.id,
@@ -380,553 +383,9 @@ export class GlobalSearchModule {
             id: uniqueSearchId('subscription', sub.id),
             kind: 'subscription',
             title: sub.name,
-            subtitle: `Suscripción · ${sub.currency === 'USD' ? '
-        const fullIndex = this.buildIndex();
-        const counts = fullIndex.reduce((result, item) => {
-            result[item.kind] = (result[item.kind] || 0) + 1;
-            return result;
-        }, {});
-        this.results = this.getCommandItems().slice(0, 5);
-        this.activeIndex = this.results.length > 0 ? 0 : -1;
-        this.resultsRoot.innerHTML = '';
-
-        const state = document.createElement('div');
-        state.className = 'global-search-state';
-        const icon = document.createElement('i');
-        icon.className = 'ph ph-magnifying-glass';
-        const title = document.createElement('strong');
-        title.textContent = 'Buscá sin salir de lo que estabas haciendo';
-        const help = document.createElement('p');
-        help.textContent = 'Encontrá información o ejecutá una acción frecuente sin recorrer menús.';
-        const summary = document.createElement('div');
-        summary.className = 'global-search-counts';
-        [
-            ['tracker', 'tarjetas'],
-            ['task', 'tareas'],
-            ['project', 'proyectos']
-        ].forEach(([kind, label]) => {
-            const badge = document.createElement('span');
-            badge.textContent = `${counts[kind] || 0} ${label}`;
-            summary.appendChild(badge);
-        });
-        state.append(icon, title, help, summary);
-        const quickActions = document.createElement('div');
-        quickActions.className = 'global-search-quick-actions';
-        this.results.forEach((result, index) => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.id = `global-search-result-${index}`;
-            button.className = 'global-search-quick-action';
-            button.dataset.searchResultIndex = String(index);
-            button.setAttribute('role', 'option');
-            button.setAttribute('aria-selected', String(index === this.activeIndex));
-            const icon = document.createElement('i');
-            icon.className = 'ph ph-lightning';
-            const copy = document.createElement('span');
-            copy.textContent = result.title;
-            button.append(icon, copy);
-            quickActions.appendChild(button);
-        });
-        state.appendChild(quickActions);
-        this.resultsRoot.appendChild(state);
-        this.updateActiveResult({ scroll: false });
-    }
-
-    renderResults(query) {
-        this.resultsRoot.innerHTML = '';
-        if (this.results.length === 0) {
-            const state = document.createElement('div');
-            state.className = 'global-search-state';
-            const icon = document.createElement('i');
-            icon.className = 'ph ph-magnifying-glass-minus';
-            const title = document.createElement('strong');
-            title.textContent = `No encontramos “${query}”`;
-            const help = document.createElement('p');
-            help.textContent = 'Probá con el nombre de una tarjeta, una tarea, un cliente o un proyecto.';
-            state.append(icon, title, help);
-            this.resultsRoot.appendChild(state);
-            this.input.removeAttribute('aria-activedescendant');
-            return;
-        }
-
-        for (const kind of Object.keys(GROUP_META)) {
-            const groupedResults = this.results
-                .map((result, index) => ({ result, index }))
-                .filter(entry => entry.result.kind === kind);
-            if (groupedResults.length === 0) continue;
-
-            const group = document.createElement('section');
-            group.className = 'global-search-group';
-            const heading = document.createElement('h3');
-            const headingIcon = document.createElement('i');
-            headingIcon.className = `ph ${GROUP_META[kind].icon}`;
-            const headingText = document.createElement('span');
-            headingText.textContent = GROUP_META[kind].label;
-            const count = document.createElement('span');
-            count.className = 'global-search-group-count';
-            count.textContent = String(groupedResults.length);
-            heading.append(headingIcon, headingText, count);
-            group.appendChild(heading);
-
-            groupedResults.forEach(({ result, index }) => {
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.id = `global-search-result-${index}`;
-                button.className = 'global-search-result';
-                button.dataset.searchResultIndex = String(index);
-                button.setAttribute('role', 'option');
-                button.setAttribute('aria-selected', String(index === this.activeIndex));
-
-                const text = document.createElement('span');
-                text.className = 'global-search-result-copy';
-                const title = document.createElement('strong');
-                title.textContent = result.title;
-                const subtitle = document.createElement('span');
-                subtitle.textContent = result.subtitle;
-                text.append(title, subtitle);
-
-                const arrow = document.createElement('i');
-                arrow.className = 'ph ph-arrow-right';
-                button.append(text, arrow);
-                group.appendChild(button);
-            });
-            this.resultsRoot.appendChild(group);
-        }
-        this.updateActiveResult({ scroll: false });
-    }
-
-    updateActiveResult({ scroll = true } = {}) {
-        this.resultsRoot.querySelectorAll('[data-search-result-index]').forEach(button => {
-            const selected = Number(button.dataset.searchResultIndex) === this.activeIndex;
-            button.classList.toggle('is-active', selected);
-            button.setAttribute('aria-selected', String(selected));
-            if (selected) {
-                this.input.setAttribute('aria-activedescendant', button.id);
-                if (scroll) button.scrollIntoView({ block: 'nearest' });
-            }
-        });
-    }
-
-    activateResult(result) {
-        if (!result) return;
-        this.close({ restoreFocus: false });
-
-        if (result.kind === 'tracker') {
-            this.openTracker(result.target);
-        } else if (result.kind === 'task') {
-            this.openTask(result.target);
-        } else if (result.kind === 'project') {
-            this.openProject(result.target);
-        } else if (result.kind === 'command') {
-            this.executeCommand(result.target?.command);
-        }
-    }
-
-    executeCommand(command) {
-        if (command === 'new-task') {
-            this.app.tareas?.openTaskCapture?.({ quick: true });
-            return;
-        }
-        if (command === 'new-card') {
-            this.app.openProfileTab?.('seguimientos');
-            requestAnimationFrame(() => this.app.customTrackers?.openEditor?.('hygiene'));
-            return;
-        }
-        if (command === 'new-reminder') {
-            this.app.openProfileTab?.('alertas');
-            requestAnimationFrame(() => this.app.alerts?.openRecurringReminderEditor?.());
-            return;
-        }
-        if (command === 'notification-settings') {
-            this.app.openProfileTab?.('notificaciones');
-            return;
-        }
-        if (command === 'register-income' || command === 'register-expense') {
-            const isExpense = command === 'register-expense';
-            this.app.finanzas?.activateFinanceTab?.(isExpense ? 'expense' : 'income', {
-                persist: true,
-                render: false
-            });
-            this.app.activateSection?.('finanzas-section', { render: true });
-            requestAnimationFrame(() => {
-                document.getElementById(
-                    isExpense ? 'btnOpenFinanzasExpenseModal' : 'btnOpenFinanzasModal'
-                )?.click();
-            });
-        }
-    }
-
-    openTracker(target) {
-        if (target.vehicleCardId) {
-            if (target.archived) {
-                if (this.app.customTrackers) {
-                    this.app.customTrackers.activeCategoryFilter = 'vehicle';
-                }
-                this.app.saveUiState?.({ trackerManagerFilter: 'vehicle' });
-                this.app.openProfileTab?.('seguimientos');
-                this.deferHighlight('vehicleCardId', target.vehicleCardId);
-                return;
-            }
-            this.app.vehicle?.activateVehicleTab?.(target.vehicleTab, {
-                persist: true,
-                render: false
-            });
-            this.app.activateSection?.('vehiculo-section', { render: true });
-            this.deferHighlight('vehicleCardId', target.vehicleCardId);
-            return;
-        }
-        if (target.archived) {
-            this.app.openProfileTab?.('seguimientos');
-            this.deferHighlight('trackerId', target.trackerId);
-            return;
-        }
-
-        if (target.sectionKey === 'hygiene' && this.app.hygiene) {
-            this.app.hygiene.currentCategory = target.subsection;
-            this.app.saveUiState?.({ hygieneCategory: target.subsection });
-        }
-        this.app.activateSection?.(target.sectionId, { render: true });
-        this.deferHighlight('trackerId', target.trackerId);
-    }
-
-    openTask(target) {
-        if (!this.app.tareas) return;
-        this.app.tareas.currentCategory = target.category;
-        this.app.tareas.activeProjectId = target.projectId;
-        this.app.tareas.rememberNavigationContext?.();
-        this.app.activateSection?.('tareas-section', { render: true });
-        this.app.tareas.render?.();
-        this.deferHighlight('taskId', target.taskId);
-    }
-
-    openProject(target) {
-        if (!this.app.projects) return;
-        this.app.activateSection?.('projects-section', { render: true });
-        this.app.projects.render?.();
-
-        if (target.collection === 'history') {
-            const modal = document.getElementById('projects-history-modal');
-            modal?.classList.remove('hidden');
-            this.app.projects.renderMonthlyHistory?.('all');
-            requestAnimationFrame(() => {
-                const item = this.findByData('historyProjectId', target.projectId);
-                item?.closest('.history-month-details')?.classList.remove('hidden');
-                this.highlightElement(item);
-            });
-            return;
-        }
-        this.deferHighlight('projectId', target.projectId);
-    }
-
-    deferHighlight(datasetKey, value) {
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            this.highlightElement(this.findByData(datasetKey, value));
-        }));
-    }
-
-    findByData(datasetKey, value) {
-        const expected = String(value);
-        const attribute = datasetKey.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
-        return [...document.querySelectorAll(`[data-${attribute}]`)]
-            .find(element => String(element.dataset[datasetKey]) === expected) || null;
-    }
-
-    highlightElement(element) {
-        if (!element) {
-            this.app.showToast?.('Abrimos la sección, pero el elemento ya no está visible.', {
-                tone: 'warning'
-            });
-            return;
-        }
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.remove('search-target-highlight');
-        void element.offsetWidth;
-        element.classList.add('search-target-highlight');
-        window.setTimeout(() => {
-            element.classList.remove('search-target-highlight');
-        }, 2200);
-    }
-}
- : 'ARS
-        const fullIndex = this.buildIndex();
-        const counts = fullIndex.reduce((result, item) => {
-            result[item.kind] = (result[item.kind] || 0) + 1;
-            return result;
-        }, {});
-        this.results = this.getCommandItems().slice(0, 5);
-        this.activeIndex = this.results.length > 0 ? 0 : -1;
-        this.resultsRoot.innerHTML = '';
-
-        const state = document.createElement('div');
-        state.className = 'global-search-state';
-        const icon = document.createElement('i');
-        icon.className = 'ph ph-magnifying-glass';
-        const title = document.createElement('strong');
-        title.textContent = 'Buscá sin salir de lo que estabas haciendo';
-        const help = document.createElement('p');
-        help.textContent = 'Encontrá información o ejecutá una acción frecuente sin recorrer menús.';
-        const summary = document.createElement('div');
-        summary.className = 'global-search-counts';
-        [
-            ['tracker', 'tarjetas'],
-            ['task', 'tareas'],
-            ['project', 'proyectos']
-        ].forEach(([kind, label]) => {
-            const badge = document.createElement('span');
-            badge.textContent = `${counts[kind] || 0} ${label}`;
-            summary.appendChild(badge);
-        });
-        state.append(icon, title, help, summary);
-        const quickActions = document.createElement('div');
-        quickActions.className = 'global-search-quick-actions';
-        this.results.forEach((result, index) => {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.id = `global-search-result-${index}`;
-            button.className = 'global-search-quick-action';
-            button.dataset.searchResultIndex = String(index);
-            button.setAttribute('role', 'option');
-            button.setAttribute('aria-selected', String(index === this.activeIndex));
-            const icon = document.createElement('i');
-            icon.className = 'ph ph-lightning';
-            const copy = document.createElement('span');
-            copy.textContent = result.title;
-            button.append(icon, copy);
-            quickActions.appendChild(button);
-        });
-        state.appendChild(quickActions);
-        this.resultsRoot.appendChild(state);
-        this.updateActiveResult({ scroll: false });
-    }
-
-    renderResults(query) {
-        this.resultsRoot.innerHTML = '';
-        if (this.results.length === 0) {
-            const state = document.createElement('div');
-            state.className = 'global-search-state';
-            const icon = document.createElement('i');
-            icon.className = 'ph ph-magnifying-glass-minus';
-            const title = document.createElement('strong');
-            title.textContent = `No encontramos “${query}”`;
-            const help = document.createElement('p');
-            help.textContent = 'Probá con el nombre de una tarjeta, una tarea, un cliente o un proyecto.';
-            state.append(icon, title, help);
-            this.resultsRoot.appendChild(state);
-            this.input.removeAttribute('aria-activedescendant');
-            return;
-        }
-
-        for (const kind of Object.keys(GROUP_META)) {
-            const groupedResults = this.results
-                .map((result, index) => ({ result, index }))
-                .filter(entry => entry.result.kind === kind);
-            if (groupedResults.length === 0) continue;
-
-            const group = document.createElement('section');
-            group.className = 'global-search-group';
-            const heading = document.createElement('h3');
-            const headingIcon = document.createElement('i');
-            headingIcon.className = `ph ${GROUP_META[kind].icon}`;
-            const headingText = document.createElement('span');
-            headingText.textContent = GROUP_META[kind].label;
-            const count = document.createElement('span');
-            count.className = 'global-search-group-count';
-            count.textContent = String(groupedResults.length);
-            heading.append(headingIcon, headingText, count);
-            group.appendChild(heading);
-
-            groupedResults.forEach(({ result, index }) => {
-                const button = document.createElement('button');
-                button.type = 'button';
-                button.id = `global-search-result-${index}`;
-                button.className = 'global-search-result';
-                button.dataset.searchResultIndex = String(index);
-                button.setAttribute('role', 'option');
-                button.setAttribute('aria-selected', String(index === this.activeIndex));
-
-                const text = document.createElement('span');
-                text.className = 'global-search-result-copy';
-                const title = document.createElement('strong');
-                title.textContent = result.title;
-                const subtitle = document.createElement('span');
-                subtitle.textContent = result.subtitle;
-                text.append(title, subtitle);
-
-                const arrow = document.createElement('i');
-                arrow.className = 'ph ph-arrow-right';
-                button.append(text, arrow);
-                group.appendChild(button);
-            });
-            this.resultsRoot.appendChild(group);
-        }
-        this.updateActiveResult({ scroll: false });
-    }
-
-    updateActiveResult({ scroll = true } = {}) {
-        this.resultsRoot.querySelectorAll('[data-search-result-index]').forEach(button => {
-            const selected = Number(button.dataset.searchResultIndex) === this.activeIndex;
-            button.classList.toggle('is-active', selected);
-            button.setAttribute('aria-selected', String(selected));
-            if (selected) {
-                this.input.setAttribute('aria-activedescendant', button.id);
-                if (scroll) button.scrollIntoView({ block: 'nearest' });
-            }
-        });
-    }
-
-    activateResult(result) {
-        if (!result) return;
-        this.close({ restoreFocus: false });
-
-        if (result.kind === 'tracker') {
-            this.openTracker(result.target);
-        } else if (result.kind === 'task') {
-            this.openTask(result.target);
-        } else if (result.kind === 'project') {
-            this.openProject(result.target);
-        } else if (result.kind === 'command') {
-            this.executeCommand(result.target?.command);
-        }
-    }
-
-    executeCommand(command) {
-        if (command === 'new-task') {
-            this.app.tareas?.openTaskCapture?.({ quick: true });
-            return;
-        }
-        if (command === 'new-card') {
-            this.app.openProfileTab?.('seguimientos');
-            requestAnimationFrame(() => this.app.customTrackers?.openEditor?.('hygiene'));
-            return;
-        }
-        if (command === 'new-reminder') {
-            this.app.openProfileTab?.('alertas');
-            requestAnimationFrame(() => this.app.alerts?.openRecurringReminderEditor?.());
-            return;
-        }
-        if (command === 'notification-settings') {
-            this.app.openProfileTab?.('notificaciones');
-            return;
-        }
-        if (command === 'register-income' || command === 'register-expense') {
-            const isExpense = command === 'register-expense';
-            this.app.finanzas?.activateFinanceTab?.(isExpense ? 'expense' : 'income', {
-                persist: true,
-                render: false
-            });
-            this.app.activateSection?.('finanzas-section', { render: true });
-            requestAnimationFrame(() => {
-                document.getElementById(
-                    isExpense ? 'btnOpenFinanzasExpenseModal' : 'btnOpenFinanzasModal'
-                )?.click();
-            });
-        }
-    }
-
-    openTracker(target) {
-        if (target.vehicleCardId) {
-            if (target.archived) {
-                if (this.app.customTrackers) {
-                    this.app.customTrackers.activeCategoryFilter = 'vehicle';
-                }
-                this.app.saveUiState?.({ trackerManagerFilter: 'vehicle' });
-                this.app.openProfileTab?.('seguimientos');
-                this.deferHighlight('vehicleCardId', target.vehicleCardId);
-                return;
-            }
-            this.app.vehicle?.activateVehicleTab?.(target.vehicleTab, {
-                persist: true,
-                render: false
-            });
-            this.app.activateSection?.('vehiculo-section', { render: true });
-            this.deferHighlight('vehicleCardId', target.vehicleCardId);
-            return;
-        }
-        if (target.archived) {
-            this.app.openProfileTab?.('seguimientos');
-            this.deferHighlight('trackerId', target.trackerId);
-            return;
-        }
-
-        if (target.sectionKey === 'hygiene' && this.app.hygiene) {
-            this.app.hygiene.currentCategory = target.subsection;
-            this.app.saveUiState?.({ hygieneCategory: target.subsection });
-        }
-        this.app.activateSection?.(target.sectionId, { render: true });
-        this.deferHighlight('trackerId', target.trackerId);
-    }
-
-    openTask(target) {
-        if (!this.app.tareas) return;
-        this.app.tareas.currentCategory = target.category;
-        this.app.tareas.activeProjectId = target.projectId;
-        this.app.tareas.rememberNavigationContext?.();
-        this.app.activateSection?.('tareas-section', { render: true });
-        this.app.tareas.render?.();
-        this.deferHighlight('taskId', target.taskId);
-    }
-
-    openProject(target) {
-        if (!this.app.projects) return;
-        this.app.activateSection?.('projects-section', { render: true });
-        this.app.projects.render?.();
-
-        if (target.collection === 'history') {
-            const modal = document.getElementById('projects-history-modal');
-            modal?.classList.remove('hidden');
-            this.app.projects.renderMonthlyHistory?.('all');
-            requestAnimationFrame(() => {
-                const item = this.findByData('historyProjectId', target.projectId);
-                item?.closest('.history-month-details')?.classList.remove('hidden');
-                this.highlightElement(item);
-            });
-            return;
-        }
-        this.deferHighlight('projectId', target.projectId);
-    }
-
-    deferHighlight(datasetKey, value) {
-        requestAnimationFrame(() => requestAnimationFrame(() => {
-            this.highlightElement(this.findByData(datasetKey, value));
-        }));
-    }
-
-    findByData(datasetKey, value) {
-        const expected = String(value);
-        const attribute = datasetKey.replace(/[A-Z]/g, letter => `-${letter.toLowerCase()}`);
-        return [...document.querySelectorAll(`[data-${attribute}]`)]
-            .find(element => String(element.dataset[datasetKey]) === expected) || null;
-    }
-
-    highlightElement(element) {
-        if (!element) {
-            this.app.showToast?.('Abrimos la sección, pero el elemento ya no está visible.', {
-                tone: 'warning'
-            });
-            return;
-        }
-        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        element.classList.remove('search-target-highlight');
-        void element.offsetWidth;
-        element.classList.add('search-target-highlight');
-        window.setTimeout(() => {
-            element.classList.remove('search-target-highlight');
-        }, 2200);
-    }
-}
-}${sub.cost} · ${sub.periodMonths}m · Renueva ${sub.nextRenewalDate}`,
-            keywords: [
-                'suscripción',
-                'suscripcion',
-                sub.category,
-                sub.name,
-                sub.paymentMethod,
-                sub.status
-            ],
-            target: {
-                subscriptionId: sub.id,
-                sectionId: 'suscripciones-section'
-            }
+            subtitle: `Suscripción · ${sub.status === 'active' ? 'Activa' : sub.status === 'paused' ? 'Pausada' : 'Cancelada'}`,
+            keywords: ['suscripción', sub.category, sub.notes],
+            target: { subscriptionId: sub.id, sectionId: 'suscripciones-section' }
         }));
     }
 
@@ -1067,12 +526,22 @@ export class GlobalSearchModule {
             this.openTask(result.target);
         } else if (result.kind === 'project') {
             this.openProject(result.target);
+        } else if (result.kind === 'subscription') {
+            this.app.activateSection?.('suscripciones-section', { render: true });
+            this.app.subscriptions?.openModal?.(result.target.subscriptionId);
+        } else if (result.kind === 'transcription') {
+            this.app.activateSection?.('transcripciones-section', { render: true });
+            this.app.transcriptions?.openDetailModal?.(result.target.transcriptionId);
         } else if (result.kind === 'command') {
             this.executeCommand(result.target?.command);
         }
     }
 
     executeCommand(command) {
+        if (command === 'suscripciones' || command === 'transcripciones') {
+            this.app.activateSection?.(`${command}-section`, { render: true });
+            return;
+        }
         if (command === 'new-task') {
             this.app.tareas?.openTaskCapture?.({ quick: true });
             return;

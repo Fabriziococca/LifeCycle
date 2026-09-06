@@ -6,6 +6,7 @@
   "scripts": {
     "start": "node server.js",
     "test": "node --test --test-isolation=none",
+    "test:ui": "node scripts/ui-smoke.cjs",
     "build:android-web": "node scripts/build-capacitor-web.mjs",
     "cap:sync": "npm run build:android-web && cap sync android",
     "android:debug": "npm run cap:sync && cd android && gradlew.bat assembleDebug"
@@ -29,5 +30,8 @@
   },
   "devDependencies": {
     "@capacitor/cli": "8.5.1"
+  },
+  "overrides": {
+    "qs": "6.16.0"
   }
 }
