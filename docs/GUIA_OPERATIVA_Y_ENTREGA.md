@@ -52,6 +52,10 @@ TRANSCRIPTION_SEGMENT_SECONDS=300
 
 Las migraciones son aditivas, pero cambian contratos de sincronización y crean tablas/bucket. No se despliega el frontend nuevo antes de que la base esté preparada.
 
+### Conexión de Render comprobada
+
+El 6/9/2026 UTC se alineó la referencia del servicio existente con `https://github.com/Fabriziococca/LifeCycle`, conservando `main`, la URL pública y el plan Free. El push no produjo un despliegue automático: el build posterior advirtió que Render no tenía acceso conectado al repositorio y lo clonó mediante su URL pública. Aunque la API indique `autoDeploy: yes`, no asumir que un push publica hasta reconectar y verificar la integración Git. Mientras tanto, comprobar que no haya un despliegue activo y publicar manualmente el commit validado, verificándolo después en `/api/health`.
+
 ## Comandos locales
 
 ```powershell
@@ -67,13 +71,13 @@ El APK debug queda en `android/app/build/outputs/apk/debug/app-debug.apk`.
 
 ## Evidencia de esta revisión
 
-- 381 pruebas automatizadas, incluido análisis explícito de sintaxis ES module de todos los scripts propios publicados.
+- 382 pruebas automatizadas, incluido análisis explícito de sintaxis ES module de todos los scripts propios publicados y compatibilidad de dependencias corregidas.
 - Cuatro combinaciones visuales, con alta y apertura de suscripción desde búsqueda: correctas.
 - APK debug compilado correctamente; sin instalar ni accionar el emulador de otro proyecto.
 - 23 migraciones locales/remotas alineadas; 12/12 controles de seguridad SQL correctos.
 - `supabase/verification/20260906_transcription_behavior_rollback.sql`: 8/8 resultados correctos en producción. Usa las dos cuentas existentes para verificar aislamiento, permisos, gastos idempotentes, cuotas, recuperación y retención; revierte todos los datos de prueba.
 - Asesores: sin errores y sin claves foráneas compuestas nuevas sin índice. Las tablas de trabajo son privadas para el backend; no necesitan políticas de acceso de cliente. Se mantiene la observación preexistente sobre contraseñas filtradas.
-- `npm audit --omit=dev`: cero vulnerabilidades conocidas tras fijar `qs` 6.16.0.
+- `npm audit` y `npm audit --omit=dev`: cero vulnerabilidades conocidas tras fijar `qs` 6.16.0 y `uuid` 11.1.1 sólo dentro de `xcode` (dependencia de desarrollo de Capacitor). Se verifican la API CommonJS y el generador de identificadores que utiliza `xcode`; no equivale a validar iOS.
 - Pendientes externos: confirmar Free tier y activar/probar Gemini con audio no confidencial, recepción Push real y protocolo físico Android. Compilar no demuestra continuidad durante tres horas.
 
 ## Protocolo Android mínimo
