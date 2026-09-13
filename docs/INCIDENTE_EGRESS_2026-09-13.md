@@ -91,7 +91,7 @@ Se solicitó mantener Free y aclarar la discrepancia de fechas. No se adjuntaron
 personales ni audios y se desactivó el permiso adicional de acceso al proyecto.
 La respuesta de soporte sigue pendiente: enviar el pedido no equivale a obtener una prórroga.
 
-## Segunda corrección preparada y validada
+## Segunda corrección publicada y validada
 
 - Detalle de transcripción con alto limitado a la pantalla, scroll interno,
   encabezado/acciones accesibles y navegación de teclado. Probado a 1440x768 y
@@ -102,7 +102,7 @@ La respuesta de soporte sigue pendiente: enviar el pedido no equivale a obtener 
 - Migración `20260913221131_protect_incomplete_transcription_audio` aplicada y
   verificada transaccionalmente (ROLLBACK). Ningún audio se borró en la auditoría.
 - 392 pruebas automatizadas correctas y cuatro escenarios de navegador aprobados.
-- Publicación de esta segunda corrección pendiente al registrar este checkpoint.
+- Código en `101bf07`, incluido en el despliegue de `732dcd4` detallado abajo.
 
 ## Optimización adicional de lecturas
 
@@ -125,7 +125,36 @@ La respuesta de soporte sigue pendiente: enviar el pedido no equivale a obtener 
 - A las 22:14 UTC el documento del propietario seguía en revisión 665 y timestamp
   21:46:34. Los contadores PostgreSQL también incluyen las actualizaciones de pruebas
   revertidas; no confundir esos incrementos con cambios conservados en los datos.
-- Publicación de esta optimización pendiente al registrar este checkpoint.
+- Publicado `732dcd469a842ea18096567361372ef13b9f4096`, con dos ejecuciones CI
+  correctas y despliegue manual `dep-daji5ouk1f9s73docleg` live a las 22:26:20 UTC.
+- Health HTTP 200 con el commit correcto; index, CSS y ambos módulos modificados
+  coinciden con el contenido local verificado. El módulo de caché del servidor
+  responde 404 públicamente, como corresponde.
+- Primer ciclo completado a las 22:26:25 UTC en 2.724 s, sin fallos/timeouts/ciclos
+  omitidos en este arranque. Dos lecturas de metadatos, dos documentos descargados
+  y dos reutilizaciones verificadas. Worker de transcripciones sin fallos ni llamadas
+  nuevas a Gemini y sin borrado de audio durante esta verificación.
+- Asesores posteriores a la migración: sin errores nuevos; permanecen los seis
+  avisos sobre RPC autenticados SECURITY DEFINER, protección de contraseñas filtradas
+  deshabilitada y siete tablas privadas/backend con RLS sin políticas de cliente.
+  Estos últimos [avisos de RLS](https://supabase.com/docs/guides/database/database-linter?lint=0008_rls_enabled_no_policy)
+  describen acceso denegado por defecto, no exigen abrir políticas para la app.
+  Los [RPC privilegiados](https://supabase.com/docs/guides/database/database-linter?lint=0029_authenticated_security_definer_function_executable)
+  conservan sus controles de propietario. No se modificaron planes para habilitar
+  [protección de contraseñas filtradas](https://supabase.com/docs/guides/auth/password-security#password-strength-and-leaked-password-protection).
+- A las 22:28:25 UTC ambas cuentas conservan exactamente los hashes, revisiones y
+  timestamps anteriores. Ninguna sesión incompleta tiene vencimiento automático.
+- Ciclo periódico normal completado a las 22:31:14 UTC en 1.825 s: sin fallos,
+  timeouts ni ciclos omitidos. Contadores: cuatro lecturas de metadatos, dos
+  documentos descargados y seis reutilizaciones. Los bytes JSON descargados siguen
+  en 110,176: el segundo ciclo no volvió a transferir los documentos sin cambios.
+- Asesor de rendimiento: únicamente siete índices sin uso registrado, nivel INFO.
+  No se borraron índices; ese aviso aislado no justifica debilitar consultas o
+  relaciones futuras. [Referencia del asesor](https://supabase.com/docs/guides/database/database-linter?lint=0005_unused_index).
+
+Este registro de verificación se agrega en un commit de documentación posterior.
+El código desplegado y validado es `732dcd4`; no hace falta reiniciar Render para
+publicar sólo la constancia documental.
 
 Fuentes oficiales consultadas:
 - https://supabase.com/docs/guides/platform/manage-your-usage/egress
@@ -135,6 +164,6 @@ Fuentes oficiales consultadas:
 
 Esta entrega contiene el incidente de sincronización. No declara terminado el plan
 completo: continúan pendientes la validación física Android/APK, grabación en segundo
-plano, exportación de audio compatible, publicación del modal/retención corregidos,
+plano, exportación de audio compatible,
 repeticiones de Trading y casos de renovación/reactivación de suscripciones señalados
 en la auditoría anterior. Se abordan después de estabilizar esta entrega urgente.
