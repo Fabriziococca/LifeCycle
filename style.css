@@ -424,6 +424,59 @@
     white-space: pre-wrap;
 }
 
+#transcription-detail-modal {
+    padding: max(.75rem, env(safe-area-inset-top)) max(.75rem, env(safe-area-inset-right))
+        max(.75rem, env(safe-area-inset-bottom)) max(.75rem, env(safe-area-inset-left));
+}
+
+#transcription-detail-modal .transcription-detail-content {
+    display: flex;
+    flex-direction: column;
+    width: min(100%, 760px);
+    max-width: 760px;
+    max-height: calc(100dvh - 1.5rem - env(safe-area-inset-top) - env(safe-area-inset-bottom));
+    overflow: hidden;
+    padding: 0;
+    text-align: left;
+}
+
+#transcription-detail-modal .modal-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: .75rem;
+    padding: 1rem 1.25rem;
+    margin: 0;
+    flex-shrink: 0;
+}
+
+#transcription-detail-modal .modal-header h3 { margin: 0; }
+#transcription-detail-modal .modal-header .icon-btn { flex-shrink: 0; }
+.transcription-detail-body { overflow-y: auto; min-height: 0; padding: 0 1.25rem 1rem; overscroll-behavior: contain; }
+.transcription-text-heading { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .5rem; margin-bottom: .5rem; }
+#trans-detail-text { min-height: 180px; max-height: 45dvh; resize: vertical; }
+#transcription-detail-modal .transcription-detail-actions {
+    display: flex;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    flex-shrink: 0;
+    gap: .75rem;
+    margin: 0;
+    padding: .85rem 1.25rem;
+    border-top: 1px solid var(--surface-border);
+}
+.transcription-detail-exports, .transcription-detail-save { display: flex; flex-wrap: wrap; gap: .5rem; }
+
+@media (max-width: 560px) {
+    #transcription-detail-modal .modal-header { padding: .85rem 1rem; }
+    #transcription-detail-modal .modal-header h3 { font-size: 1.15rem; }
+    .transcription-detail-body { padding-inline: 1rem; }
+    #transcription-detail-modal .transcription-detail-actions { padding: .75rem 1rem; }
+    .transcription-detail-save { width: 100%; }
+    #transcription-detail-modal .transcription-detail-save .btn { flex: 1; }
+    .transcription-artifact-actions .btn { padding: .5rem .65rem; font-size: .85rem; }
+}
+
 @media (max-width: 560px) {
     .subscription-form-row,
     .subscription-form-row--money {

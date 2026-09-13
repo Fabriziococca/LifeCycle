@@ -675,24 +675,32 @@ class TranscriptionWorker {
     async cleanupExpiredAudioIfDue(force = false) {
         const now = Date.now();
         if (!force && now - this.lastCleanupAt < 60 * 60 * 1000) return 0;
-        this.lastCleanupAt = now;
         const { data: sessions, error } = await this.supabase
             .from('transcription_sessions')
             .select('id, user_id')
             .is('audio_deleted_at', null)
-            .in('status', ['completed', 'partial', 'failed', 'canceled'])
+            .eq('status', 'completed')
             .lte('audio_delete_after', new Date(now).toISOString())
             .limit(25);
         if (error) throw error;
         let deleted = 0;
         const { removeSessionAudioObjects } = await import('./transcription-storage-utils.mjs');
         for (const session of sessions || []) {
+            // A status alone is not enough evidence to destroy the original.
+            // Fetch only an ID, never the potentially large transcription body.
+            const { data: transcript, error: transcriptError } = await this.supabase
+                .from('transcription_documents').select('id')
+                .eq('session_id', session.id).eq('user_id', session.user_id)
+                .eq('kind', 'transcript').neq('content', '').maybeSingle();
+            if (transcriptError) throw transcriptError;
+            if (!transcript) continue;
             const removed = await removeSessionAudioObjects(
                 this.supabase.storage.from(TRANSCRIPTION_BUCKET), session.user_id, session.id
             );
             const timestamp = new Date().toISOString();
             const { error: chunkUpdateError } = await this.supabase.from('transcription_chunks').update({
-                status: 'deleted', transcript_text: null, updated_at: timestamp
+                // Audio expiry must not destroy the source transcription text.
+                status: 'deleted', updated_at: timestamp
             }).eq('session_id', session.id);
             if (chunkUpdateError) throw chunkUpdateError;
             const { error: sessionUpdateError } = await this.supabase.from('transcription_sessions').update({
@@ -701,6 +709,7 @@ class TranscriptionWorker {
             if (sessionUpdateError) throw sessionUpdateError;
             deleted += removed;
         }
+        this.lastCleanupAt = now;
         this.runtime.lastCleanupAt = new Date().toISOString();
         this.runtime.deletedAudioObjects += deleted;
         return deleted;

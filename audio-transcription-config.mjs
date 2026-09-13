@@ -22,7 +22,9 @@ export const AUDIO_CONSTRAINTS = Object.freeze({
     maxImportedFileBytes: 50 * 1024 * 1024,
     maxPendingAudioBytes: 750 * 1024 * 1024,
     successfulAudioRetentionHours: 24,
-    failedAudioRetentionDays: 7
+    // Pending/failed originals are protected; the pending-byte cap blocks new
+    // uploads instead of silently deleting the only recoverable recording.
+    failedAudioRetentionDays: null
 });
 
 export const TRANSCRIPTION_PRIVACY_NOTICE = Object.freeze({

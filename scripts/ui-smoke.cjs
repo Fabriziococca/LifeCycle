@@ -56,7 +56,7 @@ function installFakeCloud() {
     const browser = await chromium.launch({ headless: true, channel: 'chrome' });
     try {
         for (const width of [1440, 390]) for (const theme of ['dark', 'light']) {
-            const context = await browser.newContext({ viewport: { width, height: 960 }, serviceWorkers: 'block', isMobile: width < 500, hasTouch: width < 500 });
+            const context = await browser.newContext({ viewport: { width, height: width < 500 ? 844 : 768 }, serviceWorkers: 'block', isMobile: width < 500, hasTouch: width < 500 });
             await context.addInitScript(() => {
                 const registration = { active: {}, addEventListener() {}, pushManager: { getSubscription: async () => null } };
                 Object.defineProperty(navigator, 'serviceWorker', { value: { register: async () => registration, ready: Promise.resolve(registration), getRegistration: async () => registration, addEventListener() {} } });
@@ -103,6 +103,41 @@ function installFakeCloud() {
             await page.evaluate(() => window.lifecycle_controller.activateSection('transcripciones-section'));
             await page.locator('#btn-toggle-record-voice').waitFor({ state: 'visible' });
             await page.screenshot({ path: `.tmp-sb/ui-smoke/${width}-${theme}-transcriptions.png`, fullPage: true, animations: 'disabled' });
+            await page.evaluate(() => {
+                const module = window.lifecycle_controller.transcriptions;
+                module.sessions = [{ id: 'qa-modal', title: 'Clase de prueba', status: 'partial',
+                    completedChunks: 1, expectedChunks: 2, totalBytes: 12345,
+                    transcript: 'Transcripción completa de prueba.\n'.repeat(200),
+                    notes: 'Apuntes de prueba.\n'.repeat(100) }];
+                document.getElementById('btn-toggle-record-voice').focus();
+                module.openDetailModal('qa-modal');
+            });
+            await page.locator('#transcription-detail-modal').waitFor({ state: 'visible' });
+            const detailBounds = await page.evaluate(() => {
+                const modal = document.getElementById('transcription-detail-modal');
+                const content = modal.querySelector('.modal-content').getBoundingClientRect();
+                const close = modal.querySelector('[data-transcription-modal-close]').getBoundingClientRect();
+                const save = document.getElementById('btn-save-transcription-detail').getBoundingClientRect();
+                const body = modal.querySelector('.transcription-detail-body');
+                return { contained: content.top >= 0 && content.bottom <= innerHeight && content.left >= 0 && content.right <= innerWidth,
+                    actionsVisible: close.top >= 0 && save.bottom <= innerHeight,
+                    scrollable: body.scrollHeight > body.clientHeight,
+                    focusInside: modal.contains(document.activeElement), width: content.width };
+            });
+            assert.equal(detailBounds.contained, true, 'transcription dialog outside viewport');
+            assert.equal(detailBounds.actionsVisible, true, 'transcription actions clipped');
+            assert.equal(detailBounds.scrollable, true, 'long transcript must scroll internally');
+            assert.equal(detailBounds.focusInside, true);
+            assert.ok(detailBounds.width >= (width < 500 ? 340 : 700), 'dialog is unnecessarily narrow');
+            await page.keyboard.press('Shift+Tab');
+            assert.equal(await page.locator('#btn-save-transcription-detail').evaluate(el => el === document.activeElement), true, 'focus must wrap inside dialog');
+            await page.keyboard.press('Tab');
+            assert.equal(await page.locator('#transcription-detail-modal [data-transcription-modal-close]').first().evaluate(el => el === document.activeElement), true);
+            await page.screenshot({ path: `.tmp-sb/ui-smoke/${width}-${theme}-transcription-detail.png`, animations: 'disabled' });
+            await page.keyboard.press('Escape');
+            await page.locator('#transcription-detail-modal').waitFor({ state: 'hidden' });
+            assert.equal(await page.locator('#btn-toggle-record-voice').evaluate(el => el === document.activeElement), true, 'restore opener focus');
+            assert.notEqual(await page.evaluate(() => document.body.style.overflow), 'hidden', 'restore page scrolling');
             const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2);
             assert.equal(overflow, false, `horizontal overflow at ${width}/${theme}`);
             if (width < 500) {

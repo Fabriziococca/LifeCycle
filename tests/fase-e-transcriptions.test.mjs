@@ -17,8 +17,27 @@ import {
     getResumableUploadEndpoint
 } from '../transcription-service.mjs';
 import { APP_MODULES } from '../custom-tracker-utils.mjs';
+import { TranscriptionsModule } from '../modules/TranscriptionsModule.js';
 
 const ROOT = process.cwd();
+
+test('local audio is retained for 24 hours after a complete durable transcript, never purged on partial/failure', async () => {
+    const deleted = [];
+    const yesterday = new Date(Date.now() - 25 * 3600_000).toISOString();
+    const sessions = [
+        { id: 'expired', status: 'completed', completedAt: yesterday, transcript: 'Texto completo' },
+        { id: 'recent', status: 'completed', completedAt: new Date().toISOString(), transcript: 'Texto completo' },
+        { id: 'no-document', status: 'completed', completedAt: yesterday, transcript: '' },
+        { id: 'no-date', status: 'completed', transcript: 'Texto' },
+        { id: 'partial', status: 'partial', completedAt: yesterday, transcript: 'Texto parcial' },
+        { id: 'failed', status: 'failed', completedAt: yesterday }
+    ];
+    await TranscriptionsModule.prototype.cleanupCompletedLocalCache.call({ sessions, cache: {
+        isSupported: () => true, listSessions: async () => sessions,
+        deleteSession: async id => { deleted.push(id); }
+    } });
+    assert.deepEqual(deleted, ['expired']);
+});
 
 test('transcription sessions normalize private database rows and derived documents', () => {
     const session = normalizeSessionRow({

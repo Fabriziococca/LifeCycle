@@ -21,6 +21,70 @@ const {
     prepareMediaSegments
 } = require('../transcription-worker.js');
 
+function retentionFixture() {
+    const userId = '11111111-1111-4111-8111-111111111111';
+    const sessions = ['completed', 'partial', 'failed', 'canceled', 'completed'].map((status, index) => ({
+        id: `22222222-2222-4222-8222-${String(index + 1).padStart(12, '0')}`,
+        user_id: userId, status, audio_deleted_at: null, audio_delete_after: '2020-01-01T00:00:00Z'
+    }));
+    const removed = [], updates = [], selects = [];
+    const state = { documentError: null };
+    class Query {
+        constructor(table) { this.table = table; this.filters = []; }
+        select(columns) { selects.push({ table: this.table, columns }); return this; }
+        eq(key, value) { this.filters.push(row => row[key] === value); return this; }
+        is(key, value) { return this.eq(key, value); }
+        in(key, values) { this.filters.push(row => values.includes(row[key])); return this; }
+        lte(key, value) { this.filters.push(row => row[key] <= value); return this; }
+        neq(key, value) { this.filters.push(row => row[key] !== value); return this; }
+        limit() { return this; }
+        maybeSingle() { this.single = true; return this; }
+        update(value) { this.value = value; return this; }
+        then(resolve) {
+            if (this.value) {
+                updates.push({ table: this.table, value: this.value });
+                return Promise.resolve({ error: null }).then(resolve);
+            }
+            if (this.table === 'transcription_documents' && state.documentError) {
+                return Promise.resolve({ error: state.documentError }).then(resolve);
+            }
+            const rows = this.table === 'transcription_sessions' ? sessions : [{
+                id: 'document', user_id: userId, session_id: sessions[0].id, kind: 'transcript', content: 'Texto durable'
+            }];
+            const filtered = rows.filter(row => this.filters.every(filter => filter(row)));
+            return Promise.resolve({ data: this.single ? filtered[0] || null : filtered, error: null }).then(resolve);
+        }
+    }
+    const worker = new TranscriptionWorker({ apiKey: '', supabase: {
+        from: table => new Query(table), storage: { from: () => ({
+            list: async () => ({ data: [{ name: 'audio.m4a', id: 'object' }], error: null }),
+            remove: async paths => { removed.push(...paths); return { error: null }; }
+        }) }
+    } });
+    return { worker, sessions, removed, updates, selects, state };
+}
+
+test('audio cleanup preserves failed/partial originals, source text and completed sessions without a durable document', async () => {
+    const { worker, sessions, removed, updates, selects } = retentionFixture();
+    assert.equal(await worker.cleanupExpiredAudioIfDue(true), 1);
+    assert.deepEqual(removed, [`${sessions[0].user_id}/${sessions[0].id}/audio.m4a`]);
+    assert.equal(updates.length, 2);
+    const chunkUpdate = updates.find(update => update.table === 'transcription_chunks').value;
+    assert.equal(Object.hasOwn(chunkUpdate, 'transcript_text'), false, 'expiry cannot erase the source transcript');
+    assert.ok(selects.filter(query => query.table === 'transcription_documents').every(query => query.columns === 'id'));
+    assert.equal(await worker.cleanupExpiredAudioIfDue(), 0, 'successful cleanup is throttled');
+});
+
+test('a failed document check preserves audio and leaves cleanup retryable', async () => {
+    const { worker, state, removed } = retentionFixture();
+    state.documentError = new Error('temporary database timeout');
+    await assert.rejects(worker.cleanupExpiredAudioIfDue(), /database timeout/);
+    assert.deepEqual(removed, []);
+    assert.equal(worker.lastCleanupAt, 0);
+    state.documentError = null;
+    assert.equal(await worker.cleanupExpiredAudioIfDue(), 1);
+});
+
 test('prepara audio importado en fragmentos AAC reproducibles de cinco minutos lógicos', async t => {
     assert.ok(ffmpegPath && fs.existsSync(ffmpegPath), 'ffmpeg-static debe incluir un ejecutable');
     const directory = await fs.promises.mkdtemp(path.join(os.tmpdir(), 'lifecycle-worker-test-'));

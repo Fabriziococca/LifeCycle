@@ -69,7 +69,11 @@ una reconciliación de alertas contra memoria anterior a la restauración.
 - Entre 21:47:12 y 21:49:57 UTC: contador de actualizaciones estable en 173230,
   revisión y hashes de ambas cuentas idénticos a los previos. El timestamp del
   documento dejó de cambiar a las 21:46:34 UTC, al aplicar la contención.
-- Estado de publicación: pendiente de completar y verificar el despliegue web.
+- Publicado: commit `c9171cf1eff63ca8b63eb6a0957e491633caf8b0`, dos ejecuciones
+  CI correctas y despliegue Render `dep-dajhn2bm8hqs738babc0` live a las 21:54:59 UTC.
+  Se verificaron health y el guard de sincronización servido por producción.
+  Hubo un timeout Supabase durante el arranque; el siguiente ciclo de recordatorios
+  terminó correctamente a las 21:59:54 UTC. No se declara ausencia de fallos históricos.
 
 ## Restricción de cuota: dependencia externa pendiente
 
@@ -80,7 +84,25 @@ lejana. El período actual termina el 27 septiembre.
 Frenar el circuito evita consumo nuevo pero **no descuenta los GB ya contabilizados**.
 No se garantiza evitar restricciones del ciclo actual. Se necesita resolución con
 Supabase o una decisión explícita sobre un plan temporal si aplican la restricción.
-No se ha contratado, activado ni modificado facturación ni contactado soporte.
+No se ha contratado, activado ni modificado facturación. Con autorización expresa,
+se envió a soporte la solicitud de revisión y posible extensión/excepción de cuota
+por el incidente corregido. El panel confirmó recepción; no mostró número de ticket.
+Se solicitó mantener Free y aclarar la discrepancia de fechas. No se adjuntaron datos
+personales ni audios y se desactivó el permiso adicional de acceso al proyecto.
+La respuesta de soporte sigue pendiente: enviar el pedido no equivale a obtener una prórroga.
+
+## Segunda corrección preparada y validada
+
+- Detalle de transcripción con alto limitado a la pantalla, scroll interno,
+  encabezado/acciones accesibles y navegación de teclado. Probado a 1440x768 y
+  390x844, claro/oscuro, con texto largo; sin recortes ni desbordamiento horizontal.
+- Retención: originales incompletos/fallidos sin vencimiento automático; sólo
+  resultados completos con texto durable pueden liberar audio tras 24 horas.
+  Se conservan los textos de los fragmentos y la caché local durante esas 24 horas.
+- Migración `20260913221131_protect_incomplete_transcription_audio` aplicada y
+  verificada transaccionalmente (ROLLBACK). Ningún audio se borró en la auditoría.
+- 392 pruebas automatizadas correctas y cuatro escenarios de navegador aprobados.
+- Publicación de esta segunda corrección pendiente al registrar este checkpoint.
 
 Fuentes oficiales consultadas:
 - https://supabase.com/docs/guides/platform/manage-your-usage/egress
@@ -90,6 +112,6 @@ Fuentes oficiales consultadas:
 
 Esta entrega contiene el incidente de sincronización. No declara terminado el plan
 completo: continúan pendientes la validación física Android/APK, grabación en segundo
-plano, exportación de audio compatible, modal de transcripción, retención de fallidos,
+plano, exportación de audio compatible, publicación del modal/retención corregidos,
 repeticiones de Trading y casos de renovación/reactivación de suscripciones señalados
 en la auditoría anterior. Se abordan después de estabilizar esta entrega urgente.

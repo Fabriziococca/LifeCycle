@@ -102,7 +102,24 @@ export class TranscriptionsModule {
             if (event.target === modal) this.closeDetailModal();
         });
         modal?.addEventListener('keydown', event => {
-            if (event.key === 'Escape') this.closeDetailModal();
+            if (event.key === 'Escape') {
+                event.preventDefault();
+                event.stopPropagation();
+                this.closeDetailModal();
+            }
+            if (event.key === 'Tab') {
+                const controls = [...modal.querySelectorAll('button, input, select, textarea, [tabindex="0"]')]
+                    .filter(element => !element.disabled && element.getClientRects().length > 0);
+                const first = controls[0];
+                const last = controls.at(-1);
+                if (event.shiftKey && (document.activeElement === first || !modal.contains(document.activeElement))) {
+                    event.preventDefault();
+                    last?.focus();
+                } else if (!event.shiftKey && document.activeElement === last) {
+                    event.preventDefault();
+                    first?.focus();
+                }
+            }
         });
         document.getElementById('btn-save-transcription-detail')?.addEventListener('click', () => {
             void this.saveActiveTranscriptionChanges();
@@ -550,7 +567,13 @@ export class TranscriptionsModule {
 
     async cleanupCompletedLocalCache() {
         if (!this.cache.isSupported()) return;
-        const completedIds = new Set(this.sessions.filter(session => session.status === 'completed').map(session => session.id));
+        const now = Date.now();
+        const completedIds = new Set(this.sessions.filter(session => {
+            const completedAt = Date.parse(session.completedAt);
+            const retainUntil = completedAt + AUDIO_CONSTRAINTS.successfulAudioRetentionHours * 60 * 60 * 1000;
+            return session.status === 'completed' && Boolean(session.transcript?.trim())
+                && Number.isFinite(completedAt) && retainUntil <= now;
+        }).map(session => session.id));
         const localSessions = await this.cache.listSessions().catch(() => []);
         for (const local of localSessions) {
             if (completedIds.has(local.id)) await this.cache.deleteSession(local.id).catch(() => {});
@@ -742,6 +765,10 @@ export class TranscriptionsModule {
         const session = this.sessions.find(item => item.id === sessionId);
         const modal = document.getElementById('transcription-detail-modal');
         if (!session || !modal) return;
+        if (modal.classList.contains('hidden')) {
+            this.detailReturnFocus = document.activeElement;
+            this.detailBodyOverflow = document.body.style.overflow;
+        }
         this.activeSessionId = sessionId;
         document.getElementById('trans-detail-title').value = session.title;
         document.getElementById('trans-detail-folder').value = session.folderId || '';
@@ -766,11 +793,19 @@ export class TranscriptionsModule {
                 if (button) button.disabled = !hasTranscript;
             });
         modal.classList.remove('hidden');
+        document.body.style.overflow = 'hidden';
+        modal.querySelector('.transcription-detail-body')?.scrollTo(0, 0);
+        modal.querySelector('[data-transcription-modal-close]')?.focus({ preventScroll: true });
     }
 
     closeDetailModal() {
-        document.getElementById('transcription-detail-modal')?.classList.add('hidden');
+        const modal = document.getElementById('transcription-detail-modal');
+        if (!modal || modal.classList.contains('hidden')) return;
+        modal.classList.add('hidden');
+        document.body.style.overflow = this.detailBodyOverflow || '';
         this.activeSessionId = null;
+        this.detailReturnFocus?.focus?.({ preventScroll: true });
+        this.detailReturnFocus = null;
     }
 
     async saveActiveTranscriptionChanges() {

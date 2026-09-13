@@ -2842,14 +2842,15 @@
 
     <!-- MODAL DETALLE Y EDICIÓN DE TRANSCRIPCIÓN (Fase E) -->
     <div id="transcription-detail-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="trans-modal-heading">
-        <div class="modal-content" style="max-width: 650px; width: 92%;">
-            <div class="modal-header" style="display: flex; justify-content: space-between; align-items: center;">
+        <div class="modal-content transcription-detail-content">
+            <div class="modal-header">
                 <h3 id="trans-modal-heading">Detalle de Transcripción</h3>
                 <button type="button" class="icon-btn" data-transcription-modal-close aria-label="Cerrar modal">
                     <i class="ph ph-x"></i>
                 </button>
             </div>
             
+            <div class="transcription-detail-body">
             <div class="input-group" style="margin-bottom: 1rem;">
                 <label for="trans-detail-title">Título de la nota</label>
                 <input type="text" id="trans-detail-title" class="text-input" style="font-weight: 600;">
@@ -2871,7 +2872,7 @@
             </div>
 
             <div class="input-group">
-                <div style="display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 4px;">
+                <div class="transcription-text-heading">
                     <label for="trans-detail-text">Texto transcripto completo</label>
                     <div class="transcription-artifact-actions">
                         <button type="button" id="btn-copy-transcription" class="btn btn-secondary"><i class="ph ph-copy"></i> Copiar</button>
@@ -2886,9 +2887,10 @@
                 <strong><i class="ph ph-notebook"></i> Apuntes generados</strong>
                 <div id="trans-detail-notes-text"></div>
             </div>
+            </div>
 
-            <div class="modal-actions" style="display: flex; justify-content: space-between; align-items: center; margin-top: 1.5rem; flex-wrap: wrap; gap: 8px;">
-                <div style="display: flex; gap: 6px;">
+            <div class="modal-actions transcription-detail-actions">
+                <div class="transcription-detail-exports">
                     <button type="button" id="btn-export-transcription-txt" class="btn btn-secondary" style="padding: 6px 12px; font-size: 0.8rem;">
                         <i class="ph ph-file-text"></i> .txt
                     </button>
@@ -2902,7 +2904,7 @@
                         <i class="ph ph-arrow-clockwise"></i> Procesar
                     </button>
                 </div>
-                <div style="display: flex; gap: 8px;">
+                <div class="transcription-detail-save">
                     <button type="button" class="btn btn-secondary" data-transcription-modal-close>Cerrar</button>
                     <button type="button" id="btn-save-transcription-detail" class="btn btn-primary"><i class="ph ph-floppy-disk"></i> Guardar Cambios</button>
                 </div>
