@@ -528,7 +528,9 @@ export class AuthSyncModule {
     }
 
     queueKeySync(key) {
-        if (!CLOUD_SYNC_KEYS.includes(key) || !this.user) return;
+        // Modules can call this directly, bypassing the localStorage interceptor.
+        // Hydrating remote state is not a new user edit and must never echo it.
+        if (this.isRestoring || !CLOUD_SYNC_KEYS.includes(key) || !this.user) return;
 
         this.pendingSyncKeys.add(key);
         this.persistPendingSyncKeys();
@@ -607,9 +609,9 @@ export class AuthSyncModule {
                 if (error) throw error;
 
                 if (!isCurrentSession()) return false;
-                if (Number.isSafeInteger(this.cloudRevision)) {
-                    this.cloudRevision += 1;
-                }
+                // The RPC also succeeds on a no-op. Only the database can tell
+                // us the revision; incrementing here invents a version on echoes.
+                this.cloudRevision = null;
                 localStorage.removeItem('has_unsynced_local_changes');
                 this.updateSyncBadge('synced', 'Sincronizado');
                 return true;
@@ -815,7 +817,7 @@ export class AuthSyncModule {
                     try { this.app.projects.loadData(); } catch (e) { console.error("Error reloading projects:", e); }
                 }
                 if (this.app.subscriptions) {
-                    try { this.app.subscriptions.loadData(); } catch (e) { console.error("Error reloading subscriptions:", e); }
+                    try { this.app.subscriptions.loadData({ syncAlerts: false }); } catch (e) { console.error("Error reloading subscriptions:", e); }
                 }
                 if (this.app.finanzas) {
                     try { this.app.finanzas.data = this.app.finanzas.loadData(); } catch (e) { console.error("Error reloading finanzas:", e); }
@@ -826,6 +828,9 @@ export class AuthSyncModule {
                 if (this.app.alerts) {
                     try { this.app.alerts.loadData(); } catch (e) { console.error("Error reloading alerts:", e); }
                 }
+                // Reconcile derived subscription alerts only after BOTH modules
+                // have loaded the incoming snapshot, never against stale configs.
+                this.app.subscriptions?.syncAlerts?.();
             } catch (e) {
                 console.error("Critical error reloading in-memory data during silent sync:", e);
             }

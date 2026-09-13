@@ -8,6 +8,9 @@ const httpServer = express().use(express.static(path.resolve(__dirname, '..'))).
 function installFakeCloud() {
     const user = { id: '11111111-1111-4111-8111-111111111111', email: 'qa@example.invalid' };
     const cloudDocument = {};
+    let revision = 1;
+    const listeners = new Set();
+    window.qaSyncMetrics = { writes: 0, realtimeEvents: 0 };
     const tables = { transcription_folders: [], transcription_sessions: [], transcription_documents: [] };
     class Query {
         constructor(table) { this.table = table; this.one = false; }
@@ -18,7 +21,7 @@ function installFakeCloud() {
         maybeSingle() { this.one = true; return this; }
         insert(value) { this.value = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...value }; (tables[this.table] ||= []).push(this.value); return this; }
         then(resolve) {
-            const data = this.table === 'user_data' ? { user_id: user.id, data: cloudDocument, updated_at: '2026-09-05T00:00:00Z', revision: 1 }
+            const data = this.table === 'user_data' ? { user_id: user.id, data: structuredClone(cloudDocument), updated_at: '2026-09-05T00:00:00Z', revision }
                 : this.one ? this.value || null : tables[this.table] || [];
             return Promise.resolve({ data, error: null }).then(resolve);
         }
@@ -27,11 +30,24 @@ function installFakeCloud() {
         auth: { getSession: async () => ({ data: { session: { user, access_token: 'qa-session' } } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }) },
         from: table => new Query(table),
         rpc: async (name, parameters) => {
-            if (name === 'merge_user_data_keys') Object.assign(cloudDocument, parameters.p_updates || {});
+            if (name === 'merge_user_data_keys') {
+                const previous = JSON.stringify(cloudDocument);
+                (parameters.p_delete_keys || []).forEach(key => delete cloudDocument[key]);
+                Object.assign(cloudDocument, parameters.p_updates || {});
+                if (previous !== JSON.stringify(cloudDocument)) revision += 1;
+                window.qaSyncMetrics.writes += 1;
+                const payload = { new: { data: structuredClone(cloudDocument), revision } };
+                // Deliberately model the OLD database: even a no-op emits a full
+                // row. The client must not depend on the server guard to converge.
+                setTimeout(() => listeners.forEach(listener => {
+                    window.qaSyncMetrics.realtimeEvents += 1;
+                    listener(payload);
+                }), 20);
+            }
             return { data: name === 'get_my_resource_policy' ? { tier: 'owner', unlimited: true, limits: {} } : new Date().toISOString(), error: null };
         },
-        channel: () => ({ on() { return this; }, subscribe() { return this; }, unsubscribe() {} }),
-        removeChannel() {}
+        channel: () => ({ on(event, filter, callback) { this.callback = callback; return this; }, subscribe() { listeners.add(this.callback); return this; }, unsubscribe() { listeners.delete(this.callback); } }),
+        removeChannel(channel) { channel.unsubscribe(); }
     }) };
 }
 
@@ -67,7 +83,7 @@ function installFakeCloud() {
             assert.equal(await page.evaluate(() => window.lifecycle_controller.activateSection('suscripciones-section')), true);
             await page.locator('#btn-new-subscription').click();
             await page.locator('#subscription-modal').waitFor({ state: 'visible' });
-            await page.locator('#sub-name').fill('Suscripción de prueba');
+            await page.locator('#sub-name').fill('Workana de prueba');
             await page.locator('#sub-cost').fill('12.50');
             await page.locator('#sub-alert-time').fill('14:00');
             await page.locator('#btn-add-subscription-alert-time').click();
@@ -76,13 +92,13 @@ function installFakeCloud() {
             await page.locator('#subscription-form [type="submit"]').click();
             await page.locator('#subscription-modal').waitFor({ state: 'hidden' });
             const saved = await page.evaluate(() => window.lifecycle_controller.subscriptions.subscriptions[0]);
-            assert.equal(saved.name, 'Suscripción de prueba');
+            assert.equal(saved.name, 'Workana de prueba');
             assert.deepEqual(saved.alert.times, ['14:00', '21:00']);
             await page.locator('#global-search-btn').click();
-            await page.locator('#global-search-input').fill('Suscripción de prueba');
-            await page.locator('.global-search-result').filter({hasText:'Suscripción de prueba'}).click();
+            await page.locator('#global-search-input').fill('Workana de prueba');
+            await page.locator('.global-search-result').filter({hasText:'Workana de prueba'}).click();
             await page.locator('#subscription-modal').waitFor({state:'visible'});
-            assert.equal(await page.locator('#sub-name').inputValue(), 'Suscripción de prueba');
+            assert.equal(await page.locator('#sub-name').inputValue(), 'Workana de prueba');
             await page.locator('#subscription-modal [data-subscription-modal-close]').first().click();
             await page.evaluate(() => window.lifecycle_controller.activateSection('transcripciones-section'));
             await page.locator('#btn-toggle-record-voice').waitFor({ state: 'visible' });
@@ -97,7 +113,13 @@ function installFakeCloud() {
                 assert.equal(visibleTooltip, 0, 'More tooltip remained after closing');
             }
             assert.deepEqual(errors, [], `uncaught errors at ${width}/${theme}`);
-            console.log(JSON.stringify({width,theme,profile:true,subscriptionEditor:true,transcriptions:true,noOverflow:true,noUncaughtErrors:true}));
+            await page.waitForTimeout(3000);
+            const beforeIdle = await page.evaluate(() => window.qaSyncMetrics.writes);
+            await page.waitForTimeout(3000);
+            assert.equal(await page.evaluate(() => window.qaSyncMetrics.writes), beforeIdle, 'idle Realtime feedback loop');
+            assert.equal(await page.evaluate(() => Boolean(window.lifecycle_controller.alerts.configs.workana)), false, 'legacy Workana alert was recreated');
+            assert.equal(await page.evaluate(() => window.lifecycle_controller.subscriptions.subscriptions[0]?.name), 'Workana de prueba', 'real edit lost after echo');
+            console.log(JSON.stringify({width,theme,profile:true,subscriptionEditor:true,transcriptions:true,noOverflow:true,noUncaughtErrors:true,idleSyncWrites:0}));
             await context.close();
         }
     } finally { await browser.close(); httpServer.close(); }

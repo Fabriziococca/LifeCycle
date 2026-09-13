@@ -83,11 +83,19 @@ export class AlertsModule {
             ...ALERT_DEFINITIONS.filter(definition => (
                 definition.type !== 'recurring'
                 && !managedKeys.has(definition.key)
+                && !(definition.key === 'workana' && this.hasMigratedWorkana())
             )),
             ...buildRecurringReminderDefinitions(this.configs),
             ...trackerDefinitions,
             ...vehicleDefinitions
         ];
+    }
+
+    hasMigratedWorkana() {
+        return this.app.subscriptions?.subscriptions?.some(subscription => (
+            subscription.id === 'sub_workana_plan'
+            || String(subscription.name || '').toLowerCase().includes('workana')
+        )) === true;
     }
 
     loadData() {
@@ -115,6 +123,9 @@ export class AlertsModule {
             this.configs = migrateRecurringReminderConfigs(storedConfigs, {
                 legacyGymReminders: oldReminders
             });
+            // Subscriptions owns this alert after migration. Recreating the
+            // legacy default on every reload made the two modules oscillate.
+            if (this.hasMigratedWorkana()) delete this.configs.workana;
 
             const defaultConfigs = {};
             this.getDefinitions().forEach(def => {

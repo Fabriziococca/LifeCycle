@@ -30,6 +30,13 @@ test('areStoredValuesEqual treats empty cache values consistently', () => {
     assert.equal(areStoredValuesEqual('0', null), false);
 });
 
+test('JSON object ordering does not create a sync edit but array ordering does', () => {
+    assert.equal(areStoredValuesEqual('{"a":1,"b":{"x":2,"y":3}}', '{"b":{"y":3,"x":2},"a":1}'), true);
+    assert.equal(areStoredValuesEqual('[1,2]', '[2,1]'), false);
+    assert.equal(areStoredValuesEqual('[1,2]', '{"0":1,"1":2}'), false);
+    assert.equal(areStoredValuesEqual('false', '0'), false);
+});
+
 test('buildCloudPatch separates updates from deleted keys', () => {
     const values = new Map([
         ['tareas_list', '[{"id":"task-1"}]'],

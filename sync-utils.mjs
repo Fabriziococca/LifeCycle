@@ -63,10 +63,20 @@ export function areStoredValuesEqual(firstValue, secondValue) {
         const secondParsed = typeof secondValue === 'object'
             ? secondValue
             : JSON.parse(secondValue);
-        return JSON.stringify(firstParsed) === JSON.stringify(secondParsed);
+        return equalJsonValues(firstParsed, secondParsed);
     } catch {
         return String(firstValue).trim() === String(secondValue).trim();
     }
+}
+
+function equalJsonValues(first, second) {
+    if (first === second) return true;
+    if (first === null || second === null
+        || typeof first !== 'object' || typeof second !== 'object') return false;
+    if (Array.isArray(first) !== Array.isArray(second)) return false;
+    const keys = Object.keys(first);
+    return keys.length === Object.keys(second).length
+        && keys.every(key => Object.hasOwn(second, key) && equalJsonValues(first[key], second[key]));
 }
 
 export function buildCloudPatch(keys, readStoredValue) {

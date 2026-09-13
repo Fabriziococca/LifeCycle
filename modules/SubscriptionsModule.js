@@ -28,6 +28,7 @@ import {
     getResourceLimitMessage
 } from '../resource-policy.mjs?v=20260904-subscriptions';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { areStoredValuesEqual } from '../sync-utils.mjs';
 
 const STATUS_LABELS = Object.freeze({
     active: 'Activa',
@@ -67,7 +68,7 @@ export class SubscriptionsModule {
         queueMicrotask(() => this.processDueAutomaticRenewals());
     }
 
-    loadData({ persistMigration = false } = {}) {
+    loadData({ persistMigration = false, syncAlerts = true } = {}) {
         try {
             const directValue = localStorage.getItem(SUBSCRIPTION_STORAGE_KEY);
             const legacyValue = localStorage.getItem('projectPulseSubscription');
@@ -79,7 +80,7 @@ export class SubscriptionsModule {
             this.subscriptions = workana.subscriptions;
             if (persistMigration && (workana.migrated || (!directValue && embeddedRegistry))) {
                 this.saveData();
-            } else {
+            } else if (syncAlerts) {
                 this.syncAlerts();
             }
             return workana.migrated || Boolean(!directValue && embeddedRegistry);
@@ -144,7 +145,7 @@ export class SubscriptionsModule {
                 subscriptionId: subscription.id,
                 name: subscription.name
             };
-            if (JSON.stringify(this.app.alerts.configs[key]) !== JSON.stringify(next)) {
+            if (!areStoredValuesEqual(this.app.alerts.configs[key], next)) {
                 this.app.alerts.configs[key] = next;
                 changed = true;
             }
