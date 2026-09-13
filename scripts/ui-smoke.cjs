@@ -10,17 +10,21 @@ function installFakeCloud() {
     const cloudDocument = {};
     let revision = 1;
     const listeners = new Set();
-    window.qaSyncMetrics = { writes: 0, realtimeEvents: 0 };
+    window.qaSyncMetrics = { writes: 0, realtimeEvents: 0, fullReads: 0, revisionReads: 0 };
     const tables = { transcription_folders: [], transcription_sessions: [], transcription_documents: [] };
     class Query {
         constructor(table) { this.table = table; this.one = false; }
-        select() { return this; } eq() { return this; } order() { return this; }
+        select(columns) { this.columns = columns; return this; } eq() { return this; } order() { return this; }
         limit() { return this; } in() { return this; } is() { return this; }
         range() { return this; }
+        abortSignal() { return this; }
         single() { this.one = true; return this; }
         maybeSingle() { this.one = true; return this; }
         insert(value) { this.value = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...value }; (tables[this.table] ||= []).push(this.value); return this; }
         then(resolve) {
+            if (this.table === 'user_data') {
+                window.qaSyncMetrics[this.columns === 'revision' ? 'revisionReads' : 'fullReads'] += 1;
+            }
             const data = this.table === 'user_data' ? { user_id: user.id, data: structuredClone(cloudDocument), updated_at: '2026-09-05T00:00:00Z', revision }
                 : this.one ? this.value || null : tables[this.table] || [];
             return Promise.resolve({ data, error: null }).then(resolve);
@@ -154,6 +158,14 @@ function installFakeCloud() {
             assert.equal(await page.evaluate(() => window.qaSyncMetrics.writes), beforeIdle, 'idle Realtime feedback loop');
             assert.equal(await page.evaluate(() => Boolean(window.lifecycle_controller.alerts.configs.workana)), false, 'legacy Workana alert was recreated');
             assert.equal(await page.evaluate(() => window.lifecycle_controller.subscriptions.subscriptions[0]?.name), 'Workana de prueba', 'real edit lost after echo');
+            const revisionChecks = await page.evaluate(async () => {
+                await window.lifecycle_controller.auth.checkAndSyncData();
+                const before = { ...window.qaSyncMetrics };
+                for (let i = 0; i < 3; i++) await window.lifecycle_controller.auth.checkAndSyncData();
+                return { fullReads: window.qaSyncMetrics.fullReads - before.fullReads,
+                    revisionReads: window.qaSyncMetrics.revisionReads - before.revisionReads };
+            });
+            assert.deepEqual(revisionChecks, { fullReads: 0, revisionReads: 3 }, 'unchanged background checks must not transfer full documents');
             console.log(JSON.stringify({width,theme,profile:true,subscriptionEditor:true,transcriptions:true,noOverflow:true,noUncaughtErrors:true,idleSyncWrites:0}));
             await context.close();
         }

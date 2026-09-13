@@ -87,6 +87,9 @@ export class AuthSyncModule {
         this.syncRetryTimer = null;
         this.realtimeRefreshTimer = null;
         this.cloudRevision = null;
+        this.appliedCloudRevision = null;
+        this.activePullPromise = null;
+        this.localEditGeneration = 0;
         this.pushSyncPromise = null;
         this.pushManagement = new PushManagementModule(this);
         this.setupAccessGateListeners();
@@ -497,6 +500,9 @@ export class AuthSyncModule {
     clearLocalUserData() {
         this.syncGeneration += 1;
         this.activeSyncPromise = null;
+        this.activePullPromise = null;
+        this.appliedCloudRevision = null;
+        this.localEditGeneration += 1;
         this.isSyncing = false;
         this.isRestoring = true;
         try {
@@ -532,6 +538,8 @@ export class AuthSyncModule {
         // Hydrating remote state is not a new user edit and must never echo it.
         if (this.isRestoring || !CLOUD_SYNC_KEYS.includes(key) || !this.user) return;
 
+        this.localEditGeneration = (this.localEditGeneration || 0) + 1;
+        this.appliedCloudRevision = null;
         this.pendingSyncKeys.add(key);
         this.persistPendingSyncKeys();
         this.updateSyncBadge('syncing', 'Guardando cambios...');
@@ -612,6 +620,7 @@ export class AuthSyncModule {
                 // The RPC also succeeds on a no-op. Only the database can tell
                 // us the revision; incrementing here invents a version on echoes.
                 this.cloudRevision = null;
+                this.appliedCloudRevision = null;
                 localStorage.removeItem('has_unsynced_local_changes');
                 this.updateSyncBadge('synced', 'Sincronizado');
                 return true;
@@ -667,47 +676,95 @@ export class AuthSyncModule {
         return operation;
     }
 
-    async checkAndSyncData({ skipPendingFlush = false } = {}) {
+    async readCloudRow(columns, userId) {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 15_000);
+        try {
+            return await this.supabase.from('user_data').select(columns)
+                .eq('user_id', userId).abortSignal(controller.signal).maybeSingle();
+        } finally {
+            clearTimeout(timeout);
+        }
+    }
+
+    checkAndSyncData(options = {}) {
+        // Focus and visibility often fire together. Share one read, not two
+        // complete documents; a session change detaches the old operation.
+        if (this.activePullPromise) return this.activePullPromise;
+        const operation = this.pullCloudData(options);
+        const pending = operation.finally(() => {
+            if (this.activePullPromise === pending) this.activePullPromise = null;
+        });
+        this.activePullPromise = pending;
+        return pending;
+    }
+
+    async pullCloudData({ skipPendingFlush = false } = {}) {
         if (!this.user || !this.supabase) return false;
+        const syncGeneration = this.syncGeneration;
+        const syncUserId = this.user.id;
+        const isCurrentSession = () => this.syncGeneration === syncGeneration && this.user?.id === syncUserId;
 
         try {
-            if (!skipPendingFlush && this.pendingSyncKeys.size > 0) {
+            if (!skipPendingFlush && (this.pendingSyncKeys.size > 0 || this.activeSyncPromise)) {
                 const pendingSaved = await this.flushPendingKeySync();
                 if (!pendingSaved) return false;
             }
+            if (!isCurrentSession()) return false;
+            const localEditGeneration = this.localEditGeneration;
+            const canApplySnapshot = () => isCurrentSession()
+                && this.localEditGeneration === localEditGeneration
+                && !this.isSyncing && this.pendingSyncKeys.size === 0;
+            if (!canApplySnapshot()) return false;
+
+            // Never use a revision merely observed during a pending local edit.
+            // This marker is set only after a full snapshot was safely applied.
+            if (Number.isSafeInteger(this.appliedCloudRevision) && this.appliedCloudRevision > 0) {
+                const { data: metadata, error: metadataError } = await this.readCloudRow('revision', syncUserId);
+                if (!canApplySnapshot()) return false;
+                if (metadataError && !isMissingCloudRevisionSchema(metadataError)) throw metadataError;
+                const revision = Number(metadata?.revision);
+                if (!metadataError && metadata && revision === this.appliedCloudRevision) {
+                    this.cloudRevision = revision;
+                    this.updateSyncBadge('synced', 'Sincronizado');
+                    return true;
+                }
+            }
 
             let revisionAvailable = true;
-            let { data, error } = await this.supabase
-                .from('user_data')
-                .select('data, updated_at, revision')
-                .eq('user_id', this.user.id)
-                .maybeSingle();
-
-            if (error && isMissingCloudRevisionSchema(error)) {
-                revisionAvailable = false;
-                ({ data, error } = await this.supabase
-                    .from('user_data')
-                    .select('data, updated_at')
-                    .eq('user_id', this.user.id)
-                    .maybeSingle());
-            }
+            const readSnapshot = async () => {
+                let result = await this.readCloudRow('data, updated_at, revision', syncUserId);
+                if (isCurrentSession() && result.error && isMissingCloudRevisionSchema(result.error)) {
+                    revisionAvailable = false;
+                    result = await this.readCloudRow('data, updated_at', syncUserId);
+                }
+                return result;
+            };
+            let { data, error } = await readSnapshot();
+            if (!canApplySnapshot()) return false;
             if (error) throw error;
 
-            const parsedRevision = Number(data?.revision);
-            this.cloudRevision = revisionAvailable && Number.isSafeInteger(parsedRevision)
-                ? parsedRevision
-                : null;
-
-            let cloudData = data?.data;
             if (!data) {
                 const { error: createError } = await this.supabase.rpc('merge_user_data_keys', {
                     p_updates: {},
                     p_delete_keys: []
                 });
+                if (!canApplySnapshot()) return false;
                 if (createError) throw createError;
-                cloudData = {};
-                this.cloudRevision = revisionAvailable ? 1 : null;
+                // Another device may have created the row meanwhile. Read the
+                // actual result instead of replacing its data with an empty UI.
+                ({ data, error } = await readSnapshot());
+                if (!canApplySnapshot()) return false;
+                if (error) throw error;
+                if (!data) throw new Error('No se pudo confirmar el documento cloud.');
             }
+            const parsedRevision = Number(data.revision);
+            const revision = revisionAvailable && Number.isSafeInteger(parsedRevision) && parsedRevision > 0
+                ? parsedRevision : null;
+            if (revision !== null && this.appliedCloudRevision !== null && revision < this.appliedCloudRevision) {
+                return true; // A newer Realtime event arrived while this HTTP read was pending.
+            }
+            const cloudData = data.data || {};
 
             // Internal scheduler state belongs only to the backend and should not remain cached.
             CLOUD_SERVER_MANAGED_KEYS.forEach(key => localStorage.removeItem(key));
@@ -721,12 +778,15 @@ export class AuthSyncModule {
             if (hasDifference) {
                 this.restoreDataLocally(cloudData);
             }
+            this.cloudRevision = revision;
+            this.appliedCloudRevision = revision;
 
             localStorage.removeItem('has_unsynced_local_changes');
             sessionStorage.removeItem('is_explicit_login');
             this.updateSyncBadge('synced', 'Sincronizado');
             return true;
         } catch (error) {
+            if (!isCurrentSession()) return false;
             console.error('[Cloud Sync] Error obteniendo la fuente cloud:', error);
             this.updateSyncBadge('error', 'Error de conexión');
             return false;
@@ -1034,6 +1094,8 @@ export class AuthSyncModule {
 
     setupRealtimeSubscription() {
         if (!this.user || !this.supabase) return;
+        const syncUserId = this.user.id;
+        const syncGeneration = this.syncGeneration;
         
         // Remove existing channel if any
         if (this.realtimeChannel) {
@@ -1048,11 +1110,9 @@ export class AuthSyncModule {
                 table: 'user_data',
                 filter: `user_id=eq.${this.user.id}`
             }, payload => {
+                if (this.user?.id !== syncUserId || this.syncGeneration !== syncGeneration) return;
                 const newCloudData = payload.new?.data;
                 const realtimeRevision = Number(payload.new?.revision);
-                if (Number.isSafeInteger(realtimeRevision)) {
-                    this.cloudRevision = realtimeRevision;
-                }
                 if (newCloudData) {
                     if (this.isSyncing || this.pendingSyncKeys.size > 0) {
                         clearTimeout(this.realtimeRefreshTimer);
@@ -1063,6 +1123,8 @@ export class AuthSyncModule {
                         }, 1000);
                         return;
                     }
+                    const revision = Number.isSafeInteger(realtimeRevision) && realtimeRevision > 0 ? realtimeRevision : null;
+                    if (revision !== null && this.appliedCloudRevision !== null && revision <= this.appliedCloudRevision) return;
 
                     const local = this.gatherLocalData(CLOUD_RESTORE_KEYS);
                     let changed = false;
@@ -1078,6 +1140,8 @@ export class AuthSyncModule {
                         console.log("Realtime sync: differences detected, updating local state silently.");
                         this.restoreDataLocally(newCloudData);
                     }
+                    this.cloudRevision = revision;
+                    this.appliedCloudRevision = revision;
                 }
             })
             .subscribe();

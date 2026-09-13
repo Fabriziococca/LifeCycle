@@ -51,6 +51,10 @@ test('health exposes commit and non-sensitive notification state', async () => {
     assert.equal(Object.hasOwn(result.notifications, 'timeoutCount'), true);
     assert.equal(Object.hasOwn(result.notifications, 'skippedCycles'), true);
     assert.equal(Object.hasOwn(result.notifications, 'lastRetryCheckAt'), true);
+    assert.deepEqual(result.databaseReads.schedulerDocuments, {
+        metadataReads: 0, fullRowsFetched: 0, cacheHits: 0,
+        decodedDocumentBytesFetched: 0, cachedRows: 0, cacheBytes: 0
+    });
     assert.equal(JSON.stringify(result).includes('PRIVATE_KEY'), false);
     assert.equal(
         response.headers.get('strict-transport-security'),
@@ -68,6 +72,10 @@ test('public config exposes only registration availability', async () => {
     assert.equal(Object.hasOwn(result, 'geminiApiKey'), false);
     assert.equal(Object.hasOwn(result, 'registrationAccessCodeHash'), false);
     assert.equal(JSON.stringify(result).includes('REGISTRATION_ACCESS_CODE_SHA256'), false);
+});
+
+test('server document cache implementation is not exposed as a static asset', async () => {
+    assert.equal((await fetch(`${baseUrl}/scheduler-document-cache.js`)).status, 404);
 });
 
 test('native Android origin can call the API while arbitrary origins receive no CORS grant', async () => {

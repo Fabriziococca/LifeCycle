@@ -7,6 +7,7 @@ const BLOCKED_STATIC_FILES = new Set([
     '/package-lock.json',
     '/package.json',
     '/registration-utils.js',
+    '/scheduler-document-cache.js',
     '/security-utils.js',
     '/server.js',
     '/transcription-worker.js',

@@ -65,6 +65,7 @@ const {
     tradingEventFromDatabaseRow
 } = require('./trading-event-utils');
 const { collectSupabaseRangePages } = require('./supabase-pagination-utils');
+const { SchedulerDocumentCache } = require('./scheduler-document-cache');
 const {
     createFixedWindowRateLimiter,
     normalizeClientAddress
@@ -277,6 +278,7 @@ const supabase = supabaseUrl
     })
     : null;
 const hasSupabaseServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
+const schedulerDocuments = new SchedulerDocumentCache(supabase);
 const registrationAccessCodeHash = process.env.REGISTRATION_ACCESS_CODE_SHA256 || '';
 const registrationEnabled = isInvitedRegistrationConfigured({
     authAdmin: hasSupabaseServiceRole ? supabase?.auth?.admin : null,
@@ -1771,6 +1773,9 @@ app.get('/api/health', (req, res) => {
         transcriptions: {
             ...transcriptionWorker.runtime,
             pipelineAvailable: transcriptionWorker.pipelineAvailable
+        },
+        databaseReads: {
+            schedulerDocuments: schedulerDocuments.snapshot()
         }
     });
 });
@@ -2647,10 +2652,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
         const { year, month, day, hour, minutes, dayOfWeek, dateStr } = getArgentinaTime();
         const schedulerNow = new Date();
 
-        const { data: usersData, error: dbError } = await withAbortSignal(
-            supabase.from('user_data').select('*'),
-            signal
-        );
+        const usersData = await schedulerDocuments.load({ signal });
         throwIfAborted(signal);
         const { data: subs, error: subError } = await withAbortSignal(
             supabase.from('push_subscriptions').select('*'),
@@ -2658,7 +2660,6 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
         );
         throwIfAborted(signal);
 
-        if (dbError) throw dbError;
         if (subError) throw subError;
 
         const tradingEventsByUser = await loadTradingEventProjection(signal);
@@ -3557,10 +3558,7 @@ async function checkAndSendRobotReminders(forceAll = false, { signal = null } = 
     throwIfAborted(signal);
     
     try {
-        const { data: usersData, error: dbError } = await withAbortSignal(
-            supabase.from('user_data').select('*'),
-            signal
-        );
+        const usersData = await schedulerDocuments.load({ signal });
         throwIfAborted(signal);
         const { data: subs, error: subError } = await withAbortSignal(
             supabase.from('push_subscriptions').select('*'),
@@ -3568,7 +3566,6 @@ async function checkAndSendRobotReminders(forceAll = false, { signal = null } = 
         );
         throwIfAborted(signal);
         
-        if (dbError) throw dbError;
         if (subError) throw subError;
         
         console.log(`[Interval Reminder Engine] Tick: checking pending states. Subscriptions found: ${subs ? subs.length : 0}`);

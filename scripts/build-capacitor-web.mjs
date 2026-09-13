@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 const scriptDirectory = path.dirname(fileURLToPath(import.meta.url));
 const projectRoot = path.resolve(scriptDirectory, '..');
 const outputDirectory = path.join(projectRoot, 'www');
-const excludedRootScripts = new Set(['server.js', 'transcription-worker.js']);
+const excludedRootScripts = new Set(['server.js', 'transcription-worker.js', 'scheduler-document-cache.js']);
 const fixedAssets = new Set([
     'index.html',
     'style.css',

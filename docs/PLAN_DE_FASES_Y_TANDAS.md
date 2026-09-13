@@ -1,19 +1,28 @@
 # Plan definitivo de LifeCycle — estado auditado
 
-**Actualizado:** 6 de septiembre de 2026
+**Actualizado:** 13 de septiembre de 2026
 
-La implementación puede agruparse en bloques grandes cuando sea seguro. No existe un límite artificial de 20–30 minutos: cada cierre debe ser coherente, probado y recuperable. Se mantiene confirmación explícita para migraciones productivas, facturación y acciones destructivas.
+La implementación puede agruparse en bloques grandes cuando sea seguro. No existe un límite artificial de 20–30 minutos: cada cierre debe ser coherente, probado y recuperable. El usuario autorizó continuar las correcciones y las migraciones compatibles; facturación, cambios destructivos o nuevas decisiones materiales requieren confirmación. El presupuesto continúa en cero.
 
 ## Estado general
 
 | Fase | Alcance | Código local | Cierre externo |
 |---|---|---|---|
 | A | Organización, cuenta, navegación, iconos y destinos | Implementado; corregidos buscador y accesos faltantes | QA local escritorio/móvil y claro/oscuro correcto |
-| B | Varios horarios diarios por entidad | Implementado y auditado | Prueba Push real pendiente |
-| C | Suscripciones y Finanzas | Implementado; alta multihorario y búsqueda verificadas | Migración y pruebas SQL productivas correctas, sin conservar fixtures |
-| D | Presupuesto, PWA y Android nativo | Implementado y compilable | Prueba física Android pendiente |
-| E | Pipeline completo de transcripciones | Implementado; cuotas recuperables, reservas y transporte Gemini corregidos | Migraciones, aislamiento y prueba productiva corta correctos; Gemini gratuito activado |
-| F | Presets iniciales, QA y publicación | Presets, 386 pruebas y QA visual correctos | Publicado y comprobado en Render; verificaciones físicas pendientes |
+| B | Varios horarios diarios por entidad | Parcial: falta cubrir Trading y la compatibilidad de claves de envío al pasar de uno a varios horarios | Prueba Push real y cancelación tras completar pendientes |
+| C | Suscripciones y Finanzas | Parcial: reactivación conserva fecha vieja; gastos automáticos dependen de abrir la app | Alta, búsqueda e idempotencia básica verificadas; faltan casos de pausa/reactivación y ejecución sin cliente |
+| D | Presupuesto, PWA y Android nativo | Base compilable, no cierre: falta completar interrupciones y alertas nativas | APK en Galaxy S24 FE / Android 16 pendiente; la PWA no valida grabación nativa en segundo plano |
+| E | Pipeline de transcripciones | Parcial: modal y protección de originales corregidos el 13/9; quedan captura, exportación compatible y robustez del procesamiento | Gemini gratuito configurado; una prueba sintética no prueba grabación ambiental prolongada |
+| F | Presets iniciales, QA y publicación | Presets y pruebas web disponibles; no declarar cierre global | Cada corrección requiere publicación y verificación; faltan pruebas físicas y revisión de cuenta nueva |
+
+### Prioridad operativa añadida: consumo Supabase
+
+El incidente de egress se atribuyó a un circuito de sincronización Realtime, no a los
+audios. Contención SQL y cliente publicadas en `c9171cf`; soporte recibió la solicitud
+de revisión de cuota sin autorizar pago ni acceso adicional. El consumo acumulado no
+se elimina con el arreglo. Ver `INCIDENTE_EGRESS_2026-09-13.md` para evidencia, fecha
+de gracia y estado exacto de publicaciones. La documentación anterior sobre
+“implementado” describía presencia de código, no cumplimiento integral del plan.
 
 ## Fase A — Base y organización
 
@@ -48,7 +57,7 @@ La implementación puede agruparse en bloques grandes cuando sea seguro. No exis
 - **Tanda 17A:** conservar PWA y sumar Capacitor Android sin duplicar interfaz ni migrar backend.
 - **Tanda 17B:** servicio foreground de micrófono, notificación persistente y `PARTIAL_WAKE_LOCK`.
 - **Tanda 17C:** interrupciones, recuperación local, permisos y experiencia Android.
-- **Tanda 18A:** AAC mono a 48 kbit/s, sesiones de hasta tres horas, fragmentos de cinco minutos y retención 24 h/7 días.
+- **Tanda 18A:** AAC mono a 48 kbit/s, sesiones de hasta tres horas y fragmentos de cinco minutos. Audio: 24 h tras completar; incompletos/fallidos conservados para recuperar. El límite de bytes pendientes protege el presupuesto sin destruir originales.
 - **Tanda 18B:** grabación web y Android, caché local y subidas recuperables.
 - **Tanda 18C:** compilación APK y prueba física en Galaxy S24 FE / Android 16.
 
@@ -72,8 +81,15 @@ La implementación puede agruparse en bloques grandes cuando sea seguro. No exis
 
 ## Secuencia de cierre pendiente
 
-1. Verificar recepción Push real, incluidos varios horarios de una misma entidad y cancelación del aviso restante al completarla.
-2. Ejecutar el protocolo físico de grabación en Galaxy S24 FE / Android 16: pantalla bloqueada, otras aplicaciones, interrupción de micrófono, pérdida de red y continuidad prolongada. No utilizar el emulador que pertenece a otro proyecto.
-3. Registrar esos resultados antes de declarar cerrado el plan completo. La transcripción productiva de audio sintético ya se verificó; no reemplaza una grabación real de tres horas.
+1. Cerrar el incidente urgente: publicar optimizaciones sin disminuir frecuencia de sincronización/avisos, medir lecturas y resolver con soporte la restricción del ciclo actual.
+2. Completar Trading multihorario, migración de deduplicación y renovación/reactivación de suscripciones; validar gastos sin abrir la app y no cobrar períodos cancelados.
+3. Completar detección de micrófono silenciado/interrumpido y alertas nativas, descarga de audio unificada y reproducible, límite de importación comprobado en servidor y limpieza recuperable de archivos del proveedor.
+4. Verificar recepción Push real, incluidos varios horarios de una misma entidad y cancelación del aviso restante al completarla.
+5. Instalar el APK y ejecutar el protocolo físico en Galaxy S24 FE / Android 16: pantalla bloqueada, otras aplicaciones, interrupción de micrófono, pérdida de red y continuidad prolongada. No utilizar el emulador que pertenece a otro proyecto.
+6. Registrar resultados y revisión humana de cuenta nueva antes de declarar cerrado el plan completo. La transcripción productiva de audio sintético ya se verificó; no reemplaza una grabación real de tres horas.
 
-Las tres migraciones iniciales y la protección adicional del contador diario quedaron aplicadas y alineadas con el historial remoto. Pasaron 12 controles SQL de seguridad, 8 resultados de pruebas transaccionales y 5 comprobaciones adicionales de consumo/privacidad con rollback. No quedan migraciones de esta entrega pendientes. Detalles y comandos en `GUIA_OPERATIVA_Y_ENTREGA.md`.
+Las migraciones iniciales y el contador diario se aplicaron el 6/9. El 13/9 se
+aplicaron además la protección contra no-op en sincronización y la retención segura
+de audio incompleto, con verificaciones transaccionales revertidas. Son controles
+acotados; no sustituyen los criterios funcionales pendientes listados arriba.
+Detalles operativos en `GUIA_OPERATIVA_Y_ENTREGA.md`.

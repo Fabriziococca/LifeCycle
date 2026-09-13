@@ -104,6 +104,29 @@ La respuesta de soporte sigue pendiente: enviar el pedido no equivale a obtener 
 - 392 pruebas automatizadas correctas y cuatro escenarios de navegador aprobados.
 - Publicación de esta segunda corrección pendiente al registrar este checkpoint.
 
+## Optimización adicional de lecturas
+
+- Cliente: revisión mínima antes de volver a descargar JSON, lecturas simultáneas
+  unificadas, timeout de 15 s y protección contra respuestas antiguas, cambios
+  locales durante una lectura y cambio de cuenta. Se conserva Realtime y el
+  intervalo de comprobación existente; sólo se reutilizan revisiones ya aplicadas.
+- Servidor: ambos motores verifican las revisiones en cada ejecución y descargan
+  únicamente documentos modificados. Caché RAM acotada a 16 MiB, copias independientes,
+  paginación y sin recurrir a datos antiguos si falla la consulta. No requiere Redis,
+  servicios nuevos ni cambios de plan.
+- `/api/health` incorpora contadores agregados de lecturas/caché sin documentos,
+  identidades, credenciales ni contenido. `decodedDocumentBytesFetched` mide JSON
+  decodificado, no es una medida equivalente al egress facturado por Supabase.
+- Muestra SQL: promedio del JSON de usuario 55,514 bytes, revisión 17 bytes (sin
+  cabeceras/protocolo). El ahorro mensual real debe medirse después del despliegue;
+  no se promete una reducción porcentual de la factura a partir de estas cifras.
+- 407 pruebas automatizadas y cuatro escenarios de navegador aprobados, incluyendo
+  comprobaciones en reposo que solicitan sólo `revision`.
+- A las 22:14 UTC el documento del propietario seguía en revisión 665 y timestamp
+  21:46:34. Los contadores PostgreSQL también incluyen las actualizaciones de pruebas
+  revertidas; no confundir esos incrementos con cambios conservados en los datos.
+- Publicación de esta optimización pendiente al registrar este checkpoint.
+
 Fuentes oficiales consultadas:
 - https://supabase.com/docs/guides/platform/manage-your-usage/egress
 - https://supabase.com/docs/guides/platform/billing-faq#fair-use-policy
