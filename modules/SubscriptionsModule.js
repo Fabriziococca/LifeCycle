@@ -378,7 +378,7 @@ export class SubscriptionsModule {
         if (button) button.disabled = this.readAlertTimes().length >= MAX_ALERT_TIMES_PER_DAY;
     }
 
-    openModal(subscriptionId = null, trigger = null) {
+    openModal(subscriptionId = null, trigger = null, { reactivate = false } = {}) {
         if (!subscriptionId) {
             const capacity = this.getCreationCapacity();
             if (!capacity.allowed) {
@@ -393,18 +393,23 @@ export class SubscriptionsModule {
         const modal = document.getElementById('subscription-modal');
         if (!modal) return;
         this.editingSubscriptionId = subscriptionId;
+        this.reactivatingSubscription = reactivate;
         this.modalReturnFocus = trigger instanceof HTMLElement ? trigger : null;
         const subscription = subscriptionId
             ? this.subscriptions.find(item => item.id === subscriptionId)
             : null;
-        document.getElementById('subscription-modal-title').textContent = subscription ? 'Editar suscripción' : 'Nueva suscripción';
+        this.reactivationFingerprint = reactivate ? JSON.stringify(subscription) : null;
+        document.getElementById('subscription-modal-title').textContent = reactivate ? 'Reactivar suscripción' : subscription ? 'Editar suscripción' : 'Nueva suscripción';
         document.getElementById('sub-name').value = subscription?.name || '';
         document.getElementById('sub-category').value = subscription?.category || 'software';
         document.getElementById('sub-cost').value = subscription?.cost ?? '';
         document.getElementById('sub-currency').value = subscription?.currency || 'USD';
         document.getElementById('sub-period').value = String(subscription?.periodMonths || 1);
         document.getElementById('sub-start-date').value = subscription?.startDate || todayKey();
-        document.getElementById('sub-renewal-date').value = subscription?.nextRenewalDate || '';
+        const renewalInput = document.getElementById('sub-renewal-date');
+        renewalInput.value = reactivate ? '' : subscription?.nextRenewalDate || '';
+        renewalInput.min = reactivate ? todayKey() : '';
+        renewalInput.required = reactivate;
         document.getElementById('sub-payment-method').value = subscription?.paymentMethod || 'Tarjeta';
         document.getElementById('sub-autorenew').checked = subscription?.autoRenew !== false;
         document.getElementById('sub-auto-record-expense').checked = subscription?.autoRecordExpense === true;
@@ -419,12 +424,18 @@ export class SubscriptionsModule {
         modal.classList.remove('hidden');
         document.body.classList.add('modal-open');
         document.getElementById('sub-name')?.focus();
+        if (reactivate) {
+            this.showFormError('Elegí la próxima renovación real (hoy o posterior). No se registrarán gastos de los períodos de pausa o cancelación.');
+            renewalInput.focus();
+        }
     }
 
     closeModal() {
         document.getElementById('subscription-modal')?.classList.add('hidden');
         document.body.classList.remove('modal-open');
         this.editingSubscriptionId = null;
+        this.reactivatingSubscription = false;
+        this.reactivationFingerprint = null;
         this.modalReturnFocus?.focus?.();
         this.modalReturnFocus = null;
     }
@@ -440,6 +451,9 @@ export class SubscriptionsModule {
         const existing = this.editingSubscriptionId
             ? this.subscriptions.find(item => item.id === this.editingSubscriptionId)
             : null;
+        if (this.reactivatingSubscription && this.reactivationFingerprint !== JSON.stringify(existing)) {
+            return this.showFormError('La suscripción cambió durante la edición. Cerrá y volvé a abrir el editor.');
+        }
         const capacity = existing ? null : this.getCreationCapacity();
         if (capacity && !capacity.allowed) {
             return this.showFormError(
@@ -450,6 +464,10 @@ export class SubscriptionsModule {
         const startDate = document.getElementById('sub-start-date')?.value;
         const periodMonths = Number(document.getElementById('sub-period')?.value);
         let nextRenewalDate = document.getElementById('sub-renewal-date')?.value;
+        const reactivating = this.reactivatingSubscription && existing && existing.status !== 'active';
+        if (reactivating && (!parseSubscriptionDate(nextRenewalDate) || nextRenewalDate < todayKey())) {
+            return this.showFormError('Para reactivar, indicá la próxima renovación real desde hoy. No uses una fecha vencida.');
+        }
         if (!name) return this.showFormError('Ingresá el nombre del servicio o plataforma.');
         if (!parseSubscriptionDate(startDate)) return this.showFormError('Elegí una fecha de inicio válida.');
         if (!nextRenewalDate) nextRenewalDate = calculateNextRenewalDate(startDate, periodMonths);
@@ -479,7 +497,8 @@ export class SubscriptionsModule {
             autoRenew: document.getElementById('sub-autorenew')?.checked,
             autoRecordExpense: document.getElementById('sub-auto-record-expense')?.checked,
             notes: document.getElementById('sub-notes')?.value,
-            status: existing?.status || 'active',
+            status: reactivating ? 'active' : existing?.status || 'active',
+            ...(reactivating ? { statusChangedAt: now } : {}),
             alert: {
                 enabled: document.getElementById('sub-alert-enabled')?.checked,
                 times: this.readAlertTimes(),
@@ -489,10 +508,10 @@ export class SubscriptionsModule {
             updatedAt: now
         }, new Date(now));
         candidate = appendSubscriptionHistoryEvent(candidate, {
-            type: existing ? 'updated' : 'created',
+            type: reactivating ? 'reactivated' : existing ? 'updated' : 'created',
             occurredAt: now,
             effectiveDate: todayKey(),
-            note: existing ? 'Configuración actualizada' : 'Suscripción creada'
+            note: reactivating ? `Reactivada con próxima renovación ${nextRenewalDate}; sin recuperar períodos inactivos` : existing ? 'Configuración actualizada' : 'Suscripción creada'
         });
         if (existing) {
             this.subscriptions[this.subscriptions.findIndex(item => item.id === id)] = candidate;
@@ -511,6 +530,11 @@ export class SubscriptionsModule {
         const index = this.subscriptions.findIndex(item => item.id === subscriptionId);
         if (index < 0 || !['active', 'paused', 'canceled'].includes(status)) return;
         const current = this.subscriptions[index];
+        if (current.status === status) return;
+        if (status === 'active') {
+            this.openModal(subscriptionId, null, { reactivate: true });
+            return;
+        }
         if (status === 'canceled') {
             const confirmed = await this.app.confirmAction?.({
                 title: 'Cancelar seguimiento',

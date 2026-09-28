@@ -60,6 +60,56 @@
     --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
 }
 
+/* Finance workspace: explicit money/currency boundaries, same visual language. */
+#finance-workspace { min-width: 0; }
+.fw-toolbar, .fw-heading, .fw-controls, .fw-actions, .fw-footer, .fw-pagination, .fw-transfer { display: flex; align-items: center; gap: .75rem; flex-wrap: wrap; }
+.fw-toolbar, .fw-heading, .fw-transfer { justify-content: space-between; }
+.fw-toolbar { margin-bottom: 1.5rem; }
+.fw-toolbar h2 { margin: .35rem 0; }
+.fw-eyebrow { color: var(--text-secondary); font-size: .7rem; font-weight: 700; letter-spacing: .12em; }
+.fw-controls { margin-bottom: 1rem; align-items: flex-end; }
+.fw-controls label, .fw-form-grid label { display: grid; gap: .4rem; color: var(--text-secondary); font-size: .85rem; min-width: 0; }
+.fw-controls input, .fw-controls select, .fw-dialog input, .fw-dialog select { background: var(--control-bg); color: var(--text-primary); border: 1px solid var(--surface-border); border-radius: .65rem; padding: .7rem; min-width: 0; width: 100%; font: inherit; color-scheme: var(--native-color-scheme); }
+#finance-workspace button, .fw-dialog button { cursor: pointer; font: inherit; border-radius: .7rem; padding: .65rem .9rem; border: 1px solid var(--surface-border); color: var(--text-primary); background: var(--surface-color); width: auto; margin: 0; }
+#finance-workspace .btn-primary, .fw-dialog .btn-primary { background: var(--primary-color); color: var(--text-on-accent); }
+.fw-tabs { display: flex; flex-wrap: wrap; gap: .4rem; padding: .4rem; background: var(--surface-section); border: 1px solid var(--surface-border); border-radius: 1rem; }
+#finance-workspace .fw-tabs [aria-current=page] { background: var(--primary-color); color: var(--text-on-accent); }
+.fw-note { color: var(--text-secondary); font-size: .8rem; line-height: 1.55; margin: 1rem 0; }
+.fw-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; margin: 1.5rem 0; }
+.fw-metric, .fw-panel { background: var(--surface-color); border: 1px solid var(--surface-border); border-radius: 1rem; padding: 1.3rem; min-width: 0; }
+.fw-metric span { display: block; font-size: .85rem; color: var(--text-secondary); }
+.fw-metric strong, .fw-balance { display: block; margin-top: .5rem; font-size: clamp(1.3rem,2.5vw,2rem); overflow-wrap: anywhere; }
+.fw-income { border-color: var(--status-green); }.fw-expense { border-color: var(--status-red); }
+.fw-positive, .fw-income strong { color: var(--status-green); }.fw-negative, .fw-expense strong { color: var(--status-red); }
+.fw-columns, .fw-account-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 1rem; margin-bottom: 1.5rem; }
+.fw-panel h3 { margin: 0 0 .7rem; overflow-wrap: anywhere; }
+.fw-panel p { color: var(--text-secondary); line-height: 1.55; }
+.fw-panel .fw-negative { color: var(--status-red); }.fw-panel .fw-positive { color: var(--status-green); }
+.fw-panel progress { width: 100%; accent-color: var(--primary-color); height: .5rem; }
+.fw-category { margin: .75rem 0; }.fw-category > div { display: flex; justify-content: space-between; gap: 1rem; margin-bottom: .3rem; }
+.fw-movements { display: grid; gap: .65rem; margin: 1rem 0; }
+.fw-movement { display: flex; justify-content: space-between; gap: 1rem; align-items: center; border: 1px solid var(--surface-border); background: var(--surface-section); border-radius: .9rem; padding: 1rem; }
+.fw-movement > div { min-width: 0; }.fw-movement h4 { margin: .35rem 0; overflow-wrap: anywhere; }
+.fw-movement p, .fw-movement small { color: var(--text-secondary); font-size: .75rem; line-height: 1.5; margin: .25rem 0; overflow-wrap: anywhere; }
+.fw-kind { font-size: .75rem; }.fw-movement-end { display: grid; justify-items: end; gap: .6rem; flex-shrink: 0; }.fw-movement-end > div { display:flex; gap: .3rem; }
+#finance-workspace .fw-movement button { padding: .35rem .6rem; font-size: .75rem; }
+.fw-heading { margin: 1.2rem 0; }.fw-heading > div { display: flex; flex-wrap: wrap; gap: .5rem; }
+.fw-empty { padding: 3rem 1.5rem; text-align: center; border: 1px dashed var(--surface-border); border-radius: 1rem; color: var(--text-secondary); }
+.fw-footer { margin: 1.5rem 0; }.fw-transfer { padding: .8rem 0; border-bottom: 1px solid var(--surface-border); font-size: .85rem; }.fw-transfer span { overflow-wrap: anywhere; }
+.fw-legacy { margin-top: 2rem; }.fw-legacy > summary { cursor: pointer; color: var(--text-secondary); padding: 1rem 0; }
+.fw-dialog { color: var(--text-primary); background: var(--surface-solid); border: 1px solid var(--surface-border); border-radius: 1.25rem; width: min(640px,calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 1.5rem; margin: auto; }
+.fw-dialog::backdrop { background: var(--overlay-bg); backdrop-filter: blur(4px); }.fw-dialog .fw-heading { margin-top: 0; }.fw-dialog h2 { font-size: 1.3rem; }
+.fw-form-grid { display: grid; gap: 1rem; }.fw-form-grid small { display: block; color: var(--text-secondary); margin-top: .4rem; }.fw-dialog .fw-actions { justify-content: flex-end; }
+#fw-form-error { color: var(--status-red); min-height: 1.2rem; } #finance-workspace [hidden], .fw-dialog [hidden] { display: none !important; }
+#finance-workspace :focus-visible, .fw-dialog :focus-visible { outline: 3px solid var(--primary-color); outline-offset: 3px; }
+@media (max-width: 680px) {
+    .fw-metrics, .fw-columns, .fw-account-grid { grid-template-columns: 1fr; }
+    .fw-metric { padding: 1rem; }.fw-controls > label { flex: 1 1 180px; }
+    .fw-movement { flex-direction: column; align-items: stretch; }.fw-movement-end { justify-items: start; }
+    .fw-tabs button { flex: 1 1 auto; font-size: .85rem !important; }.fw-toolbar .btn-primary { width: 100% !important; }
+    .fw-dialog { padding: 1rem; }
+}
+
 /* Suscripciones */
 .subscription-card {
     display: flex;

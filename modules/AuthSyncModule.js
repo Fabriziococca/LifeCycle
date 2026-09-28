@@ -186,6 +186,10 @@ export class AuthSyncModule {
         this.accessGate?.classList.toggle('hidden', isAuthenticated);
         this.appContainer?.classList.toggle('hidden', !isAuthenticated);
         document.body.classList.toggle('access-locked', !isAuthenticated);
+        if (!isAuthenticated) {
+            // A native dialog's top layer would otherwise cover the access gate.
+            document.querySelectorAll?.('dialog[open]').forEach(dialog => dialog.close());
+        }
         if (isAuthenticated) {
             requestAnimationFrame(() => this.app.refreshNavigationHints?.());
         }

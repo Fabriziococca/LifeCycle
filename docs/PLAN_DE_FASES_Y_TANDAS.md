@@ -9,6 +9,11 @@ archivar **todo** Transcripciones (también biblioteca). APK queda diferido. Las
 fases D/E y la secuencia de captura/transcripción debajo son **históricas y
 suspendidas**, no trabajo por continuar. Las fases B/C conservan pendientes reales.
 No tratar la publicación de estabilidad como cierre integral del plan A–F.
+Estabilidad publicada en `3721787` y verificada live en Render. Finanzas compatible
+implementada/validada localmente con cuentas, movimientos, presupuestos, tarjetas
+y reactivación segura de suscripciones. Ver el documento vigente para publicación
+final. Render requiere **Manual Deploy → Deploy latest commit**, confirmado por
+el usuario; no dar por desplegado un push exitoso.
 
 **Estado A–F auditado:** 13 de septiembre de 2026. **Prioridades revisadas:** 26 de septiembre de 2026.
 

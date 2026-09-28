@@ -4,6 +4,8 @@ import {
     parseDateLocal
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { FinanceWorkspaceModule } from './FinanceWorkspaceModule.js';
+import { reconcileFinanceSnapshot } from '../finance-workspace-utils.mjs';
 import { getCompactCurrencyDisplayParts } from '../finance-display-utils.mjs?v=20260808-finance-display';
 import {
     advanceFinanceRecurringRule,
@@ -54,6 +56,7 @@ export class FinanzasModule {
         this.listContainer = document.getElementById('finanzasList');
 
         this.init();
+        this.workspaceView = new FinanceWorkspaceModule(this);
     }
 
     activateFinanceView(viewId, { persist = true, render = true } = {}) {
@@ -1664,6 +1667,14 @@ export class FinanzasModule {
         if (!capacity) return { created: false, duplicate: false };
 
         if (this.app.auth?.supabase && this.app.auth?.user) {
+            const auth = this.app.auth;
+            const ownerId = auth.user.id;
+            // Never replace pending account/budget edits with an older RPC snapshot.
+            if (auth.flushPendingKeySync && !await auth.flushPendingKeySync(false)) {
+                return { created:false, duplicate:false, error:new Error('Hay cambios pendientes de sincronizar. Reintentá cuando haya conexión.') };
+            }
+            if (auth.user?.id !== ownerId) return { created:false, duplicate:false, error:new Error('La sesión cambió.') };
+            const financeBeforeRequest = structuredClone(this.data);
             const { data, error } = await this.app.auth.supabase.rpc(
                 'record_subscription_expense',
                 {
@@ -1676,6 +1687,7 @@ export class FinanzasModule {
                     p_automatic: automatic === true
                 }
             );
+            if (auth.user?.id !== ownerId) return { created:false, duplicate:false, error:new Error('La sesión cambió durante el registro.') };
             if (error) {
                 console.error('[Finanzas] No se pudo registrar atómicamente la renovación:', error);
                 this.app.showToast?.('No se pudo registrar el gasto de la suscripción. Reintentá cuando haya conexión.');
@@ -1684,12 +1696,13 @@ export class FinanzasModule {
             const result = Array.isArray(data) ? data[0] : data;
             const cloudFinance = result?.finance_data;
             if (cloudFinance && typeof cloudFinance === 'object') {
+                const reconciledFinance = reconcileFinanceSnapshot(financeBeforeRequest, this.data, cloudFinance);
                 this.data = {
-                    ...cloudFinance,
-                    entries: Array.isArray(cloudFinance.entries) ? cloudFinance.entries : [],
-                    expenses: Array.isArray(cloudFinance.expenses) ? cloudFinance.expenses : [],
-                    recurringRules: normalizeFinanceRecurringRules(cloudFinance.recurringRules),
-                    tradingEvents: normalizeTradingEvents(cloudFinance.tradingEvents)
+                    ...reconciledFinance,
+                    entries: Array.isArray(reconciledFinance.entries) ? reconciledFinance.entries : [],
+                    expenses: Array.isArray(reconciledFinance.expenses) ? reconciledFinance.expenses : [],
+                    recurringRules: normalizeFinanceRecurringRules(reconciledFinance.recurringRules),
+                    tradingEvents: normalizeTradingEvents(reconciledFinance.tradingEvents)
                 };
                 this.saveData();
                 this.render();
@@ -2271,6 +2284,7 @@ export class FinanzasModule {
     }
 
     render() {
+        this.workspaceView?.render();
         this.renderFinanceRecurringDuePanel();
         const combined = this.getCombinedEntries();
         const expenses = this.data.expenses || [];

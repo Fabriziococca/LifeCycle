@@ -2,6 +2,7 @@ const { chromium } = require(process.env.LIFECYCLE_PLAYWRIGHT_MODULE || 'playwri
 const fs = require('node:fs/promises');
 const assert = require('node:assert/strict');
 const express = require('express');
+const { runFinanceWorkspaceSmoke } = require('./finance-workspace-smoke.cjs');
 const path = require('node:path');
 const httpServer = express().use(express.static(path.resolve(__dirname, '..'))).listen(0, '127.0.0.1');
 
@@ -107,6 +108,28 @@ function installFakeCloud() {
             await page.locator('#subscription-modal').waitFor({state:'visible'});
             assert.equal(await page.locator('#sub-name').inputValue(), 'Workana de prueba');
             await page.locator('#subscription-modal [data-subscription-modal-close]').first().click();
+            await page.evaluate(async()=>{
+                const module=window.lifecycle_controller.subscriptions;
+                const item=module.subscriptions[0];
+                item.status='canceled'; item.nextRenewalDate='2025-01-01';
+                module.saveData();
+                await module.setStatus(item.id,'active');
+            });
+            assert.equal(await page.locator('#subscription-modal-title').textContent(),'Reactivar suscripción');
+            assert.equal(await page.locator('#sub-renewal-date').inputValue(),'');
+            await page.locator('#subscription-modal [data-subscription-modal-close]').first().click();
+            assert.equal(await page.evaluate(()=>window.lifecycle_controller.subscriptions.subscriptions[0].status),'canceled');
+            await page.evaluate(()=>{ const module=window.lifecycle_controller.subscriptions; return module.setStatus(module.subscriptions[0].id,'active'); });
+            await page.locator('#sub-renewal-date').fill('2025-01-01');
+            await page.evaluate(()=>window.lifecycle_controller.subscriptions.saveSubscriptionFromModal());
+            await page.locator('#subscription-form-error').filter({hasText:'No uses una fecha vencida'}).waitFor();
+            const renewal=await page.evaluate(async()=>{const {getLocalISODate}=await import('/utils.js');const date=new Date();date.setDate(date.getDate()+7);return getLocalISODate(date);});
+            await page.locator('#sub-renewal-date').fill(renewal);
+            await page.locator('#subscription-form [type=submit]').click();
+            await page.locator('#subscription-modal').waitFor({state:'hidden'});
+            assert.equal(await page.evaluate(()=>window.lifecycle_controller.subscriptions.subscriptions[0].status),'active');
+            assert.equal(await page.evaluate(()=>window.lifecycle_controller.subscriptions.subscriptions[0].nextRenewalDate),renewal);
+            assert.equal(await page.evaluate(()=>window.lifecycle_controller.finanzas.data.expenses.length),0,'reactivation backfilled inactive periods');
             assert.equal(await page.evaluate(() => window.lifecycle_controller.activateSection('transcripciones-section')), false);
             assert.equal(await page.locator('#main-nav [data-section="transcripciones-section"]').isVisible(), false);
             assert.equal(await page.evaluate(() => Boolean(window.lifecycle_controller.transcriptions)), false);
@@ -192,6 +215,8 @@ function installFakeCloud() {
             });
             assert.deepEqual(recovered, { lensDate: '2026-09-20', subscription: 'Workana de prueba', passwordCleared: true, plaintextPersisted: false });
             assert.equal(await page.evaluate(() => window.qaSyncMetrics.transcriptionReads), 0);
+            await runFinanceWorkspaceSmoke(page, { width, theme });
+            assert.deepEqual(errors, [], `uncaught finance errors at ${width}/${theme}`);
             console.log(JSON.stringify({width,theme,profile:true,subscriptionEditor:true,transcriptionsArchived:true,sessionFocus:true,stableProjectCards:true,noOverflow:true,noUncaughtErrors:true,idleSyncWrites:0}));
             await context.close();
         }

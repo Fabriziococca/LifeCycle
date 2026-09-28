@@ -10,7 +10,10 @@ roadmap completo. No existe un Project Pack separado en este repositorio.
   soporte por el bloqueo resuelto.** La comprobación independiente de Auth devolvió
   HTTP 200; esto no equivale a auditar toda la base ni a probar recepción Push.
 - Render: **My Workspace**, servicio `Lifecycle`, rama `main`, plan Free,
-  despliegue automático por commit. Repositorio `Fabriziococca/LifeCycle`.
+  repositorio `Fabriziococca/LifeCycle`. El usuario confirmó que se debe ejecutar
+  **Manual Deploy → Deploy latest commit** tras cada publicación validada. Aunque
+  la configuración muestra auto-deploy, el push de estabilidad no lo inició.
+  Verificar CI y ausencia de otro despliegue antes de hacerlo manualmente.
 - Objetivo USD 0, techo deseado aproximado USD 5/mes: no autoriza activar pagos.
 - Tarjetas, historiales, recordatorios, proyectos, tareas y suscripciones siguen
   siendo el núcleo. No eliminar historial ni reducir puntualidad por ahorro.
@@ -79,7 +82,8 @@ roadmap completo. No existe un Project Pack separado en este repositorio.
 
 ## Evidencia de pruebas
 
-- `npm test`: 420 pruebas aprobadas, 0 fallidas en la revisión final.
+- `npm test`: 420 pruebas para estabilidad; 428 tras incorporar Finanzas y sus
+  pruebas de integración, 0 fallidas.
 - `npm run test:ui`: escritorio 1440 y móvil 390, claro/oscuro; alta/edición/búsqueda
   de suscripción multihorario, reconfirmación sin panel, DOM/menú de proyecto estable,
   cero consultas de Transcripciones y cero escrituras ociosas por eco Realtime.
@@ -90,8 +94,12 @@ roadmap completo. No existe un Project Pack separado en este repositorio.
 - Crypto: round-trip, aislamiento por propietario, manipulación y clave incorrecta.
 - No hay ensayo físico nuevo del Galaxy ni prueba productiva de Push. Los tests UI
   usan nube sintética aislada; no modifican la cuenta real.
-- No se aplicaron migraciones SQL ni cambios de facturación. Publicación de este
-  bloque pendiente hasta registrar commit, CI y deploy en esta sección.
+- No se aplicaron migraciones SQL ni cambios de facturación.
+- Estabilidad publicada: commit `37217871a84d01c9f92e060bebe3b3c5b68ce752`,
+  GitHub Validate LifeCycle correcto (run `36362251776`), Render manual
+  `dep-dasredl9fdbs73eo6uqg` **live** a las 00:39:57 UTC del 28/09
+  (21:39 del 27/09 en Argentina). Config productivo confirma Transcripciones
+  deshabilitado y `/recovery.html` devuelve 200.
 
 ## Sandía: mapa observado, no clonación de backend
 
@@ -104,7 +112,7 @@ sin crear movimientos, tocar sus cuentas/metas ni enviar mensajes de WhatsApp.
 | Movimientos | Registro unificado, búsqueda/filtros; formulario ingreso/egreso, importe, moneda, categoría, cuenta | Una única lista con edición y vínculo al origen |
 | Patrimonio | Cuentas/bienes/evolución, saldos y traspasos | Separar cuentas de categorías; transferencia no es gasto |
 | Gastos fijos | Recurrencias y registro de cada pago | Reutilizar suscripciones/recurrencias, evitar gasto duplicado |
-| Tarjetas | Deuda, disponible, cierre y vencimiento | Seguimiento manual y avisos; no integración bancaria implícita |
+| Tarjetas | Deuda, disponible, cierre y vencimiento | Seguimiento manual; nuevos avisos requieren integración posterior |
 | Presupuestos | Límite mensual por categoría, fijo o porcentaje de ingresos | Presupuesto informativo conservando historial |
 | P&L | Balance por mes y conversión por fecha de movimiento | No recalcular el pasado con la cotización de hoy |
 | Ahorro | Cuentas de ahorro y aportes mensuales | Clasificación de fondos, no contar transferencias como ingresos |
@@ -125,7 +133,7 @@ inversiones automáticas y WhatsApp fuera de esta primera implementación. El us
 confirmó: **«Sí, ese alcance primero»**. Implementar después de publicar el bloque
 de estabilidad, con compatibilidad de datos antes que una reescritura destructiva.
 
-Reglas de integridad del diseño:
+Reglas de integridad del diseño (se distingue abajo lo implementado del objetivo):
 
 - Ledger versionado; ID estable, importe en unidad mínima, moneda original,
   categoría, cuenta, fecha y referencia de origen. Nunca sumar ARS y USD sin una
@@ -141,6 +149,49 @@ Reglas de integridad del diseño:
   recordatorios existentes conservados, pruebas moneda/fecha/edición/borrado lógico,
   vistas escritorio/móvil y recuperación de backup.
 
+### Finanzas: implementación compatible de este primer alcance
+
+- Nueva vista propia con Resumen, Movimientos, Cuentas, Presupuestos y Tarjetas;
+  mantiene estilo LifeCycle, privacidad de montos, temas y diseño móvil.
+- `finanzasData` conserva sus colecciones originales. `workspace.version=1`
+  añade cuentas, presupuestos y traspasos **sólo cuando el usuario crea datos**.
+  No hay migración masiva, SQL ni reescritura del historial al abrir la aplicación.
+- Nuevos movimientos desde esta vista conservan moneda ARS/USD, centavos
+  originales, cotización explícita y equivalente USD para informes anteriores.
+  Historial sin moneda original se etiqueta como equivalente USD guardado; jamás
+  se infiere el importe original ni se recalcula al dólar actual. Formularios
+  anteriores/recurrencias/RPC de suscripciones mantienen su formato histórico USD.
+- Cuentas en efectivo, banco, billetera y crédito, con saldo inicial explícito;
+  moneda/tipo inmutables, edición y archivo sin borrar historial. Editar un gasto
+  de una cuenta archivada conserva la asignación.
+- Compras con tarjeta generan gasto; pagarla es un traspaso de saldo, no otro gasto.
+  Se puede anular un traspaso conservando el registro y quitando su efecto contable.
+  Traspasos sólo entre cuentas de igual moneda. No ejecuta operaciones bancarias.
+- Tarjetas muestran deuda, disponible, cierre/vencimiento orientativos. **No se
+  añadieron avisos Push de tarjetas ni extracción de resúmenes bancarios**.
+- Presupuestos mensuales fijos por categoría/moneda. No porcentajes, inversiones,
+  WhatsApp ni sincronización con Sandía. No se añadieron proveedores ni pagos.
+- Proyectos y Suscripciones siguen siendo los orígenes de sus movimientos; no se
+  duplican ni editan directamente desde la lista nueva. Vista anterior y detalles
+  anuales continúan accesibles en un desplegable.
+- El RPC de gasto de suscripción espera los cambios pendientes; reconcilia una
+  respuesta tardía con cambios locales ocurridos durante la solicitud y descarta
+  respuestas de otra sesión. No equivale a sincronización multiusuario por entidad:
+  el documento financiero completo sigue siendo la unidad de escritura.
+- Listas con búsqueda/filtros y 30 filas por página **en la UI**, no paginación de
+  red. Traspasos muestra últimos 20; el resto permanece conservado en el backup.
+  La cuota cliente cuenta traspasos; el servidor mantiene sus controles existentes
+  de tamaño del documento, sin nueva cuota SQL específica de esas colecciones.
+- Validación de backup ampliada, IDs y precisión histórica conservados; copia
+  cifrada incluye automáticamente el nuevo workspace.
+- Reactivar una suscripción exige confirmar próxima fecha hoy/futura; cancelar
+  el editor conserva su estado. No registra los períodos que estuvo inactiva.
+- QA: 4 escenarios UI escritorio/móvil y claro/oscuro, cuentas, tarjeta/pago sin
+  doble gasto, anulación, presupuesto excedido, ARS/USD, edición con cuenta archivada,
+  editor obsoleto rechazado, cierre al perder sesión, reactivación segura y backup.
+  Fixtures sintéticos: ninguna operación financiera real se creó para probar.
+- Publicación de Finanzas: pendiente de registrar commit/CI/deploy final.
+
 ## Pendientes reales, no cierre global
 
 1. Medir un ciclo normal de egress oficial después de los arreglos. La causa
@@ -151,11 +202,15 @@ Reglas de integridad del diseño:
 3. Escritura offline con conflictos por entidad y recuperación entre dos equipos:
    aún no implementada. La cola existente no equivale a una nueva arquitectura
    multi-dispositivo sin pérdida garantizada.
-4. Plan A–F: Trading multihorario/compatibilidad de deduplicación, reactivación de
-   suscripciones con fecha segura y renovaciones sin abrir la app siguen pendientes.
-   No mezclar esas migraciones con el parche de estabilidad sin su validación.
+4. Plan A–F: Trading multihorario/compatibilidad de deduplicación y renovaciones sin
+   abrir la app siguen pendientes. Reactivación segura implementada en este bloque.
+   Trading usa proyección SQL y un registro durable cuya clave actual no incluye
+   horarios; requiere migración coordinada y pruebas de idempotencia. El RPC actual
+   de gastos deriva propietario de `auth.uid()`: no habilita por sí solo un worker
+   de renovaciones service-role. No aplicar cambios SQL sin ensayo de esas rutas.
 5. Prueba Push física y de cancelación tras completar; depende del teléfono.
-6. Implementación del alcance de Finanzas aprobado; no se cambió aún su módulo.
+6. Validación productiva/publicación de Finanzas; ampliaciones fuera de este primer
+   alcance (metas, inversiones, avisos de tarjetas) no se dan por implementadas.
 
 Siguiente acción técnica: revisar diff, repetir validación final, commit/push a
-`main`, verificar CI y despliegue automático en My Workspace sin contratar recursos.
+`main`, verificar CI y **despliegue manual** en My Workspace sin contratar recursos.

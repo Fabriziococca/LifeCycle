@@ -1,0 +1,73 @@
+const assert = require('node:assert/strict');
+
+exports.runFinanceWorkspaceSmoke = async function(page, {width,theme}) {
+    await page.evaluate(()=>{ const app=window.lifecycle_controller; app.setFinancialAmountsHidden(false); app.activateSection('finanzas-section'); });
+    const root=page.locator('#finance-workspace'), dialog=page.locator('#fw-dialog');
+    const field=name=>dialog.locator(`[name="${name}"]`);
+    const save=async()=>{ await dialog.locator('[type=submit]').click(); try { await dialog.waitFor({state:'hidden'}); } catch(error) { console.log('Finance form:',await dialog.locator('#fw-form-error').textContent()); throw error; } };
+    await root.locator('[data-fw-tab=accounts]').click();
+    await root.locator('[data-fw-action=new-account]').click();
+    await field('name').fill('Banco QA'); await field('currency').selectOption('USD'); await field('opening').fill('1000'); await save();
+    await root.locator('[data-fw-tab=cards]').click(); await root.locator('[data-fw-action=new-card]').click();
+    await field('name').fill('Tarjeta QA'); await field('currency').selectOption('USD'); await field('limit').fill('5000'); await save();
+    const ids=await page.evaluate(()=>Object.fromEntries(window.lifecycle_controller.finanzas.data.workspace.accounts.map(item=>[item.name,item.id])));
+    await root.locator('[data-fw-action=new-movement]').click();
+    await field('description').fill('Almuerzo QA'); await field('category').fill('comida'); await field('amount').fill('120'); await field('accountId').selectOption(ids['Tarjeta QA']); await save();
+    await root.locator('[data-fw-tab=budgets]').click(); await root.locator('[data-fw-action=new-budget]').click();
+    await field('category').fill('comida'); await field('amount').fill('100'); await save();
+    await root.getByText('Excedido por',{exact:false}).waitFor();
+    await root.locator('[data-fw-tab=cards]').click(); await root.locator('[data-fw-action=transfer]').click();
+    await field('fromId').selectOption(ids['Banco QA']); await field('toId').selectOption(ids['Tarjeta QA']); await field('amount').fill('120'); await save();
+    const balances=await page.evaluate(async()=>{
+        const {accountBalanceMinor}=await import('/finance-workspace-utils.mjs'); const view=window.lifecycle_controller.finanzas.workspaceView;
+        return view.workspace.accounts.map(item=>({name:item.name,balance:accountBalanceMinor(item,view.movements,view.workspace.transfers)}));
+    });
+    assert.deepEqual(balances,[{name:'Banco QA',balance:88000},{name:'Tarjeta QA',balance:0}]);
+    await root.locator('[data-fw-tab=movements]').click();
+    await root.locator('#fw-search').fill('Almuerzo');
+    await root.locator('[data-fw-action=edit-movement]').click(); await field('amount').fill('150'); await save();
+    assert.equal(await root.locator('.fw-movement').count(),1);
+    await root.locator('#fw-search').fill('ninguna coincidencia'); assert.equal(await root.locator('.fw-movement').count(),0);
+    await root.locator('#fw-search').fill('');
+    await root.locator('[data-fw-action=new-movement]').click();
+    await field('description').fill('Pesos QA'); await field('category').fill('transporte'); await field('currency').selectOption('ARS'); await field('amount').fill('12000'); await field('rate').fill('1200'); await save();
+    await root.locator('#fw-currency').selectOption('ARS'); await root.getByText('Pesos QA',{exact:true}).waitFor();
+    const counts=await page.evaluate(async()=>{
+        const {createBackupPayload,parseAndValidateBackupText}=await import('/backup-utils.mjs');
+        const data=window.lifecycle_controller.finanzas.data;
+        parseAndValidateBackupText(JSON.stringify(createBackupPayload(key=>localStorage.getItem(key))));
+        return {expenses:data.expenses.length,ars:data.expenses.find(item=>item.description==='Pesos QA').amount,payments:data.workspace.transfers.length};
+    });
+    assert.deepEqual(counts,{expenses:2,ars:10,payments:1});
+    await root.locator('#fw-currency').selectOption('USD'); await root.locator('[data-fw-tab=summary]').click();
+    await page.screenshot({path:`.tmp-sb/ui-smoke/finance-${width}-${theme}.png`,fullPage:true,animations:'disabled'});
+    if(width>=1100) assert.ok(await page.locator('#main-nav').evaluate(el=>el.getBoundingClientRect().width)<260,'desktop navigation overlaps content');
+    assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false);
+    await root.locator('[data-fw-tab=cards]').click();
+    await root.locator('[data-fw-action=void-transfer]').click();
+    await page.getByRole('button',{name:'Anular registro',exact:true}).click();
+    await root.getByText('Anulado · sin efecto en saldos',{exact:true}).waitFor();
+    assert.equal(await page.evaluate(()=>Boolean(window.lifecycle_controller.finanzas.data.workspace.transfers[0].voidedAt)),true);
+    await root.locator('[data-fw-action=archive-account]').click();
+    await root.locator('[data-fw-tab=movements]').click();
+    await root.locator('[data-fw-action=edit-movement]').click();
+    assert.equal(await field('accountId').inputValue(),ids['Tarjeta QA']);
+    await field('description').fill('Almuerzo conservado'); await save();
+    assert.equal(await page.evaluate(()=>window.lifecycle_controller.finanzas.data.expenses.find(item=>item.description==='Almuerzo conservado').accountId),ids['Tarjeta QA']);
+    // No confirmation dialog can be bypassed by a stale editor after a cloud edit.
+    await root.locator('[data-fw-tab=movements]').click(); await root.locator('[data-fw-action=edit-movement]').click();
+    await page.evaluate(async()=>{
+        const app=window.lifecycle_controller;
+        await app.auth.flushPendingKeySync(true);
+        const id=app.finanzas.workspaceView.editing.existing.id;
+        app.finanzas.data.expenses.find(item=>item.id===id).description='Changed elsewhere';
+        app.finanzas.saveData();
+    });
+    await dialog.locator('[type=submit]').click(); await dialog.getByText('Este registro cambió',{exact:false}).waitFor();
+    await dialog.locator('[data-fw-close]').first().click();
+    await root.locator('[data-fw-action=new-movement]').click();
+    await page.evaluate(()=>window.lifecycle_controller.auth.setAccessGateState('logged-out'));
+    assert.equal(await dialog.isVisible(),false,'native dialog remained over the access gate');
+    await page.evaluate(()=>window.lifecycle_controller.auth.setAccessGateState('authenticated'));
+    console.log(JSON.stringify({financeWorkspace:true,width,theme,accounts:true,cardPaymentNotExpense:true,budgets:true,editing:true,nativeCurrency:true,backup:true,staleEditorGuard:true}));
+};

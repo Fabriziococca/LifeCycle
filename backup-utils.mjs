@@ -1,4 +1,5 @@
 import { normalizeActiveGymSession } from './gym-session-utils.mjs';
+import { validateFinanceWorkspace } from './finance-workspace-utils.mjs';
 import {
     CUSTOM_TRACKER_FIELD,
     LEGACY_CUSTOM_TRACKER_FIELD,
@@ -409,6 +410,17 @@ function validateFinanceItem(item, path) {
         'recurringOccurrence'
     ]);
     assertOptionalNumberFields(item, path, ['amount']);
+    if (Object.hasOwn(item, 'nativeAmountMinor')) {
+        if (!Number.isSafeInteger(item.nativeAmountMinor) || item.nativeAmountMinor <= 0
+            || item.nativeAmountMinor > 1_000_000_000_000
+            || !['ARS', 'USD'].includes(item.nativeCurrency)
+            || !Number.isFinite(item.amount) || !Number.isFinite(item.exchangeRate) || item.exchangeRate < 0.000001
+            || item.exchangeRate > 1_000_000 || (item.nativeCurrency === 'USD' && item.exchangeRate !== 1)
+            || Math.abs(item.amount - item.nativeAmountMinor / 100 / item.exchangeRate) > 0.000001) {
+            throw new BackupValidationError(`"${path}" tiene datos de moneda original inválidos.`);
+        }
+        assertOptionalTextFields(item, path, ['accountId']);
+    }
     if (
         Object.hasOwn(item, 'recurringOccurrence')
         && item.recurringOccurrence !== null
@@ -784,9 +796,18 @@ function validateBackupDataShape(key, value) {
             });
             break;
         case 'finanzasData':
+            if (Object.hasOwn(value, 'workspace')) {
+                try { validateFinanceWorkspace(value.workspace); }
+                catch (error) { throw new BackupValidationError(error.message); }
+            }
             ['entries', 'expenses'].forEach(section => {
                 if (Object.hasOwn(value, section)) {
                     assertArrayOfRecords(value[section], `${key}.${section}`, validateFinanceItem);
+                    for (const item of value[section]) {
+                        if (item.accountId && !value.workspace?.accounts?.some(account => account.id === item.accountId && account.currency === item.nativeCurrency)) {
+                            throw new BackupValidationError('Un movimiento referencia una cuenta inexistente o de otra moneda.');
+                        }
+                    }
                 }
             });
             if (Object.hasOwn(value, 'recurringRules')) {

@@ -240,7 +240,7 @@ export function getFinanceResourceUsage(financeData) {
         : {};
     return {
         [RESOURCE_KEYS.FINANCE_TRANSACTIONS]: asArray(data.entries).length
-            + asArray(data.expenses).length,
+            + asArray(data.expenses).length + asArray(data.workspace?.transfers).length,
         [RESOURCE_KEYS.FINANCE_RECURRING_RULES]: asArray(data.recurringRules).length,
         [RESOURCE_KEYS.TRADING_EVENTS]: asArray(data.tradingEvents).length
     };
