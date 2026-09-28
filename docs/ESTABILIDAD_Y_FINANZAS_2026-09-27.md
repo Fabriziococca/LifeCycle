@@ -190,7 +190,13 @@ Reglas de integridad del diseño (se distingue abajo lo implementado del objetiv
   doble gasto, anulación, presupuesto excedido, ARS/USD, edición con cuenta archivada,
   editor obsoleto rechazado, cierre al perder sesión, reactivación segura y backup.
   Fixtures sintéticos: ninguna operación financiera real se creó para probar.
-- Publicación de Finanzas: pendiente de registrar commit/CI/deploy final.
+- Finanzas publicada: commit `f8c21783222739ecc37eb4314931c524d92c8c36`, CI
+  Validate LifeCycle `36363941212` y Pages `36363940923` correctos. Render manual
+  `dep-dasrmc60tbcc738ob7k0`. Health productivo devuelve commit `f8c2178`, `ok`,
+  Transcripciones deshabilitado y cero fallos consecutivos del motor de avisos.
+  Se comprobaron 7 recursos productivos con HTTP 200 y hashes iguales al código
+  probado (normalizando saltos de línea). La documentación de cierre puede tener
+  un commit posterior sin modificaciones funcionales.
 
 ## Pendientes reales, no cierre global
 
@@ -209,8 +215,12 @@ Reglas de integridad del diseño (se distingue abajo lo implementado del objetiv
    de gastos deriva propietario de `auth.uid()`: no habilita por sí solo un worker
    de renovaciones service-role. No aplicar cambios SQL sin ensayo de esas rutas.
 5. Prueba Push física y de cancelación tras completar; depende del teléfono.
-6. Validación productiva/publicación de Finanzas; ampliaciones fuera de este primer
-   alcance (metas, inversiones, avisos de tarjetas) no se dan por implementadas.
+6. Ampliaciones de Finanzas fuera de este primer alcance (metas, inversiones,
+   avisos de tarjetas) no se dan por implementadas. El primer alcance está publicado.
 
-Siguiente acción técnica: revisar diff, repetir validación final, commit/push a
-`main`, verificar CI y **despliegue manual** en My Workspace sin contratar recursos.
+Siguiente intervención humana: recargar la PWA, habilitar la copia cifrada en cada
+dispositivo, descargarla y probar recepción Push en el teléfono. El agente no debe
+elegir ni pedir que se comparta la clave local. Siguiente bloque técnico del plan
+antiguo: diseñar/ensayar cambios SQL de Trading/renovaciones antes de producción;
+no está disponible un conector Supabase SQL en las herramientas de esta sesión.
+La cuenta real no se usó para crear gastos, pagos o registros de prueba.
