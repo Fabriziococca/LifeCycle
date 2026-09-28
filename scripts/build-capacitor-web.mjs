@@ -9,6 +9,8 @@ const excludedRootScripts = new Set(['server.js', 'transcription-worker.js', 'sc
 const fixedAssets = new Set([
     'index.html',
     'style.css',
+    'recovery.html',
+    'recovery.css',
     'manifest.json',
     'sw.js',
     'icon.png',

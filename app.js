@@ -7,8 +7,10 @@ import { GymModule } from './modules/GymModule.js';
 import { ProjectsModule } from './modules/ProjectsModule.js';
 import { SubscriptionsModule } from './modules/SubscriptionsModule.js';
 import { TranscriptionsModule } from './modules/TranscriptionsModule.js';
+import { TRANSCRIPTIONS_ENABLED, isProductModuleEnabled } from './product-features.mjs';
 import { StarterPackModule } from './modules/StarterPackModule.js';
 import { BackupModule } from './modules/BackupModule.js';
+import { RecoveryModule } from './modules/RecoveryModule.js';
 import { AuthSyncModule } from './modules/AuthSyncModule.js';
 import { FinanzasModule } from './modules/FinanzasModule.js';
 import { TradingModule } from './modules/TradingModule.js';
@@ -536,6 +538,7 @@ class AppController {
     }
 
     activateSection(sectionId, { persist = true, render = true, smooth = false } = {}) {
+        if (!isProductModuleEnabled(sectionId)) return false;
         const mainNav = document.getElementById('main-nav');
         const reorderContext = this.customTrackers?.reorderContext;
         const activeReorderSection = document.querySelector(
@@ -945,11 +948,12 @@ class AppController {
         this.tareas = new TareasModule(this);
         this.customTrackers = new CustomTrackersModule(this);
         this.backups = new BackupModule(this);
+        this.recovery = new RecoveryModule(this);
         this.auth = new AuthSyncModule(this);
         this.alerts = new AlertsModule(this);
         this.starterPack = new StarterPackModule(this);
         this.subscriptions = new SubscriptionsModule(this);
-        this.transcriptions = new TranscriptionsModule(this);
+        if (TRANSCRIPTIONS_ENABLED) this.transcriptions = new TranscriptionsModule(this);
         this.notificationsCenter = new NotificationsCenterModule(this);
         this.today = new TodayModule(this);
         this.globalSearch = new GlobalSearchModule(this);

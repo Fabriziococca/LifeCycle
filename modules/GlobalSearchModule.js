@@ -225,7 +225,7 @@ export class GlobalSearchModule {
                 keywords: ['diagnóstico historial avisos celular computadora'],
                 target: { command: 'notification-settings' }
             }
-        ];
+        ].filter(item => item.id !== 'command:transcripciones' || this.app.transcriptions);
     }
 
     getTrackerItems() {

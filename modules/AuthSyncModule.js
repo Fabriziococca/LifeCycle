@@ -10,6 +10,7 @@ import {
     assertSynchronizedDocumentCapacity,
     buildCloudPatch,
     getSyncPolicyErrorMessage,
+    getSyncRetryDelay,
     isPermanentSyncPolicyError
 } from '../sync-utils.mjs';
 import {
@@ -33,6 +34,9 @@ export class AuthSyncModule {
         this.app = appController;
         this.supabase = null;
         this.user = null;
+        this.readyUserId = null;
+        this.authGeneration = 0;
+        this.activeAuthInitialization = null;
         this.config = null;
         this.resourcePolicy = createFallbackResourcePolicy();
         
@@ -83,6 +87,9 @@ export class AuthSyncModule {
         this.syncGeneration = 0;
         this.activeSyncPromise = null;
         this.pendingSyncKeys = this.loadPendingSyncKeys();
+        this.inflightSyncKeys = new Set();
+        this.cloudRetryAfter = 0;
+        this.cloudFailureCount = 0;
         this.syncFlushTimer = null;
         this.syncRetryTimer = null;
         this.realtimeRefreshTimer = null;
@@ -129,8 +136,8 @@ export class AuthSyncModule {
             
             // 5. Setup auth state change listener
             this.supabase.auth.onAuthStateChange((event, session) => {
-                if (event === 'TOKEN_REFRESHED') {
-                    this.user = session?.user || this.user;
+                if (event === 'TOKEN_REFRESHED' && session?.user?.id === this.readyUserId) {
+                    this.user = session.user;
                     return;
                 }
 
@@ -333,6 +340,14 @@ export class AuthSyncModule {
     }
 
     async logout() {
+        if (this.pendingSyncKeys.size || this.activeSyncPromise) {
+            const saved = await this.flushPendingKeySync(true);
+            if (!saved) {
+                await this.app.showMessage({ title: 'Hay cambios sin guardar en la nube',
+                    message: 'No se cerró la sesión para no perderlos. Exportá un respaldo desde Cuenta → Datos y aplicación y reintentá la sincronización.', tone: 'warning' });
+                return;
+            }
+        }
         const confirmed = await this.app.confirmAction({
             title: 'Cerrar sesión',
             message: 'Volverás a la pantalla de acceso y tus datos locales de esta sesión se limpiarán.',
@@ -360,39 +375,69 @@ export class AuthSyncModule {
     }
 
     async handleAuthStateChange(user) {
+        const previousUserId = this.user?.id;
+        const sameUser = Boolean(user && user.id === previousUserId);
         this.user = user;
-        
+
+        // SIGNED_IN also means "same session reconfirmed" (tab refocus).
+        // Keep the authenticated view and use the existing single-flight pull.
+        if (sameUser && this.readyUserId === user.id) {
+            if (this.profileEmail) this.profileEmail.innerText = user.email;
+            await this.checkAndSyncData();
+            return;
+        }
+        if (sameUser && this.activeAuthInitialization) {
+            return this.activeAuthInitialization;
+        }
+
+        const generation = this.authGeneration = (this.authGeneration || 0) + 1;
+        this.readyUserId = null;
+        this.activeAuthInitialization = null;
+        if (this.realtimeChannel) {
+            this.supabase.removeChannel(this.realtimeChannel);
+            this.realtimeChannel = null;
+        }
+        if (previousUserId && previousUserId !== user?.id) {
+            // Never hydrate a new account with another account's pending data.
+            this.clearLocalUserData();
+            this.resourcePolicy = createFallbackResourcePolicy();
+            this.pushManagement.clear();
+        }
+
         if (user) {
             this.setAccessGateState('loading', 'Sincronizando tus datos...');
-
-            // Logged in
             if (this.authLoggedOut) this.authLoggedOut.classList.add('hidden');
             if (this.authLoggedIn) this.authLoggedIn.classList.remove('hidden');
             if (this.profileEmail) this.profileEmail.innerText = user.email;
             if (this.pushNotificationsCard) this.pushNotificationsCard.classList.remove('hidden');
-            
-            // Supabase is the source of truth. Do not reveal the app until cloud data is ready.
-            const cloudReady = await this.checkAndSyncData();
-            if (!cloudReady) {
-                throw new Error('No se pudo cargar el estado principal desde Supabase.');
-            }
-            await this.loadResourcePolicy();
-
-            // Setup realtime subscription for cross-device updates
-            this.setupRealtimeSubscription();
-            this.setLoading(false);
-            this.setAccessGateState('authenticated');
-
-            // Push is optional and must never block access to cloud data.
-            this.checkPushSubscriptionStatus().catch(error => {
-                console.error('[Push] No se pudo comprobar el estado del dispositivo:', error);
-            });
-            this.pushManagement.refreshAll().catch(error => {
-                console.error('[Push] No se pudo cargar la administración de notificaciones:', error);
-            });
-            window.dispatchEvent(new CustomEvent('lifecycle:auth-ready', {
-                detail: { user }
-            }));
+            const isCurrent = () => this.authGeneration === generation && this.user?.id === user.id;
+            const initialize = async () => {
+                try {
+                    // First login/account change still requires authenticated cloud data.
+                    const cloudReady = await this.checkAndSyncData();
+                    if (!isCurrent()) return;
+                    if (!cloudReady) throw new Error('No se pudo cargar el estado principal desde Supabase.');
+                    await this.loadResourcePolicy();
+                    if (!isCurrent()) return;
+                    this.setupRealtimeSubscription();
+                    this.readyUserId = user.id;
+                    this.setLoading(false);
+                    this.setAccessGateState('authenticated');
+                    this.checkPushSubscriptionStatus().catch(error => {
+                        console.error('[Push] No se pudo comprobar el estado del dispositivo:', error);
+                    });
+                    this.pushManagement.refreshAll().catch(error => {
+                        console.error('[Push] No se pudo cargar la administración de notificaciones:', error);
+                    });
+                    window.dispatchEvent(new CustomEvent('lifecycle:auth-ready', { detail: { user } }));
+                } catch (error) {
+                    if (isCurrent()) throw error;
+                } finally {
+                    if (isCurrent()) this.activeAuthInitialization = null;
+                }
+            };
+            this.activeAuthInitialization = initialize();
+            return this.activeAuthInitialization;
         } else {
             // Logged out
             this.resourcePolicy = createFallbackResourcePolicy();
@@ -423,12 +468,17 @@ export class AuthSyncModule {
             return false;
         }
 
+        const userId = this.user.id;
+        const generation = this.authGeneration;
+        const isCurrent = () => this.user?.id === userId && this.authGeneration === generation;
         try {
             const { data, error } = await this.supabase.rpc('get_my_resource_policy');
+            if (!isCurrent()) return false;
             if (error) throw error;
             this.resourcePolicy = normalizeResourcePolicy(data);
             return true;
         } catch (error) {
+            if (!isCurrent()) return false;
             console.warn(
                 '[Resource Policy] No se pudo cargar la política remota; se aplicará el perfil seguro por defecto.',
                 error
@@ -486,18 +536,24 @@ export class AuthSyncModule {
     }
 
     persistPendingSyncKeys() {
-        if (this.pendingSyncKeys.size === 0) {
+        // An in-flight write is not durable yet. A reload/crash must replay it.
+        const durableKeys = new Set([...this.pendingSyncKeys, ...(this.inflightSyncKeys || [])]);
+        if (durableKeys.size === 0) {
             localStorage.removeItem(SYNC_PENDING_STORAGE_KEY);
             return;
         }
 
         localStorage.setItem(
             SYNC_PENDING_STORAGE_KEY,
-            JSON.stringify([...this.pendingSyncKeys])
+            JSON.stringify([...durableKeys])
         );
     }
 
     clearLocalUserData() {
+        this.inflightSyncKeys = new Set();
+        this.cloudRetryAfter = 0;
+        this.cloudFailureCount = 0;
+        this.hasRenderedCloudProjects = false;
         this.syncGeneration += 1;
         this.activeSyncPromise = null;
         this.activePullPromise = null;
@@ -543,6 +599,7 @@ export class AuthSyncModule {
         this.pendingSyncKeys.add(key);
         this.persistPendingSyncKeys();
         this.updateSyncBadge('syncing', 'Guardando cambios...');
+        this.app.recovery?.scheduleSnapshot();
 
         clearTimeout(this.syncFlushTimer);
         this.syncFlushTimer = setTimeout(() => {
@@ -554,6 +611,8 @@ export class AuthSyncModule {
 
     async flushPendingKeySync(isManual = false) {
         if (!this.user || !this.supabase) return false;
+        if (!isManual && Date.now() < (this.cloudRetryAfter || 0)) return false;
+        if (isManual) this.cloudRetryAfter = 0;
 
         clearTimeout(this.syncFlushTimer);
         clearTimeout(this.syncRetryTimer);
@@ -584,6 +643,7 @@ export class AuthSyncModule {
         }
 
         const keysToSync = [...this.pendingSyncKeys];
+        this.inflightSyncKeys = new Set(keysToSync);
         keysToSync.forEach(key => this.pendingSyncKeys.delete(key));
         this.persistPendingSyncKeys();
 
@@ -621,8 +681,11 @@ export class AuthSyncModule {
                 // us the revision; incrementing here invents a version on echoes.
                 this.cloudRevision = null;
                 this.appliedCloudRevision = null;
+                this.cloudRetryAfter = 0;
+                this.cloudFailureCount = 0;
                 localStorage.removeItem('has_unsynced_local_changes');
-                this.updateSyncBadge('synced', 'Sincronizado');
+                this.updateSyncBadge(this.pendingSyncKeys.size ? 'syncing' : 'synced',
+                    this.pendingSyncKeys.size ? 'Cambios pendientes de guardar...' : 'Sincronizado');
                 return true;
             } catch (error) {
                 if (!isCurrentSession()) return false;
@@ -637,11 +700,12 @@ export class AuthSyncModule {
                     // Keep the local queue, but avoid a tight background retry loop.
                     shouldSchedulePendingSync = false;
                 } else {
+                    const retryDelay = this.deferCloudRetry(error);
                     this.syncRetryTimer = setTimeout(() => {
                         this.flushPendingKeySync().catch(retryError => {
                             console.error('[Cloud Sync] Falló el reintento:', retryError);
                         });
-                    }, 15 * 1000);
+                    }, retryDelay);
                 }
 
                 if (isManual) {
@@ -653,6 +717,10 @@ export class AuthSyncModule {
                 }
                 return false;
             } finally {
+                if (isCurrentSession()) {
+                    this.inflightSyncKeys = new Set();
+                    this.persistPendingSyncKeys();
+                }
                 if (this.activeSyncPromise === operation) {
                     this.activeSyncPromise = null;
                     this.isSyncing = false;
@@ -688,6 +756,8 @@ export class AuthSyncModule {
     }
 
     checkAndSyncData(options = {}) {
+        if (options.force) this.cloudRetryAfter = 0;
+        else if (Date.now() < (this.cloudRetryAfter || 0)) return Promise.resolve(false);
         // Focus and visibility often fire together. Share one read, not two
         // complete documents; a session change detaches the old operation.
         if (this.activePullPromise) return this.activePullPromise;
@@ -725,6 +795,8 @@ export class AuthSyncModule {
                 if (metadataError && !isMissingCloudRevisionSchema(metadataError)) throw metadataError;
                 const revision = Number(metadata?.revision);
                 if (!metadataError && metadata && revision === this.appliedCloudRevision) {
+                    this.cloudRetryAfter = 0;
+                    this.cloudFailureCount = 0;
                     this.cloudRevision = revision;
                     this.updateSyncBadge('synced', 'Sincronizado');
                     return true;
@@ -780,6 +852,8 @@ export class AuthSyncModule {
             }
             this.cloudRevision = revision;
             this.appliedCloudRevision = revision;
+            this.cloudRetryAfter = 0;
+            this.cloudFailureCount = 0;
 
             localStorage.removeItem('has_unsynced_local_changes');
             sessionStorage.removeItem('is_explicit_login');
@@ -787,6 +861,7 @@ export class AuthSyncModule {
             return true;
         } catch (error) {
             if (!isCurrentSession()) return false;
+            this.deferCloudRetry(error);
             console.error('[Cloud Sync] Error obteniendo la fuente cloud:', error);
             this.updateSyncBadge('error', 'Error de conexión');
             return false;
@@ -798,7 +873,7 @@ export class AuthSyncModule {
 
         if (this.pendingSyncKeys.size === 0) {
             if (isManual) {
-                const refreshed = await this.checkAndSyncData({ skipPendingFlush: true });
+                const refreshed = await this.checkAndSyncData({ skipPendingFlush: true, force: true });
                 await this.app.showMessage({
                     title: refreshed ? 'Datos actualizados' : 'No se pudieron actualizar los datos',
                     message: refreshed
@@ -820,6 +895,7 @@ export class AuthSyncModule {
 
     restoreDataLocally(cloudData) {
         let migratedTrackers = false;
+        const changedKeys = new Set();
         this.isRestoring = true;
         try {
             CLOUD_RESTORE_KEYS.forEach(key => {
@@ -828,8 +904,12 @@ export class AuthSyncModule {
                     if (typeof val === 'object') {
                         val = JSON.stringify(val);
                     }
-                    localStorage.setItem(key, val);
+                    if (!areStoredValuesEqual(localStorage.getItem(key), val)) {
+                        changedKeys.add(key);
+                        localStorage.setItem(key, val);
+                    }
                 } else {
+                    if (localStorage.getItem(key) !== null) changedKeys.add(key);
                     localStorage.removeItem(key);
                 }
             });
@@ -917,8 +997,13 @@ export class AuthSyncModule {
             if (this.app.gym) {
                 try { this.app.gym.render(); } catch (e) { console.error("Error rendering gym:", e); }
             }
-            if (this.app.projects) {
+            if (this.app.projects && (
+                !this.hasRenderedCloudProjects
+                || ['projectPulseData', 'projectPulseHistory', 'projectPulseSubscription',
+                    'projectPulseTemplates', 'lifecycle_hide_project_templates'].some(key => changedKeys.has(key))
+            )) {
                 try { this.app.projects.render(); } catch (e) { console.error("Error rendering projects:", e); }
+                this.hasRenderedCloudProjects = true;
             }
             if (this.app.subscriptions) {
                 try {
@@ -950,6 +1035,16 @@ export class AuthSyncModule {
     }
 
     updateSyncBadge(state, text) {
+        if (state === 'synced') this.app.recovery?.scheduleSnapshot();
+        const notice = document.getElementById('cloud-sync-notice');
+        if (notice) {
+            if (state === 'error') {
+                notice.textContent = this.pendingSyncKeys.size
+                    ? 'Sin sincronizar: hay cambios guardados en este dispositivo, pendientes de subir. No borres los datos del navegador. Podés exportar un respaldo desde Cuenta.'
+                    : 'No se pudo actualizar desde la nube. Estás viendo la última información cargada; LifeCycle reintentará la conexión.';
+                notice.classList.remove('hidden');
+            } else if (state === 'synced') notice.classList.add('hidden');
+        }
         if (!this.syncStatusBadge) return;
         
         this.syncStatusBadge.className = 'badge';
@@ -1086,6 +1181,13 @@ export class AuthSyncModule {
         if (error) {
             throw error;
         }
+    }
+
+    deferCloudRetry(error) {
+        this.cloudFailureCount = (this.cloudFailureCount || 0) + 1;
+        const delay = getSyncRetryDelay(error, this.cloudFailureCount);
+        this.cloudRetryAfter = Date.now() + delay;
+        return delay;
     }
 
     async deleteMedicalFile(filePath) {

@@ -237,7 +237,7 @@
             <button class="nav-btn" data-section="suscripciones-section">
                 <i class="ph ph-receipt"></i> Suscripciones
             </button>
-            <button class="nav-btn" data-section="transcripciones-section">
+            <button class="nav-btn module-hidden" data-section="transcripciones-section" aria-hidden="true" tabindex="-1">
                 <i class="ph ph-waveform"></i> Transcripciones
             </button>
             <button class="nav-btn" data-section="trading-section">
@@ -253,6 +253,7 @@
         </p>
 
         <!-- RESUMEN DIARIO -->
+        <p id="cloud-sync-notice" class="cloud-sync-notice hidden" role="status" aria-live="polite"></p>
         <section id="hoy-section" class="main-section">
             <!-- Renderizado dinámicamente por TodayModule -->
         </section>
@@ -1922,6 +1923,7 @@
                 <i class="ph ph-info"></i>
                 <span>Comprobando el grabador y el acceso privado...</span>
             </div>
+            <a class="profile-context-link" href="/recovery.html">Consultar mi copia cifrada local</a>
 
             <div class="card transcription-capture-settings">
                 <div class="input-group">
@@ -2371,6 +2373,17 @@
                                     <input type="file" id="importFileUnified" class="hidden" accept="application/json,.json" aria-label="Seleccionar archivo de backup de LifeCycle">
                                 </div>
                                 <p id="backup-status" class="backup-status hidden" role="status" aria-live="polite"></p>
+                                <hr>
+                                <h3>Consulta de emergencia sin Supabase</h3>
+                                <p class="backup-text">Habilitá una copia cifrada en este dispositivo para consultar tus datos si falla la nube. Se actualiza mientras usás LifeCycle. No reemplaza el respaldo descargado ni permite editar sin conexión.</p>
+                                <form id="recovery-setup">
+                                    <div class="input-group"><label for="recovery-password">Nueva clave local (mínimo 12 caracteres)</label><input id="recovery-password" type="password" class="text-input" minlength="12" maxlength="256" autocomplete="new-password" required></div>
+                                    <div class="input-group"><label for="recovery-password-confirm">Repetir clave local</label><input id="recovery-password-confirm" type="password" class="text-input" minlength="12" maxlength="256" autocomplete="new-password" required></div>
+                                    <p class="backup-help">Guardá esta clave en un lugar seguro: no se envía ni se puede recuperar. La copia protege este respaldo, no los demás datos que tu navegador conserva durante el uso normal.</p>
+                                    <button type="submit" class="btn btn-primary">Habilitar copia cifrada</button>
+                                </form>
+                                <p id="recovery-status" class="backup-help" role="status" aria-live="polite">Todavía no hay copia de consulta en este dispositivo.</p>
+                                <a class="profile-context-link" href="/recovery.html">Abrir consulta y descargar copia cifrada</a>
                             </div>
                         </div>
                     </div>

@@ -1,4 +1,5 @@
 import { normalizeAlertTimes } from './alert-schedule-utils.mjs';
+import { isProductModuleEnabled } from './product-features.mjs';
 import {
     createDefaultTodayPreferences,
     normalizeTodayPreferences
@@ -208,7 +209,10 @@ export function getCustomTrackerSections(customModules = []) {
 }
 
 export function getAppModules(customModules = [], { includeArchived = false } = {}) {
-    const modules = { ...APP_MODULES };
+    // Keep the legacy registry for backup compatibility; archived product
+    // features cannot be reactivated by an old navigation preference.
+    const modules = Object.fromEntries(Object.entries(APP_MODULES)
+        .filter(([sectionId]) => includeArchived || isProductModuleEnabled(sectionId)));
     customModules.forEach(module => {
         if (!module || (!includeArchived && module.archived === true)) return;
         const sectionId = getCustomModuleSectionId(module.id);

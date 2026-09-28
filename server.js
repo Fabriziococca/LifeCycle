@@ -4,6 +4,7 @@ const path = require('path');
 const fs = require('fs');
 const webpush = require('web-push');
 const { createClient } = require('@supabase/supabase-js');
+const { TRANSCRIPTIONS_ENABLED } = require('./product-features.mjs');
 const sharedRules = require('./shared_rules.json');
 const {
     DEFAULT_PUSH_TTL_SECONDS,
@@ -285,6 +286,7 @@ const registrationEnabled = isInvitedRegistrationConfigured({
     accessCodeHash: registrationAccessCodeHash
 });
 const transcriptionWorker = new TranscriptionWorker({
+    enabled: TRANSCRIPTIONS_ENABLED,
     supabase: hasSupabaseServiceRole ? supabase : null
 });
 
@@ -1715,6 +1717,7 @@ app.get('/api/config', (req, res) => {
         supabaseAnonKey: process.env.SUPABASE_ANON_KEY || '',
         vapidPublicKey: publicKey,
         transcriptionConfigured: transcriptionWorker.runtime.configured,
+        transcriptionEnabled: TRANSCRIPTIONS_ENABLED,
         registrationEnabled
     });
 });
@@ -2455,6 +2458,11 @@ app.get('/api/test-robot-reminder', checkAdminToken, async (req, res) => {
 
 app.post(
     '/api/transcriptions/run',
+    (req, res, next) => {
+        if (TRANSCRIPTIONS_ENABLED) return next();
+        // Also stop old clients, without an unnecessary Supabase auth request.
+        return res.status(410).json({ code: 'transcriptions_archived', error: 'Transcripciones está archivado. Los datos existentes se conservan.' });
+    },
     requireSupabaseUser,
     authenticatedMutationRateLimiter,
     (req, res) => {

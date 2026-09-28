@@ -895,7 +895,7 @@ export class CustomTrackersModule {
         this.ensureCustomModuleRuntime();
         this.ensureRuntimeOrderControls();
         const mainNav = document.getElementById('main-nav');
-        Object.keys(this.getAppModules()).forEach(moduleId => {
+        Object.keys(this.getAppModules({ includeArchived: true })).forEach(moduleId => {
             const visible = this.isModuleVisible(moduleId);
             const navButton = mainNav?.querySelector(
                 `.nav-btn[data-section="${moduleId}"]`

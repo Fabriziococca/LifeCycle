@@ -255,6 +255,7 @@ function getProviderHttpOptions(timeoutMs) {
 class TranscriptionWorker {
     constructor({
         supabase,
+        enabled = true,
         apiKey = process.env.GEMINI_API_KEY || '',
         transcriptionModel = process.env.GEMINI_TRANSCRIPTION_MODEL || DEFAULT_TRANSCRIPTION_MODEL,
         artifactModel = process.env.GEMINI_ARTIFACT_MODEL || DEFAULT_ARTIFACT_MODEL,
@@ -287,7 +288,7 @@ class TranscriptionWorker {
         this.maxJobsPerRun = Math.max(1, Math.min(10, Math.trunc(maxJobsPerRun) || 3));
         this.logger = logger;
         this.workerId = `render-${process.pid}-${crypto.randomUUID().slice(0, 8)}`;
-        this.ai = apiKey ? new GoogleGenAI({
+        this.ai = enabled && apiKey ? new GoogleGenAI({
             apiKey,
             httpOptions: getProviderHttpOptions(this.providerRequestTimeoutMs)
         }) : null;
@@ -296,7 +297,8 @@ class TranscriptionWorker {
         this.pipelineAvailable = null;
         this.lastCleanupAt = 0;
         this.runtime = {
-            configured: Boolean(supabase && apiKey),
+            enabled: enabled === true,
+            configured: Boolean(enabled && supabase && apiKey),
             running: false,
             lastAttemptAt: null,
             lastSuccessAt: null,

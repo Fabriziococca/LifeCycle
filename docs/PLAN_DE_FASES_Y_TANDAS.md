@@ -1,8 +1,32 @@
 # Plan definitivo de LifeCycle — estado auditado
 
-**Actualizado:** 13 de septiembre de 2026
+## Estado vigente al 27/09/2026
 
-La implementación puede agruparse en bloques grandes cuando sea seguro. No existe un límite artificial de 20–30 minutos: cada cierre debe ser coherente, probado y recuperable. El usuario autorizó continuar las correcciones y las migraciones compatibles; facturación, cambios destructivos o nuevas decisiones materiales requieren confirmación. El presupuesto continúa en cero.
+Ver [estabilidad y Finanzas](ESTABILIDAD_Y_FINANZAS_2026-09-27.md) para decisiones,
+implementación, validación y pendientes actuales. El usuario recuperó acceso,
+canceló nuevo contacto con soporte, aprobó la copia cifrada sólo lectura y decidió
+archivar **todo** Transcripciones (también biblioteca). APK queda diferido. Las
+fases D/E y la secuencia de captura/transcripción debajo son **históricas y
+suspendidas**, no trabajo por continuar. Las fases B/C conservan pendientes reales.
+No tratar la publicación de estabilidad como cierre integral del plan A–F.
+
+**Estado A–F auditado:** 13 de septiembre de 2026. **Prioridades revisadas:** 26 de septiembre de 2026.
+
+La implementación puede agruparse en bloques grandes cuando sea seguro. No existe un límite artificial de 20–30 minutos: cada cierre debe ser coherente, probado y recuperable. Las autorizaciones históricas para correcciones y migraciones compatibles no aprueban nuevas decisiones materiales. Facturación y cambios destructivos requieren confirmación. El objetivo sigue siendo USD 0; el usuario confirmó un techo deseado aproximado de USD 5 mensuales para el conjunto, sin autorizar activar pagos.
+
+## Revisión solicitada el 26/09: diagnóstico antes de implementar
+
+Prioridad: recuperar acceso, proteger datos y asegurar continuidad de tarjetas y
+recordatorios. Se mantiene la preferencia por centralizar LifeCycle; delegar captura
+o procesamiento es una alternativa por confiabilidad/costos, no una decisión de
+eliminar módulos. Se revisaron la cuota activa y los videos de sincronización/hover.
+
+Ver [revisión y propuesta de continuidad](REVISION_ESTABILIDAD_2026-09-26.md).
+Ese documento distingue hechos, hipótesis y pruebas pendientes. El nuevo modo
+offline, la coordinación de avisos locales y una herramienta de transcripción en PC
+son propuestas **pendientes de aprobación**, no funcionalidades ya entregadas. La
+tabla A–F siguiente conserva el último estado auditado; no representa una nueva
+verificación integral al 26/09.
 
 ## Estado general
 

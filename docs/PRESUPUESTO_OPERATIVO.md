@@ -1,6 +1,20 @@
 # Presupuesto operativo de transcripciones
 
+**Cambio confirmado el 27/09/2026:** Transcripciones queda archivado y su worker
+deshabilitado; no se ofrecerá tampoco biblioteca. Código/datos existentes se
+conservan. Este documento describe la configuración histórica, **no un pipeline
+activo que deba reanudarse**. Los clientes antiguos deben recargarse y los archivos
+retenidos todavía ocupan espacio. No se activaron pagos. Estado y comprobaciones:
+[estabilidad y Finanzas](ESTABILIDAD_Y_FINANZAS_2026-09-27.md).
+
 **LifeCycle — revisión técnica del 5 de septiembre de 2026**
+
+**Aclaración del 26/09:** el objetivo continúa en USD 0, con techo deseado aproximado
+de USD 5/mes para toda LifeCycle, sin autorización de activar facturación. Se propone
+evaluar captura Samsung y procesamiento en PC sin exigir que los audios grandes
+pasen por Supabase. No se cambió el proveedor actual. Ver
+[revisión de estabilidad](REVISION_ESTABILIDAD_2026-09-26.md); las configuraciones
+y verificaciones de proveedor relatadas abajo conservan su fecha histórica.
 
 ## Objetivo
 
@@ -17,7 +31,12 @@ El modo inicial busca costo adicional **USD 0**, sin activar automáticamente fa
 | Audio temporal total del propietario | 750 MiB |
 | Intentos de proveedor por día | 100, configurable |
 | Retención tras transcripción correcta | 24 horas |
-| Retención de una sesión fallida | hasta 7 días |
+| Retención de una sesión incompleta/fallida | Sin vencimiento automático; conservar para recuperación |
+
+La retención fue corregida el 13/09 mediante
+`20260913221131_protect_incomplete_transcription_audio`: sólo una sesión completada
+con `completed_at` recibe vencimiento a las 24 h. El límite de almacenamiento puede
+frenar nuevas cargas; no debe destruir el único original pendiente.
 
 El límite diario de 100 cuenta cada llamada de transcripción, resumen o apuntes. Es independiente de la cuota que Google aplique al proyecto. Cuando se alcanza, los trabajos pasan a espera hasta las 00:05 UTC; el audio no se borra ni se contrata capacidad.
 

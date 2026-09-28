@@ -110,6 +110,13 @@ export function isPermanentSyncPolicyError(error) {
         || message.includes('lifecycle resource limit exceeded');
 }
 
+export function getSyncRetryDelay(error, failures = 1) {
+    const restricted = Number(error?.status) === 402
+        || /exceed_egress_quota|service.*restricted/i.test(String(error?.message || ''));
+    const base = restricted ? 5 * 60_000 : 15_000;
+    return Math.min(15 * 60_000, base * (2 ** Math.min(6, Math.max(0, failures - 1))));
+}
+
 export function getSyncPolicyErrorMessage(error) {
     if (!isPermanentSyncPolicyError(error)) {
         return String(error?.message || 'No se pudieron guardar los cambios.');

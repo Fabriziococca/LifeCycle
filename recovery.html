@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="es">
+<head>
+    <meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'none'; img-src 'self'; base-uri 'none'; form-action 'none'">
+    <meta name="robots" content="noindex"><title>LifeCycle · Consulta de recuperación</title>
+    <link rel="stylesheet" href="/recovery.css">
+    <script type="module" src="/recovery-viewer.mjs"></script>
+</head>
+<body>
+<main>
+    <header><span class="eyebrow">LIFECYCLE · SOLO LECTURA</span><h1>Tus datos, a mano</h1>
+        <p>Consulta independiente de Supabase. No envía información, no modifica la app y no programa notificaciones.</p>
+        <a href="/">Volver a LifeCycle</a>
+    </header>
+    <section aria-labelledby="unlock-title">
+        <h2 id="unlock-title">Abrir una copia cifrada</h2>
+        <p>Usá la clave local que elegiste al habilitar la copia. No es tu contraseña de Supabase.</p>
+        <form id="unlock-form">
+            <label for="vault-select">Copia de este dispositivo</label><select id="vault-select"></select>
+            <label for="snapshot-select">Versión conservada</label><select id="snapshot-select"></select>
+            <label for="vault-password">Clave local</label><input id="vault-password" type="password" autocomplete="off" maxlength="256" required>
+            <button type="submit">Abrir solo para consultar</button>
+        </form>
+        <label for="vault-file">O abrir un archivo cifrado descargado anteriormente</label>
+        <input id="vault-file" type="file" accept="application/json,.json">
+        <button id="download-encrypted" type="button" disabled>Descargar copia cifrada</button>
+        <p id="recovery-message" role="status" aria-live="polite"></p>
+        <small>La clave no se guarda ni se envía. Si la olvidás, no podemos descifrar esta copia. El borrado de datos del navegador puede eliminarla: descargá también el archivo cifrado.</small>
+    </section>
+    <section id="read-view" hidden>
+        <div class="toolbar"><h2>Consulta recuperada</h2><button id="lock-vault" type="button">Bloquear</button></div>
+        <p id="snapshot-info"></p>
+        <label for="recovery-search">Buscar en tus datos</label><input id="recovery-search" type="search" placeholder="Nombre de tarjeta, lente, tarea…">
+        <div id="recovery-data"></div>
+        <button id="download-plain" type="button">Exportar JSON descifrado para respaldo</button>
+        <small>El JSON descifrado contiene datos privados. No lo compartas. Importarlo en LifeCycle requiere un paso separado y confirmación.</small>
+    </section>
+</main>
+</body></html>

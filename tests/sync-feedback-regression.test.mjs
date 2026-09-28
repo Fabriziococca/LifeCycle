@@ -183,7 +183,45 @@ test('a blocked read times out and does not permanently block future synchroniza
     assert.equal(await read, false);
     assert.equal(auth.activePullPromise, null);
     state.pause = null;
-    assert.equal(await auth.checkAndSyncData(), true);
+    assert.equal(await auth.checkAndSyncData({ force: true }), true);
+});
+
+test('in-flight keys remain durable until success, including edits made during the RPC', async t => {
+    const { auth, state } = cloudFixture(t);
+    const waiting = gate();
+    state.onWrite = () => waiting.promise;
+    localStorage.setItem('tareas_list', '[{"id":"first"}]');
+    auth.queueKeySync('tareas_list');
+    const save = auth.flushPendingKeySync();
+    assert.deepEqual([...auth.loadPendingSyncKeys()], ['tareas_list']);
+    localStorage.setItem('tareas_list', '[{"id":"second"}]');
+    auth.queueKeySync('tareas_list');
+    waiting.release({ error: null });
+    assert.equal(await save, true);
+    assert.deepEqual([...auth.loadPendingSyncKeys()], ['tareas_list']);
+    state.onWrite = null;
+    assert.equal(await auth.flushPendingKeySync(), true);
+    assert.equal(auth.loadPendingSyncKeys().size, 0);
+});
+
+test('quota restriction backs off repeated focus/writes without losing pending edits', async t => {
+    const { auth, state } = cloudFixture(t);
+    t.mock.method(console, 'error', () => {});
+    state.onWrite = () => ({ error: { message: 'Service restricted: exceed_egress_quota', status: 402 } });
+    localStorage.setItem('tareas_list', '[{"id":"pending"}]');
+    auth.queueKeySync('tareas_list');
+    assert.equal(await auth.flushPendingKeySync(), false);
+    assert.ok(auth.cloudRetryAfter >= Date.now() + 290_000);
+    for (let i = 0; i < 5; i++) {
+        assert.equal(await auth.checkAndSyncData(), false);
+        assert.equal(await auth.flushPendingKeySync(), false);
+    }
+    assert.equal(state.writes, 1);
+    assert.deepEqual([...auth.loadPendingSyncKeys()], ['tareas_list']);
+    state.onWrite = null;
+    assert.equal(await auth.flushPendingKeySync(true), true);
+    assert.equal(auth.cloudFailureCount, 0);
+    assert.equal(auth.cloudRetryAfter, 0);
 });
 
 test('remote restores cannot enqueue writes through explicit module sync calls', t => {

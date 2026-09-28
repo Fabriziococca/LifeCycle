@@ -10,7 +10,9 @@ function installFakeCloud() {
     const cloudDocument = {};
     let revision = 1;
     const listeners = new Set();
-    window.qaSyncMetrics = { writes: 0, realtimeEvents: 0, fullReads: 0, revisionReads: 0 };
+    window.qaSyncMetrics = { writes: 0, realtimeEvents: 0, fullReads: 0, revisionReads: 0, transcriptionReads: 0 };
+    window.qaAuthListeners = [];
+    window.qaReconfirmSession = () => window.qaAuthListeners.forEach(callback => callback('SIGNED_IN', { user }));
     const tables = { transcription_folders: [], transcription_sessions: [], transcription_documents: [] };
     class Query {
         constructor(table) { this.table = table; this.one = false; }
@@ -22,6 +24,7 @@ function installFakeCloud() {
         maybeSingle() { this.one = true; return this; }
         insert(value) { this.value = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...value }; (tables[this.table] ||= []).push(this.value); return this; }
         then(resolve) {
+            if (this.table.startsWith('transcription_')) window.qaSyncMetrics.transcriptionReads++;
             if (this.table === 'user_data') {
                 window.qaSyncMetrics[this.columns === 'revision' ? 'revisionReads' : 'fullReads'] += 1;
             }
@@ -31,7 +34,7 @@ function installFakeCloud() {
         }
     }
     window.supabase = { createClient: () => ({
-        auth: { getSession: async () => ({ data: { session: { user, access_token: 'qa-session' } } }), onAuthStateChange: () => ({ data: { subscription: { unsubscribe() {} } } }) },
+        auth: { getSession: async () => ({ data: { session: { user, access_token: 'qa-session' } } }), onAuthStateChange: callback => { window.qaAuthListeners.push(callback); return { data: { subscription: { unsubscribe() {} } } }; } },
         from: table => new Query(table),
         rpc: async (name, parameters) => {
             if (name === 'merge_user_data_keys') {
@@ -78,7 +81,7 @@ function installFakeCloud() {
                 ? { supabaseUrl: 'https://qa.invalid', supabaseAnonKey: 'qa', registrationEnabled: false }
                 : { devices: [], events: [], deliveries: [], engine: {}, success: true } }));
             await page.goto(`http://localhost:${httpServer.address().port}/`, { waitUntil: 'networkidle' });
-            try { await page.waitForFunction(() => window.lifecycle_controller?.transcriptions && window.lifecycle_controller.auth?.user, null, { timeout: 10000 }); }
+            try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
             await page.evaluate(() => window.lifecycle_controller.openProfileTab('preferencias'));
@@ -104,44 +107,38 @@ function installFakeCloud() {
             await page.locator('#subscription-modal').waitFor({state:'visible'});
             assert.equal(await page.locator('#sub-name').inputValue(), 'Workana de prueba');
             await page.locator('#subscription-modal [data-subscription-modal-close]').first().click();
-            await page.evaluate(() => window.lifecycle_controller.activateSection('transcripciones-section'));
-            await page.locator('#btn-toggle-record-voice').waitFor({ state: 'visible' });
-            await page.screenshot({ path: `.tmp-sb/ui-smoke/${width}-${theme}-transcriptions.png`, fullPage: true, animations: 'disabled' });
+            assert.equal(await page.evaluate(() => window.lifecycle_controller.activateSection('transcripciones-section')), false);
+            assert.equal(await page.locator('#main-nav [data-section="transcripciones-section"]').isVisible(), false);
+            assert.equal(await page.evaluate(() => Boolean(window.lifecycle_controller.transcriptions)), false);
+            const reconfirmed = await page.evaluate(async () => {
+                const auth = window.lifecycle_controller.auth;
+                let overlays = 0;
+                const original = auth.setAccessGateState.bind(auth);
+                auth.setAccessGateState = (state, ...args) => { if (state !== 'authenticated') overlays++; return original(state, ...args); };
+                for (let i = 0; i < 5; i++) { window.qaReconfirmSession(); window.dispatchEvent(new Event('focus')); await auth.checkAndSyncData(); }
+                auth.setAccessGateState = original;
+                return overlays;
+            });
+            assert.equal(reconfirmed, 0, 'same-session focus must not cover the application');
             await page.evaluate(() => {
-                const module = window.lifecycle_controller.transcriptions;
-                module.sessions = [{ id: 'qa-modal', title: 'Clase de prueba', status: 'partial',
-                    completedChunks: 1, expectedChunks: 2, totalBytes: 12345,
-                    transcript: 'Transcripción completa de prueba.\n'.repeat(200),
-                    notes: 'Apuntes de prueba.\n'.repeat(100) }];
-                document.getElementById('btn-toggle-record-voice').focus();
-                module.openDetailModal('qa-modal');
+                const app = window.lifecycle_controller;
+                const data = app.auth.gatherLocalData();
+                data.projectPulseData = JSON.stringify([{ id: 'qa-project', client: 'Cliente QA', project: 'Proyecto de prueba',
+                    accepted: '2026-09-01', deadline: '2026-12-01', budgetNet: 100, budgetGross: 110, timerStart: null, totalTime: 0 }]);
+                app.auth.restoreDataLocally(data);
+                app.activateSection('projects-section');
+                window.qaProjectCard = document.querySelector('#projectsList [data-project-id="qa-project"]');
+                window.qaProjectCard.querySelector('.btn-options').click();
+                // A change to another module must not recreate project cards.
+                for (let i = 0; i < 5; i++) app.auth.restoreDataLocally({ ...data, tareas_list: JSON.stringify([{ id: `task-${i}`, text: 'QA' }]) });
             });
-            await page.locator('#transcription-detail-modal').waitFor({ state: 'visible' });
-            const detailBounds = await page.evaluate(() => {
-                const modal = document.getElementById('transcription-detail-modal');
-                const content = modal.querySelector('.modal-content').getBoundingClientRect();
-                const close = modal.querySelector('[data-transcription-modal-close]').getBoundingClientRect();
-                const save = document.getElementById('btn-save-transcription-detail').getBoundingClientRect();
-                const body = modal.querySelector('.transcription-detail-body');
-                return { contained: content.top >= 0 && content.bottom <= innerHeight && content.left >= 0 && content.right <= innerWidth,
-                    actionsVisible: close.top >= 0 && save.bottom <= innerHeight,
-                    scrollable: body.scrollHeight > body.clientHeight,
-                    focusInside: modal.contains(document.activeElement), width: content.width };
-            });
-            assert.equal(detailBounds.contained, true, 'transcription dialog outside viewport');
-            assert.equal(detailBounds.actionsVisible, true, 'transcription actions clipped');
-            assert.equal(detailBounds.scrollable, true, 'long transcript must scroll internally');
-            assert.equal(detailBounds.focusInside, true);
-            assert.ok(detailBounds.width >= (width < 500 ? 340 : 700), 'dialog is unnecessarily narrow');
-            await page.keyboard.press('Shift+Tab');
-            assert.equal(await page.locator('#btn-save-transcription-detail').evaluate(el => el === document.activeElement), true, 'focus must wrap inside dialog');
-            await page.keyboard.press('Tab');
-            assert.equal(await page.locator('#transcription-detail-modal [data-transcription-modal-close]').first().evaluate(el => el === document.activeElement), true);
-            await page.screenshot({ path: `.tmp-sb/ui-smoke/${width}-${theme}-transcription-detail.png`, animations: 'disabled' });
-            await page.keyboard.press('Escape');
-            await page.locator('#transcription-detail-modal').waitFor({ state: 'hidden' });
-            assert.equal(await page.locator('#btn-toggle-record-voice').evaluate(el => el === document.activeElement), true, 'restore opener focus');
-            assert.notEqual(await page.evaluate(() => document.body.style.overflow), 'hidden', 'restore page scrolling');
+            assert.equal(await page.evaluate(() => window.qaProjectCard === document.querySelector('#projectsList [data-project-id="qa-project"]')), true, 'unrelated sync replaced project card');
+            assert.equal(await page.locator('#projectsList .dropdown-menu-content').isVisible(), true, 'sync closed project menu');
+            await page.locator('#projectsList .btn-options').click();
+            await page.locator('#projectsList .card').hover();
+            await page.waitForTimeout(400);
+            assert.equal(await page.locator('#projectsList .card').evaluate(el => getComputedStyle(el).transform), 'none', 'project hover must not move its hit box');
+            await page.screenshot({ path: `.tmp-sb/ui-smoke/${width}-${theme}-projects.png`, fullPage: true, animations: 'disabled' });
             const overflow = await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 2);
             assert.equal(overflow, false, `horizontal overflow at ${width}/${theme}`);
             if (width < 500) {
@@ -166,7 +163,36 @@ function installFakeCloud() {
                     revisionReads: window.qaSyncMetrics.revisionReads - before.revisionReads };
             });
             assert.deepEqual(revisionChecks, { fullReads: 0, revisionReads: 3 }, 'unchanged background checks must not transfer full documents');
-            console.log(JSON.stringify({width,theme,profile:true,subscriptionEditor:true,transcriptions:true,noOverflow:true,noUncaughtErrors:true,idleSyncWrites:0}));
+            await page.evaluate(() => {
+                // Restore a schema-valid fixture after the intentionally minimal
+                // task used above to exercise unrelated document updates.
+                localStorage.setItem('tareas_list', '[]');
+                window.lifecycle_controller.openProfileTab('backup');
+            });
+            await page.locator('#recovery-password').fill('qa-local-long-password');
+            await page.locator('#recovery-password-confirm').fill('qa-local-long-password');
+            await page.locator('#recovery-setup button').click();
+            try { await page.locator('#recovery-setup').waitFor({ state: 'hidden' }); }
+            catch (error) { console.log('Recovery status:', await page.locator('#recovery-status').textContent()); throw error; }
+            assert.match(await page.locator('#recovery-status').textContent(), /Copia cifrada local/);
+            const recovered = await page.evaluate(async () => {
+                const app = window.lifecycle_controller;
+                const { readRecoveryVault, decryptRecoverySnapshot } = await import('/recovery-vault.mjs');
+                const { parseAndValidateBackupText } = await import('/backup-utils.mjs');
+                localStorage.setItem('lensDate', '2026-09-20');
+                await app.auth.flushPendingKeySync(true);
+                await app.recovery.capture();
+                const vault = await readRecoveryVault(app.auth.readyUserId);
+                const payload = await decryptRecoverySnapshot(vault, 'qa-local-long-password');
+                const { appName, backupVersion, exportDate, data } = payload;
+                parseAndValidateBackupText(JSON.stringify({ appName, backupVersion, exportDate, data }));
+                return { lensDate: data.lensDate, subscription: data.lifecycle_subscriptions.subscriptions[0].name,
+                    passwordCleared: !document.getElementById('recovery-password').value,
+                    plaintextPersisted: JSON.stringify(vault).includes('Workana de prueba') };
+            });
+            assert.deepEqual(recovered, { lensDate: '2026-09-20', subscription: 'Workana de prueba', passwordCleared: true, plaintextPersisted: false });
+            assert.equal(await page.evaluate(() => window.qaSyncMetrics.transcriptionReads), 0);
+            console.log(JSON.stringify({width,theme,profile:true,subscriptionEditor:true,transcriptionsArchived:true,sessionFocus:true,stableProjectCards:true,noOverflow:true,noUncaughtErrors:true,idleSyncWrites:0}));
             await context.close();
         }
     } finally { await browser.close(); httpServer.close(); }

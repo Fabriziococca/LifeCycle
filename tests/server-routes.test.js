@@ -74,6 +74,15 @@ test('public config exposes only registration availability', async () => {
     assert.equal(JSON.stringify(result).includes('REGISTRATION_ACCESS_CODE_SHA256'), false);
 });
 
+test('archived transcriptions are publicly disabled and reject old clients without cloud auth', async () => {
+    const config = await (await fetch(`${baseUrl}/api/config`)).json();
+    assert.equal(config.transcriptionEnabled, false);
+    assert.equal(config.transcriptionConfigured, false);
+    const response = await fetch(`${baseUrl}/api/transcriptions/run`, { method: 'POST' });
+    assert.equal(response.status, 410);
+    assert.equal((await response.json()).code, 'transcriptions_archived');
+});
+
 test('server document cache implementation is not exposed as a static asset', async () => {
     assert.equal((await fetch(`${baseUrl}/scheduler-document-cache.js`)).status, 404);
 });

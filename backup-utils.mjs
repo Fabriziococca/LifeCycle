@@ -55,6 +55,7 @@ const JSON_ROOT_TYPES = Object.freeze({
     projectPulseData: 'array',
     projectPulseHistory: 'array',
     projectPulseSubscription: 'object',
+    lifecycle_subscriptions: 'object',
     projectPulseTemplates: 'object',
     alerts_config: 'object',
     finanzasData: 'object',
@@ -149,6 +150,7 @@ const CATEGORY_GROUPS = Object.freeze([
     },
     { label: 'Gestor de alertas', keys: ['alerts_config'] },
     { label: 'Finanzas', keys: ['finanzasData'] },
+    { label: 'Suscripciones', keys: ['lifecycle_subscriptions'] },
     {
         label: 'Tareas',
         keys: [
@@ -697,6 +699,25 @@ function validateBackupDataShape(key, value) {
         case 'projectPulseSubscription':
             assertOptionalTextFields(value, key, ['plan', 'startDate']);
             assertOptionalNumberFields(value, key, ['cost', 'cycle']);
+            break;
+        case 'lifecycle_subscriptions':
+            assertOptionalNumberFields(value, key, ['version']);
+            assertArrayOfRecords(value.subscriptions, `${key}.subscriptions`, (item, path) => {
+                assertOptionalId(item, path);
+                assertOptionalTextFields(item, path, ['name', 'category', 'currency', 'status', 'startDate', 'nextRenewalDate', 'expenseMode', 'lastExpenseRecordedPeriod', 'notes']);
+                assertOptionalNumberFields(item, path, ['cost', 'periodMonths', 'billingAnchorDay']);
+                assertOptionalBooleanFields(item, path, ['autoRenew', 'autoRecordExpense', 'billingAnchorIsMonthEnd']);
+                if (item.cost !== undefined && Number(item.cost) < 0) throw new BackupValidationError(`"${path}.cost" no puede ser negativo.`);
+                if (item.alert !== undefined) {
+                    assertRecord(item.alert, `${path}.alert`);
+                    assertOptionalBooleanFields(item.alert, `${path}.alert`, ['enabled']);
+                    if (item.alert.times !== undefined && (!Array.isArray(item.alert.times) || item.alert.times.some(time => typeof time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)))) throw new BackupValidationError(`"${path}.alert.times" contiene horarios inválidos.`);
+                }
+                if (item.history !== undefined) assertArrayOfRecords(item.history, `${path}.history`, (event, eventPath) => {
+                    assertOptionalTextFields(event, eventPath, ['id', 'type', 'occurredAt', 'effectiveDate', 'currency', 'occurrenceKey', 'note']);
+                    assertOptionalNumberFields(event, eventPath, ['cost']);
+                });
+            });
             break;
         case 'projectPulseTemplates':
             assertOptionalNumberFields(value, key, ['version']);

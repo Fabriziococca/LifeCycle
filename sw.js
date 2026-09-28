@@ -1,8 +1,34 @@
 const LEGACY_CACHE_PREFIX = 'lifecycle-cache-';
+const RECOVERY_CACHE = 'lifecycle-recovery-shell-v1';
+const RECOVERY_ASSETS = ['/recovery.html', '/recovery.css', '/recovery-viewer.mjs', '/recovery-vault.mjs'];
 
 self.addEventListener('install', (e) => {
     console.log('[Service Worker] LifeCycle Push worker installed');
-    e.waitUntil(self.skipWaiting());
+    // Only the read-only emergency shell is cached, never authenticated API
+    // responses, the mutable main app, passwords, or plaintext user data.
+    e.waitUntil(caches.open(RECOVERY_CACHE).then(cache => cache.addAll(RECOVERY_ASSETS)).then(() => self.skipWaiting()));
+});
+
+self.addEventListener('fetch', event => {
+    const url = new URL(event.request.url);
+    if (event.request.method !== 'GET' || url.origin !== self.location.origin) return;
+    if (RECOVERY_ASSETS.includes(url.pathname)) {
+        event.respondWith(fetch(event.request).then(response => {
+            if (!response.ok) throw new Error('Recovery asset unavailable');
+            return response;
+        }).catch(async () => {
+            const cached = await caches.match(url.pathname, { cacheName: RECOVERY_CACHE });
+            return cached || Response.error();
+        }));
+    } else if (event.request.mode === 'navigate' && url.pathname === '/') {
+        event.respondWith(fetch(event.request).then(response => {
+            if (response.status >= 500) throw new Error('Application unavailable');
+            return response;
+        }).catch(async () => {
+            const cached = await caches.match('/recovery.html', { cacheName: RECOVERY_CACHE });
+            return cached || Response.error();
+        }));
+    }
 });
 
 self.addEventListener('activate', (e) => {

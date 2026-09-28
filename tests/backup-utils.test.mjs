@@ -12,6 +12,7 @@ import {
     validateBackupResourceCapacity
 } from '../backup-utils.mjs';
 import { CLOUD_SYNC_KEYS } from '../sync-config.mjs';
+import { normalizeSubscription } from '../subscription-utils.mjs';
 import {
     createEmptyCustomTrackerRegistry,
     createCustomTracker,
@@ -27,6 +28,17 @@ const readFixture = fileName => readFileSync(
     new URL(`./fixtures/${fileName}`, import.meta.url),
     'utf8'
 );
+
+test('subscription registries with alerts and history can be exported and restored without loss', () => {
+    const registry = { version: 2, subscriptions: [normalizeSubscription({ id: 'sub_backup', name: 'Servicio', cost: 10,
+        startDate: '2026-09-01', nextRenewalDate: '2026-10-01', alert: { enabled: true, times: ['09:00', '21:00'] } })] };
+    const payload = createBackupPayload(key => key === 'lifecycle_subscriptions' ? JSON.stringify(registry) : null);
+    assert.deepEqual(payload.data.lifecycle_subscriptions, registry);
+    assert.doesNotThrow(() => parseAndValidateBackupText(JSON.stringify(payload)));
+    const invalid = structuredClone(registry);
+    invalid.subscriptions[0].alert.times = ['25:00'];
+    assert.throws(() => normalizeBackupStorageEntry('lifecycle_subscriptions', invalid), /horarios/);
+});
 
 class MemoryStorage {
     constructor(initialValues = {}, failOnceForKey = null) {

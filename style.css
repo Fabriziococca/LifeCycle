@@ -13351,6 +13351,22 @@ html[data-theme="light"] .notifications-header .count-badge {
     }
 }
 
+/* A moving hit box can alternate hover/unhover under a stationary pointer at
+   its lower edge. Keep project cards anchored; retain border/shadow feedback. */
+#projectsList > .card:hover {
+    transform: none;
+}
+
+.cloud-sync-notice {
+    padding: 0.8rem 1rem;
+    margin: 0 0 1rem;
+    border: 1px solid var(--status-orange);
+    border-radius: 12px;
+    color: var(--text-primary);
+    background: var(--surface-color);
+    font-size: 0.9rem;
+}
+
 /* Optional starter configuration */
 .starter-pack-card .card-body {
     display: grid;
