@@ -198,6 +198,32 @@ Reglas de integridad del diseño (se distingue abajo lo implementado del objetiv
   probado (normalizando saltos de línea). La documentación de cierre puede tener
   un commit posterior sin modificaciones funcionales.
 
+## Corrección prioritaria: horarios y Nuevo recordatorio
+
+- Pedido posterior del usuario: interrumpir el resto del roadmap y corregir los
+  botones de horarios y creación de recordatorios. Sin cambios en facturación,
+  esquema SQL, datos personales ni motor de envío Push.
+- Fallos reproducidos con clics reales sobre la aplicación local: `+` buscaba
+  el contenedor mediante `[data-alert-key]`, pero ese atributo también estaba en
+  el botón; no encontraba la lista y salía silenciosamente. Crear/editar llamaba
+  a `renderReminderExtraTimesList`, que no estaba implementado, y abortaba antes
+  de mostrar el modal.
+- Corregidos ambos flujos. El límite existente sigue siendo seis horarios;
+  el botón permanece visible/deshabilitado al alcanzarlo y se rehabilita al
+  quitar uno, incluso después de guardar. El editor sugiere horarios distintos,
+  restaura los existentes y limpia sus campos al abrir otro recordatorio.
+- Regresión ejecutable en `scripts/alerts-schedule-smoke.cjs`, integrada en
+  `npm run test:ui`: clic/tap, categorías, creación/edición, seis horarios,
+  quitar/reagregar, días activos, sincronización simulada y recarga completa.
+  Usa fixtures aislados; no crea recordatorios en la cuenta real. Para aislarla,
+  usar `LIFECYCLE_UI_SMOKE_ONLY=alerts` con el mismo comando.
+- QA local: 428 pruebas unitarias/contratos correctas y suite UI completa en
+  escritorio/móvil, claro/oscuro (4 escenarios), sin excepciones no capturadas.
+  Incluye regresión de suscripciones, Finanzas, foco de sesión y copia cifrada.
+- Los ensayos esperan que termine la sincronización antes de iniciar la próxima
+  edición. No equivalen a validar conflictos de borradores simultáneos con
+  cambios remotos ni recepción física de Push; ese alcance no se amplió.
+
 ## Pendientes reales, no cierre global
 
 1. Medir un ciclo normal de egress oficial después de los arreglos. La causa

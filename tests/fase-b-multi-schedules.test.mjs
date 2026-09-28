@@ -6,6 +6,7 @@ import path from 'node:path';
 import { normalizeAlertTimes, formatAlertTimes, getScheduleDeliveryKey } from '../alert-schedule-utils.mjs';
 import { createCustomTracker } from '../custom-tracker-utils.mjs';
 import { normalizeRecurringReminder, migrateRecurringReminderConfigs } from '../recurring-reminder-utils.mjs';
+import { AlertsModule } from '../modules/AlertsModule.js';
 
 const ROOT = process.cwd();
 
@@ -56,7 +57,9 @@ test('Tanda 8A & 8B: UI editors expose controls for adding and removing extra sc
 
     assert.match(alertsSource, /btn-add-extra-time/);
     assert.match(alertsSource, /btn-remove-extra-time/);
-    assert.match(alertsSource, /renderReminderExtraTimesList/);
+    // A call-site alone previously satisfied this check even though the method
+    // was missing, preventing both creation and editing of reminders.
+    assert.equal(typeof AlertsModule.prototype.renderReminderExtraTimesList, 'function');
 
     assert.match(customTrackersSource, /btn-custom-tracker-add-time/);
     assert.match(customTrackersSource, /custom-tracker-extra-times-list/);

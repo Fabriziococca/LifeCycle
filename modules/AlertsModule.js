@@ -24,6 +24,8 @@ import {
     getRecurringReminderRegistryResourceUsage
 } from '../resource-policy.mjs?v=20260829-feature-limits';
 
+const ALERT_CARD_SELECTOR = '.alert-card-item[data-alert-key], .alert-config-row[data-alert-key]';
+
 const EARNINGS_SEASON_REMINDER_PRESET = Object.freeze([
     Object.freeze({
         id: 'earnings_season_q4',
@@ -192,7 +194,7 @@ export class AlertsModule {
             container.onclick = (e) => {
                 const addTimeButton = e.target.closest('.btn-add-extra-time');
                 if (addTimeButton) {
-                    const row = addTimeButton.closest('[data-alert-key]');
+                    const row = addTimeButton.closest(ALERT_CARD_SELECTOR);
                     const list = row?.querySelector('.alert-extra-times-list');
                     const inputs = row ? [...row.querySelectorAll('.alert-time-input')] : [];
                     const times = inputs.map(input => input.value).filter(Boolean);
@@ -222,7 +224,7 @@ export class AlertsModule {
                 }
                 const removeTimeButton = e.target.closest('.btn-remove-extra-time');
                 if (removeTimeButton) {
-                    const row = removeTimeButton.closest('[data-alert-key]');
+                    const row = removeTimeButton.closest(ALERT_CARD_SELECTOR);
                     removeTimeButton.closest('.alert-extra-time-row')?.remove();
                     const addButton = row?.querySelector('.btn-add-extra-time');
                     if (addButton) addButton.disabled = false;
@@ -287,20 +289,13 @@ export class AlertsModule {
         if (addReminderTimeBtn && !addReminderTimeBtn.dataset.bound) {
             addReminderTimeBtn.dataset.bound = 'true';
             addReminderTimeBtn.addEventListener('click', () => {
-                const container = document.getElementById('recurring-reminder-extra-times-list');
-                const existingExtraInputs = reminderModal?.querySelectorAll('.recurring-extra-time-input') || [];
-                if (existingExtraInputs.length < 5) {
-                    const extraRow = document.createElement('div');
-                    extraRow.style.cssText = 'display: flex; gap: 6px; align-items: center;';
-                    extraRow.innerHTML = `
-                        <input type="time" class="text-input recurring-extra-time-input" value="20:00" style="flex: 1;">
-                        <button type="button" class="icon-btn btn-remove-reminder-extra-time" style="color: var(--status-red); padding: 4px;" title="Eliminar horario"><i class="ph ph-trash"></i></button>
-                    `;
-                    extraRow.querySelector('.btn-remove-reminder-extra-time')?.addEventListener('click', () => {
-                        extraRow.remove();
-                    });
-                    container?.appendChild(extraRow);
-                }
+                const times = [
+                    document.getElementById('recurring-reminder-time')?.value,
+                    ...Array.from(reminderModal?.querySelectorAll('.recurring-extra-time-input') || [], input => input.value)
+                ];
+                if (times.length >= MAX_ALERT_TIMES_PER_DAY) return;
+                const nextTime = getSuggestedAlertTime(times);
+                if (nextTime) this.appendReminderExtraTime(nextTime);
             });
         }
         const closeButtons = reminderModal?.querySelectorAll('[data-recurring-reminder-close]') || [];
@@ -360,6 +355,48 @@ export class AlertsModule {
                 this.saveRecurringReminderFromEditor();
             };
         }
+    }
+
+    updateReminderAddTimeButton() {
+        const button = document.getElementById('btn-add-reminder-time');
+        if (button) {
+            button.disabled = document.querySelectorAll('#recurring-reminder-extra-times-list .recurring-extra-time-input').length >= MAX_ALERT_TIMES_PER_DAY - 1;
+        }
+    }
+
+    appendReminderExtraTime(time) {
+        const container = document.getElementById('recurring-reminder-extra-times-list');
+        if (!container) return;
+        const row = document.createElement('div');
+        row.style.cssText = 'display: flex; gap: 6px; align-items: center;';
+        const input = document.createElement('input');
+        input.type = 'time';
+        input.className = 'text-input recurring-extra-time-input';
+        input.value = time;
+        input.style.flex = '1';
+        input.setAttribute('aria-label', 'Horario adicional del recordatorio');
+        const remove = document.createElement('button');
+        remove.type = 'button';
+        remove.className = 'icon-btn btn-remove-reminder-extra-time';
+        remove.style.cssText = 'color: var(--status-red); padding: 4px;';
+        remove.title = 'Eliminar horario';
+        remove.setAttribute('aria-label', 'Eliminar horario adicional del recordatorio');
+        remove.innerHTML = '<i class="ph ph-trash"></i>';
+        remove.addEventListener('click', () => {
+            row.remove();
+            this.updateReminderAddTimeButton();
+        });
+        row.append(input, remove);
+        container.appendChild(row);
+        this.updateReminderAddTimeButton();
+    }
+
+    renderReminderExtraTimesList(times = []) {
+        const container = document.getElementById('recurring-reminder-extra-times-list');
+        if (!container) return;
+        container.replaceChildren();
+        times.slice(0, MAX_ALERT_TIMES_PER_DAY - 1).forEach(time => this.appendReminderExtraTime(time));
+        this.updateReminderAddTimeButton();
     }
 
     getRecurringReminderRegistry() {
@@ -728,7 +765,7 @@ export class AlertsModule {
     }
 
     saveCurrentCategoryUIState() {
-        const rows = document.querySelectorAll('.alert-card-item[data-alert-key], .alert-config-row[data-alert-key]');
+        const rows = document.querySelectorAll(ALERT_CARD_SELECTOR);
         rows.forEach(row => {
             const key = row.dataset.alertKey;
             const enabledInput = row.querySelector('.alert-enabled-check');
@@ -912,9 +949,7 @@ export class AlertsModule {
                             <span style="font-size: 0.8rem; color: var(--text-secondary);">Hora de push:</span>
                             <div style="display: flex; align-items: center; gap: 4px;">
                                 <input type="time" class="alert-time-input" value="${conf.time}" aria-label="Hora de alerta de ${safeName}" style="width: 95px; padding: 4px 8px; border-radius: 6px; border: 1px solid var(--surface-border); background: var(--control-bg); color: var(--text-primary); font-size: 0.85rem;">
-                                ${((Array.isArray(conf.times) ? conf.times.length : 1) < 6) ? `
-                                <button type="button" class="icon-btn btn-add-extra-time" data-alert-key="${def.key}" aria-label="Agregar otro horario" title="Agregar horario adicional" style="font-size: 0.85rem; padding: 4px; border: 1px solid var(--surface-border); border-radius: 6px;"><i class="ph ph-plus"></i></button>
-                                ` : ''}
+                                <button type="button" class="icon-btn btn-add-extra-time" ${conf.times?.length >= MAX_ALERT_TIMES_PER_DAY ? 'disabled' : ''} aria-label="Agregar otro horario" title="Agregar horario adicional" style="font-size: 0.85rem; padding: 4px; border: 1px solid var(--surface-border); border-radius: 6px;"><i class="ph ph-plus"></i></button>
                             </div>
                         </div>
                         <div class="alert-extra-times-list">

@@ -3,12 +3,14 @@ const fs = require('node:fs/promises');
 const assert = require('node:assert/strict');
 const express = require('express');
 const { runFinanceWorkspaceSmoke } = require('./finance-workspace-smoke.cjs');
+const { runAlertsScheduleSmoke } = require('./alerts-schedule-smoke.cjs');
 const path = require('node:path');
 const httpServer = express().use(express.static(path.resolve(__dirname, '..'))).listen(0, '127.0.0.1');
 
 function installFakeCloud() {
     const user = { id: '11111111-1111-4111-8111-111111111111', email: 'qa@example.invalid' };
-    const cloudDocument = {};
+    const cloudDocument = JSON.parse(sessionStorage.getItem('qa-cloud-document') || '{}');
+    window.qaCloudDocument = () => structuredClone(cloudDocument);
     let revision = 1;
     const listeners = new Set();
     window.qaSyncMetrics = { writes: 0, realtimeEvents: 0, fullReads: 0, revisionReads: 0, transcriptionReads: 0 };
@@ -42,6 +44,7 @@ function installFakeCloud() {
                 const previous = JSON.stringify(cloudDocument);
                 (parameters.p_delete_keys || []).forEach(key => delete cloudDocument[key]);
                 Object.assign(cloudDocument, parameters.p_updates || {});
+                sessionStorage.setItem('qa-cloud-document', JSON.stringify(cloudDocument));
                 if (previous !== JSON.stringify(cloudDocument)) revision += 1;
                 window.qaSyncMetrics.writes += 1;
                 const payload = { new: { data: structuredClone(cloudDocument), revision } };
@@ -85,6 +88,13 @@ function installFakeCloud() {
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            await runAlertsScheduleSmoke(page, { width, theme });
+            assert.deepEqual(errors, [], `uncaught alerts errors at ${width}/${theme}`);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'alerts') {
+                console.log(JSON.stringify({ width, theme, alertSchedules: true, recurringReminderEditor: true, cloudReload: true }));
+                await context.close();
+                continue;
+            }
             await page.evaluate(() => window.lifecycle_controller.openProfileTab('preferencias'));
             await page.locator('#tab-preferencias').waitFor({ state: 'visible' });
             await page.screenshot({ path: `.tmp-sb/ui-smoke/${width}-${theme}-preferences.png`, fullPage: true, animations: 'disabled' });
