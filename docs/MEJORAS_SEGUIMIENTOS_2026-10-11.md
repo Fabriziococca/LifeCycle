@@ -59,8 +59,29 @@ el lector de documentos con revisión/caché y sólo cargan estado cuando hay ca
   navegación, editor de avisos, suscripciones, sesión, Finanzas y copia cifrada.
 - Datos ficticios y nube simulada. No se editaron datos personales de producción.
   La recepción Push física en un teléfono no queda demostrada por estas pruebas.
-- Publicación y verificación exacta de commit, health, build y logs: pendiente
-  hasta cerrar las comprobaciones finales de este cambio.
+- Mejoras publicadas en `05bc9a3a73b48313c2ce8d32c3466d9486a385af`, CI aprobada.
+  Manual Deploy `dep-db5i0h2jnfac73aiii60`, activo a las 02:36:44 de Argentina
+  (05:36:44 UTC). `/api/health` confirmó `05bc9a3`, motor configurado, primer ciclo
+  exitoso a las 05:36:47 UTC y cero fallos consecutivos o timeouts.
+
+## Parches de dependencias detectados en el build
+
+El build inicial mostró dos avisos de dependencias preexistentes. Se actualizaron
+sólo dos paquetes transitivos, dentro de los rangos permitidos por sus padres;
+sin cambiar dependencias directas, arquitectura ni configuración:
+
+- `proxy-addr` 2.0.7 → 2.0.8 (Express), corrige
+  [GHSA-jqcg-44mw-7w3h](https://github.com/advisories/GHSA-jqcg-44mw-7w3h).
+  El caso del aviso usa subredes IPv6 mal configuradas; LifeCycle usa `trust proxy`
+  con valor numérico `1`. No se detectó un ataque ni se cambió ese ajuste.
+- `brace-expansion` 5.0.9 → 5.0.12 (CLI de Capacitor, dependencia de desarrollo),
+  corrige los avisos de recursión y expansión, incluido
+  [GHSA-q2hr-2g5m-vwhr](https://github.com/advisories/GHSA-q2hr-2g5m-vwhr).
+
+`npm audit` completo y de producción: **0 vulnerabilidades conocidas** después
+del parche. Suite repetida con ambos parches: **439 aprobadas, cero fallos**.
+El commit de cierre sólo actualiza esas dos dependencias transitivas y este
+registro; la lógica de las cinco mejoras corresponde a `05bc9a3`.
 
 ## Recuperación
 
