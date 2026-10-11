@@ -33,8 +33,9 @@ otros módulos, Transcripciones, APK ni trabajos diferidos de A–F por este ped
   no recupera recordatorios pasados.
 - Nuevas tarjetas por días usan avisos automáticos al 70% y 85% del plazo, con
   redondeo hacia abajo y mínimo de un día. Los plazos muy cortos pueden coincidir.
-  El editor permite modo manual. Las tarjetas anteriores mantienen sus días
-  configurados hasta que el usuario elija automático.
+  El editor permite modo manual. Por pedido posterior explícito del propietario,
+  sus 38 tarjetas existentes por días también pasaron a automático, conservando
+  cada plazo de vencimiento. Las 3 tarjetas por meses o por estado quedaron iguales.
 - El servidor excluye entidades pausadas de los avisos y comprueba estado actual
   antes de reintentar Push. La pausa debe sincronizarse para que el servidor la
   conozca. No se puede retirar un Push ya aceptado por el proveedor.
@@ -84,6 +85,29 @@ El commit de cierre sólo actualiza esas dos dependencias transitivas y este
 registro; la lógica de las cinco mejoras corresponde a `05bc9a3`.
 
 ## Recuperación
+
+### Conversión de tarjetas existentes solicitada el 11/10
+
+Se alinearon las 26 versiones locales/remotas antes de aplicar la migración de
+datos `20261011054822_owner_automatic_day_thresholds.sql`; ahora son 27. Se usó
+el SQL Editor oficial autenticado porque el conector no estaba instalado.
+La selección se limita al único perfil propietario y bloquea su documento actual;
+un cambio concurrente de revisión cancela la aplicación antes de modificar datos.
+No aplica una preferencia global ni instala un trigger que fuerce futuros cambios.
+
+La transacción verificó con huellas del documento que no cambiaran vencimientos,
+historiales, pausas, horarios, preferencias ni otras secciones. También conservó
+columnas, constraints, índices, RLS y grants de `user_data`. Se guardó fuera de Git
+una copia mínima de los 38 umbrales anteriores, sin contenido personal ni credenciales,
+en `.tmp-sb/automatic-thresholds-originals-2026-10-11.json`. Para deshacer, preparar
+una migración compatible a partir de esa copia y comprobar que no haya ajustes
+manuales posteriores antes de restaurarlos; no sobrescribir otros campos.
+
+La regresión SQL real se probó con PostgreSQL embebido: propietario/amigo,
+tarjetas pausadas/archivadas, meses, estados, instalación nueva, idempotencia y
+rechazo de propietarios ambiguos. La suite local completa pasó 441 pruebas.
+El cálculo del cliente usa porcentajes enteros para evitar que 90 × 0,7 termine
+redondeado a 62 por precisión binaria; el resultado correcto es 63 días.
 
 Preferir una corrección hacia adelante conservando `billingMode` y períodos de
 pausa. Volver a un cliente anterior puede perder esos campos al guardar documentos

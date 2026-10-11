@@ -14,6 +14,9 @@ async function runLifecycleImprovementsSmoke(page, { width, theme }) {
         app.customTrackers.openEditor('hygiene');
     });
     await page.locator('#custom-tracker-name').fill('QA pausa y porcentajes');
+    await page.locator('#custom-tracker-interval').fill('90');
+    assert.equal(await page.locator('#custom-tracker-yellow').inputValue(), '63');
+    assert.equal(await page.locator('#custom-tracker-orange').inputValue(), '76');
     await page.locator('#custom-tracker-interval').fill('400');
     assert.equal(await page.locator('#custom-tracker-yellow').inputValue(), '280');
     assert.equal(await page.locator('#custom-tracker-orange').inputValue(), '340');

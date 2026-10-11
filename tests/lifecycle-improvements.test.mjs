@@ -81,6 +81,8 @@ test('pending-state reminders and monthly trackers freeze across pause and resum
 
 test('automatic progressive thresholds recalculate at 70/85%, including short periods, without changing old manual values', () => {
     assert.deepEqual(normalizeCustomTrackerDayThresholds({ mode: 'automatic', red: 400, yellow: 2, orange: 3 }).thresholds, { mode: 'automatic', red: 400, yellow: 280, orange: 340 });
+    assert.equal(normalizeCustomTrackerDayThresholds({ mode: 'automatic', red: 90 }).thresholds.yellow, 63);
+    assert.equal(normalizeCustomTrackerDayThresholds({ mode: 'automatic', red: 350 }).thresholds.yellow, 245);
     assert.deepEqual(normalizeCustomTrackerDayThresholds({ mode: 'automatic', red: 1 }).thresholds, { mode: 'automatic', red: 1, yellow: 1, orange: 1 });
     assert.deepEqual(normalizeCustomTrackerDayThresholds({ red: 400, yellow: 180, orange: 270 }).thresholds, { red: 400, yellow: 180, orange: 270 });
 });

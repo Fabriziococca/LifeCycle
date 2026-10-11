@@ -376,7 +376,7 @@ export function normalizeCustomTrackerDayThresholds(rawThresholds, {
         fallback: 30,
         strict
     });
-    const defaultYellow = Math.max(1, Math.floor(red * 0.7));
+    const defaultYellow = Math.max(1, Math.floor(red * 70 / 100));
     const requestedYellow = normalizeInteger(candidate.mode === 'automatic' ? defaultYellow : candidate.yellow, {
         field: 'Próximo',
         min: 1,
@@ -384,7 +384,7 @@ export function normalizeCustomTrackerDayThresholds(rawThresholds, {
         fallback: defaultYellow,
         strict
     });
-    const defaultOrange = Math.max(defaultYellow, Math.floor(red * 0.85));
+    const defaultOrange = Math.max(defaultYellow, Math.floor(red * 85 / 100));
     const requestedOrange = normalizeInteger(candidate.mode === 'automatic' ? defaultOrange : candidate.orange, {
         field: 'Atención',
         min: 1,

@@ -2853,8 +2853,9 @@ export class CustomTrackersModule {
         orangeInput.readOnly = automatic;
         if (automatic && !isMedical && !isStateReminder) {
             const red = Math.max(1, Math.min(3650, Number(intervalInput.value) || 30));
-            yellowInput.value = Math.max(1, Math.floor(red * 0.7));
-            orangeInput.value = Math.max(1, Math.floor(red * 0.85));
+            const { thresholds } = normalizeCustomTrackerDayThresholds({ mode: 'automatic', red });
+            yellowInput.value = thresholds.yellow;
+            orangeInput.value = thresholds.orange;
         }
         this.dialog.querySelector('#custom-tracker-interval-label').textContent = (
             isMedical ? 'Repetir el control cada' : 'Marcar como vencida después de'
