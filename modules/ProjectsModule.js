@@ -1,5 +1,6 @@
 import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { formatProjectDeadline } from '../project-status-utils.mjs';
 import {
     buildProjectTemplate,
     getProjectTemplatePayload,
@@ -1576,6 +1577,7 @@ export class ProjectsModule {
                     </div>
                 </div>
 
+                <p class="project-exact-deadline">${p.isArbitration ? 'Plazo original (en arbitraje)' : p.isDelivered ? 'Plazo original de entrega' : 'Entrega'}: <strong>${escapeHtml(formatProjectDeadline(p.deadline))}</strong></p>
                 <div class="pulse-bar" style="margin-bottom: 0.6rem;">
                     <div class="pulse-progress" style="width:${progress}%; background:${colorVar}"></div>
                 </div>

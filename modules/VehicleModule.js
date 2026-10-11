@@ -584,7 +584,7 @@ export class VehicleModule {
 
         // Refrigerante
         const refDate = this.trackerData.refrigeranteDate;
-        const refDays = refDate ? this.calculateDaysElapsed(refDate) : null;
+        const refDays = coolantCard ? this.cards.getState(coolantCard)?.elapsedDays ?? null : refDate ? this.calculateDaysElapsed(refDate) : null;
         const cardRef = document.getElementById('fluid-card-refrigerante');
         if (this.refrigeranteElapsed) {
             this.refrigeranteElapsed.innerText = refDays !== null ? `${refDays} días desde última revisión` : 'Sin registros de revisión';
@@ -614,7 +614,7 @@ export class VehicleModule {
 
         // Sapito
         const sapDate = this.trackerData.sapitoDate;
-        const sapDays = sapDate ? this.calculateDaysElapsed(sapDate) : null;
+        const sapDays = washerCard ? this.cards.getState(washerCard)?.elapsedDays ?? null : sapDate ? this.calculateDaysElapsed(sapDate) : null;
         const cardSap = document.getElementById('fluid-card-sapito');
         if (this.sapitoElapsed) {
             this.sapitoElapsed.innerText = sapDays !== null ? `${sapDays} días desde última revisión` : 'Sin registros de revisión';
@@ -644,7 +644,7 @@ export class VehicleModule {
 
         // Escobillas
         const escDate = this.trackerData.escobillasDate;
-        const escDays = escDate ? this.calculateDaysElapsed(escDate) : null;
+        const escDays = wipersCard ? this.cards.getState(wipersCard)?.elapsedDays ?? null : escDate ? this.calculateDaysElapsed(escDate) : null;
         const cardEsc = document.getElementById('fluid-card-escobillas');
         if (this.escobillasElapsed) {
             this.escobillasElapsed.innerText = escDays !== null ? `${escDays} días desde último cambio` : 'Sin registros de cambio';
@@ -674,7 +674,7 @@ export class VehicleModule {
 
         // Extintor
         const extDate = this.trackerData.extintorDate;
-        const extRemaining = extDate ? this.calculateDaysUntil(extDate) : null;
+        const extRemaining = extinguisherCard ? this.cards.getState(extinguisherCard)?.remainingDays ?? null : extDate ? this.calculateDaysUntil(extDate) : null;
         const cardExt = document.getElementById('fluid-card-extintor');
         if (this.extintorExpDate) {
             this.extintorExpDate.innerText = extDate ? this.formatDate(extDate) : 'No registrado';
@@ -716,7 +716,7 @@ export class VehicleModule {
             const catalogCard = this.cards?.getLegacyCard?.(d.legacyId);
             const expDate = this.cards?.getLastRecord?.(catalogCard?.id)?.date
                 || this.trackerData[d.key];
-            const remaining = expDate ? this.calculateDaysUntil(expDate) : null;
+            const remaining = catalogCard ? this.cards.getState(catalogCard)?.remainingDays ?? null : expDate ? this.calculateDaysUntil(expDate) : null;
             const cardEl = document.getElementById(d.cardId);
             const warningDays = catalogCard?.warningDays || (d.legacyId === 'insurance' ? 7 : 30);
 
@@ -911,9 +911,10 @@ export class VehicleModule {
 
         if (lastOil) {
             const nextKm = lastOil.km + vRules.km;
-            const remainingKm = nextKm - this.odometer;
-            const daysElapsed = this.calculateDaysElapsed(lastOil.date);
-            const remainingDays = vRules.days - (daysElapsed || 0);
+            const trackingState = catalogCard ? this.cards.getState(catalogCard) : null;
+            const remainingKm = trackingState?.remainingKm ?? nextKm - this.odometer;
+            const daysElapsed = trackingState?.elapsedDays ?? this.calculateDaysElapsed(lastOil.date);
+            const remainingDays = trackingState?.remainingDays ?? vRules.days - (daysElapsed || 0);
 
             let colorVar = 'var(--status-green)';
             if ((this.odometer > 0 && remainingKm <= 0) || remainingDays <= 0) {
@@ -996,10 +997,11 @@ export class VehicleModule {
             replace: { km: replaceCard?.intervalKm || 60000, warningKm: replaceCard?.warningKm || 1000 }
         };
 
-        const checkStatus = (lastRecord, limit, warningKm) => {
+        const checkStatus = (lastRecord, limit, warningKm, card) => {
             if (!lastRecord) return;
+            if (card?.paused) return;
             hasAnyRecord = true;
-            const remaining = (lastRecord.km + limit) - this.odometer;
+            const remaining = (card ? this.cards.getState(card)?.remainingKm : null) ?? (lastRecord.km + limit) - this.odometer;
             if (remaining <= 0) {
                 worstColor = 'var(--status-red)';
             } else if (remaining <= warningKm && worstColor !== 'var(--status-red)') {
@@ -1007,9 +1009,9 @@ export class VehicleModule {
             }
         };
 
-        checkStatus(lastAlign, vRules.align.km, vRules.align.warningKm);
-        checkStatus(lastRot, vRules.rot.km, vRules.rot.warningKm);
-        checkStatus(lastReplace, vRules.replace.km, vRules.replace.warningKm);
+        checkStatus(lastAlign, vRules.align.km, vRules.align.warningKm, alignCard);
+        checkStatus(lastRot, vRules.rot.km, vRules.rot.warningKm, rotationCard);
+        checkStatus(lastReplace, vRules.replace.km, vRules.replace.warningKm, replaceCard);
 
         const elTiresCard = document.getElementById('vehicle-tires-card');
         if (elTiresCard) {
@@ -1018,7 +1020,7 @@ export class VehicleModule {
 
         if (lastAlign) {
             const nextKm = lastAlign.km + vRules.align.km;
-            const remaining = nextKm - this.odometer;
+            const remaining = (alignCard ? this.cards.getState(alignCard)?.remainingKm : null) ?? nextKm - this.odometer;
             if (this.alignLast) this.alignLast.innerText = `${lastAlign.km.toLocaleString('es-AR')} km (${this.formatDate(lastAlign.date)})`;
             if (this.alignRemaining) {
                 this.alignRemaining.innerText = remaining <= 0 ? 'Vencido' : `${remaining.toLocaleString('es-AR')} km rest.`;
@@ -1031,7 +1033,7 @@ export class VehicleModule {
 
         if (lastRot) {
             const nextKm = lastRot.km + vRules.rot.km;
-            const remaining = nextKm - this.odometer;
+            const remaining = (rotationCard ? this.cards.getState(rotationCard)?.remainingKm : null) ?? nextKm - this.odometer;
             if (this.rotLast) this.rotLast.innerText = `${lastRot.km.toLocaleString('es-AR')} km (${this.formatDate(lastRot.date)})`;
             if (this.rotRemaining) {
                 this.rotRemaining.innerText = remaining <= 0 ? 'Vencido' : `${remaining.toLocaleString('es-AR')} km rest.`;
@@ -1044,7 +1046,7 @@ export class VehicleModule {
 
         if (lastReplace) {
             const nextKm = lastReplace.km + vRules.replace.km;
-            const remaining = nextKm - this.odometer;
+            const remaining = (replaceCard ? this.cards.getState(replaceCard)?.remainingKm : null) ?? nextKm - this.odometer;
             if (this.replaceLast) this.replaceLast.innerText = `${lastReplace.km.toLocaleString('es-AR')} km (${this.formatDate(lastReplace.date)})`;
             if (this.replaceRemaining) {
                 this.replaceRemaining.innerText = remaining <= 0 ? 'Vencido' : `${remaining.toLocaleString('es-AR')} km rest.`;

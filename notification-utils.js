@@ -1,4 +1,5 @@
 'use strict';
+const { getPauseAdjustedDate, getPauseAdjustedKm } = require('./pause-utils.mjs');
 
 const SERVER_MANAGED_USER_DATA_KEYS = new Set([
     'alerts_sent_log',
@@ -202,7 +203,7 @@ function getPendingVeryUrgentTasks(snapshot = {}) {
     const safeGeneralTasks = Array.isArray(generalTasks) ? generalTasks : [];
     const safeProjects = Array.isArray(projects) ? projects : [];
     const projectTasks = safeProjects.flatMap(project => (
-        Array.isArray(project?.tasks) ? project.tasks : []
+        !project?.isArbitration && Array.isArray(project?.tasks) ? project.tasks : []
     ));
 
     return [...safeGeneralTasks, ...projectTasks]
@@ -454,7 +455,7 @@ function buildVehicleCatalogNotification(
         return { handled: true, shouldNotify: false };
     }
     if (!card) return null;
-    if (card.archived || card.deleted) {
+    if (card.archived || card.deleted || card.paused) {
         return { handled: true, shouldNotify: false };
     }
     const record = getLatestVehicleRecord(card, catalog.records[card.id]);
@@ -483,13 +484,13 @@ function buildVehicleCatalogNotification(
 
     if (typeof getDaysElapsed !== 'function') return null;
     const intervalDays = Number.parseInt(card.intervalDays, 10) || null;
-    const elapsedDays = getDaysElapsed(record.date);
+    const elapsedDays = getDaysElapsed(getPauseAdjustedDate(card, record.date));
     const dueByDays = intervalDays && Number.isFinite(elapsedDays)
         ? elapsedDays >= intervalDays
         : false;
     const intervalKm = Number.parseInt(card.intervalKm, 10) || null;
     const dueByKm = card.type === 'maintenance' && intervalKm
-        ? (Number(record.km) || 0) + intervalKm - (Number(currentOdo) || 0) <= 0
+        ? (Number(record.km) || 0) + intervalKm - getPauseAdjustedKm(card, record.date, currentOdo) <= 0
         : false;
     if (!dueByDays && !dueByKm) {
         return { handled: true, shouldNotify: false };
@@ -523,6 +524,37 @@ function getCustomTrackerAlertKey(tracker) {
         : `${CUSTOM_ALERT_PREFIX}${tracker?.id || ''}`;
 }
 
+function isPushRetryRelevant(alertKey, snapshot = {}) {
+    const key = String(alertKey || '').split('@')[0];
+    const configs = parseJsonValue(snapshot.alerts_config, {});
+    if (configs[key]?.paused || configs[key]?.enabled === false) return false;
+    if (key === 'vitamina_d' && parseJsonValue(snapshot.gym_supplements, {})?.vit_d_tracking?.paused) return false;
+    const registry = getCustomTrackerRegistry(parseJsonValue(snapshot.hygiene_tracker_data, {}));
+    const tracker = registry?.trackers.find(item => getCustomTrackerAlertKey(item) === key);
+    if (tracker) {
+        return !tracker.paused && !tracker.archived && !tracker.deleted
+            && (tracker.template !== 'state-reminder' || tracker.state?.active === true);
+    }
+    if (key.startsWith(CUSTOM_ALERT_PREFIX)) return false;
+    const vehicle = getVehicleCatalog(parseJsonValue(snapshot.vehicle_tracker_data, {}));
+    const card = vehicle?.cards.find(item => getVehicleCardAlertKey(item) === key);
+    if (card) return !card.paused && !card.archived && !card.deleted;
+    if (key.startsWith(VEHICLE_ALERT_PREFIX)) return false;
+    if (key.startsWith('project_')) {
+        const projects = parseJsonValue(snapshot.projectPulseData, []);
+        return Array.isArray(projects) && projects.some(project => (
+            key.startsWith(`project_${project.id}_`) && !project.isArbitration && !project.isDelivered
+        ));
+    }
+    if (key.startsWith('sub_sub_')) {
+        const subscriptions = parseJsonValue(snapshot.lifecycle_subscriptions, {})?.subscriptions;
+        return Array.isArray(subscriptions) && subscriptions.some(subscription => (
+            `sub_${subscription.id}` === key && subscription.status === 'active' && subscription.alert?.enabled !== false
+        ));
+    }
+    return true;
+}
+
 function getStateReminderEntries(hygieneData = {}) {
     const registry = getCustomTrackerRegistry(hygieneData);
     if (!registry) return [];
@@ -547,8 +579,8 @@ function getStateReminderEntries(hygieneData = {}) {
                 name: typeof tracker.name === 'string'
                     ? tracker.name.replace(/\s+/g, ' ').trim().slice(0, 80)
                     : 'Recordatorio',
-                active: Boolean(activatedAt),
-                activatedAt,
+                active: !tracker.paused && Boolean(activatedAt),
+                activatedAt: activatedAt ? getPauseAdjustedDate(tracker, activatedAt) : null,
                 intervalHours: normalizeIntervalHours(
                     tracker.behavior?.intervalHours,
                     6
@@ -639,7 +671,7 @@ function buildCustomTrackerNotification(
         || (trackerId && item?.id === trackerId)
     ));
     if (!tracker) return null;
-    if (tracker.archived || tracker.deleted) {
+    if (tracker.archived || tracker.deleted || tracker.paused) {
         return {
             handled: true,
             shouldNotify: false
@@ -681,7 +713,7 @@ function buildCustomTrackerNotification(
         };
     }
 
-    const elapsedDays = getDaysElapsed(lastEntry);
+    const elapsedDays = getDaysElapsed(getPauseAdjustedDate(tracker, lastEntry));
     if (!Number.isFinite(elapsedDays) || elapsedDays < intervalDays) {
         return {
             handled: true,
@@ -718,6 +750,7 @@ module.exports = {
     groupSubscriptionsByUser,
     isExpiredPushError,
     isIntervalReminderDue,
+    isPushRetryRelevant,
     normalizeNotificationTime,
     normalizeNotificationTimes,
     normalizeIntervalHours,

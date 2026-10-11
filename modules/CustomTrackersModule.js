@@ -1,3 +1,4 @@
+import { setEntityPaused } from '../pause-utils.mjs';
 import {
     APP_MODULES,
     appendCustomTrackerRecords,
@@ -56,6 +57,7 @@ import {
 import Sortable from '../vendor/sortable.complete.esm.js?v=1.15.7';
 
 const STATUS_META = Object.freeze({
+    paused: { label: 'Pausada', color: 'var(--text-secondary)' },
     new: { label: 'Sin registros', color: 'var(--text-secondary)' },
     green: { label: 'Al día', color: 'var(--status-green)' },
     yellow: { label: 'Próximo', color: 'var(--status-yellow)' },
@@ -614,7 +616,7 @@ export class CustomTrackersModule {
         ));
         const notStarted = states.filter(item => item.state.status === 'new');
         const next = states
-            .filter(item => item.state.nextDate)
+            .filter(item => !item.tracker.paused && item.state.nextDate)
             .sort((left, right) => (
                 Date.parse(left.state.nextDate) - Date.parse(right.state.nextDate)
             ))[0] || null;
@@ -1302,6 +1304,8 @@ export class CustomTrackersModule {
                 this.openManagerEditor(trackerId);
             } else if (action === 'archive') {
                 this.archiveTracker(trackerId, { showGlobalUndo: true });
+            } else if (action === 'toggle-pause') {
+                this.toggleTrackerPause(trackerId);
             } else if (action === 'record') {
                 this.recordTracker(trackerId, { trigger: button });
             } else if (action === 'open-history') {
@@ -2542,6 +2546,14 @@ export class CustomTrackersModule {
                             <label for="custom-tracker-icon">Icono</label>
                             <select id="custom-tracker-icon" class="text-input"></select>
                         </div>
+                        <div class="input-group custom-day-thresholds custom-form-wide">
+                            <label for="custom-tracker-threshold-mode">Avisos previos al vencimiento</label>
+                            <select id="custom-tracker-threshold-mode" class="text-input">
+                                <option value="automatic">Automáticos: Próximo al 70%, Atención al 85%</option>
+                                <option value="manual">Definir días manualmente</option>
+                            </select>
+                            <small>El plazo de vencimiento lo elegís vos. Los avisos automáticos se recalculan al cambiarlo.</small>
+                        </div>
                         <div class="input-group custom-day-thresholds">
                             <label for="custom-tracker-yellow">Mostrar próximo desde</label>
                             <div class="custom-number-with-unit">
@@ -2722,6 +2734,8 @@ export class CustomTrackersModule {
         dialog.querySelector('#custom-tracker-alert-enabled').addEventListener('change', () => {
             this.updateEditorConditionalFields();
         });
+        dialog.querySelector('#custom-tracker-threshold-mode').addEventListener('change', () => this.updateEditorConditionalFields());
+        dialog.querySelector('#custom-tracker-interval').addEventListener('input', () => this.updateEditorConditionalFields());
         dialog.querySelector('#custom-tracker-form').addEventListener('submit', event => {
             event.preventDefault();
             this.saveEditor();
@@ -2834,6 +2848,14 @@ export class CustomTrackersModule {
         const yellowInput = this.dialog.querySelector('#custom-tracker-yellow');
         const orangeInput = this.dialog.querySelector('#custom-tracker-orange');
         const warningInput = this.dialog.querySelector('#custom-tracker-warning-days');
+        const automatic = this.dialog.querySelector('#custom-tracker-threshold-mode').value === 'automatic';
+        yellowInput.readOnly = automatic;
+        orangeInput.readOnly = automatic;
+        if (automatic && !isMedical && !isStateReminder) {
+            const red = Math.max(1, Math.min(3650, Number(intervalInput.value) || 30));
+            yellowInput.value = Math.max(1, Math.floor(red * 0.7));
+            orangeInput.value = Math.max(1, Math.floor(red * 0.85));
+        }
         this.dialog.querySelector('#custom-tracker-interval-label').textContent = (
             isMedical ? 'Repetir el control cada' : 'Marcar como vencida después de'
         );
@@ -2902,6 +2924,8 @@ export class CustomTrackersModule {
             tracker?.thresholds?.yellow
             || Math.max(1, Math.floor((tracker?.intervalDays || 30) * 0.7))
         );
+        this.dialog.querySelector('#custom-tracker-threshold-mode').value = tracker
+            ? (tracker.thresholds?.mode || 'manual') : 'automatic';
         this.dialog.querySelector('#custom-tracker-orange').value = (
             tracker?.thresholds?.orange
             || Math.max(1, Math.floor((tracker?.intervalDays || 30) * 0.85))
@@ -3054,6 +3078,7 @@ export class CustomTrackersModule {
                 }
                 : (() => {
                     const normalized = normalizeCustomTrackerDayThresholds({
+                        mode: this.dialog.querySelector('#custom-tracker-threshold-mode').value,
                         yellow: Number(
                             this.dialog.querySelector('#custom-tracker-yellow').value
                         ),
@@ -3082,6 +3107,7 @@ export class CustomTrackersModule {
                 ) + 1
                 : existing.order;
             const candidate = createCustomTracker({
+                ...(existing || {}),
                 section,
                 subsection,
                 template,
@@ -3199,7 +3225,7 @@ export class CustomTrackersModule {
 
     recordTracker(trackerId, whenOrOptions = new Date()) {
         const tracker = this.getTracker(trackerId);
-        if (!tracker || tracker.archived || tracker.deleted) return false;
+        if (!tracker || tracker.archived || tracker.deleted || tracker.paused) return false;
         if (isMedicalStudyTracker(tracker)) {
             const trigger = whenOrOptions?.trigger instanceof HTMLElement
                 ? whenOrOptions.trigger
@@ -3217,7 +3243,7 @@ export class CustomTrackersModule {
 
     setStateReminderActive(trackerId, active, when = new Date()) {
         let tracker = this.getTracker(trackerId);
-        if (!tracker || tracker.archived || tracker.deleted || !isStateReminderTracker(tracker)) {
+        if (!tracker || tracker.archived || tracker.deleted || tracker.paused || !isStateReminderTracker(tracker)) {
             return false;
         }
         const nextActive = active === true;
@@ -3407,6 +3433,17 @@ export class CustomTrackersModule {
             delete this.app.health.medicalData[source.key];
             this.app.health.saveMedicalData();
         }
+    }
+
+    toggleTrackerPause(trackerId) {
+        const tracker = this.getTracker(trackerId);
+        if (!tracker || tracker.archived || tracker.deleted) return false;
+        const updated = setEntityPaused(tracker, !tracker.paused);
+        this.registry.trackers[this.registry.trackers.indexOf(tracker)] = updated;
+        this.persistRegistry();
+        this.app.notificationsCenter?.updateBadge();
+        this.showRuntimeFeedback(updated.paused ? 'Tarjeta pausada. Conserva su historial y no avanza ni envía avisos.' : 'Tarjeta reanudada desde donde quedó.');
+        return true;
     }
 
     archiveTracker(trackerId, { showGlobalUndo = false } = {}) {
@@ -4475,7 +4512,7 @@ export class CustomTrackersModule {
         const state = getCustomTrackerState(tracker, history);
         const isStateReminder = isStateReminderTracker(tracker);
         const isMedicalStudy = isMedicalStudyTracker(tracker);
-        const status = isStateReminder
+        const status = tracker.paused ? { label: 'Pausada', color: 'var(--text-secondary)' } : isStateReminder
             ? (state.active
                 ? { label: 'Pendiente', color: 'var(--status-red)' }
                 : { label: 'Al día', color: 'var(--status-green)' })
@@ -4494,7 +4531,7 @@ export class CustomTrackersModule {
         const latestLabel = state.latest
             ? DateUtils.formatFriendlyDate(state.latest)
             : 'Nunca';
-        const nextLabel = state.nextDate
+        const nextLabel = tracker.paused ? 'En pausa' : state.nextDate
             ? DateUtils.formatFriendlyDate(state.nextDate)
             : 'Después del primer registro';
         const cadenceLabel = state.cadence.unit === 'months'
@@ -4508,7 +4545,7 @@ export class CustomTrackersModule {
             && this.reorderContext.sectionKey === tracker.section
         );
         const isBulkSelecting = this.bulkContext?.sectionKey === tracker.section;
-        const canBulkSelect = !isStateReminder && !isMedicalStudy;
+        const canBulkSelect = !tracker.paused && !isStateReminder && !isMedicalStudy;
         const isBulkSelected = isBulkSelecting && canBulkSelect
             && this.bulkContext.selectedIds.has(tracker.id);
         const isFeatured = this.getFeaturedTrackerId(tracker.section) === tracker.id;
@@ -4601,7 +4638,7 @@ export class CustomTrackersModule {
                         <span>${state.active ? (state.elapsedHours === 1 ? 'hora pendiente' : 'horas pendientes') : 'sin avisos activos'}</span>
                     </div>
                     <div class="custom-tracker-dates">
-                        <span>Estado <strong>${state.active ? 'Avisos activos' : 'Resuelto'}</strong></span>
+                        <span>Estado <strong>${tracker.paused ? 'Sin avisos: pausada' : state.active ? 'Avisos activos' : 'Resuelto'}</strong></span>
                         <span>Frecuencia <strong>cada ${tracker.behavior.intervalHours} h</strong></span>
                     </div>
                     <div class="custom-tracker-progress" aria-hidden="true">
@@ -4623,7 +4660,10 @@ export class CustomTrackersModule {
                         <p class="custom-tracker-prediction">${escapeHtml(prediction)}</p>
                     ` : ''}
                 `}
-                <button type="button" class="btn btn-primary custom-tracker-record" data-custom-runtime-action="record" data-tracker-id="${tracker.id}">
+                <button type="button" class="btn btn-secondary tracker-pause-button" data-custom-runtime-action="toggle-pause" data-tracker-id="${tracker.id}">
+                    <i class="ph ${tracker.paused ? 'ph-play' : 'ph-pause'}" aria-hidden="true"></i> ${tracker.paused ? 'Reanudar' : 'Pausar'}
+                </button>
+                <button type="button" class="btn btn-primary custom-tracker-record" data-custom-runtime-action="record" data-tracker-id="${tracker.id}" ${tracker.paused ? 'disabled' : ''}>
                     <i class="ph ${isStateReminder && !state.active ? 'ph-warning' : (isMedicalStudy ? 'ph-plus-circle' : 'ph-check-circle')}"></i>
                     ${safeAction}
                 </button>

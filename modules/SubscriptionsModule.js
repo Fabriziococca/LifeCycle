@@ -10,6 +10,7 @@ import {
     extractLegacySubscriptionRegistry,
     getDaysUntilRenewal,
     getSubscriptionExpenseOccurrenceKey,
+    isPaidSubscription,
     migrateWorkanaToSubscriptions,
     normalizeSubscription,
     normalizeSubscriptionRegistry,
@@ -184,6 +185,8 @@ export class SubscriptionsModule {
             if (action === 'new') this.openModal(null, button);
             else if (action === 'edit') this.openModal(id, button);
             else if (action === 'expense') void this.recordExpense(id);
+            else if (action === 'convert-paid') this.openModal(id, button, { convertToPaid: true });
+            else if (action === 'decline') void this.setStatus(id, 'canceled');
             else if (action === 'pause') void this.setStatus(id, 'paused');
             else if (action === 'cancel') void this.setStatus(id, 'canceled');
             else if (action === 'reactivate') void this.setStatus(id, 'active');
@@ -219,6 +222,7 @@ export class SubscriptionsModule {
             document.getElementById('sub-alert-settings')
                 ?.classList.toggle('hidden', !event.currentTarget.checked);
         });
+        document.getElementById('sub-billing-mode')?.addEventListener('change', () => this.updateBillingFields());
     }
 
     render() {
@@ -231,7 +235,7 @@ export class SubscriptionsModule {
         let usd = 0;
         let ars = 0;
         const rate = Number(this.app.getValidCachedLemonRate?.()) || 0;
-        active.forEach(item => {
+        active.filter(isPaidSubscription).forEach(item => {
             const monthly = calculateMonthlyEquivalent(item.cost, item.periodMonths);
             if (item.currency === 'ARS') {
                 ars += monthly;
@@ -257,7 +261,8 @@ export class SubscriptionsModule {
 
     getFilteredSubscriptions() {
         return this.subscriptions.filter(item => {
-            if (this.activeFilter === 'active') return item.status === 'active';
+            if (this.activeFilter === 'active') return item.status === 'active' && isPaidSubscription(item);
+            if (this.activeFilter === 'free') return !isPaidSubscription(item);
             if (this.activeFilter === 'expiring') {
                 const days = getDaysUntilRenewal(item.nextRenewalDate);
                 return item.status === 'active' && Number.isFinite(days) && days >= 0 && days <= 7;
@@ -286,6 +291,8 @@ export class SubscriptionsModule {
     }
 
     renderCard(subscription) {
+        const paid = isPaidSubscription(subscription);
+        const trial = subscription.billingMode === 'trial';
         const days = getDaysUntilRenewal(subscription.nextRenewalDate);
         const category = SUBSCRIPTION_CATEGORY_LABELS[subscription.category] || 'Otros';
         const period = subscription.periodMonths === 1
@@ -294,9 +301,14 @@ export class SubscriptionsModule {
         const statusClass = subscription.status === 'active'
             ? (days !== null && days <= 2 ? 'red' : (days !== null && days <= 7 ? 'yellow' : 'green'))
             : (subscription.status === 'paused' ? 'yellow' : 'red');
-        const statusText = subscription.status === 'active'
+        let statusText = subscription.status === 'active'
             ? (days === null ? 'Fecha inválida' : (days < 0 ? `Venció hace ${Math.abs(days)} d` : (days === 0 ? 'Renueva hoy' : `Renueva en ${days} d`)))
             : STATUS_LABELS[subscription.status];
+        if (trial && subscription.status === 'active') {
+            statusText = days === null ? 'Fecha inválida' : days < 0 ? 'Prueba vencida: decidir' : days === 0 ? 'Prueba termina hoy' : `Prueba: quedan ${days} d`;
+        } else if (!paid && subscription.status === 'active') {
+            statusText = 'Gratuita';
+        }
         const alerts = subscription.alert.enabled
             ? subscription.alert.times.join(', ')
             : 'Desactivados';
@@ -312,18 +324,19 @@ export class SubscriptionsModule {
                     <div>
                         <span class="subscription-category">${escapeHtml(category)}</span>
                         <h3>${escapeHtml(subscription.name)}</h3>
+                        ${!paid ? `<span class="subscription-free-label">${trial ? 'Prueba gratuita' : 'Gratuita permanente'} · No suma gasto</span>` : ''}
                     </div>
                     <span class="badge ${statusClass}">${escapeHtml(statusText)}</span>
                 </div>
                 <div class="subscription-price">
-                    <strong>${subscription.currency === 'USD' ? '$' : 'ARS$'}${subscription.cost.toFixed(2)}</strong>
+                    <strong>${!paid ? 'Gratis ahora' : `${subscription.currency === 'USD' ? '$' : 'ARS$'}${subscription.cost.toFixed(2)}`}</strong>
                     <span>/ ${escapeHtml(period)}</span>
-                    <small>≈ ${subscription.currency === 'USD' ? '$' : 'ARS$'}${calculateMonthlyEquivalent(subscription.cost, subscription.periodMonths).toFixed(2)}/mes</small>
+                    <small>${paid ? '≈' : 'Precio si pagás:'} ${subscription.currency === 'USD' ? '$' : 'ARS$'}${paid ? calculateMonthlyEquivalent(subscription.cost, subscription.periodMonths).toFixed(2) : subscription.cost.toFixed(2)}${paid ? '/mes' : ` / ${period}`}</small>
                 </div>
                 <dl class="subscription-meta">
-                    <div><dt>Próxima renovación</dt><dd>${escapeHtml(subscription.nextRenewalDate)}</dd></div>
+                    <div><dt>${trial ? 'Fin de prueba / decisión' : 'Próxima renovación'}</dt><dd>${escapeHtml(subscription.nextRenewalDate)}</dd></div>
                     <div><dt>Avisos</dt><dd>${escapeHtml(alerts)}</dd></div>
-                    <div><dt>Gasto</dt><dd>${subscription.autoRecordExpense ? 'Automático' : 'Confirmación manual'}</dd></div>
+                    <div><dt>Gasto</dt><dd>${!paid ? 'Sin cargos registrados' : subscription.autoRecordExpense ? 'Automático' : 'Confirmación manual'}</dd></div>
                 </dl>
                 ${history.length > 0 ? `
                     <details class="subscription-history">
@@ -331,7 +344,8 @@ export class SubscriptionsModule {
                         <ul>${history.map(event => `<li><strong>${escapeHtml(eventLabel(event.type))}</strong> · ${escapeHtml(event.effectiveDate)}${event.note ? ` — ${escapeHtml(event.note)}` : ''}</li>`).join('')}</ul>
                     </details>` : ''}
                 <div class="subscription-actions">
-                    <button type="button" class="btn btn-secondary" data-subscription-action="expense"><i class="ph ph-receipt"></i> Registrar gasto</button>
+                    ${paid ? '<button type="button" class="btn btn-secondary" data-subscription-action="expense"><i class="ph ph-receipt"></i> Registrar gasto</button>' : '<button type="button" class="btn btn-primary" data-subscription-action="convert-paid">Pasar a paga</button>'}
+                    ${trial && subscription.status === 'active' ? '<button type="button" class="btn btn-secondary" data-subscription-action="decline">No continuar</button>' : ''}
                     <button type="button" class="btn btn-secondary" data-subscription-action="edit"><i class="ph ph-pencil"></i> Editar</button>
                     ${inactiveActions}
                     <button type="button" class="icon-btn is-danger" data-subscription-action="delete" aria-label="Eliminar ${escapeHtml(subscription.name)}"><i class="ph ph-trash"></i></button>
@@ -378,7 +392,17 @@ export class SubscriptionsModule {
         if (button) button.disabled = this.readAlertTimes().length >= MAX_ALERT_TIMES_PER_DAY;
     }
 
-    openModal(subscriptionId = null, trigger = null, { reactivate = false } = {}) {
+    updateBillingFields() {
+        const mode = document.getElementById('sub-billing-mode')?.value;
+        const expense = document.getElementById('sub-auto-record-expense');
+        if (expense) expense.disabled = mode !== 'paid';
+        const renewal = document.getElementById('sub-renewal-date');
+        if (renewal) renewal.required = mode === 'trial' || this.reactivatingSubscription || this.convertingSubscription;
+        const label = document.querySelector('label[for="sub-renewal-date"]');
+        if (label) label.textContent = mode === 'trial' ? 'Fin de prueba gratuita' : 'Próxima renovación';
+    }
+
+    openModal(subscriptionId = null, trigger = null, { reactivate = false, convertToPaid = false } = {}) {
         if (!subscriptionId) {
             const capacity = this.getCreationCapacity();
             if (!capacity.allowed) {
@@ -394,21 +418,24 @@ export class SubscriptionsModule {
         if (!modal) return;
         this.editingSubscriptionId = subscriptionId;
         this.reactivatingSubscription = reactivate;
+        this.convertingSubscription = convertToPaid;
         this.modalReturnFocus = trigger instanceof HTMLElement ? trigger : null;
         const subscription = subscriptionId
             ? this.subscriptions.find(item => item.id === subscriptionId)
             : null;
-        this.reactivationFingerprint = reactivate ? JSON.stringify(subscription) : null;
+        this.reactivationFingerprint = reactivate || convertToPaid ? JSON.stringify(subscription) : null;
         document.getElementById('subscription-modal-title').textContent = reactivate ? 'Reactivar suscripción' : subscription ? 'Editar suscripción' : 'Nueva suscripción';
         document.getElementById('sub-name').value = subscription?.name || '';
+        document.getElementById('sub-billing-mode').value = convertToPaid ? 'paid' : subscription?.billingMode || 'paid';
+        if (convertToPaid) document.getElementById('subscription-modal-title').textContent = 'Pasar a suscripción paga';
         document.getElementById('sub-category').value = subscription?.category || 'software';
         document.getElementById('sub-cost').value = subscription?.cost ?? '';
         document.getElementById('sub-currency').value = subscription?.currency || 'USD';
         document.getElementById('sub-period').value = String(subscription?.periodMonths || 1);
         document.getElementById('sub-start-date').value = subscription?.startDate || todayKey();
         const renewalInput = document.getElementById('sub-renewal-date');
-        renewalInput.value = reactivate ? '' : subscription?.nextRenewalDate || '';
-        renewalInput.min = reactivate ? todayKey() : '';
+        renewalInput.value = reactivate || convertToPaid ? '' : subscription?.nextRenewalDate || '';
+        renewalInput.min = reactivate || convertToPaid ? todayKey() : '';
         renewalInput.required = reactivate;
         document.getElementById('sub-payment-method').value = subscription?.paymentMethod || 'Tarjeta';
         document.getElementById('sub-autorenew').checked = subscription?.autoRenew !== false;
@@ -421,10 +448,11 @@ export class SubscriptionsModule {
         this.renderExtraAlertTimes(times.slice(1));
         document.getElementById('sub-alert-settings')?.classList.toggle('hidden', subscription?.alert?.enabled === false);
         document.getElementById('subscription-form-error')?.classList.add('hidden');
+        this.updateBillingFields();
         modal.classList.remove('hidden');
         document.body.classList.add('modal-open');
         document.getElementById('sub-name')?.focus();
-        if (reactivate) {
+        if (reactivate || convertToPaid) {
             this.showFormError('Elegí la próxima renovación real (hoy o posterior). No se registrarán gastos de los períodos de pausa o cancelación.');
             renewalInput.focus();
         }
@@ -435,6 +463,7 @@ export class SubscriptionsModule {
         document.body.classList.remove('modal-open');
         this.editingSubscriptionId = null;
         this.reactivatingSubscription = false;
+        this.convertingSubscription = false;
         this.reactivationFingerprint = null;
         this.modalReturnFocus?.focus?.();
         this.modalReturnFocus = null;
@@ -451,7 +480,7 @@ export class SubscriptionsModule {
         const existing = this.editingSubscriptionId
             ? this.subscriptions.find(item => item.id === this.editingSubscriptionId)
             : null;
-        if (this.reactivatingSubscription && this.reactivationFingerprint !== JSON.stringify(existing)) {
+        if ((this.reactivatingSubscription || this.convertingSubscription) && this.reactivationFingerprint !== JSON.stringify(existing)) {
             return this.showFormError('La suscripción cambió durante la edición. Cerrá y volvé a abrir el editor.');
         }
         const capacity = existing ? null : this.getCreationCapacity();
@@ -465,11 +494,16 @@ export class SubscriptionsModule {
         const periodMonths = Number(document.getElementById('sub-period')?.value);
         let nextRenewalDate = document.getElementById('sub-renewal-date')?.value;
         const reactivating = this.reactivatingSubscription && existing && existing.status !== 'active';
-        if (reactivating && (!parseSubscriptionDate(nextRenewalDate) || nextRenewalDate < todayKey())) {
+        if ((reactivating || this.convertingSubscription) && (!parseSubscriptionDate(nextRenewalDate) || nextRenewalDate < todayKey())) {
             return this.showFormError('Para reactivar, indicá la próxima renovación real desde hoy. No uses una fecha vencida.');
         }
         if (!name) return this.showFormError('Ingresá el nombre del servicio o plataforma.');
         if (!parseSubscriptionDate(startDate)) return this.showFormError('Elegí una fecha de inicio válida.');
+        const billingMode = document.getElementById('sub-billing-mode').value;
+        if (existing && !isPaidSubscription(existing) && billingMode === 'paid' && (!parseSubscriptionDate(nextRenewalDate) || nextRenewalDate < todayKey())) {
+            return this.showFormError('Indicá la primera renovación paga desde hoy; no se cobrarán períodos gratuitos anteriores.');
+        }
+        if (billingMode === 'trial' && !nextRenewalDate) return this.showFormError('Indicá la fecha exacta de fin de la prueba gratuita.');
         if (!nextRenewalDate) nextRenewalDate = calculateNextRenewalDate(startDate, periodMonths);
         if (!parseSubscriptionDate(nextRenewalDate)) return this.showFormError('Elegí una fecha de renovación válida.');
 
@@ -485,6 +519,7 @@ export class SubscriptionsModule {
             name,
             category: document.getElementById('sub-category')?.value,
             cost: document.getElementById('sub-cost')?.value,
+            billingMode,
             currency: document.getElementById('sub-currency')?.value,
             periodMonths,
             startDate,
@@ -495,9 +530,9 @@ export class SubscriptionsModule {
                 : existing?.billingAnchorIsMonthEnd,
             paymentMethod: document.getElementById('sub-payment-method')?.value,
             autoRenew: document.getElementById('sub-autorenew')?.checked,
-            autoRecordExpense: document.getElementById('sub-auto-record-expense')?.checked,
+            autoRecordExpense: billingMode === 'paid' && document.getElementById('sub-auto-record-expense')?.checked,
             notes: document.getElementById('sub-notes')?.value,
-            status: reactivating ? 'active' : existing?.status || 'active',
+            status: reactivating || this.convertingSubscription ? 'active' : existing?.status || 'active',
             ...(reactivating ? { statusChangedAt: now } : {}),
             alert: {
                 enabled: document.getElementById('sub-alert-enabled')?.checked,
@@ -577,6 +612,7 @@ export class SubscriptionsModule {
         const index = this.subscriptions.findIndex(item => item.id === subscriptionId);
         if (index < 0 || !this.app.finanzas) return false;
         const subscription = this.subscriptions[index];
+        if (!isPaidSubscription(subscription) || subscription.status !== 'active') return false;
         const renewalDate = subscription.nextRenewalDate;
         const occurrenceKey = getSubscriptionExpenseOccurrenceKey(subscription, renewalDate);
         if (!occurrenceKey) return false;
@@ -670,6 +706,7 @@ export class SubscriptionsModule {
             for (const subscription of [...this.subscriptions]) {
                 if (
                     subscription.status !== 'active'
+                    || !isPaidSubscription(subscription)
                     || !subscription.autoRenew
                     || !subscription.autoRecordExpense
                 ) continue;

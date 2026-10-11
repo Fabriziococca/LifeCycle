@@ -1,6 +1,6 @@
 import { normalizeAlertTimes } from './alert-schedule-utils.mjs';
 
-export const SUBSCRIPTION_SCHEMA_VERSION = 2;
+export const SUBSCRIPTION_SCHEMA_VERSION = 3;
 export const SUBSCRIPTION_STORAGE_KEY = 'lifecycle_subscriptions';
 
 export const SUBSCRIPTION_CATEGORIES = Object.freeze([
@@ -16,6 +16,11 @@ export const SUBSCRIPTION_CATEGORY_LABELS = Object.freeze({
 });
 
 export const SUBSCRIPTION_STATUSES = Object.freeze(['active', 'paused', 'canceled']);
+export const SUBSCRIPTION_BILLING_MODES = Object.freeze(['paid', 'trial', 'free']);
+
+export function isPaidSubscription(subscription) {
+    return !subscription?.billingMode || subscription.billingMode === 'paid';
+}
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const SUBSCRIPTION_ID_PATTERN = /^sub_[a-z0-9][a-z0-9_-]{2,95}$/;
 
@@ -203,6 +208,7 @@ export function normalizeSubscription(raw, now = new Date()) {
         name,
         category: SUBSCRIPTION_CATEGORIES.includes(raw.category) ? raw.category : 'otros',
         cost,
+        billingMode: SUBSCRIPTION_BILLING_MODES.includes(raw.billingMode) ? raw.billingMode : 'paid',
         currency,
         periodMonths,
         startDate,

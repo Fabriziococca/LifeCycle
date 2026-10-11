@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const { runFinanceWorkspaceSmoke } = require('./finance-workspace-smoke.cjs');
 const { runAlertsScheduleSmoke } = require('./alerts-schedule-smoke.cjs');
+const { runLifecycleImprovementsSmoke } = require('./lifecycle-improvements-smoke.cjs');
 const path = require('node:path');
 const httpServer = express().use(express.static(path.resolve(__dirname, '..'))).listen(0, '127.0.0.1');
 
@@ -88,6 +89,13 @@ function installFakeCloud() {
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'improvements') {
+                await runLifecycleImprovementsSmoke(page, { width, theme });
+                assert.deepEqual(errors, [], `uncaught improvement errors at ${width}/${theme}`);
+                console.log(JSON.stringify({ width, theme, arbitration: true, exactDeadline: true, freeSubscriptions: true, pauses: true, automaticThresholds: true }));
+                await context.close();
+                continue;
+            }
             await runAlertsScheduleSmoke(page, { width, theme });
             assert.deepEqual(errors, [], `uncaught alerts errors at ${width}/${theme}`);
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'alerts') {

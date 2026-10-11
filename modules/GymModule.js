@@ -1,4 +1,5 @@
 import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
+import { setEntityPaused, getPauseReference, getPauseAdjustedDate } from '../pause-utils.mjs';
 import {
     createActiveGymSession,
     normalizeActiveGymSession
@@ -803,8 +804,17 @@ export class GymModule {
         }
 
         if (formVitdLog) {
+            document.getElementById('btn-vitd-pause')?.addEventListener('click', () => {
+                const state = this.supplements.vit_d_tracking || {};
+                this.supplements.vit_d_tracking = setEntityPaused(state, !state.paused);
+                formVitdLog.classList.add('hidden');
+                this.saveData('gym_supplements');
+                this.renderSupplements();
+                this.app.notificationsCenter?.updateBadge();
+            });
             formVitdLog.addEventListener('submit', (e) => {
                 e.preventDefault();
+                if (this.supplements.vit_d_tracking?.paused) return;
                 const dateVal = document.getElementById('vitd-log-date').value;
                 if (!dateVal) return;
 
@@ -1658,13 +1668,18 @@ export class GymModule {
         const histBox = document.getElementById('vitd-history-list');
 
         if (!lastSpan || !histBox) return;
+        const tracking = this.supplements.vit_d_tracking || {};
+        const pauseButton = document.getElementById('btn-vitd-pause');
+        if (pauseButton) pauseButton.textContent = tracking.paused ? 'Reanudar' : 'Pausar';
+        const recordButton = document.getElementById('btn-vitd-log-toggle');
+        if (recordButton) recordButton.disabled = tracking.paused === true;
 
         if (this.supplements.vit_d_history.length === 0) {
             lastSpan.textContent = '-';
             nextSpan.textContent = '-';
             timerSpan.textContent = '-';
             if (badge) {
-                badge.textContent = 'Sin Tomas';
+                badge.textContent = tracking.paused ? 'Pausada' : 'Sin Tomas';
                 badge.className = 'badge';
                 badge.style.background = 'gray';
             }
@@ -1672,17 +1687,18 @@ export class GymModule {
             return;
         }
 
-        const last = parseDateLocal(this.supplements.vit_d_history[0].date);
+        const originalLast = this.supplements.vit_d_history[0].date;
+        const last = parseDateLocal(getPauseAdjustedDate(tracking, originalLast));
         if (!last) return;
         last.setHours(0, 0, 0, 0);
         const interval = this.supplements.vit_d_days_interval;
         const next = new Date(last.getTime() + interval * 24 * 60 * 60 * 1000);
         next.setHours(0, 0, 0, 0);
 
-        lastSpan.textContent = last.toLocaleDateString('es-AR');
-        nextSpan.textContent = next.toLocaleDateString('es-AR');
+        lastSpan.textContent = parseDateLocal(originalLast).toLocaleDateString('es-AR');
+        nextSpan.textContent = tracking.paused ? 'En pausa' : next.toLocaleDateString('es-AR');
 
-        const today = new Date();
+        const today = getPauseReference(tracking);
         today.setHours(0, 0, 0, 0);
         const remainingDays = Math.ceil((next - today) / 86400000);
         timerSpan.textContent = Math.max(0, remainingDays);
@@ -1706,6 +1722,11 @@ export class GymModule {
                 badge.textContent = 'Al día';
                 badge.className = 'badge green';
                 timerSpan.style.color = 'var(--status-green)';
+                if (timerBox) timerBox.style.borderColor = 'var(--surface-border)';
+            }
+            if (tracking.paused) {
+                badge.textContent = 'Pausada'; badge.className = 'badge gray';
+                timerSpan.style.color = 'var(--text-secondary)';
                 if (timerBox) timerBox.style.borderColor = 'var(--surface-border)';
             }
         }

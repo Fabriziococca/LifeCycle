@@ -6,6 +6,8 @@ const webpush = require('web-push');
 const { createClient } = require('@supabase/supabase-js');
 const { TRANSCRIPTIONS_ENABLED } = require('./product-features.mjs');
 const sharedRules = require('./shared_rules.json');
+const { isProjectDeliveryPending } = require('./project-status-utils.mjs');
+const { getPauseAdjustedDate } = require('./pause-utils.mjs');
 const {
     DEFAULT_PUSH_TTL_SECONDS,
     TIMED_NOTIFICATION_GRACE_MINUTES,
@@ -27,6 +29,7 @@ const {
     groupSubscriptionsByUser,
     isExpiredPushError,
     isIntervalReminderDue,
+    isPushRetryRelevant,
     normalizeIntervalHours,
     parseJsonValue
 } = require('./notification-utils');
@@ -508,6 +511,7 @@ function ensureRecurringReminderConfigs(alertsConfig, oldReminders = {}) {
             .slice(0, 6);
         if (times.length === 0) times.push(definition.defaultTime);
         alertsConfig[id] = {
+            paused: current.paused === true,
             enabled: current.enabled ?? legacy.enabled ?? true,
             time: times[0],
             times,
@@ -1118,7 +1122,8 @@ async function retryUndeliveredPushes(now = Date.now(), { signal = null } = {}) 
         accepted: 0,
         failed: 0,
         expired: 0,
-        missingSubscription: 0
+        missingSubscription: 0,
+        noLongerRelevant: 0
     };
     notificationRuntimeState.lastRetryCheckAt = new Date(now).toISOString();
     notificationRuntimeState.lastRetryCount = 0;
@@ -1184,9 +1189,15 @@ async function retryUndeliveredPushes(now = Date.now(), { signal = null } = {}) 
         throw new Error(`No se pudieron cargar las suscripciones para reintentos Push: ${subscriptionResult.error.message}`);
     }
     const subscriptionsByUser = groupSubscriptionsByUser(subscriptionResult.data || []);
+    const currentDocuments = await schedulerDocuments.load({ signal });
+    const documentsByUser = new Map(currentDocuments.map(row => [row.user_id, row.data || {}]));
 
     for (const candidate of candidates) {
         throwIfAborted(signal);
+        if (!documentsByUser.has(candidate.user_id) || !isPushRetryRelevant(candidate.alert_key, documentsByUser.get(candidate.user_id))) {
+            summary.noLongerRelevant++;
+            continue;
+        }
         const userSubscriptions = subscriptionsByUser[candidate.user_id] || [];
         const subscriptionItem = userSubscriptions.find(item => (
             endpointFingerprint(item.subscription?.endpoint) === candidate.endpoint_fingerprint
@@ -2757,7 +2768,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                 throwIfAborted(signal);
                 if (key === RECURRING_REMINDERS_FIELD) continue;
                 const conf = alertsConfig[key];
-                if (!conf || !conf.enabled) continue;
+                if (!conf || !conf.enabled || conf.paused) continue;
                 // Estas alertas dependen de intervalos desde el último envío,
                 // no de una hora diaria. Se procesan en el motor repetitivo.
                 if (
@@ -3222,9 +3233,10 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
 
                         // Nutrición & Suplementos
                         case 'vitamina_d':
+                            if (gymSupplements.vit_d_tracking?.paused) break;
                             const vitDHistory = gymSupplements.vit_d_history || [];
                             if (vitDHistory.length > 0) {
-                                const lastTakeStr = vitDHistory[0].date;
+                                const lastTakeStr = getPauseAdjustedDate(gymSupplements.vit_d_tracking, vitDHistory[0].date);
                                 const lastParts = lastTakeStr.split('T')[0].split('-');
                                 if (lastParts.length === 3) {
                                     const interval = gymSupplements.vit_d_days_interval || 30;
@@ -3283,6 +3295,12 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                                         body = diffDays === 0
                                             ? `Tu suscripción a ${targetSub.name} vence o renueva hoy.`
                                             : `Tu suscripción a ${targetSub.name} vence o renueva en ${diffDays} días (${targetSub.nextRenewalDate}).`;
+                                        if (targetSub.billingMode === 'trial') {
+                                            body = diffDays === 0 ? 'La prueba gratuita termina hoy. Decidí si continuar o cancelarla en el proveedor.'
+                                                : `La prueba gratuita termina en ${diffDays} días (${targetSub.nextRenewalDate}). Decidí si continuar.`;
+                                        } else if (targetSub.billingMode === 'free') {
+                                            body = `Seguimiento de suscripción gratuita: próxima renovación ${targetSub.nextRenewalDate}.`;
+                                        }
                                     }
                                 }
                             }
@@ -3293,7 +3311,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                                 : (data.projectPulseData || []);
                             
                             for (const p of projectsData) {
-                                if (!p.isDelivered && !p.isArbitration) {
+                                if (isProjectDeliveryPending(p)) {
                                     const now = new Date();
                                     const deadline = new Date(p.deadline);
                                     const accepted = new Date(p.accepted);
@@ -3376,6 +3394,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                             
                             const pendingUrgentProjectTasks = [];
                             for (const p of projectsDataForTasks) {
+                                if (p.isArbitration) continue;
                                 if (p.tasks) {
                                     const pTasks = p.tasks.filter(t => !t.completed && t.urgency === 'urgente');
                                     pTasks.forEach(t => {

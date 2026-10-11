@@ -1,4 +1,5 @@
 import { normalizeAlertTimes } from './alert-schedule-utils.mjs';
+import { normalizePauseState, getPauseReference, getPauseAdjustedDate, getPauseAdjustedKm } from './pause-utils.mjs';
 
 export const VEHICLE_CATALOG_FIELD = 'vehicleCatalog';
 export const VEHICLE_CATALOG_VERSION = 2;
@@ -241,6 +242,7 @@ function normalizeCard(value, fallbackOrder = 0) {
             : null,
         order: normalizeOptionalInteger(value.order, { min: 0, max: 10000 }) ?? fallbackOrder,
         archived: value.archived === true,
+        ...normalizePauseState(value),
         deleted: value.deleted === true,
         createdAt: cleanText(value.createdAt, '', 40) || null,
         updatedAt: cleanText(value.updatedAt, '', 40) || null,
@@ -526,10 +528,11 @@ export function getVehicleCardState(cardValue, records = [], {
     if (!card) return null;
     const catalog = normalizeVehicleCatalog({ cards: [card], records: { [card.id]: records } });
     const last = getVehicleCardLastRecord(catalog, card.id);
+    now = getPauseReference(card, now);
     if (!last) {
         return {
-            tone: 'new',
-            label: 'Sin registros',
+            tone: card.paused ? 'paused' : 'new',
+            label: card.paused ? 'Pausada' : 'Sin registros',
             last: null,
             shouldNotify: false,
             remainingKm: null,
@@ -538,17 +541,17 @@ export function getVehicleCardState(cardValue, records = [], {
     }
 
     const todayNumber = calendarDayNumber(now);
-    const recordNumber = calendarDayNumber(last.date);
+    const recordNumber = calendarDayNumber(card.type === 'document' ? last.date : new Date(getPauseAdjustedDate(card, last.date, now)));
     if (card.type === 'document') {
         const remainingDays = recordNumber - todayNumber;
         const shouldNotify = remainingDays <= (card.warningDays ?? 30);
         return {
-            tone: remainingDays <= 0 ? 'red' : (shouldNotify ? 'orange' : 'green'),
-            label: remainingDays < 0
+            tone: card.paused ? 'paused' : remainingDays <= 0 ? 'red' : (shouldNotify ? 'orange' : 'green'),
+            label: card.paused ? 'Pausada' : remainingDays < 0
                 ? `Vencido hace ${Math.abs(remainingDays)} días`
                 : (remainingDays === 0 ? 'Vence hoy' : `Vence en ${remainingDays} días`),
             last,
-            shouldNotify,
+            shouldNotify: !card.paused && shouldNotify,
             remainingKm: null,
             remainingDays
         };
@@ -561,7 +564,7 @@ export function getVehicleCardState(cardValue, records = [], {
         ? card.intervalDays - elapsedDays
         : null;
     const remainingKm = card.intervalKm
-        ? (Number(last.km) || 0) + card.intervalKm - (Number(currentKm) || 0)
+        ? (Number(last.km) || 0) + card.intervalKm - getPauseAdjustedKm(card, last.date, currentKm)
         : null;
     const due = (remainingDays !== null && remainingDays <= 0)
         || (remainingKm !== null && remainingKm <= 0);
@@ -570,10 +573,10 @@ export function getVehicleCardState(cardValue, records = [], {
         || (remainingKm !== null && card.warningKm && remainingKm <= card.warningKm)
     );
     return {
-        tone: due ? 'red' : (warning ? 'orange' : 'green'),
-        label: due ? 'Vencido' : (warning ? 'Próximo' : 'Al día'),
+        tone: card.paused ? 'paused' : due ? 'red' : (warning ? 'orange' : 'green'),
+        label: card.paused ? 'Pausada' : due ? 'Vencido' : (warning ? 'Próximo' : 'Al día'),
         last,
-        shouldNotify: due,
+        shouldNotify: !card.paused && due,
         remainingKm,
         remainingDays,
         elapsedDays

@@ -1198,6 +1198,7 @@
                                 <button id="btn-vitd-log-toggle" class="btn btn-secondary" style="flex:1; min-width:120px; margin:0;"><i class="ph ph-plus"></i> Registrar Toma</button>
                                 <button id="btn-vitd-settings-toggle" class="btn btn-secondary" style="flex:1; min-width:120px; margin:0;"><i class="ph ph-gear"></i> Ajustar Días</button>
                                 <button id="btn-vitd-history-toggle" class="btn btn-secondary" style="flex:1; min-width:120px; margin:0;"><i class="ph ph-eye"></i> Historial</button>
+                                <button id="btn-vitd-pause" type="button" class="btn btn-secondary" style="flex:1; min-width:120px; margin:0;">Pausar</button>
                             </div>
 
                             <!-- Formulario para registrar toma de Vit D -->
@@ -1894,6 +1895,7 @@
             <div class="tabs-container" style="display: flex; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap;">
                 <button type="button" class="tab-btn active" data-subscription-filter="all">Todas</button>
                 <button type="button" class="tab-btn" data-subscription-filter="active">Activas</button>
+                <button type="button" class="tab-btn" data-subscription-filter="free">Gratuitas / Pruebas</button>
                 <button type="button" class="tab-btn" data-subscription-filter="expiring">Por vencer (7d)</button>
                 <button type="button" class="tab-btn" data-subscription-filter="canceled">Canceladas / Pausadas</button>
             </div>
@@ -2752,12 +2754,21 @@
             </div>
             <form id="subscription-form">
                 <div class="input-group">
+                    <label for="sub-billing-mode">Modalidad</label>
+                    <select id="sub-billing-mode" class="text-input" aria-describedby="sub-billing-help">
+                        <option value="paid">Suscripción paga</option>
+                        <option value="trial">Prueba gratuita hasta la fecha indicada</option>
+                        <option value="free">Suscripción gratuita permanente</option>
+                    </select>
+                    <small id="sub-billing-help">Las gratuitas no suman gasto mensual ni registran pagos. El precio real queda guardado por si decidís pagar.</small>
+                </div>
+                <div class="input-group">
                     <label for="sub-name">Servicio o plataforma</label>
                     <input type="text" id="sub-name" class="text-input" placeholder="Ej: Workana, Spotify, GitHub, ChatGPT..." required>
                 </div>
                 <div class="subscription-form-row subscription-form-row--money">
                     <div class="input-group">
-                        <label for="sub-cost">Costo del ciclo</label>
+                        <label for="sub-cost">Precio real del ciclo</label>
                         <input type="number" id="sub-cost" class="text-input" step="0.01" min="0" placeholder="Ej: 15.00" required>
                     </div>
                     <div class="input-group">

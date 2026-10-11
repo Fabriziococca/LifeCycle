@@ -237,6 +237,11 @@ export class AlertsModule {
                         this.openRecurringReminderEditor(reminderId, actionButton);
                     } else if (actionButton.dataset.recurringReminderAction === 'delete') {
                         void this.deleteRecurringReminder(reminderId);
+                    } else if (actionButton.dataset.recurringReminderAction === 'toggle-pause') {
+                        this.configs[reminderId].paused = !this.configs[reminderId].paused;
+                        this.saveData();
+                        this.app.triggerDataSync?.('alerts_config');
+                        this.render();
                     }
                     return;
                 }
@@ -794,6 +799,7 @@ export class AlertsModule {
             const normalizedTimes = normalizeAlertTimes(candidateTimes, prevConfig.time || '23:00');
 
             const nextConfig = {
+                paused: prevConfig.paused === true,
                 enabled: enabledInput ? enabledInput.checked : false,
                 time: normalizedTimes.time,
                 times: normalizedTimes.times,
@@ -908,9 +914,10 @@ export class AlertsModule {
 
             card.innerHTML = `
                 <div class="alert-card-header">
-                    <div class="alert-card-title">${safeName}</div>
+                    <div class="alert-card-title">${safeName}${conf.paused ? ' · Pausado' : ''}</div>
                     <div class="alert-card-header-actions">
                         ${def.recurringReminder ? `
+                            <button type="button" class="alert-card-icon-action" data-recurring-reminder-action="toggle-pause" data-reminder-id="${def.key}" aria-label="${conf.paused ? 'Reanudar' : 'Pausar'} recordatorio ${safeName}" data-tooltip="${conf.paused ? 'Reanudar' : 'Pausar'} recordatorio"><i class="ph ${conf.paused ? 'ph-play' : 'ph-pause'}"></i></button>
                             <button
                                 type="button"
                                 class="alert-card-icon-action"

@@ -280,6 +280,7 @@ export function migrateRecurringReminderConfigs(alertConfigs, { legacyGymReminde
         const normalizedTimes = normalizeAlertTimes(currentTimesCandidate, reminder.defaultTime);
 
         result[reminder.id] = {
+            paused: current.paused === true,
             enabled: current.enabled ?? legacy.enabled ?? true,
             time: normalizedTimes.time,
             times: normalizedTimes.times,
@@ -340,8 +341,10 @@ export function upsertRecurringReminder(alertConfigs, reminderInput, { now = new
         normalized.defaultSchedule
     );
     result[normalized.id] = {
+        paused: previousConfig.paused === true,
         enabled: previousConfig.enabled ?? true,
         time: reminderInput?.time || previousConfig.time || normalized.defaultTime,
+        times: normalizeAlertTimes(reminderInput?.times || previousConfig.times || reminderInput?.time || normalized.defaultTime).times,
         schedule,
         days: schedule.type === 'weekly' ? [...schedule.days] : []
     };

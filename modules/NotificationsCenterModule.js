@@ -7,6 +7,8 @@ import {
     parseDateLocal
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { isProjectDeliveryPending } from '../project-status-utils.mjs';
+import { getPauseAdjustedDate } from '../pause-utils.mjs';
 import {
     getCustomTrackerState,
     isUnifiedCustomTrackerRegistry,
@@ -69,7 +71,7 @@ export class NotificationsCenterModule {
 
             if (hasUnifiedTrackers) {
                 this.app.customTrackers.registry.trackers
-                    .filter(tracker => !tracker.archived && !tracker.deleted)
+                    .filter(tracker => !tracker.archived && !tracker.deleted && !tracker.paused)
                     .forEach(tracker => {
                         const state = getCustomTrackerState(
                             tracker,
@@ -267,7 +269,7 @@ export class NotificationsCenterModule {
             // 5.2. PROYECTOS ACTIVOS (independiente de que haya suscripciones)
             if (this.app.projects?.projects) {
                 this.app.projects.projects.forEach(p => {
-                    if (!p.isDelivered) {
+                    if (isProjectDeliveryPending(p)) {
                         const deadline = new Date(p.deadline);
                         const remainingMs = deadline - now;
                         const totalMs = deadline - new Date(p.accepted);
@@ -297,8 +299,8 @@ export class NotificationsCenterModule {
             if (this.app.gym && this.app.gym.supplements) {
                 const supps = this.app.gym.supplements;
                 const vitDHist = supps.vit_d_history || [];
-                if (vitDHist.length > 0) {
-                    const lastTakeDate = parseDateLocal(vitDHist[0].date);
+                if (vitDHist.length > 0 && !supps.vit_d_tracking?.paused) {
+                    const lastTakeDate = parseDateLocal(getPauseAdjustedDate(supps.vit_d_tracking, vitDHist[0].date));
                     if (lastTakeDate) {
                         lastTakeDate.setHours(0, 0, 0, 0);
                         const interval = supps.vit_d_days_interval || 45;
@@ -367,6 +369,7 @@ export class NotificationsCenterModule {
             // 9. PENDING URGENT PROJECT TASKS
             const freelanceProjs = this.app.tareas?.getFreelanceProjects ? this.app.tareas.getFreelanceProjects() : (this.app.projects?.projects || []);
             freelanceProjs.forEach(p => {
+                if (p.isArbitration) return;
                 if (p.tasks) {
                     const pendingUrgentProjTasks = p.tasks.filter(t => !t.completed && (t.urgency === 'urgente' || t.urgency === 'muy_urgente'));
                     pendingUrgentProjTasks.forEach(t => {

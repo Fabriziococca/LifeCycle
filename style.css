@@ -1,3 +1,11 @@
+.project-exact-deadline { color: var(--text-secondary); font-size: .85rem; margin: 0 0 .65rem; overflow-wrap: anywhere; }
+.project-exact-deadline strong { color: var(--text-primary); font-weight: 600; }
+.subscription-free-label { display: block; color: var(--status-green); font-size: .8rem; margin-top: .35rem; }
+.tracker-pause-button { width: 100%; margin: .5rem 0; }
+.vehicle-pause-button { padding: .35rem .6rem; font-size: .75rem; flex-shrink: 0; }
+.vehicle-paused-note { color: var(--text-secondary); font-size: .8rem; padding: .4rem; }
+.is-tracker-paused { border-color: var(--text-secondary) !important; }
+.custom-tracker-card.status-paused .custom-tracker-progress span { background: var(--text-secondary); }
 :root {
     /* Color Palette - Premium Dark Theme */
     --bg-color: #0f172a; /* Slate 900 */

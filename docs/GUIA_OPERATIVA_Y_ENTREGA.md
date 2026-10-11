@@ -55,6 +55,14 @@ Las migraciones son aditivas, pero cambian contratos de sincronización y crean 
 
 ### Conexión de Render comprobada
 
+**Espacio confirmado por Fabrizio el 11/10/2026:** `My Workspace`
+(`tea-d4ouodi4d50c73ak3dtg`). LifeCycle es el servicio
+`srv-d90sh067r5hc73bfo76g`, repositorio `Fabriziococca/LifeCycle`, rama `main`,
+URL `https://lifecycle-ykn5.onrender.com`. Reutilizar esta confirmación en los
+conectores; no volver a preguntar mientras la identidad coincida. Si hace falta
+verificarlo en el panel, el navegador integrado es la vía autorizada; si la sesión
+venció, pedir únicamente iniciar sesión. No controlar el escritorio del usuario.
+
 El 6/9/2026 UTC se alineó la referencia del servicio existente con `https://github.com/Fabriziococca/LifeCycle`, conservando `main`, la URL pública y el plan Free. El push no produjo un despliegue automático: el build posterior advirtió que Render no tenía acceso conectado al repositorio y lo clonó mediante su URL pública. Aunque la API indique `autoDeploy: yes`, no asumir que un push publica hasta reconectar y verificar la integración Git. Mientras tanto, comprobar que no haya un despliegue activo y publicar manualmente el commit validado, verificándolo después en `/api/health`.
 
 ## Comandos locales

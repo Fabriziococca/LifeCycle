@@ -2,6 +2,11 @@
 
 ## Estado vigente al 27/09/2026
 
+**Actualización acotada del 11/10/2026:** ver
+[mejoras de seguimiento](MEJORAS_SEGUIMIENTOS_2026-10-11.md) para arbitraje,
+entrega exacta, modalidades gratuitas, pausas y avisos automáticos. Este pedido
+no cambia el alcance ni cierra los pendientes externos de A–F.
+
 Ver [estabilidad y Finanzas](ESTABILIDAD_Y_FINANZAS_2026-09-27.md) para decisiones,
 implementación, validación y pendientes actuales. El usuario recuperó acceso,
 canceló nuevo contacto con soporte, aprobó la copia cifrada sólo lectura y decidió

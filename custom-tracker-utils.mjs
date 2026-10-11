@@ -1,4 +1,5 @@
 import { normalizeAlertTimes } from './alert-schedule-utils.mjs';
+import { normalizePauseState, getPauseReference, getPauseAdjustedDate } from './pause-utils.mjs';
 import { isProductModuleEnabled } from './product-features.mjs';
 import {
     createDefaultTodayPreferences,
@@ -376,7 +377,7 @@ export function normalizeCustomTrackerDayThresholds(rawThresholds, {
         strict
     });
     const defaultYellow = Math.max(1, Math.floor(red * 0.7));
-    const requestedYellow = normalizeInteger(candidate.yellow, {
+    const requestedYellow = normalizeInteger(candidate.mode === 'automatic' ? defaultYellow : candidate.yellow, {
         field: 'Próximo',
         min: 1,
         max: red,
@@ -384,7 +385,7 @@ export function normalizeCustomTrackerDayThresholds(rawThresholds, {
         strict
     });
     const defaultOrange = Math.max(defaultYellow, Math.floor(red * 0.85));
-    const requestedOrange = normalizeInteger(candidate.orange, {
+    const requestedOrange = normalizeInteger(candidate.mode === 'automatic' ? defaultOrange : candidate.orange, {
         field: 'Atención',
         min: 1,
         max: red,
@@ -395,6 +396,7 @@ export function normalizeCustomTrackerDayThresholds(rawThresholds, {
 
     return {
         thresholds: {
+            ...(candidate.mode ? { mode: candidate.mode === 'automatic' ? 'automatic' : 'manual' } : {}),
             yellow: Math.min(requestedYellow, requestedOrange),
             orange: Math.max(requestedYellow, requestedOrange),
             red
@@ -919,6 +921,7 @@ function normalizeTracker(rawTracker, {
         legacySource: normalizeLegacySource(rawTracker.legacySource, { strict }),
         alertKey,
         archived: deleted || rawTracker.archived === true,
+        ...normalizePauseState(rawTracker),
         deleted,
         deletedAt,
         order,
@@ -1509,7 +1512,7 @@ export function appendCustomTrackerRecords(
 
     requestedIds.forEach(trackerId => {
         const tracker = trackerById.get(trackerId);
-        if (!tracker || tracker.archived || tracker.deleted) return;
+        if (!tracker || tracker.archived || tracker.deleted || tracker.paused) return;
 
         registry.histories[trackerId] = normalizeHistory(
             [timestamp, ...(registry.histories[trackerId] || [])],
@@ -1584,7 +1587,7 @@ export function buildCustomAlertDefinitions(registryValue) {
             name: tracker.name,
             category: sections[tracker.section]?.alertCategory || 'otros',
             type: 'interval',
-            defaultEnabled: tracker.alert.enabled === true,
+            defaultEnabled: !tracker.paused && tracker.alert.enabled === true,
             defaultTime: tracker.alert.time,
             defaultTimes: [...tracker.alert.times],
             defaultDays: [],
@@ -1618,6 +1621,7 @@ function getCalendarDaysUntilAt(dateValue, now = new Date()) {
 }
 
 export function getCustomTrackerState(tracker, history, now = new Date()) {
+    now = getPauseReference(tracker, now);
     const normalizedHistory = normalizeHistory(history, {
         trackerId: tracker?.id || 'desconocido'
     });
@@ -1625,7 +1629,7 @@ export function getCustomTrackerState(tracker, history, now = new Date()) {
         const reference = now instanceof Date ? new Date(now) : new Date(now);
         const active = tracker?.state?.active === true;
         const activatedAt = active && tracker?.state?.activatedAt
-            ? new Date(tracker.state.activatedAt)
+            ? new Date(getPauseAdjustedDate(tracker, tracker.state.activatedAt, now))
             : null;
         const hasValidActivation = activatedAt && !Number.isNaN(activatedAt.getTime());
         const elapsedHours = hasValidActivation && !Number.isNaN(reference.getTime())
@@ -1636,7 +1640,7 @@ export function getCustomTrackerState(tracker, history, now = new Date()) {
             elapsedDays: Math.floor(elapsedHours / 24),
             elapsedHours,
             nextDate: null,
-            status: active ? 'red' : 'green',
+            status: tracker.paused ? 'paused' : (active ? 'red' : 'green'),
             progress: active ? 100 : 0,
             cadence: { unit: 'days', value: 1 },
             dueValue: 1,
@@ -1647,7 +1651,8 @@ export function getCustomTrackerState(tracker, history, now = new Date()) {
         };
     }
     const latest = normalizedHistory[0] || null;
-    const elapsedDays = latest ? getCalendarDaysElapsedAt(latest, now) : null;
+    const effectiveLatest = latest ? getPauseAdjustedDate(tracker, latest, now) : null;
+    const elapsedDays = latest ? getCalendarDaysElapsedAt(effectiveLatest, now) : null;
     const cadence = tracker?.cadence?.unit === 'months'
         ? {
             unit: 'months',
@@ -1666,7 +1671,7 @@ export function getCustomTrackerState(tracker, history, now = new Date()) {
     let remainingDays = null;
 
     if (latest) {
-        const date = new Date(latest);
+        const date = new Date(effectiveLatest);
         if (cadence.unit === 'months') {
             date.setMonth(date.getMonth() + cadence.value);
             nextDate = date.toISOString();
@@ -1679,7 +1684,7 @@ export function getCustomTrackerState(tracker, history, now = new Date()) {
 
             const totalDays = Math.max(
                 1,
-                Math.round((Date.parse(nextDate) - Date.parse(latest)) / 86_400_000)
+                Math.round((Date.parse(nextDate) - Date.parse(effectiveLatest)) / 86_400_000)
             );
             progress = elapsedDays === null
                 ? 0
@@ -1715,7 +1720,7 @@ export function getCustomTrackerState(tracker, history, now = new Date()) {
         latest,
         elapsedDays,
         nextDate,
-        status,
+        status: tracker.paused ? 'paused' : status,
         progress,
         cadence,
         dueValue,

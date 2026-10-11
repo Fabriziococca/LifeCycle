@@ -1,3 +1,4 @@
+import { setEntityPaused } from '../pause-utils.mjs';
 import {
     appendVehicleCardRecord,
     buildVehicleAlertDefinitions,
@@ -285,7 +286,7 @@ export class VehicleCatalogModule {
         details = {}
     } = {}) {
         const card = this.getCard(cardId);
-        if (!card || card.archived || card.deleted) return false;
+        if (!card || card.archived || card.deleted || card.paused) return false;
         const record = {
             id: `vcr_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 8)}`,
             date,
@@ -336,6 +337,12 @@ export class VehicleCatalogModule {
             const action = actionButton.dataset.vehicleCardAction;
             if (action === 'edit-config') {
                 this.openManagerEditor(cardId);
+            } else if (action === 'toggle-pause') {
+                const card = this.getCard(cardId);
+                if (!card || card.archived || card.deleted) return;
+                this.catalog = updateVehicleCard(this.catalog, cardId,
+                    setEntityPaused(card, !card.paused, new Date(), { currentKm: Number(this.vehicle.odometer) || 0 }));
+                this.persist({ message: card.paused ? 'Tarjeta reanudada.' : 'Tarjeta pausada; conserva sus registros.' });
             } else if (action === 'record') {
                 const card = this.getCard(cardId);
                 if (card?.type === 'check') {
@@ -405,6 +412,17 @@ export class VehicleCatalogModule {
         button.dataset.vehicleCardId = card.id;
         button.setAttribute('aria-label', `Editar configuración de ${card.name}`);
         button.dataset.tooltip = 'Editar configuración';
+        let pauseButton = host.querySelector(':scope > [data-vehicle-card-action="toggle-pause"]');
+        if (!pauseButton) {
+            pauseButton = document.createElement('button');
+            pauseButton.type = 'button';
+            pauseButton.className = 'btn btn-secondary vehicle-pause-button';
+            pauseButton.dataset.vehicleCardAction = 'toggle-pause';
+            host.appendChild(pauseButton);
+        }
+        pauseButton.dataset.vehicleCardId = card.id;
+        pauseButton.textContent = card.paused ? 'Reanudar' : 'Pausar';
+        pauseButton.setAttribute('aria-label', `${card.paused ? 'Reanudar' : 'Pausar'} ${card.name}`);
     }
 
     applyLegacyVisibility() {
@@ -416,6 +434,7 @@ export class VehicleCatalogModule {
             root.classList.toggle('hidden', !visible);
             if (!card) return;
             root.dataset.vehicleCardId = card.id;
+            root.classList.toggle('is-tracker-paused', card.paused);
             const title = root.querySelector(config.titleSelector);
             if (title) title.textContent = card.name;
             this.ensureLegacyEditButton(root, title, card);
@@ -426,11 +445,20 @@ export class VehicleCatalogModule {
                 ? root.querySelector(config.actionSelector)
                 : null;
             if (action) {
+                action.disabled = card.paused;
                 const icon = action.querySelector('i');
                 action.replaceChildren();
                 if (icon) action.appendChild(icon);
                 action.appendChild(document.createTextNode(` ${card.actionLabel}`));
             }
+            const pauseLabel = root.querySelector(':scope > .vehicle-paused-note') || document.createElement('p');
+            pauseLabel.className = 'vehicle-paused-note';
+            pauseLabel.textContent = card.type === 'document'
+                ? 'Pausada: sin avisos. La fecha real de vencimiento se conserva.'
+                : 'Pausada: sin avance ni avisos.';
+            pauseLabel.classList.toggle('hidden', !card.paused);
+            if (!pauseLabel.parentElement) root.appendChild(pauseLabel);
+            root.querySelectorAll('button:not([data-vehicle-card-action]):not(.btn-delete-maint)').forEach(control => { control.disabled = card.paused; });
         });
 
         const tireIds = ['align', 'rot', 'replace'];
@@ -500,13 +528,13 @@ export class VehicleCatalogModule {
             ? `
                 <div class="vehicle-dynamic-document-action">
                     <input type="date" class="date-input" data-vehicle-document-input="${card.id}" value="${escapeHtml(last?.date || '')}" aria-label="Vencimiento de ${safeName}">
-                    <button type="button" class="btn btn-primary" data-vehicle-card-action="save-document" data-vehicle-card-id="${card.id}">
+                    <button type="button" class="btn btn-primary" data-vehicle-card-action="save-document" data-vehicle-card-id="${card.id}" ${card.paused ? 'disabled' : ''}>
                         <i class="ph ph-floppy-disk"></i> ${safeAction}
                     </button>
                 </div>
             `
             : `
-                <button type="button" class="btn btn-record" data-vehicle-card-action="record" data-vehicle-card-id="${card.id}">
+                <button type="button" class="btn btn-record" data-vehicle-card-action="record" data-vehicle-card-id="${card.id}" ${card.paused ? 'disabled' : ''}>
                     <i class="ph ph-check-circle"></i> ${safeAction}
                 </button>
             `;
@@ -520,6 +548,7 @@ export class VehicleCatalogModule {
                         <span>${escapeHtml(typeLabel(card))}</span>
                     </div>
                     <div class="vehicle-dynamic-card-header-actions">
+                        <button type="button" class="btn btn-secondary vehicle-pause-button" data-vehicle-card-action="toggle-pause" data-vehicle-card-id="${card.id}">${card.paused ? 'Reanudar' : 'Pausar'}</button>
                         <span class="badge ${state?.tone === 'red' ? 'red' : (state?.tone === 'orange' ? 'orange' : (state?.tone === 'green' ? 'green' : 'gray'))}">${status}</span>
                         <button type="button" class="vehicle-config-edit icon-btn icon-btn-sm" data-vehicle-card-action="edit-config" data-vehicle-card-id="${card.id}" aria-label="Editar configuración de ${safeName}" data-tooltip="Editar configuración">
                             <i class="ph ph-pencil-simple" aria-hidden="true"></i>
