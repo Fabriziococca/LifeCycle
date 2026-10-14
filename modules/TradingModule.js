@@ -550,6 +550,7 @@ export class TradingModule {
     }
 
     activate() {
+        if (this.app.saylor?.tab === 'saylor') { this.app.saylor.render(); return; }
         this.render();
         if (
             this.historyState === 'idle'

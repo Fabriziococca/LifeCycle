@@ -16,6 +16,7 @@ import {
     VEHICLE_CATALOG_FIELD
 } from './vehicle-catalog-utils.mjs';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs';
+import { PLANNING_KEYS, validatePlanning } from './planning-utils.mjs';
 
 export const BACKUP_APP_NAME = 'LifeCycle';
 export const BACKUP_FORMAT_VERSION = 2;
@@ -36,6 +37,8 @@ const FORBIDDEN_PROPERTY_NAMES = new Set([
 ]);
 
 const JSON_ROOT_TYPES = Object.freeze({
+    lifecycle_saylor: 'object',
+    lifecycle_faculty: 'object',
     hygiene_tracker_data: 'object',
     groomingData_v2: 'object',
     lensesHistory: 'array',
@@ -151,6 +154,8 @@ const CATEGORY_GROUPS = Object.freeze([
     },
     { label: 'Gestor de alertas', keys: ['alerts_config'] },
     { label: 'Finanzas', keys: ['finanzasData'] },
+    { label: 'Saylor', keys: ['lifecycle_saylor'] },
+    { label: 'Facultad', keys: ['lifecycle_faculty'] },
     { label: 'Suscripciones', keys: ['lifecycle_subscriptions'] },
     {
         label: 'Tareas',
@@ -795,6 +800,10 @@ function validateBackupDataShape(key, value) {
                 }
             });
             break;
+        case 'lifecycle_saylor':
+        case 'lifecycle_faculty':
+            validatePlanning(value, key);
+            break;
         case 'finanzasData':
             if (Object.hasOwn(value, 'workspace')) {
                 try { validateFinanceWorkspace(value.workspace); }
@@ -1019,12 +1028,13 @@ export function parseAndValidateBackupText(text) {
         const missingKeys = CLOUD_SYNC_KEYS.filter(key => (
             !Object.hasOwn(root.data, key)
             && !OPTIONAL_FULL_BACKUP_KEYS.has(key)
+            && !PLANNING_KEYS.includes(key)
         ));
         if (missingKeys.length > 0) {
             throw new BackupValidationError(`El backup está incompleto: falta la sección "${missingKeys[0]}".`);
         }
 
-        const entries = CLOUD_SYNC_KEYS.map(key => {
+        const entries = CLOUD_SYNC_KEYS.filter(key => !PLANNING_KEYS.includes(key) || Object.hasOwn(root.data,key)).map(key => {
             const normalized = normalizeBackupStorageEntry(key, root.data[key]);
             return [key, normalized.storageValue];
         });

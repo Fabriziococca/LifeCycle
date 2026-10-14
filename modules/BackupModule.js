@@ -1,4 +1,5 @@
 import { getLocalISODate } from '../utils.js';
+import { PLANNING_KEYS, readPlanning, emptyPlanning } from '../planning-utils.mjs';
 import {
     applyBackupEntries,
     BackupValidationError,
@@ -115,6 +116,13 @@ export class BackupModule {
 
     applyPlanAtomically(plan) {
         const auth = this.app.auth;
+        plan = { ...plan, entries: plan.entries.map(([key,value]) => {
+            if (!PLANNING_KEYS.includes(key)) return [key,value];
+            const current = readPlanning(localStorage.getItem(key), key);
+            const incoming = value == null ? emptyPlanning(key) : readPlanning(value,key);
+            if (JSON.stringify({ ...current, revision: 0 }) === JSON.stringify({ ...incoming, revision: 0 })) return [key,localStorage.getItem(key)];
+            return [key,JSON.stringify({ ...incoming, revision: current.revision + 1 })];
+        }) };
         const previousRestoringState = auth?.isRestoring ?? false;
 
         if (auth) auth.isRestoring = true;

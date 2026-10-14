@@ -89,8 +89,8 @@ export function buildWorkspaceMovements(data, combinedIncome = data.entries || [
         const own = (data.entries || []).some(item => String(item.id) === String(entry.id));
         return { ...entry, type, key: `${type}:${entry.id}`, nativeCurrency: native ? entry.nativeCurrency : 'USD',
             nativeAmountMinor: native ? entry.nativeAmountMinor : Math.round(Number(entry.amount || 0) * 100),
-            legacyEquivalent: !native, editable: type === 'income' ? own : !entry.subscriptionId,
-            sourceLabel: entry.subscriptionId ? 'Suscripción' : type === 'income' && !own ? 'Proyecto' : entry.recurringRuleId ? 'Recurrente' : 'Manual' };
+            legacyEquivalent: !native, editable: entry.origin !== 'saylor' && (type === 'income' ? own : !entry.subscriptionId),
+            sourceLabel: entry.origin === 'saylor' ? 'Saylor' : entry.subscriptionId ? 'Suscripción' : type === 'income' && !own ? 'Proyecto' : entry.recurringRuleId ? 'Recurrente' : 'Manual' };
     };
     return [...combinedIncome.map(entry => map(entry, 'income')), ...(data.expenses || []).map(entry => map(entry, 'expense'))]
         .sort((a, b) => String(b.date).localeCompare(String(a.date)) || a.key.localeCompare(b.key));

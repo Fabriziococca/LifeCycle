@@ -1,0 +1,51 @@
+.planning-workspace{max-width:1100px;margin:auto;min-width:0}
+.planning-heading,.planning-actions,.planning-tabs{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.planning-tabs{justify-content:flex-start;margin:12px 0 24px}
+.planning-heading h2,.planning-heading h3{margin:0}
+.planning-heading p,.planning-hint,.planning-card small{color:var(--text-secondary)}
+.planning-card{padding:24px;margin:18px 0;min-width:0;overflow-wrap:anywhere}
+.planning-metrics{display:grid;grid-template-columns:repeat(auto-fit,minmax(145px,1fr));gap:16px;padding:18px 0}
+.planning-metrics strong,.planning-metrics small{display:block}
+.planning-metrics strong{font-size:1.3rem}
+.planning-magazines{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin:16px 0}
+.planning-magazines progress{width:100%;height:16px;accent-color:var(--primary-color)}
+.planning-actions{justify-content:flex-start;margin:14px 0}
+.planning-reference{padding:16px;border:1px solid var(--border-color);border-radius:16px;margin:14px 0}
+.planning-reference img{display:block;max-height:220px;max-width:100%;margin:14px auto;object-fit:contain}
+.planning-reference summary, .planning-card summary{cursor:pointer}
+.planning-history{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 0;border-bottom:1px solid var(--border-color)}
+.planning-result{font-size:1.1rem}
+.planning-filter{display:block;max-width:340px;margin:16px 0}
+.planning-dialog{z-index:4100}
+.planning-dialog .custom-tracker-dialog-card{width:min(96vw,660px);max-height:90dvh;overflow:auto;padding:24px;background:var(--surface-color);color:var(--text-primary)}
+.planning-dialog form{display:grid;gap:16px;margin-top:16px}
+.planning-dialog label{display:grid;gap:7px}
+.planning-dialog input,.planning-dialog select,.planning-dialog textarea{width:100%;min-width:0;box-sizing:border-box}
+.planning-dialog textarea{min-height:90px}
+.planning-dialog fieldset{border:1px solid var(--border-color);border-radius:12px;padding:14px;display:grid;gap:12px}
+.planning-form-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:14px}
+.planning-error{color:var(--status-red,#f87171);white-space:pre-wrap}
+.planning-preview{font-weight:700}
+.planning-notes{white-space:pre-wrap}
+.planning-empty{padding:24px;margin:16px 0}
+.planning-card details{margin-top:14px}
+@media(max-width:600px){.planning-card{padding:18px}
+.planning-magazines{grid-template-columns:1fr;gap:8px}
+.planning-form-grid{grid-template-columns:1fr}
+.planning-heading>.planning-actions{width:100%}
+.planning-actions .btn{white-space:normal}
+.planning-dialog .custom-tracker-dialog-card{padding:18px}
+.planning-history{align-items:flex-start}
+.planning-tabs{gap:6px}
+.planning-tabs .btn{padding:10px 13px}
+}
+
+
+.planning-workspace .btn,.planning-dialog .btn{width:auto;margin:0;padding:11px 16px}
+
+.planning-workspace input,.planning-workspace select,.planning-dialog input,.planning-dialog select,.planning-dialog textarea{padding:11px 12px;border:1px solid var(--surface-border);border-radius:10px;background:var(--input-bg,var(--surface-color));color:var(--text-primary);font:inherit}
+
+.planning-filter{display:grid;gap:7px}
+
+
+body.access-locked #planning-dialog{display:none}

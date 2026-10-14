@@ -172,6 +172,7 @@ export const APP_MODULES = Object.freeze({
     'transcripciones-section': Object.freeze({ label: 'Transcripciones', icon: 'ph-waveform' }),
     'finanzas-section': Object.freeze({ label: 'Finanzas', icon: 'ph-wallet' }),
     'trading-section': Object.freeze({ label: 'Trading', icon: 'ph-chart-line-up' }),
+    'faculty-section': Object.freeze({ label: 'Facultad', icon: 'ph-graduation-cap' }),
     'tareas-section': Object.freeze({ label: 'Tareas', icon: 'ph-check-square' })
 });
 

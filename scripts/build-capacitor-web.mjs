@@ -9,6 +9,7 @@ const excludedRootScripts = new Set(['server.js', 'transcription-worker.js', 'sc
 const fixedAssets = new Set([
     'index.html',
     'style.css',
+    'planning.css',
     'recovery.html',
     'recovery.css',
     'manifest.json',
@@ -29,7 +30,7 @@ for (const entry of rootEntries) {
     await cp(path.join(projectRoot, entry.name), path.join(outputDirectory, entry.name));
 }
 
-for (const directory of ['modules', 'vendor']) {
+for (const directory of ['modules', 'vendor', 'assets']) {
     await cp(path.join(projectRoot, directory), path.join(outputDirectory, directory), {
         recursive: true
     });

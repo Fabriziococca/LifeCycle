@@ -1,0 +1,61 @@
+import { escapeHtml as esc } from '../text-utils.mjs';
+import { PlanningStore, planningDialog } from './PlanningStore.js';
+import { FACULTY_KEY, planningId, localDate, facultyState, facultyDueAt } from '../planning-utils.mjs';
+const field=(label,name,value='',type='text',extra='')=>`<label>${label}<input class="text-input" name="${name}" value="${esc(value)}" type="${type}" ${extra}></label>`;
+const kinds={parcial:'Parcial',final:'Final',recuperatorio:'Recuperatorio',tp:'Trabajo práctico',otro:'Otra evaluación'};
+export class FacultyModule {
+    constructor(app) {
+        this.app=app;this.store=new PlanningStore(app,FACULTY_KEY);this.view='overview';this.month='';this.subject='';
+        this.root=document.getElementById('faculty-content');
+        this.root?.addEventListener('click',e=>{const b=e.target.closest('[data-faculty-action]');if(b)this.action(b.dataset.facultyAction,b.dataset.id);});
+        this.root?.addEventListener('change',e=>{if(e.target.name==='faculty-month'){this.month=e.target.value;this.render();}if(e.target.name==='faculty-filter'){this.subject=e.target.value;this.render();}});
+        this.render();
+    }
+    format(event) { return new Intl.DateTimeFormat('es-AR',{timeZone:'America/Argentina/Buenos_Aires',weekday:'long',day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit',hourCycle:'h23'}).format(new Date(facultyDueAt(event))); }
+    subjectOptions(data,current='') {return data.subjects.filter(s=>!s.archived||s.id===current).map(s=>`<option value="${s.id}" ${s.id===current?'selected':''}>${esc(s.name)}</option>`).join('');}
+    render() {
+        if(!this.root)return;let data;try{data=this.store.value;}catch(e){this.root.textContent=e.message;return;}
+        const activeSubjects=data.subjects.filter(s=>!s.archived);
+        const visibleEvents=data.events.filter(e=>(!this.subject||e.subjectId===this.subject)&&!data.subjects.find(s=>s.id===e.subjectId)?.archived);
+        const ordered=[...visibleEvents].sort((a,b)=>a.date.localeCompare(b.date)||a.time.localeCompare(b.time));
+        const pending=ordered.filter(e=>e.status==='pending');
+        this.root.innerHTML=`<header class="planning-heading"><div><h2>Facultad</h2><p>Materias, parciales, entregas y próximos pasos.</p></div><div class="planning-actions"><button class="btn btn-secondary" data-faculty-action="subject">Nueva materia</button><button class="btn btn-primary" data-faculty-action="event" ${!activeSubjects.length?'disabled':''}>Nueva evaluación o TP</button></div></header>
+            <div class="planning-tabs" aria-label="Vistas de Facultad">${[['overview','Resumen'],['subjects','Materias'],['agenda','Agenda'],['tasks','Pendientes']].map(([id,label])=>`<button class="btn ${this.view===id?'btn-primary':'btn-secondary'}" data-faculty-action="view-${id}" aria-pressed="${this.view===id}">${label}</button>`).join('')}</div>
+            ${!data.subjects.length?'<div class="card planning-empty">Agregá tu primera materia. Después podés anotar un parcial y recibir avisos diarios desde los días previos que elijas.</div>':''}
+            ${data.subjects.length?`<label class="planning-filter">Materia<select name="faculty-filter" class="time-input"><option value="">Todas</option>${this.subjectOptions(data,this.subject)}</select></label>`:''}
+            ${this.view==='overview'?`<div class="planning-metrics card"><div><small>Materias activas</small><strong>${activeSubjects.length}</strong></div><div><small>Evaluaciones pendientes</small><strong>${pending.length}</strong></div><div><small>Tareas pendientes</small><strong>${data.tasks.filter(t=>!t.done&&!data.subjects.find(s=>s.id===t.subjectId)?.archived).length}</strong></div></div><h3>Próximas evaluaciones y entregas</h3>${pending.slice(0,12).map(e=>this.eventCard(e,data)).join('')||'<p>Sin evaluaciones pendientes.</p>'}`:''}
+            ${this.view==='subjects'?data.subjects.filter(s=>!this.subject||s.id===this.subject).map(s=>`<article class="card planning-card"><header class="planning-heading"><div><h3>${esc(s.name)}</h3><p>${esc([s.term,s.teacher].filter(Boolean).join(' · '))}</p></div><b>${s.archived?'Archivada':'Activa'}</b></header><div class="planning-actions"><button class="btn btn-secondary" data-faculty-action="subject" data-id="${s.id}">Editar materia</button><button class="btn btn-secondary" data-faculty-action="archive" data-id="${s.id}">${s.archived?'Reactivar':'Archivar'}</button></div><p>${data.events.filter(e=>e.subjectId===s.id).length} evaluaciones · ${data.tasks.filter(t=>t.subjectId===s.id&&!t.done).length} pendientes</p></article>`).join(''):''}
+            ${this.view==='agenda'?`<label class="planning-filter">Filtrar mes (vacío: todos)<input class="text-input" type="month" name="faculty-month" value="${esc(this.month)}"></label>${ordered.filter(e=>!this.month||e.date.startsWith(this.month)).map(e=>this.eventCard(e,data)).join('')||'<p>No hay evaluaciones para este período.</p>'}`:''}
+            ${this.view==='tasks'?`<button class="btn btn-primary" data-faculty-action="task" ${!activeSubjects.length?'disabled':''}>Nuevo pendiente</button>${data.tasks.filter(t=>(!this.subject||t.subjectId===this.subject)&&!data.subjects.find(s=>s.id===t.subjectId)?.archived).map(t=>`<article class="card planning-card planning-heading"><div><h3>${t.done?'✓ ':''}${esc(t.name)}</h3><p>${esc(data.subjects.find(s=>s.id===t.subjectId)?.name||'')}</p></div><div class="planning-actions"><button class="btn btn-secondary" data-faculty-action="toggle-task" data-id="${t.id}">${t.done?'Volver a pendiente':'Completar'}</button><button class="btn btn-secondary" data-faculty-action="task" data-id="${t.id}">Editar pendiente</button></div></article>`).join('')||'<p>Sin pendientes.</p>'}`:''}`;
+    }
+    eventCard(e,data) {
+        const state=facultyState(e), s=data.subjects.find(s=>s.id===e.subjectId);
+        return `<article id="faculty-event-${e.id}" class="card planning-card" data-faculty-event="${e.id}"><header class="planning-heading"><div><small>${esc(s?.name||'')} · ${kinds[e.type]}</small><h3>${esc(e.name)}</h3><p>${esc(this.format(e))} · Argentina</p></div><b>${state.label}</b></header><p>${e.status!=='pending'?'Avisos finalizados':e.paused?'Avisos pausados':`Aviso diario ${esc(e.noticeTime)} desde ${e.leadDays} días antes`}${e.grade!==''?` · Nota: ${esc(e.grade)}`:''}</p>${e.notes?`<p class="planning-notes">${esc(e.notes)}</p>`:''}<div class="planning-actions"><button class="btn btn-secondary" data-faculty-action="event" data-id="${e.id}">Editar evaluación</button>${e.status==='pending'?`<button class="btn btn-secondary" data-faculty-action="pause" data-id="${e.id}">${e.paused?'Reanudar avisos':'Pausar avisos'}</button><button class="btn btn-primary" data-faculty-action="done" data-id="${e.id}">${e.type==='tp'?'Marcar entregado':'Marcar realizado'}</button>`:''}</div></article>`;
+    }
+    action(action,id) {
+        if(action.startsWith('view-')){this.view=action.slice(5);this.render();return;}
+        try {
+            const data=this.store.value, expected=data.revision;
+            if(action==='subject') {
+                const s=data.subjects.find(x=>x.id===id), newId=planningId('fs');
+                planningDialog(this.app,s?'Editar materia':'Nueva materia',`${field('Nombre de la materia','name',s?.name||'','text','required maxlength="120"')}${field('Cuatrimestre / período (opcional)','term',s?.term||'','text','maxlength="60"')}${field('Docente (opcional)','teacher',s?.teacher||'','text','maxlength="120"')}`,async f=>{const item=s||{id:newId,archived:false};Object.assign(item,Object.fromEntries(f));if(!s){data.subjects=data.subjects.filter(x=>x.id!==newId);data.subjects.push(item);}await this.store.save(data,expected);});
+            } else if(action==='event') {
+                const e=data.events.find(x=>x.id===id), date=new Date(), newId=planningId('fe'), scheduleVersion=(e?.scheduleVersion||0)+1;date.setDate(date.getDate()+14);
+                planningDialog(this.app,e?'Editar evaluación o TP':'Nueva evaluación o TP',`<label>Materia<select name="subjectId" class="time-input" required>${this.subjectOptions(data,e?.subjectId||this.subject)}</select></label><label>Tipo<select name="type" class="time-input">${Object.entries(kinds).map(([key,label])=>`<option value="${key}" ${e?.type===key?'selected':''}>${label}</option>`).join('')}</select></label>${field('Título','name',e?.name||'','text','required maxlength="120"')}<div class="planning-form-grid">${field('Fecha','date',e?.date||localDate(date),'date','required')}${field('Hora de evaluación / entrega (Argentina)','time',e?.time||'18:00','time','required')}</div><div class="planning-form-grid">${field('Avisarme diariamente desde (días antes)','leadDays',e?.leadDays??14,'number','required min="0" max="365" step="1"')}${field('Horario diario de aviso (Argentina)','noticeTime',e?.noticeTime||'15:00','time','required')}</div><label>Estado<select name="status" class="time-input">${[['pending','Pendiente'],['done','Realizado / entregado'],['cancelled','Cancelado']].map(([v,l])=>`<option value="${v}" ${e?.status===v?'selected':''}>${l}</option>`).join('')}</select></label>${field('Nota (opcional, de 0 a 10)','grade',e?.grade??'','number','min="0" max="10" step="0.01"')}<label>Notas (opcional)<textarea class="text-input" name="notes" maxlength="2000">${esc(e?.notes||'')}</textarea></label><p>Los avisos terminan al llegar la fecha y hora, o al completar/cancelar. Reprogramar invalida los avisos anteriores.</p>`,async f=>{const item=e||{id:newId,paused:false,scheduleVersion:0};Object.assign(item,Object.fromEntries(f),{leadDays:Number(f.get('leadDays')),scheduleVersion});if(!e&&Date.parse(facultyDueAt(item))<=Date.now())throw new Error('La nueva evaluación debe tener fecha y hora futuras.');if(!e){data.events=data.events.filter(x=>x.id!==newId);data.events.push(item);}await this.store.save(data,expected);});
+            } else if(action==='task') {
+                const t=data.tasks.find(x=>x.id===id), newId=planningId('ft');
+                planningDialog(this.app,t?'Editar pendiente':'Nuevo pendiente',`<label>Materia<select name="subjectId" class="time-input" required>${this.subjectOptions(data,t?.subjectId||this.subject)}</select></label>${field('Qué tenés que hacer','name',t?.name||'','text','required maxlength="300"')}`,async f=>{const item=t||{id:newId,done:false};Object.assign(item,Object.fromEntries(f));if(!t){data.tasks=data.tasks.filter(x=>x.id!==newId);data.tasks.push(item);}await this.store.save(data,expected);});
+            } else if(['pause','done','archive','toggle-task'].includes(action)) {
+                const item=action==='archive'?data.subjects.find(x=>x.id===id):action==='toggle-task'?data.tasks.find(x=>x.id===id):data.events.find(x=>x.id===id);
+                if(!item)return; const before=structuredClone(item);
+                const title=action==='archive'?(item.archived?'Reactivar materia':'Archivar materia'):action==='toggle-task'?(item.done?'Volver a pendiente':'Completar pendiente'):action==='pause'?(item.paused?'Reanudar avisos':'Pausar avisos'):(item.type==='tp'?'Marcar entregado':'Marcar realizado');
+                planningDialog(this.app,title,`<p>${esc(item.name)}</p><p>${action==='archive'?'Se conserva el historial. Una materia archivada no envía avisos.':action==='pause'?'Se conserva la fecha real de la evaluación.':'Se conserva el registro y podés editarlo después.'}</p>`,async()=>{if(action==='archive')item.archived=!before.archived;else if(action==='toggle-task')item.done=!before.done;else{if(action==='pause')item.paused=!before.paused;else item.status='done';item.scheduleVersion=before.scheduleVersion+1;}await this.store.save(data,expected);});
+            }
+        } catch(e){this.app.showToast?.(e.message,{tone:'error'});}
+    }
+    getOverdueItems() {
+        const data=this.store.value;
+        return data.events.filter(e=>e.status==='pending'&&!e.paused&&!data.subjects.find(s=>s.id===e.subjectId)?.archived&&facultyState(e).days<=e.leadDays)
+            .map(e=>({module:'faculty',id:e.id,name:e.name,icon:'ph-graduation-cap',desc:`${data.subjects.find(s=>s.id===e.subjectId)?.name} · ${facultyState(e).label}`}));
+    }
+}

@@ -5,6 +5,7 @@ import {
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import { FinanceWorkspaceModule } from './FinanceWorkspaceModule.js';
+import { saylorMovements, SAYLOR_KEY } from '../planning-utils.mjs';
 import { reconcileFinanceSnapshot } from '../finance-workspace-utils.mjs';
 import { getCompactCurrencyDisplayParts } from '../finance-display-utils.mjs?v=20260808-finance-display';
 import {
@@ -1759,6 +1760,7 @@ export class FinanzasModule {
 
     getCombinedEntries() {
         const list = [...(this.data.entries || [])];
+        list.push(...saylorMovements(localStorage.getItem(SAYLOR_KEY)).filter(m => m.resultType === 'income'));
 
         const projectMovements = buildProjectIncomeMovements({
             activeProjects: this.app.projects?.projects || [],
@@ -1777,6 +1779,10 @@ export class FinanzasModule {
         });
 
         return list;
+    }
+
+    getCombinedExpenses() {
+        return [...(this.data.expenses || []), ...saylorMovements(localStorage.getItem(SAYLOR_KEY)).filter(m => m.resultType === 'expense')];
     }
 
     getCategoryColor(categoryKeyOrName, index) {
@@ -2100,7 +2106,7 @@ export class FinanzasModule {
         const yearSelect = document.getElementById('fin-expense-year-select');
         if (!yearSelect) return;
 
-        const expenses = this.data.expenses || [];
+        const expenses = this.getCombinedExpenses();
         const yearsSet = new Set();
         yearsSet.add(new Date().getFullYear());
 
@@ -2126,7 +2132,7 @@ export class FinanzasModule {
 
         const selectedYear = parseInt(yearSelect.value) || new Date().getFullYear();
         const selectedCategory = categorySelect.value || 'all';
-        const expenses = this.data.expenses || [];
+        const expenses = this.getCombinedExpenses();
         const yearExpenses = expenses.filter(e => e.date && parseInt(e.date.slice(0, 4)) === selectedYear);
         const categories = [
             { key: 'comida', label: 'Comida' },
@@ -2287,7 +2293,7 @@ export class FinanzasModule {
         this.workspaceView?.render();
         this.renderFinanceRecurringDuePanel();
         const combined = this.getCombinedEntries();
-        const expenses = this.data.expenses || [];
+        const expenses = this.getCombinedExpenses();
         const now = new Date();
         const currYear = now.getFullYear();
         const currMonthStr = getLocalISOMonth(now);
@@ -2511,10 +2517,10 @@ export class FinanzasModule {
             const safeDate = escapeHtml(dateStr || '-');
             const safeId = escapeHtml(e.id);
 
-            const isManual = !String(e.id).startsWith('proj-');
+            const isManual = e.origin !== 'saylor' && !String(e.id).startsWith('proj-');
             const deleteBtn = isManual
                 ? `<button type="button" class="btn-delete-fin-item icon-btn icon-btn-sm is-danger" data-id="${safeId}" data-tooltip="Eliminar ingreso" aria-label="Eliminar ingreso ${safeDescription}"><i class="ph ph-trash" aria-hidden="true"></i></button>`
-                : `<span style="font-size: 0.7rem; color: var(--text-secondary); padding: 4px 8px; background: var(--surface-subtle); border:1px solid var(--surface-border); border-radius:4px;">Proyecto</span>`;
+                : `<span style="font-size: 0.7rem; color: var(--text-secondary); padding: 4px 8px; background: var(--surface-subtle); border:1px solid var(--surface-border); border-radius:4px;">${e.origin === 'saylor' ? 'Saylor' : 'Proyecto'}</span>`;
 
             return `
                 <div class="card" style="margin:0; padding:12px 15px; display:flex; justify-content:space-between; align-items:center; border: 1px solid var(--surface-border); gap: 10px;">
@@ -2544,7 +2550,7 @@ export class FinanzasModule {
     }
 
     renderExpenseBreakdownAndList(selectedMonth) {
-        const expenses = this.data.expenses || [];
+        const expenses = this.getCombinedExpenses();
         const monthExpenses = expenses.filter(e => e.date && e.date.slice(0, 7) === selectedMonth);
 
         const expenseCategoryConfig = {
@@ -2643,7 +2649,7 @@ export class FinanzasModule {
                     </div>
                     <div style="display:flex; align-items:center; gap:12px; flex-shrink:0;">
                         <strong style="color:var(--status-orange); font-size:0.95rem;">- ${this.formatAmount(e.amount)}</strong>
-                        <button type="button" class="btn-delete-fin-expense-item icon-btn icon-btn-sm is-danger" data-id="${safeId}" data-tooltip="Eliminar gasto" aria-label="Eliminar gasto ${safeDescription}"><i class="ph ph-trash" aria-hidden="true"></i></button>
+                        ${e.origin === 'saylor' ? '<span>Editar en Saylor</span>' : `<button type="button" class="btn-delete-fin-expense-item icon-btn icon-btn-sm is-danger" data-id="${safeId}" data-tooltip="Eliminar gasto" aria-label="Eliminar gasto ${safeDescription}"><i class="ph ph-trash" aria-hidden="true"></i></button>`}
                     </div>
                 </div>
             `;

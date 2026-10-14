@@ -8,6 +8,7 @@ const { TRANSCRIPTIONS_ENABLED } = require('./product-features.mjs');
 const sharedRules = require('./shared_rules.json');
 const { isProjectDeliveryPending } = require('./project-status-utils.mjs');
 const { getPauseAdjustedDate } = require('./pause-utils.mjs');
+const { dueFacultyNotices } = require('./planning-utils.mjs');
 const {
     DEFAULT_PUSH_TTL_SECONDS,
     TIMED_NOTIFICATION_GRACE_MINUTES,
@@ -2747,6 +2748,18 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
 
             let dataChanged = false;
             const sentLogUpdates = {};
+
+            for (const notice of dueFacultyNotices(data.lifecycle_faculty, schedulerNow)) {
+                throwIfAborted(signal);
+                if (Object.hasOwn(data.alerts_sent_log, notice.alertKey)) continue;
+                const payload = JSON.stringify({ title: `🎓 ${notice.event.name}`,
+                    body: `${notice.subject.name} · ${notice.event.date} a las ${notice.event.time} · ${notice.event.type === 'tp' ? 'Entrega' : 'Evaluación'}.`,
+                    url: `/?open=faculty&id=${encodeURIComponent(notice.event.id)}` });
+                const result = await sendPushToSubscriptions({ userId, subscriptions:userSubs, payload,
+                    context:'Aviso académico', alertKey:notice.alertKey, scheduledAt:notice.scheduledAt,
+                    expiresAt:notice.expiresAt, urgency:'high', signal });
+                if(result.successCount > 0) { sentLogUpdates[notice.alertKey]=dateStr; dataChanged=true; }
+            }
 
             const tradingSentLogUpdates = await sendDueTradingEventAlerts({
                 userId,

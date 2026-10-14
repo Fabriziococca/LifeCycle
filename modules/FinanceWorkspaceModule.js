@@ -46,7 +46,7 @@ export class FinanceWorkspaceModule {
         this.dialog.addEventListener('change', event => { if (event.target.name === 'currency') this.updateCurrencyFields(); });
     }
     get workspace() { return financeWorkspace(this.finance.data); }
-    get movements() { return buildWorkspaceMovements(this.finance.data, this.finance.getCombinedEntries()); }
+    get movements() { return buildWorkspaceMovements({ ...this.finance.data, expenses: this.finance.getCombinedExpenses() }, this.finance.getCombinedEntries()); }
     money(value, code = this.currency) { return this.app.financialAmountsHidden ? '••••••' : new Intl.NumberFormat('es-AR', { style: 'currency', currency: code }).format(value / 100); }
     category(value, type) { return this.finance.getFinanceRecurringCategoryLabel(type, value); }
     monthly() { return this.movements.filter(item => item.date?.slice(0, 7) === this.month && item.nativeCurrency === this.currency); }

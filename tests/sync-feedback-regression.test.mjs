@@ -4,6 +4,8 @@ import { AuthSyncModule } from '../modules/AuthSyncModule.js';
 import { AlertsModule } from '../modules/AlertsModule.js';
 import { SubscriptionsModule } from '../modules/SubscriptionsModule.js';
 import { normalizeSubscription } from '../subscription-utils.mjs';
+import { PlanningStore } from '../modules/PlanningStore.js';
+import { emptyPlanning, SAYLOR_KEY } from '../planning-utils.mjs';
 
 function storage() {
     const values = new Map();
@@ -79,6 +81,32 @@ function gate() {
     const promise = new Promise(resolve => { release = resolve; });
     return { promise, release };
 }
+
+test('planning RPC confirmation survives an older HTTP snapshot and delayed Realtime event', async t => {
+    const { auth, state } = cloudFixture(t);
+    auth.readyUserId = auth.user.id;
+    auth.setupRealtimeSubscription();
+    const pending = gate(); state.pause = () => pending.promise;
+    const staleRead = auth.checkAndSyncData();
+    const old = structuredClone(state.row);
+    auth.supabase.rpc = async (name, p) => {
+        assert.equal(name, 'save_lifecycle_planning');
+        assert.equal(auth.planningWriteCount, 1);
+        state.row.data[p.p_key] = p.p_value; state.row.revision++;
+        return { data:{workspace:p.p_value,documentRevision:state.row.revision},error:null };
+    };
+    const store = new PlanningStore(auth.app,SAYLOR_KEY);
+    await store.save(emptyPlanning(SAYLOR_KEY),0);
+    pending.release(); assert.equal(await staleRead,false);
+    state.listener({new:old});
+    assert.equal(store.value.revision,1);
+    state.pause = null;
+    assert.equal(await auth.checkAndSyncData(),true);
+    assert.equal(store.value.revision,1);
+    assert.equal(auth.planningWriteCount,0);
+    auth.clearLocalUserData();
+    assert.equal(auth.minimumCloudRevision,0);
+});
 
 test('unchanged sync checks fetch only revision; changed data is still restored immediately', async t => {
     const { auth, state } = cloudFixture(t);

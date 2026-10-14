@@ -1,5 +1,6 @@
 'use strict';
 const { getPauseAdjustedDate, getPauseAdjustedKm } = require('./pause-utils.mjs');
+const { readPlanning, FACULTY_KEY } = require('./planning-utils.mjs');
 
 const SERVER_MANAGED_USER_DATA_KEYS = new Set([
     'alerts_sent_log',
@@ -526,6 +527,14 @@ function getCustomTrackerAlertKey(tracker) {
 
 function isPushRetryRelevant(alertKey, snapshot = {}) {
     const key = String(alertKey || '').split('@')[0];
+    if (key.startsWith('faculty:')) {
+        const [,id,version] = key.split(':');
+        const workspace = readPlanning(snapshot.lifecycle_faculty, FACULTY_KEY);
+        const event = workspace.events.find(item=>item.id===id);
+        return Boolean(event && event.status==='pending' && !event.paused
+            && String(event.scheduleVersion)===version
+            && workspace.subjects.some(s=>s.id===event.subjectId&&!s.archived));
+    }
     const configs = parseJsonValue(snapshot.alerts_config, {});
     if (configs[key]?.paused || configs[key]?.enabled === false) return false;
     if (key === 'vitamina_d' && parseJsonValue(snapshot.gym_supplements, {})?.vit_d_tracking?.paused) return false;

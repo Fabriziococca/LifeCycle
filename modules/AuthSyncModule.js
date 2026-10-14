@@ -97,6 +97,8 @@ export class AuthSyncModule {
         this.appliedCloudRevision = null;
         this.activePullPromise = null;
         this.localEditGeneration = 0;
+        this.planningWriteCount = 0;
+        this.minimumCloudRevision = 0;
         this.pushSyncPromise = null;
         this.pushManagement = new PushManagementModule(this);
         this.setupAccessGateListeners();
@@ -554,6 +556,11 @@ export class AuthSyncModule {
     }
 
     clearLocalUserData() {
+        const planningDialog = globalThis.document?.getElementById?.('planning-dialog');
+        if (planningDialog) {
+            planningDialog.remove();
+            document.body.classList.remove('modal-open');
+        }
         this.inflightSyncKeys = new Set();
         this.cloudRetryAfter = 0;
         this.cloudFailureCount = 0;
@@ -563,6 +570,8 @@ export class AuthSyncModule {
         this.activePullPromise = null;
         this.appliedCloudRevision = null;
         this.localEditGeneration += 1;
+        this.planningWriteCount = 0;
+        this.minimumCloudRevision = 0;
         this.isSyncing = false;
         this.isRestoring = true;
         try {
@@ -788,6 +797,7 @@ export class AuthSyncModule {
             const localEditGeneration = this.localEditGeneration;
             const canApplySnapshot = () => isCurrentSession()
                 && this.localEditGeneration === localEditGeneration
+                && !this.planningWriteCount
                 && !this.isSyncing && this.pendingSyncKeys.size === 0;
             if (!canApplySnapshot()) return false;
 
@@ -837,6 +847,7 @@ export class AuthSyncModule {
             const parsedRevision = Number(data.revision);
             const revision = revisionAvailable && Number.isSafeInteger(parsedRevision) && parsedRevision > 0
                 ? parsedRevision : null;
+            if (this.minimumCloudRevision && (revision === null || revision < this.minimumCloudRevision)) return false;
             if (revision !== null && this.appliedCloudRevision !== null && revision < this.appliedCloudRevision) {
                 return true; // A newer Realtime event arrived while this HTTP read was pending.
             }
@@ -1018,6 +1029,8 @@ export class AuthSyncModule {
             if (this.app.finanzas) {
                 try { this.app.finanzas.render(); } catch (e) { console.error("Error rendering finanzas:", e); }
             }
+            this.app.saylor?.render();
+            this.app.faculty?.render();
             if (this.app.tareas) {
                 try { this.app.tareas.render(); } catch (e) { console.error("Error rendering tareas:", e); }
             }
@@ -1220,7 +1233,7 @@ export class AuthSyncModule {
                 const newCloudData = payload.new?.data;
                 const realtimeRevision = Number(payload.new?.revision);
                 if (newCloudData) {
-                    if (this.isSyncing || this.pendingSyncKeys.size > 0) {
+                    if (this.isSyncing || this.pendingSyncKeys.size > 0 || this.planningWriteCount) {
                         clearTimeout(this.realtimeRefreshTimer);
                         this.realtimeRefreshTimer = setTimeout(() => {
                             this.checkAndSyncData().catch(error => {
@@ -1230,6 +1243,7 @@ export class AuthSyncModule {
                         return;
                     }
                     const revision = Number.isSafeInteger(realtimeRevision) && realtimeRevision > 0 ? realtimeRevision : null;
+                    if (this.minimumCloudRevision && (revision === null || revision < this.minimumCloudRevision)) return;
                     if (revision !== null && this.appliedCloudRevision !== null && revision <= this.appliedCloudRevision) return;
 
                     const local = this.gatherLocalData(CLOUD_RESTORE_KEYS);

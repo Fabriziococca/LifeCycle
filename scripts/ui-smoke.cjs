@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const { runFinanceWorkspaceSmoke } = require('./finance-workspace-smoke.cjs');
 const { runAlertsScheduleSmoke } = require('./alerts-schedule-smoke.cjs');
+const { runPlanningSmoke } = require('./planning-smoke.cjs');
 const { runLifecycleImprovementsSmoke } = require('./lifecycle-improvements-smoke.cjs');
 const path = require('node:path');
 const httpServer = express().use(express.static(path.resolve(__dirname, '..'))).listen(0, '127.0.0.1');
@@ -41,6 +42,14 @@ function installFakeCloud() {
         auth: { getSession: async () => ({ data: { session: { user, access_token: 'qa-session' } } }), onAuthStateChange: callback => { window.qaAuthListeners.push(callback); return { data: { subscription: { unsubscribe() {} } } }; } },
         from: table => new Query(table),
         rpc: async (name, parameters) => {
+            if (name === 'save_lifecycle_planning') {
+                const key=parameters.p_key, current=cloudDocument[key] ? (typeof cloudDocument[key]==='string'?JSON.parse(cloudDocument[key]):cloudDocument[key]) : {revision:0};
+                if(JSON.stringify(current)===JSON.stringify(parameters.p_value)) return {data:{workspace:structuredClone(current),documentRevision:revision},error:null};
+                if(current.revision!==parameters.p_expected_revision && JSON.stringify(current)!==JSON.stringify(parameters.p_value))return {data:null,error:{code:'40001',message:'revision conflict'}};
+                cloudDocument[key]=structuredClone(parameters.p_value);revision++;
+                sessionStorage.setItem('qa-cloud-document',JSON.stringify(cloudDocument));window.qaSyncMetrics.writes++;
+                return {data:{workspace:structuredClone(cloudDocument[key]),documentRevision:revision},error:null};
+            }
             if (name === 'merge_user_data_keys') {
                 const previous = JSON.stringify(cloudDocument);
                 (parameters.p_delete_keys || []).forEach(key => delete cloudDocument[key]);
@@ -89,6 +98,9 @@ function installFakeCloud() {
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'planning') {
+                await runPlanningSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,planning:true}));await context.close();continue;
+            }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'improvements') {
                 await runLifecycleImprovementsSmoke(page, { width, theme });
                 assert.deepEqual(errors, [], `uncaught improvement errors at ${width}/${theme}`);

@@ -14,6 +14,8 @@ import { RecoveryModule } from './modules/RecoveryModule.js';
 import { AuthSyncModule } from './modules/AuthSyncModule.js';
 import { FinanzasModule } from './modules/FinanzasModule.js';
 import { TradingModule } from './modules/TradingModule.js';
+import { SaylorModule } from './modules/SaylorModule.js';
+import { FacultyModule } from './modules/FacultyModule.js';
 import { TareasModule } from './modules/TareasModule.js';
 import { AlertsModule } from './modules/AlertsModule.js';
 import { NotificationsCenterModule } from './modules/NotificationsCenterModule.js';
@@ -303,6 +305,7 @@ class AppController {
 
     setFinancialAmountsHidden(hidden) {
         this.financialAmountsHidden = Boolean(hidden);
+        this.saylor?.render();
         localStorage.setItem(
             FINANCIAL_AMOUNTS_HIDDEN_KEY,
             this.financialAmountsHidden ? '1' : '0'
@@ -527,6 +530,8 @@ class AppController {
             this.transcriptions?.render();
         } else if (sectionId === 'trading-section') {
             this.trading?.activate();
+        } else if (sectionId === 'faculty-section') {
+            this.faculty?.render();
         } else if (sectionId === 'tareas-section') {
             this.tareas?.render();
         } else {
@@ -686,6 +691,8 @@ class AppController {
                     ? `subscription-${searchParams.get('id')}`
                     : null
             };
+        } else if (openParam === 'faculty') {
+            itemToOpen = { module: 'faculty', id: searchParams.get('id') };
         } else if (openParam === 'vehicle' || hash.includes('vehiculo')) {
             const tab = searchParams.get('tab') || (hash.includes('docs') ? 'docs' : 'maint');
             itemToOpen = { module: 'vehicle', vehicleTab: tab, id: searchParams.get('id') };
@@ -945,6 +952,8 @@ class AppController {
         this.projects = new ProjectsModule(this);
         this.finanzas = new FinanzasModule(this);
         this.trading = new TradingModule(this);
+        this.saylor = new SaylorModule(this);
+        this.faculty = new FacultyModule(this);
         this.tareas = new TareasModule(this);
         this.customTrackers = new CustomTrackersModule(this);
         this.backups = new BackupModule(this);

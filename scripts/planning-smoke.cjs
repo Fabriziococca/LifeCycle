@@ -1,0 +1,65 @@
+const assert=require('node:assert/strict');
+async function runPlanningSmoke(page,{width,theme}) {
+    const dialog=page.locator('#planning-dialog');
+    const save=async()=>{await dialog.getByRole('button',{name:'Guardar',exact:true}).click();await dialog.waitFor({state:'hidden'});};
+    const open=async(name)=>{await page.getByRole('button',{name,exact:true}).click();await dialog.waitFor({state:'visible'});};
+    if(width>=1100) assert.ok(await page.locator('#main-nav').evaluate(el=>el.getBoundingClientRect().width)<260,'desktop navigation overlaps planning');
+    await page.evaluate(()=>{const app=window.lifecycle_controller;app.activateSection('trading-section');app.saylor.activate('saylor');});
+    await open('Iniciar Saylor');
+    await dialog.locator('[name=name]').fill('Operación sintética');await dialog.locator('[name=startedOn]').fill('2026-10-01');
+    await dialog.locator('[name=initialPosition]').fill('30');await save();
+    await page.locator('#saylor-pane').getByRole('button',{name:'Registrar recarga',exact:true}).click();
+    await dialog.getByRole('button',{name:'+5',exact:true}).click();await dialog.locator('[name=destination]').selectOption('margin');await save();
+    let totals=await page.evaluate(()=>{const c=window.lifecycle_controller.saylor.store.value.campaigns[0];return{loads:c.loads.length,bullets:c.loads.reduce((n,l)=>n+l.quantity,0)};});
+    assert.deepEqual(totals,{loads:2,bullets:35});
+    await open('Finalizar');await dialog.locator('[name=basis]').selectOption('position');await save();
+    assert.equal(await page.evaluate(()=>window.lifecycle_controller.finanzas.getCombinedEntries().filter(x=>x.origin==='saylor').reduce((n,x)=>n+x.amount,0)),300);
+    await open('Editar cierre');await dialog.locator('[name=percent]').fill('25');await save();
+    assert.deepEqual(await page.evaluate(()=>window.lifecycle_controller.finanzas.getCombinedEntries().filter(x=>x.origin==='saylor').map(x=>x.amount)),[375]);
+    await open('Editar cierre');await dialog.locator('[name=percent]').fill('-10');await save();
+    assert.equal(await page.evaluate(()=>window.lifecycle_controller.finanzas.getCombinedEntries().filter(x=>x.origin==='saylor').length),0);
+    assert.equal(await page.evaluate(()=>window.lifecycle_controller.finanzas.getCombinedExpenses().find(x=>x.origin==='saylor').amount),150);
+    await open('Editar cierre');await dialog.locator('[name=percent]').fill('20');await dialog.locator('[name=actual]').fill('287.14');await save();
+    assert.equal(await page.evaluate(()=>window.lifecycle_controller.finanzas.getCombinedEntries().find(x=>x.origin==='saylor').amount),287.14);
+    await page.screenshot({path:`.tmp-sb/ui-smoke/planning-saylor-${width}-${theme}.png`,fullPage:true,animations:'disabled'});
+    if(width<768) {
+        await page.locator('#main-nav .adaptive-nav-more').click();
+        await page.locator('[data-adaptive-nav-module="faculty-section"]').click();
+    } else await page.locator('#main-nav [data-section="faculty-section"]').click();
+    await page.locator('#faculty-content').waitFor({state:'visible'});
+    await open('Nueva materia');await dialog.locator('[name=name]').fill('Materia sintética');await save();
+    await open('Nueva evaluación o TP');await dialog.locator('[name=name]').fill('Parcial sintético');await save();
+    let event=await page.evaluate(()=>window.lifecycle_controller.faculty.store.value.events[0]);
+    assert.equal(event.leadDays,14);assert.equal(event.noticeTime,'15:00');assert.equal(event.time,'18:00');
+    await open('Pausar avisos');await save();assert.equal(await page.evaluate(()=>window.lifecycle_controller.faculty.store.value.events[0].paused),true);
+    await open('Reanudar avisos');await save();
+    await open('Editar evaluación');await dialog.locator('[name=time]').fill('19:00');await save();
+    event=await page.evaluate(()=>window.lifecycle_controller.faculty.store.value.events[0]);assert.equal(event.scheduleVersion,4);
+    await open('Marcar realizado');await save();assert.equal(await page.evaluate(()=>window.lifecycle_controller.faculty.store.value.events[0].status),'done');
+    await page.locator('[data-faculty-action=view-tasks]').click();await open('Nuevo pendiente');await dialog.locator('[name=name]').fill('Repasar unidad uno');await save();
+    await open('Completar');await save();
+    await page.locator('[data-faculty-action=view-agenda]').click();await page.screenshot({path:`.tmp-sb/ui-smoke/planning-faculty-${width}-${theme}.png`,fullPage:true,animations:'disabled'});
+    if(width>=1100) assert.ok(await page.locator('#main-nav').evaluate(el=>el.getBoundingClientRect().width)<260,'navigation still fits after planning dialogs');
+    await page.evaluate(()=>window.lifecycle_controller.globalSearch.open());
+    await page.locator('#global-search-input').fill('Parcial sintético');
+    await page.locator('#global-search-results').getByText('Parcial sintético',{exact:true}).click();
+    await page.locator('[data-faculty-event]').waitFor({state:'visible'});
+    await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>window.lifecycle_controller?.auth?.readyUserId);
+    assert.equal(await page.evaluate(()=>window.lifecycle_controller.saylor.store.value.campaigns[0].closure.profitMinor),28714);
+    assert.equal(await page.evaluate(()=>window.lifecycle_controller.faculty.store.value.tasks[0].done),true);
+    const before=await page.evaluate(()=>({...window.qaSyncMetrics}));await page.waitForTimeout(1500);const after=await page.evaluate(()=>({...window.qaSyncMetrics}));
+    assert.equal(after.writes,before.writes,'idle planning must not write');
+    const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>window.innerWidth+1);assert.equal(overflow,false,'planning must fit viewport');
+    // A confirmed server write whose response is lost can be retried without
+    // doubling either the campaign or its declared starting contributions.
+    await page.evaluate(()=>{const app=window.lifecycle_controller;app.activateSection('trading-section');app.saylor.activate('saylor');const original=app.auth.supabase.rpc;window.qaOriginalRpc=original;let first=true;app.auth.supabase.rpc=async(...args)=>{const response=await original(...args);if(args[0]==='save_lifecycle_planning'&&first){first=false;return{data:null,error:{code:'NETWORK'}};}return response;};});
+    await open('Iniciar Saylor');await dialog.locator('[name=name]').fill('Respuesta perdida');await dialog.locator('[name=initialPosition]').fill('3');
+    await dialog.getByRole('button',{name:'Guardar',exact:true}).click();
+    await dialog.getByRole('alert').getByText('No se confirmó el guardado.',{exact:false}).waitFor();
+    assert.equal(await dialog.locator('[name=name]').inputValue(),'Respuesta perdida');await save();
+    assert.equal(await page.evaluate(()=>window.lifecycle_controller.saylor.store.value.campaigns.filter(x=>x.name==='Respuesta perdida').length),1);
+    assert.equal(await page.evaluate(()=>window.lifecycle_controller.saylor.store.value.campaigns.find(x=>x.name==='Respuesta perdida').loads.reduce((n,l)=>n+l.quantity,0)),3);
+    await open('Iniciar Saylor');await page.evaluate(()=>window.lifecycle_controller.auth.clearLocalUserData());
+    assert.equal(await dialog.count(),0,'account reset must remove private unsaved forms');
+}
+module.exports={runPlanningSmoke};

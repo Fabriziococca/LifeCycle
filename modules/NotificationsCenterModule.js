@@ -389,6 +389,7 @@ export class NotificationsCenterModule {
         } catch (e) {
             console.error("Error in getOverdueItems:", e);
         }
+        items.push(...(this.app.faculty?.getOverdueItems?.() || []));
         return items;
     }
 
@@ -403,7 +404,11 @@ export class NotificationsCenterModule {
         let targetTab = null;
         let targetElementId = item.targetElementId || null;
 
-        if (item.module === 'tareas') {
+        if (item.module === 'faculty') {
+            sectionId = 'faculty-section';
+            if (this.app.faculty) { this.app.faculty.view = 'agenda'; this.app.faculty.month = ''; this.app.faculty.subject = ''; }
+            targetElementId = `faculty-event-${item.id}`;
+        } else if (item.module === 'tareas') {
             const task = this.app.tareas?.tasks?.find(
                 candidate => String(candidate.id) === String(item.id)
             );

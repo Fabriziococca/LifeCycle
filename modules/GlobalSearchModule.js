@@ -8,6 +8,7 @@ import { matchesKeyboardShortcut } from '../keyboard-shortcuts.mjs?v=20260801-sh
 
 const GROUP_META = Object.freeze({
     command: Object.freeze({ label: 'Acciones', icon: 'ph-lightning' }),
+    planning: Object.freeze({ label: 'Facultad y Saylor', icon: 'ph-graduation-cap' }),
     tracker: Object.freeze({ label: 'Tarjetas', icon: 'ph-stack' }),
     task: Object.freeze({ label: 'Tareas', icon: 'ph-check-square' }),
     project: Object.freeze({ label: 'Proyectos', icon: 'ph-briefcase' }),
@@ -150,6 +151,7 @@ export class GlobalSearchModule {
     buildIndex() {
         return [
             ...this.getCommandItems(),
+            ...this.getPlanningItems(),
             ...this.getTrackerItems(),
             ...this.getVehicleItems(),
             ...this.getTaskItems(),
@@ -226,6 +228,17 @@ export class GlobalSearchModule {
                 target: { command: 'notification-settings' }
             }
         ].filter(item => item.id !== 'command:transcripciones' || this.app.transcriptions);
+    }
+
+    getPlanningItems() {
+        const faculty = this.app.faculty?.store?.value;
+        const saylor = this.app.saylor?.store?.value;
+        return [
+            ...(faculty?.subjects || []).map(s => ({ id:`subject:${s.id}`,kind:'planning',title:s.name,subtitle:'Materia · Facultad',keywords:[s.teacher,s.term],target:{section:'faculty-section',view:'subjects',subjectId:s.id} })),
+            ...(faculty?.events || []).map(e => ({ id:`faculty:${e.id}`,kind:'planning',title:e.name,subtitle:`Facultad · ${e.date} ${e.time}`,keywords:[faculty.subjects.find(s=>s.id===e.subjectId)?.name],target:{section:'faculty-section',view:'agenda',eventId:e.id} })),
+            ...(faculty?.tasks || []).map(t => ({id:`faculty-task:${t.id}`,kind:'planning',title:t.name,subtitle:'Pendiente · Facultad',keywords:[],target:{section:'faculty-section',view:'tasks',subjectId:t.subjectId}})),
+            ...(saylor?.campaigns || []).map(c => ({id:`saylor:${c.id}`,kind:'planning',title:c.name,subtitle:`Saylor · ${c.status==='active'?'En curso':'Finalizada'}`,keywords:[c.exchange],target:{section:'trading-section'}}))
+        ];
     }
 
     getTrackerItems() {
@@ -520,7 +533,11 @@ export class GlobalSearchModule {
         if (!result) return;
         this.close({ restoreFocus: false });
 
-        if (result.kind === 'tracker') {
+        if (result.kind === 'planning') {
+            if(result.target.section==='trading-section') { this.app.saylor?.activate('saylor'); this.app.activateSection?.('trading-section'); }
+            else if(result.target.eventId) this.app.notificationsCenter?.openItem({module:'faculty',id:result.target.eventId});
+            else { const f=this.app.faculty; if(f){f.view=result.target.view;f.subject=result.target.subjectId||'';f.month='';}this.app.activateSection?.('faculty-section'); }
+        } else if (result.kind === 'tracker') {
             this.openTracker(result.target);
         } else if (result.kind === 'task') {
             this.openTask(result.target);
