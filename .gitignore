@@ -4,6 +4,7 @@ vapid-keys.json
 scratch/
 www/
 .tmp-sb/
+docs/ACCESS_REGISTER.md
 .tmp-supabase-cli-cache/
 supabase/.temp/
 .android-sdk/

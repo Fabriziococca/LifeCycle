@@ -67,7 +67,7 @@ export class FeedbackController {
         this.document = rootDocument;
         this.dialog = null;
         this.title = null;
-        this.message = null;
+        this.messageElement = null;
         this.details = null;
         this.icon = null;
         this.confirmButton = null;
@@ -112,7 +112,7 @@ export class FeedbackController {
 
         this.dialog = dialog;
         this.title = dialog.querySelector('#app-feedback-dialog-title');
-        this.message = dialog.querySelector('#app-feedback-dialog-message');
+        this.messageElement = dialog.querySelector('#app-feedback-dialog-message');
         this.details = dialog.querySelector('[data-feedback-details]');
         this.icon = dialog.querySelector('[data-feedback-icon] i');
         this.confirmButton = dialog.querySelector('[data-feedback-confirm]');
@@ -153,7 +153,7 @@ export class FeedbackController {
         this.dialog.dataset.mode = config.mode;
         this.dialog.dataset.closeOnBackdrop = String(config.closeOnBackdrop);
         this.title.textContent = config.title;
-        this.message.textContent = config.message;
+        this.messageElement.textContent = config.message;
         this.details.replaceChildren(...config.details.map(detail => {
             const row = this.document.createElement('div');
             const term = this.document.createElement('dt');

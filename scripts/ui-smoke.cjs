@@ -9,74 +9,15 @@ const { runLifecycleImprovementsSmoke } = require('./lifecycle-improvements-smok
 const path = require('node:path');
 const httpServer = express().use(express.static(path.resolve(__dirname, '..'))).listen(0, '127.0.0.1');
 
-function installFakeCloud() {
-    const user = { id: '11111111-1111-4111-8111-111111111111', email: 'qa@example.invalid' };
-    const cloudDocument = JSON.parse(sessionStorage.getItem('qa-cloud-document') || '{}');
-    window.qaCloudDocument = () => structuredClone(cloudDocument);
-    let revision = 1;
-    const listeners = new Set();
-    window.qaSyncMetrics = { writes: 0, realtimeEvents: 0, fullReads: 0, revisionReads: 0, transcriptionReads: 0 };
-    window.qaAuthListeners = [];
-    window.qaReconfirmSession = () => window.qaAuthListeners.forEach(callback => callback('SIGNED_IN', { user }));
-    const tables = { transcription_folders: [], transcription_sessions: [], transcription_documents: [] };
-    class Query {
-        constructor(table) { this.table = table; this.one = false; }
-        select(columns) { this.columns = columns; return this; } eq() { return this; } order() { return this; }
-        limit() { return this; } in() { return this; } is() { return this; }
-        range() { return this; }
-        abortSignal() { return this; }
-        single() { this.one = true; return this; }
-        maybeSingle() { this.one = true; return this; }
-        insert(value) { this.value = { id: crypto.randomUUID(), created_at: new Date().toISOString(), ...value }; (tables[this.table] ||= []).push(this.value); return this; }
-        then(resolve) {
-            if (this.table.startsWith('transcription_')) window.qaSyncMetrics.transcriptionReads++;
-            if (this.table === 'user_data') {
-                window.qaSyncMetrics[this.columns === 'revision' ? 'revisionReads' : 'fullReads'] += 1;
-            }
-            const data = this.table === 'user_data' ? { user_id: user.id, data: structuredClone(cloudDocument), updated_at: '2026-09-05T00:00:00Z', revision }
-                : this.one ? this.value || null : tables[this.table] || [];
-            return Promise.resolve({ data, error: null }).then(resolve);
-        }
-    }
-    window.supabase = { createClient: () => ({
-        auth: { getSession: async () => ({ data: { session: { user, access_token: 'qa-session' } } }), onAuthStateChange: callback => { window.qaAuthListeners.push(callback); return { data: { subscription: { unsubscribe() {} } } }; } },
-        from: table => new Query(table),
-        rpc: async (name, parameters) => {
-            if (name === 'save_lifecycle_planning') {
-                const key=parameters.p_key, current=cloudDocument[key] ? (typeof cloudDocument[key]==='string'?JSON.parse(cloudDocument[key]):cloudDocument[key]) : {revision:0};
-                if(JSON.stringify(current)===JSON.stringify(parameters.p_value)) return {data:{workspace:structuredClone(current),documentRevision:revision},error:null};
-                if(current.revision!==parameters.p_expected_revision && JSON.stringify(current)!==JSON.stringify(parameters.p_value))return {data:null,error:{code:'40001',message:'revision conflict'}};
-                cloudDocument[key]=structuredClone(parameters.p_value);revision++;
-                sessionStorage.setItem('qa-cloud-document',JSON.stringify(cloudDocument));window.qaSyncMetrics.writes++;
-                return {data:{workspace:structuredClone(cloudDocument[key]),documentRevision:revision},error:null};
-            }
-            if (name === 'merge_user_data_keys') {
-                const previous = JSON.stringify(cloudDocument);
-                (parameters.p_delete_keys || []).forEach(key => delete cloudDocument[key]);
-                Object.assign(cloudDocument, parameters.p_updates || {});
-                sessionStorage.setItem('qa-cloud-document', JSON.stringify(cloudDocument));
-                if (previous !== JSON.stringify(cloudDocument)) revision += 1;
-                window.qaSyncMetrics.writes += 1;
-                const payload = { new: { data: structuredClone(cloudDocument), revision } };
-                // Deliberately model the OLD database: even a no-op emits a full
-                // row. The client must not depend on the server guard to converge.
-                setTimeout(() => listeners.forEach(listener => {
-                    window.qaSyncMetrics.realtimeEvents += 1;
-                    listener(payload);
-                }), 20);
-            }
-            return { data: name === 'get_my_resource_policy' ? { tier: 'owner', unlimited: true, limits: {} } : new Date().toISOString(), error: null };
-        },
-        channel: () => ({ on(event, filter, callback) { this.callback = callback; return this; }, subscribe() { listeners.add(this.callback); return this; }, unsubscribe() { listeners.delete(this.callback); } }),
-        removeChannel(channel) { channel.unsubscribe(); }
-    }) };
-}
+const { installFakeCloud } = require('./qa-cloud.cjs');
+const { runFullAuditSmoke } = require('./full-audit-smoke.cjs');
+const { runActiveModulesSmoke } = require('./active-modules-smoke.cjs');
 
 (async () => {
     await fs.mkdir('.tmp-sb/ui-smoke', { recursive: true });
     const browser = await chromium.launch({ headless: true, channel: 'chrome' });
     try {
-        for (const width of [1440, 390]) for (const theme of ['dark', 'light']) {
+        for (const width of (process.env.LIFECYCLE_UI_WIDTH ? [Number(process.env.LIFECYCLE_UI_WIDTH)] : process.env.LIFECYCLE_UI_SMOKE_ONLY === 'audit' ? [1920,1440,1024,768,714,390,360] : [1440,390])) for (const theme of ['dark', 'light']) {
             const context = await browser.newContext({ viewport: { width, height: width < 500 ? 844 : 768 }, serviceWorkers: 'block', isMobile: width < 500, hasTouch: width < 500 });
             await context.addInitScript(() => {
                 const registration = { active: {}, addEventListener() {}, pushManager: { getSubscription: async () => null } };
@@ -98,6 +39,12 @@ function installFakeCloud() {
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'audit') {
+                await runFullAuditSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,fullAudit:true}));await context.close();continue;
+            }
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'modules') {
+                await runActiveModulesSmoke(page); assert.deepEqual(errors,[]); console.log(JSON.stringify({width,theme,activeModules:true})); await context.close(); continue;
+            }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'planning') {
                 await runPlanningSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,planning:true}));await context.close();continue;
             }

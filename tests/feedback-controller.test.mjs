@@ -2,8 +2,22 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 
 import {
-    normalizeFeedbackOptions
+    normalizeFeedbackOptions,
+    FeedbackController
 } from '../feedback-controller.mjs';
+
+test('message remains callable on a controller instance and queues normalized feedback', async () => {
+    const controller = new FeedbackController({});
+    const presented = [];
+    controller.present = async config => { presented.push(config); return true; };
+    assert.equal(typeof controller.message, 'function');
+    await controller.confirm({ message: 'First' });
+    await controller.message({ message: 'Invalid value', tone: 'warning' });
+    await controller.message('Retry');
+    assert.deepEqual(presented.map(config => [config.mode,config.message]), [
+        ['confirm','First'], ['message','Invalid value'], ['message','Retry']
+    ]);
+});
 
 test('message feedback uses safe visible defaults', () => {
     assert.deepEqual(

@@ -14,6 +14,7 @@ const {
     TIMED_NOTIFICATION_GRACE_MINUTES,
     assertServerManagedUserDataPatch,
     buildCustomTrackerNotification,
+    buildRobotDirtyNotification,
     buildVehicleCatalogNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
@@ -3266,12 +3267,11 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                             break;
                         // Otros
                         case 'robot':
-                            if (hygieneData.robot_cleaner && hygieneData.robot_cleaner.status === 'dirty') {
-                                const markedAt = hygieneData.robot_cleaner.marked_dirty_at;
-                                const elapsedHours = markedAt ? Math.floor((nowArg - new Date(markedAt)) / (3600 * 1000)) : 0;
+                            const robotReminder = buildRobotDirtyNotification(hygieneData.robot_cleaner, schedulerNow);
+                            if (robotReminder) {
                                 shouldNotify = true;
-                                title = '🤖 Robot Aspiradora';
-                                body = `El robot lleva sucio ${elapsedHours}hs. Recordá lavarlo.`;
+                                title = robotReminder.title;
+                                body = robotReminder.body;
                             }
                             break;
                         case 'workana':

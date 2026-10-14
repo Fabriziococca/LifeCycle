@@ -8,6 +8,7 @@ const {
     TIMED_NOTIFICATION_GRACE_MINUTES,
     assertServerManagedUserDataPatch,
     buildCustomTrackerNotification,
+    buildRobotDirtyNotification,
     buildVehicleCatalogNotification,
     buildVehicleDocumentNotification,
     buildVehicleMaintenanceNotification,
@@ -29,6 +30,15 @@ const {
     normalizeIntervalHours,
     parseJsonValue
 } = require('../notification-utils');
+
+test('legacy robot reminders use the scheduler instant and tolerate missing, future or malformed marks', () => {
+    const now = new Date('2026-10-14T19:00:00Z');
+    assert.equal(buildRobotDirtyNotification({ status:'clean' },now),null);
+    assert.match(buildRobotDirtyNotification({status:'dirty',marked_dirty_at:'2026-10-14T15:30:00Z'},now).body,/3hs/);
+    for (const marked_dirty_at of [undefined,'invalid','2026-10-15T19:00:00Z']) {
+        assert.match(buildRobotDirtyNotification({status:'dirty',marked_dirty_at},now).body,/0hs/);
+    }
+});
 
 test('parseJsonValue accepts native values and JSON strings', () => {
     assert.deepEqual(parseJsonValue('[1,2]', []), [1, 2]);

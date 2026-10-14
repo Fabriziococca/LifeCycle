@@ -26,6 +26,14 @@ const DEFAULT_PUSH_TTL_SECONDS = TIMED_NOTIFICATION_GRACE_MINUTES * 60;
 const MAX_WEB_PUSH_TTL_SECONDS = 28 * 24 * 60 * 60;
 const WEB_PUSH_URGENCIES = new Set(['very-low', 'low', 'normal', 'high']);
 
+function buildRobotDirtyNotification(robot, now = new Date()) {
+    if (robot?.status !== 'dirty') return null;
+    const markedAt = Date.parse(robot.marked_dirty_at);
+    const elapsedHours = Number.isFinite(markedAt)
+        ? Math.max(0, Math.floor((new Date(now).getTime() - markedAt) / 3600000)) : 0;
+    return { title: '🤖 Robot Aspiradora', body: `El robot lleva sucio ${elapsedHours}hs. Recordá lavarlo.` };
+}
+
 function parseDateOnly(value) {
     const match = /^(\d{4})-(\d{2})-(\d{2})$/.exec(String(value || ''));
     if (!match) return null;
@@ -739,6 +747,7 @@ function buildCustomTrackerNotification(
 }
 
 module.exports = {
+    buildRobotDirtyNotification,
     DEFAULT_PUSH_TTL_SECONDS,
     TIMED_NOTIFICATION_GRACE_MINUTES,
     assertServerManagedUserDataPatch,

@@ -49,3 +49,5 @@
 
 
 body.access-locked #planning-dialog{display:none}
+
+.planning-metrics.card{padding:20px 24px;margin:18px 0;gap:16px}

@@ -64,7 +64,7 @@ export function planningDialog(app, title, html, onSave) {
     const layer = document.createElement('div');
     layer.id = 'planning-dialog'; layer.className = 'custom-tracker-dialog planning-dialog';
     layer.innerHTML = `<div class="custom-tracker-dialog-card" role="dialog" aria-modal="true" aria-labelledby="planning-dialog-title">
-        <header class="planning-heading"><h2 id="planning-dialog-title"></h2><button type="button" class="btn btn-secondary" data-close aria-label="Cerrar">×</button></header>
+        <header class="planning-heading"><h2 id="planning-dialog-title"></h2><button type="button" class="icon-btn" data-close aria-label="Cerrar formulario" data-tooltip="Cerrar"><i class="ph ph-x" aria-hidden="true"></i></button></header>
         <form>${html}<p class="planning-error" role="alert"></p><footer class="planning-actions"><button type="button" class="btn btn-secondary" data-close>Cancelar</button><button class="btn btn-primary" type="submit">Guardar</button></footer></form></div>`;
     layer.querySelector('h2').textContent = title;
     document.body.append(layer); document.body.classList.add('modal-open');

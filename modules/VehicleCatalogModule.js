@@ -398,7 +398,14 @@ export class VehicleCatalogModule {
 
         host.classList.add('vehicle-config-title-host');
         host.classList.toggle('is-root', host === root);
-        let button = host.querySelector(
+        let controls = host.querySelector(':scope > .vehicle-card-controls');
+        if (!controls) {
+            controls = document.createElement('div');
+            controls.className = 'vehicle-card-controls';
+            if (host === root) title.after(controls);
+            else host.appendChild(controls);
+        }
+        let button = controls.querySelector(
             ':scope > [data-vehicle-card-action="edit-config"]'
         );
         if (!button) {
@@ -407,18 +414,18 @@ export class VehicleCatalogModule {
             button.className = 'vehicle-config-edit icon-btn icon-btn-sm';
             button.dataset.vehicleCardAction = 'edit-config';
             button.innerHTML = '<i class="ph ph-pencil-simple" aria-hidden="true"></i>';
-            host.appendChild(button);
+            controls.appendChild(button);
         }
         button.dataset.vehicleCardId = card.id;
         button.setAttribute('aria-label', `Editar configuración de ${card.name}`);
         button.dataset.tooltip = 'Editar configuración';
-        let pauseButton = host.querySelector(':scope > [data-vehicle-card-action="toggle-pause"]');
+        let pauseButton = controls.querySelector(':scope > [data-vehicle-card-action="toggle-pause"]');
         if (!pauseButton) {
             pauseButton = document.createElement('button');
             pauseButton.type = 'button';
             pauseButton.className = 'btn btn-secondary vehicle-pause-button';
             pauseButton.dataset.vehicleCardAction = 'toggle-pause';
-            host.appendChild(pauseButton);
+            controls.appendChild(pauseButton);
         }
         pauseButton.dataset.vehicleCardId = card.id;
         pauseButton.textContent = card.paused ? 'Reanudar' : 'Pausar';

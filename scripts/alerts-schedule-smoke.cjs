@@ -12,7 +12,8 @@ async function runAlertsScheduleSmoke(page, { width, theme }) {
 
     // Probe both reported regressions before asserting, so a missing editor
     // method cannot hide behind the first failing add-time assertion.
-    const firstCard = page.locator('.alert-card-item').filter({ has: page.locator('.btn-add-extra-time:not([disabled])') }).first();
+    const firstKey = await page.locator('.alert-card-item').filter({ has: page.locator('.btn-add-extra-time:not([disabled])') }).first().getAttribute('data-alert-key');
+    const firstCard = page.locator(`.alert-card-item[data-alert-key="${firstKey}"]`);
     const countBefore = await firstCard.locator('.alert-time-input').count();
     await activate(firstCard.locator('.btn-add-extra-time'));
     const added = await firstCard.locator('.alert-time-input').count() === countBefore + 1;
