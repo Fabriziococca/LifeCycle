@@ -14,6 +14,14 @@ const MAX_EXERCISES = 100;
 const MAX_SETS_PER_EXERCISE = 30;
 const MAX_EXERCISE_NAME_LENGTH = 120;
 
+export function parseGymRecordRir(value) {
+    if (typeof value !== 'number' && typeof value !== 'string') return NaN;
+    const text = value === 'Fallo' ? '0' : String(value).replace(/^RIR /,'');
+    if (!/^(?:0|[1-9]\d*)(?:\.\d+)?$/.test(text)) return NaN;
+    const rir = Number(text);
+    return Number.isFinite(rir) && rir <= 10 ? rir : NaN;
+}
+
 function toNonNegativeNumber(value, fallback = 0) {
     const parsed = Number(value);
     return Number.isFinite(parsed) && parsed >= 0 ? parsed : fallback;

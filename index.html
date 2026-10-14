@@ -886,13 +886,13 @@
                                 <div class="input-group half">
                                     <label for="record-rir">RIR / Esfuerzo</label>
                                     <select id="record-rir" class="text-input">
-                                        <option value="Fallo">Al Fallo (RIR 0)</option>
-                                        <option value="RIR 0.5">RIR 0.5</option>
-                                        <option value="RIR 1">RIR 1</option>
-                                        <option value="RIR 1.5">RIR 1.5</option>
-                                        <option value="RIR 2">RIR 2</option>
-                                        <option value="RIR 3">RIR 3</option>
-                                        <option value="RIR 4">RIR 4</option>
+                                        <option value="0">Al Fallo (RIR 0)</option>
+                                        <option value="0.5">RIR 0.5</option>
+                                        <option value="1">RIR 1</option>
+                                        <option value="1.5">RIR 1.5</option>
+                                        <option value="2">RIR 2</option>
+                                        <option value="3">RIR 3</option>
+                                        <option value="4">RIR 4</option>
                                     </select>
                                 </div>
                             </div>
@@ -3932,18 +3932,18 @@
     </div>
 
     <!-- MODAL DE DETALLE DE TAREA COMPLETA -->
-    <div id="tareas-detail-modal" class="modal hidden">
+    <div id="tareas-detail-modal" class="modal hidden" role="dialog" aria-modal="true" aria-labelledby="tareas-detail-title">
         <div class="modal-content" style="max-width: 550px; width: 90%; background: var(--surface-card); border: 1px solid var(--surface-border); border-radius: 16px; padding: 1.5rem; box-shadow: 0 10px 30px rgba(0,0,0,0.5);">
             <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; margin-bottom: 0.75rem; border-bottom: 1px solid rgba(255,255,255,0.08); padding-bottom: 0.75rem;">
                 <div>
                     <span id="tareas-detail-category" class="badge" style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; border: 1px solid rgba(59, 130, 246, 0.3); font-size: 0.75rem; padding: 3px 8px; margin-bottom: 6px; display: inline-block;">Freelance</span>
-                    <h3 style="margin: 0; font-size: 1.1rem; color: white;">Detalle de la Tarea</h3>
+                    <h3 id="tareas-detail-title" style="margin: 0; font-size: 1.1rem; color: var(--text-primary);">Detalle de la Tarea</h3>
                 </div>
                 <button id="tareas-detail-close-btn" type="button" class="icon-btn" data-tooltip="Cerrar detalle" aria-label="Cerrar detalle de la tarea"><i class="ph ph-x" aria-hidden="true"></i></button>
             </div>
             
             <div style="background: rgba(0, 0, 0, 0.25); border: 1px solid rgba(255, 255, 255, 0.05); border-radius: 10px; padding: 1.25rem; margin-bottom: 1.25rem; max-height: 320px; overflow-y: auto;">
-                <p id="tareas-detail-text" style="color: #ffffff; font-size: 0.98rem; line-height: 1.6; margin: 0; white-space: pre-wrap; word-break: break-word;"></p>
+                <p id="tareas-detail-text" style="color: var(--text-primary); font-size: 0.98rem; line-height: 1.6; margin: 0; white-space: pre-wrap; word-break: break-word;"></p>
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px;">

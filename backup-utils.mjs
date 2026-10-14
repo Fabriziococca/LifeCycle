@@ -1,4 +1,4 @@
-import { normalizeActiveGymSession } from './gym-session-utils.mjs';
+import { normalizeActiveGymSession, parseGymRecordRir } from './gym-session-utils.mjs';
 import { validateFinanceWorkspace } from './finance-workspace-utils.mjs';
 import {
     CUSTOM_TRACKER_FIELD,
@@ -876,6 +876,17 @@ function parseJsonStorageValue(key, value) {
     }
     if (expectedType === 'object' && !isPlainObject(parsed)) {
         throw new BackupValidationError(`La sección "${key}" debería ser un objeto.`);
+    }
+
+    // The PR form historically stored labels ("Fallo", "RIR 1.5") as values.
+    // Normalize only valid RIR strings in the portable copy; never rewrite
+    // the source record or weaken validation for arbitrary fields/values.
+    if (key === 'gym_records') {
+        parsed = parsed.map(item => {
+            if (!isPlainObject(item) || typeof item.rir !== 'string') return item;
+            const rir = parseGymRecordRir(item.rir);
+            return Number.isFinite(rir) ? {...item,rir} : item;
+        });
     }
 
     validateBackupDataShape(key, parsed);

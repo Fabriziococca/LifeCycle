@@ -6,7 +6,14 @@ async function runActiveModulesSmoke(page) {
     assert.match(page.url(), /^http:\/\/localhost:/);
     await seedLegacyAudit(page);
     const activate = id => page.evaluate(id => window.lifecycle_controller.activateSection(id+'-section'),id);
-    const confirm = async () => { await page.locator('[data-feedback-confirm]').click(); };
+    const confirm = async () => {
+        try { await page.locator('[data-feedback-confirm]').click(); }
+        catch(error) {
+            await page.screenshot({path:'.tmp-sb/ui-smoke/active-modules-feedback-failure.png',animations:'disabled'});
+            console.log(await page.locator('body').innerText());
+            throw error;
+        }
+    };
     const cancel = async () => { await page.locator('[data-feedback-cancel]').click(); };
 
     // Tasks: blank validation, safe text, completion and recoverable removal.
@@ -26,6 +33,22 @@ async function runActiveModulesSmoke(page) {
     await page.getByRole('button',{name:'Deshacer',exact:true}).click();
     assert.equal(await page.evaluate(()=>window.lifecycle_controller.tareas.tasks.length),1);
     assert.equal(await page.locator('#tareas-section img[src="x"]').count(),0);
+    await page.locator('#tareas-active-list .btn-view-task').click();
+    await page.getByRole('dialog',{name:'Detalle de la Tarea',exact:true}).waitFor({state:'visible'});
+    const detailContrast = await page.locator('#tareas-detail-text').evaluate(element => {
+        const rgb = value => value.match(/[\d.]+/g).map(Number);
+        const blend = (front,back) => front.slice(0,3).map((v,i)=>v*(front[3]??1)+back[i]*(1-(front[3]??1)));
+        const layers=[];
+        for(let node=element;node;node=node.parentElement) layers.unshift(rgb(getComputedStyle(node).backgroundColor));
+        const background=layers.reduce((back,front)=>blend(front,back),[255,255,255]);
+        const foreground=blend(rgb(getComputedStyle(element).color),background);
+        const luminance=color=>color.map(v=>v/255).map(v=>v<=0.04045?v/12.92:((v+0.055)/1.055)**2.4).reduce((sum,v,i)=>sum+v*[0.2126,0.7152,0.0722][i],0);
+        const a=luminance(foreground),b=luminance(background);
+        return (Math.max(a,b)+0.05)/(Math.min(a,b)+0.05);
+    });
+    assert.ok(detailContrast>=4.5,`task detail contrast ${detailContrast} is unreadable`);
+    await page.screenshot({path:`.tmp-sb/ui-smoke/task-detail-${page.viewportSize().width}-${await page.locator('html').getAttribute('data-theme')}.png`,animations:'disabled'});
+    await page.locator('#tareas-detail-close-btn').click();
 
     // Lenses: cancellation preserves an active timer; finishing stores a session.
     await activate('lentes');
@@ -124,6 +147,28 @@ async function runActiveModulesSmoke(page) {
     await page.locator('#weight-log-val').fill('80.5');
     await page.locator('#weight-log-form [type=submit]').click();
     assert.equal(await page.evaluate(()=>window.lifecycle_controller.gym.weight[0].weight),80.5);
+    await page.evaluate(()=>{
+        const gym=window.lifecycle_controller.gym;
+        gym.records.push({id:'legacy-effort',name:'Legacy effort',weight:40,reps:8,rir:'RIR 1.5'});
+        gym.saveData('gym_records');
+        gym.activateGymTab('records');
+    });
+    await page.locator('#gym-records-content').getByText('RIR: 1.5',{exact:true}).waitFor();
     await page.evaluate(()=>window.lifecycle_controller.auth.flushPendingKeySync(true));
+
+    // Export the state produced by these UI flows, rather than only validating
+    // hand-built backup fixtures. A PR used to make the whole export fail.
+    await page.evaluate(()=>window.lifecycle_controller.openProfileTab('backup'));
+    const [download] = await Promise.all([
+        page.waitForEvent('download'),
+        page.locator('#btnExportUnified').click()
+    ]);
+    const text = await require('node:fs/promises').readFile(await download.path(),'utf8');
+    const {parseAndValidateBackupText} = await import('../backup-utils.mjs');
+    const plan = parseAndValidateBackupText(text);
+    const records = JSON.parse(plan.entries.find(([key])=>key==='gym_records')[1]);
+    assert.equal(records.length,2);
+    assert.equal(records[0].rir,0);
+    assert.equal(records[1].rir,1.5);
 }
 module.exports={runActiveModulesSmoke};

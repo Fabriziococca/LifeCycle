@@ -2,7 +2,8 @@ import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
 import { setEntityPaused, getPauseReference, getPauseAdjustedDate } from '../pause-utils.mjs';
 import {
     createActiveGymSession,
-    normalizeActiveGymSession
+    normalizeActiveGymSession,
+    parseGymRecordRir
 } from '../gym-session-utils.mjs?v=20260727-active-session';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import {
@@ -236,7 +237,7 @@ export class GymModule {
                 const name = document.getElementById('record-exercise').value.trim();
                 const weight = parseFloat(document.getElementById('record-weight').value);
                 const reps = parseInt(document.getElementById('record-reps').value);
-                const rir = document.getElementById('record-rir').value;
+                const rir = parseGymRecordRir(document.getElementById('record-rir').value);
 
                 const newRecord = {
                     id: Date.now(),
@@ -947,7 +948,7 @@ export class GymModule {
             const safeName = escapeHtml(r.name || 'Ejercicio');
             const weight = Number(r.weight);
             const reps = Number(r.reps);
-            const rir = Number(r.rir);
+            const rir = parseGymRecordRir(r.rir);
             const safeDate = escapeHtml(r.date || '-');
             const card = document.createElement('div');
             card.className = 'card';

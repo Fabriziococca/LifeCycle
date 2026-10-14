@@ -29,6 +29,23 @@ const readFixture = fileName => readFileSync(
     'utf8'
 );
 
+test('legacy PR select values round-trip through a backup without modifying source records', () => {
+    const records = ['Fallo','RIR 0.5','RIR 1.5','4'].map((rir,index)=>({id:index+1,name:'PR synthetic',weight:40,reps:8,rir}));
+    const original = structuredClone(records);
+    const payload = createBackupPayload(key => key === 'gym_records' ? records : null);
+    const plan = parseAndValidateBackupText(JSON.stringify(payload));
+    assert.deepEqual(payload.data.gym_records.map(item=>item.rir),[0,0.5,1.5,4]);
+    assert.deepEqual(JSON.parse(plan.entries.find(([key])=>key==='gym_records')[1]),payload.data.gym_records);
+    assert.deepEqual(records,original);
+    assert.doesNotThrow(()=>parseAndValidateBackupText(JSON.stringify({appName:'LifeCycle',gym_records:original})));
+});
+
+test('PR compatibility does not accept malformed legacy RIR labels', () => {
+    for (const rir of ['2abc', 'Infinity', 'RIR -1', 'RIR 11', 'RIR 2abc', 'RIR Infinity', {}]) {
+        assert.throws(()=>normalizeBackupStorageEntry('gym_records',[{name:'Invalid PR',rir}]),BackupValidationError);
+    }
+});
+
 test('subscription registries with alerts and history can be exported and restored without loss', () => {
     const registry = { version: 2, subscriptions: [normalizeSubscription({ id: 'sub_backup', name: 'Servicio', cost: 10,
         startDate: '2026-09-01', nextRenewalDate: '2026-10-01', alert: { enabled: true, times: ['09:00', '21:00'] } })] };
