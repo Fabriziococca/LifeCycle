@@ -29,6 +29,26 @@ function fixture(t) {
     return { auth, calls, events };
 }
 
+test('successful account login clears password fields before continuing with the privacy screen', async t => {
+    const {auth} = fixture(t);
+    auth.accessPassword = {value:'synthetic-account-password'};
+    auth.authPassword = {value:'synthetic-legacy-password'};
+    let loginCalls = 0;
+    auth.app = {privacyLock:{accountLogin(id) {
+        loginCalls++;
+        assert.equal(id,'qa-user');
+        assert.equal(auth.accessPassword.value,'');
+        assert.equal(auth.authPassword.value,'');
+    }}};
+    auth.supabase.auth = {async signInWithPassword({email,password}) {
+        assert.equal(email,'qa@example.invalid');
+        assert.equal(password,'synthetic-account-password');
+        return {data:{user:{id:'qa-user'}},error:null};
+    }};
+    await auth.login('qa@example.invalid',auth.accessPassword.value);
+    assert.equal(loginCalls,1);
+});
+
 test('same-user reconfirmation syncs silently without reinitializing session or Push', async t => {
     const { auth, calls, events } = fixture(t);
     const user = { id: 'first', email: 'test@example.invalid' };

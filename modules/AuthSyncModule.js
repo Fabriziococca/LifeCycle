@@ -336,7 +336,13 @@ export class AuthSyncModule {
         this.setLoading(true, "Iniciando sesión...");
         
         const { data, error } = await this.supabase.auth.signInWithPassword({ email, password });
-        if (!error) this.app.privacyLock?.accountLogin(data?.user?.id);
+        if (!error) {
+            // The access form stays in the DOM after authentication. Do not
+            // retain the account password in its now-hidden input.
+            if (this.accessPassword) this.accessPassword.value = '';
+            if (this.authPassword) this.authPassword.value = '';
+            this.app.privacyLock?.accountLogin(data?.user?.id);
+        }
         
         if (error) {
             this.setLoading(false);

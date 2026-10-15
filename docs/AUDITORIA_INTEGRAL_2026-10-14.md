@@ -44,7 +44,8 @@ Transcripciones/IA y Android nativo quedan excluidos y conservados.
 | A02 / baja | Detalle de tarea sin rol ni nombre de diálogo en el DOM. | role=dialog, aria-modal y título asociado; comprobación del diálogo por nombre accesible. |
 | B03 / alta | QA real: registrar un PR con el formulario y exportar muestra `gym_records[0].rir debería ser un número válido`. El select guarda etiquetas como Fallo/RIR 1.5. También impide mostrar correctamente ese RIR. No se perdieron registros. | Nuevos PR numéricos, lectura/exportación compatible con etiquetas anteriores. Revalidación real publicada: PR 0/1,5 y backup completo válidos. |
 | B04 / baja | QA real: dos cobros del 50% del saldo de un proyecto neto100 registran50+25 correctamente, pero la etiqueta suma50%+50%=100%. | Porcentaje calculado desde el neto efectivamente liberado:75%. Regresión mediante dos cobros UI y total de movimientos75, en escritorio/móvil y ambos temas. No cambia pagos ni datos existentes. |
-| B05 / alta para respaldos | Captura del usuario: la copia de su cuenta en Brave falla con hygiene_tracker_data.listerine debería ser una lista. a07d1f2 introdujo un objeto de ciclo (status/startDate); d4d925b quitó la tarjeta, pero el dato podía permanecer. QA no tenía ese objeto. Reproducción exacta con datos sintéticos en el código actual: no es evidencia de un deploy viejo ni de una falla propia de Brave. | Compatibilidad acotada con ese objeto histórico, conservando el dato completo y los controles de JSON seguro. Exportación/importación, cifrado/descifrado y UI en1440/390, ambos temas, aprobados. No se borra el resto ni se reactiva la tarjeta. Reintento en el Brave personal requiere al usuario; no se prueba con su cuenta. |
+| B05 / alta para respaldos | Captura del usuario: la copia de su cuenta en Brave falla con hygiene_tracker_data.listerine debería ser una lista. a07d1f2 introdujo un objeto de ciclo (status/startDate); d4d925b quitó la tarjeta, pero el dato podía permanecer. QA no tenía ese objeto. Reproducción exacta con datos sintéticos en el código actual: no es evidencia de un deploy viejo ni de una falla propia de Brave. | Compatibilidad acotada con ese objeto histórico, conservando el dato completo y los controles de JSON seguro. Exportación/importación, cifrado/descifrado y UI en1440/390, ambos temas, aprobados. No se borra el resto ni se reactiva la tarjeta. El usuario confirmó en su Brave personal la creación, consulta y descarga cifrada correctas después del despliegue. |
+| B06 / media | Reingreso real QA: el input de contraseña del acceso conserva su valor después de autenticarse y ocultarse el formulario. Se comprobó sólo presencia/ausencia, sin exponer el valor ni guardarlo en el informe. | Limpiar los campos de contraseña al completar un acceso exitoso, antes de continuar con el bloqueo local. Regresión de autenticación y comprobación UI. No se cambia la contraseña de la cuenta. |
 
 Los avisos sobre el
 global clients del Service Worker y sobre bind/getters eran falsos positivos.
@@ -69,12 +70,12 @@ identidad de la tarjeta para no cambiar de objetivo al alcanzar su límite.
 | Hoy / búsqueda / perfil | 28 vistas, destinos de búsqueda, 8 pestañas del perfil, módulos, temas y preferencias. | Navegación de los 13 módulos; Hoy; búsqueda de tarea llega a la categoría correcta; cambio claro/oscuro y restauración del tema inicial. |
 | Recordatorios / Push | Multihorario, agregar/quitar, categorías, edición/recarga, límites, expiración/idempotencia, API y Service Worker simulado. | Mensual día31 desactivado, horarios09:00/15:00, edición y persistencia tras recarga. Sin suscribir QA ni enviar pruebas al teléfono personal. |
 | Acceso / nube / backup | Reconexión, aislamiento entre usuarios, sin escrituras en reposo, copia cifrada, backup válido/inválido, snapshots obsoletos y retry; estado retirado Listerine. | Restauración completa sincronizada. Visor real: clave incorrecta rechazada, búsqueda, versión anterior, carga/desbloqueo sin red mediante Service Worker, descarga cifrada y JSON, reapertura del archivo. JSON recuperado válido e idéntico al backup normal en40secciones. |
-| Bloqueo manual (pedido adicional) | Clave equivocada, recarga bloqueada, desbloqueo sin red, otra cuenta, pestañas, cambio de clave, diálogos nativos, atajos, logout/login y ausencia del verificador en backup/nube. | Configuración de clave real requiere entrada manual del usuario. No se configura en su cuenta personal. |
+| Bloqueo manual (pedido adicional) | Clave equivocada, recarga bloqueada, desbloqueo sin red, otra cuenta, pestañas, cambio de clave, diálogos nativos, atajos, logout/login y ausencia del verificador en backup/nube. | Usuario configuró clave sólo en QA. Verificados: app oculta, Escape/atajos no la exponen, clave incorrecta rechazada, recarga bloqueada, desbloqueo sin red y coordinación entre pestañas. Logout/reingreso real conservó la configuración. |
 | Base de datos | Metadatos actuales; RLS/grants reproducidos; planificación SQL con conflictos e integridad. | 29 migraciones alineadas y asesores consultados. |
 
 Resultados locales:
 
-- npm test tras B05: **458 aprobados, 0 fallidos**.
+- npm test tras B06: **459 aprobados, 0 fallidos**.
 - node --check server.js; 82 archivos activos sin hallazgos del analizador de
   errores de lógica/sintaxis configurado. No es un auditor formal de seguridad.
 - npm audit --omit=dev: **0 vulnerabilidades conocidas reportadas**.
@@ -132,11 +133,14 @@ LIFECYCLE_PLAYWRIGHT_MODULE. El sembrado sintético rechaza orígenes no localho
 - Push con teléfono dormido, sin conexión o restringido por Android requiere
   ese dispositivo. Estas correcciones no prueban eliminar cualquier retraso
   del teléfono/proveedor.
-- Recepción/visualización física de Push en Android, autenticación QA desde
-  cero y configuración manual del bloqueo real dependen del usuario. El visor
-  cifrado QA ya se habilitó manualmente y se comprobó. El respaldo de la cuenta
-  personal debe habilitarse en el navegador donde se usa esa cuenta, con una
-  clave privada; el respaldo de QA no protege datos personales.
+- La recepción/visualización física de Push en Android sigue pendiente del
+  dispositivo. El bloqueo QA, cierre/reingreso con contraseña existente y
+  recuperación de los datos desde Supabase ya se verificaron realmente.
+- El usuario confirmó el14/10 que habilitó la copia cifrada en su cuenta real
+  de Brave, abrió el visor, vio sus datos y descargó el archivo cifrado. Es
+  validación manual del usuario, separada de las pruebas directas en QA.
+- Comparación QA antes/después del reingreso:40secciones válidas; sólo cambió
+  updatedAt de una tarjeta. No cambiaron sus datos funcionales.
 - No se forzaron restauraciones ni sesiones de
   propietarios distintos sobre datos personales. Se contrastó
   RLS real y se ensayó en PostgreSQL aislado.
@@ -169,3 +173,20 @@ LIFECYCLE_PLAYWRIGHT_MODULE. El sembrado sintético rechaza orígenes no localho
   qa-emergency-*.png. No se modifica la cuenta personal para corregirlo. El
   recibo del Manual Deploy correctivo se guarda en
   .tmp-sb/legacy-backup-release.json, separado de la publicación92af182.
+- Pruebas finales del bloqueo y sesión: .tmp-sb/qa-privacy-real-results.json y
+  .tmp-sb/qa-relogin-validation.json. El recibo de la publicación de B06 y su
+  comprobación posterior se guarda en .tmp-sb/auth-password-clear-release.json.
+
+## Diferencia entre los respaldos
+
+- Backup Unificado: JSON sin cifrar de los datos/configuración del momento;
+  listo para importar con vista previa y confirmación. No se actualiza solo.
+- Copia cifrada dentro del navegador: se actualiza automáticamente al usar la
+  app en esa cuenta y navegador, conservando hasta3versiones. Permite consultar
+  sin Supabase. Los cambios hechos sólo en otro dispositivo llegan a esta copia
+  cuando ese navegador vuelve a abrir la app y sincroniza.
+- Archivo cifrado descargado: conserva las versiones disponibles al descargar;
+  se puede abrir en el visor con su clave. Desde allí se puede exportar un JSON
+  para restaurar después. La descarga existente no recibe cambios futuros.
+- Abrir el visor no restaura ni sobrescribe datos. Los adjuntos privados de
+  Storage se referencian; estos respaldos no incluyen sus archivos binarios.

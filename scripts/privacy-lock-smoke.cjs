@@ -96,6 +96,7 @@ async function runPrivacyLockSmoke(page, { width, theme }) {
     await page.locator('#access-gate-form [type=submit]').click();
     await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId);
     await page.locator('main.container').waitFor({ state: 'visible' });
+    assert.equal(await page.locator('#access-password').inputValue(), '', 'account password retained in hidden form after login');
     assert.equal(await gate.isVisible(), false);
     assert.equal(await page.evaluate(() => localStorage.getItem('lifecycle_privacy_lock:11111111-1111-4111-8111-111111111111')), null);
 }
