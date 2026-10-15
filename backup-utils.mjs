@@ -99,6 +99,7 @@ const LEGACY_HYGIENE_KEYS = new Set([
     'compu_limpieza_int',
     'compu_pasta_termica',
     'botella_vidrio',
+    'listerine',
     'robot_cleaner'
 ]);
 
@@ -581,6 +582,13 @@ function validateBackupDataShape(key, value) {
                         'marked_dirty_at',
                         'last_notified_at'
                     ]);
+                    return;
+                }
+                // Removed in d4d925b, but old accounts can still retain this
+                // cycle object (a07d1f2). Preserve it without reviving the card
+                // or treating it as an array of dates.
+                if (itemKey === 'listerine' && isPlainObject(itemValue)) {
+                    assertOptionalTextFields(itemValue, `${key}.${itemKey}`, ['status', 'startDate']);
                     return;
                 }
                 if (itemValue === null || typeof itemValue === 'string') return;

@@ -2436,8 +2436,8 @@
                                 <p id="backup-status" class="backup-status hidden" role="status" aria-live="polite"></p>
                                 <hr>
                                 <h3>Consulta de emergencia sin Supabase</h3>
-                                <p class="backup-text">Habilitá una copia cifrada en este dispositivo para consultar tus datos si falla la nube. Se actualiza mientras usás LifeCycle. No reemplaza el respaldo descargado ni permite editar sin conexión.</p>
-                                <form id="recovery-setup">
+                                <p class="backup-text">Habilitá una copia cifrada en este dispositivo para consultar tus datos si falla la nube. Se actualiza mientras usás LifeCycle. Cada cuenta y navegador necesita su propia copia: la de pruebas no respalda tu cuenta personal. No reemplaza el respaldo descargado ni permite editar sin conexión.</p>
+                                <form id="recovery-setup" class="access-gate-form">
                                     <div class="input-group"><label for="recovery-password">Nueva clave local (mínimo 12 caracteres)</label><input id="recovery-password" type="password" class="text-input" minlength="12" maxlength="256" autocomplete="new-password" required></div>
                                     <div class="input-group"><label for="recovery-password-confirm">Repetir clave local</label><input id="recovery-password-confirm" type="password" class="text-input" minlength="12" maxlength="256" autocomplete="new-password" required></div>
                                     <p class="backup-help">Guardá esta clave en un lugar seguro: no se envía ni se puede recuperar. La copia protege este respaldo, no los demás datos que tu navegador conserva durante el uso normal.</p>

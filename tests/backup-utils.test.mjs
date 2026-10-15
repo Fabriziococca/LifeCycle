@@ -23,11 +23,48 @@ import {
     VEHICLE_CATALOG_FIELD
 } from '../vehicle-catalog-utils.mjs';
 import { RECURRING_REMINDERS_FIELD } from '../recurring-reminder-utils.mjs';
+import { createRecoveryVault, encryptRecoverySnapshot, decryptRecoverySnapshot } from '../recovery-vault.mjs';
 
 const readFixture = fileName => readFileSync(
     new URL(`./fixtures/${fileName}`, import.meta.url),
     'utf8'
 );
+
+test('retired Listerine cycle survives export and restore without changing source data or reviving its card', () => {
+    for (const cycle of [{status:'paused',startDate:null}, {status:'active',startDate:'2026-07-06T12:00:00Z'}]) {
+        const source = {listerine:cycle, toalla_mano:'2026-10-01'};
+        const original = structuredClone(source);
+        const payload = createBackupPayload(key => key === 'hygiene_tracker_data' ? source : null);
+        const plan = parseAndValidateBackupText(JSON.stringify(payload));
+        assert.deepEqual(JSON.parse(plan.entries.find(([key])=>key==='hygiene_tracker_data')[1]), original);
+        assert.deepEqual(source, original);
+        assert.deepEqual(payload.data.hygiene_tracker_data, original);
+        assert.equal(Object.hasOwn(payload.data.hygiene_tracker_data, CUSTOM_TRACKER_FIELD), false);
+        const legacy = parseAndValidateBackupText(JSON.stringify({listerine:cycle}));
+        assert.equal(legacy.mode, 'legacy');
+    }
+});
+
+test('retired cycle compatibility keeps object safety and active tracker validation strict', () => {
+    for (const value of [{status:5,startDate:null}, {status:'paused',startDate:{}}, [12], 14, false]) {
+        assert.throws(()=>normalizeBackupStorageEntry('hygiene_tracker_data',{listerine:value}),BackupValidationError);
+    }
+    assert.throws(()=>normalizeBackupStorageEntry('hygiene_tracker_data',{other:{status:'paused'}}),/lista/);
+    assert.throws(()=>normalizeBackupStorageEntry('hygiene_tracker_data',JSON.parse('{"listerine":{"constructor":{"polluted":true}}}')),/propiedad no permitida/);
+});
+
+test('emergency encryption accepts the retired cycle and recovers a complete importable backup', async () => {
+    const source = {listerine:{status:'paused',startDate:null}};
+    const original = structuredClone(source);
+    const payload = {...createBackupPayload(key=>key==='hygiene_tracker_data'?source:null),ownerId:'synthetic-owner'};
+    const vault = await createRecoveryVault('synthetic-owner','synthetic-test-phrase');
+    vault.snapshots = [await encryptRecoverySnapshot(vault,payload)];
+    const restored = await decryptRecoverySnapshot(vault,'synthetic-test-phrase');
+    assert.deepEqual(restored,payload);
+    assert.deepEqual(source,original);
+    const {appName,backupVersion,exportDate,data} = restored;
+    assert.equal(parseAndValidateBackupText(JSON.stringify({appName,backupVersion,exportDate,data})).mode,'full');
+});
 
 test('legacy PR select values round-trip through a backup without modifying source records', () => {
     const records = ['Fallo','RIR 0.5','RIR 1.5','4'].map((rir,index)=>({id:index+1,name:'PR synthetic',weight:40,reps:8,rir}));

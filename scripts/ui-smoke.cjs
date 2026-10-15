@@ -13,6 +13,7 @@ const { installFakeCloud } = require('./qa-cloud.cjs');
 const { runFullAuditSmoke } = require('./full-audit-smoke.cjs');
 const { runActiveModulesSmoke } = require('./active-modules-smoke.cjs');
 const { runPrivacyLockSmoke } = require('./privacy-lock-smoke.cjs');
+const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
 
 (async () => {
     await fs.mkdir('.tmp-sb/ui-smoke', { recursive: true });
@@ -20,6 +21,13 @@ const { runPrivacyLockSmoke } = require('./privacy-lock-smoke.cjs');
     try {
         for (const width of (process.env.LIFECYCLE_UI_WIDTH ? [Number(process.env.LIFECYCLE_UI_WIDTH)] : process.env.LIFECYCLE_UI_SMOKE_ONLY === 'audit' ? [1920,1440,1024,768,714,390,360] : [1440,390])) for (const theme of ['dark', 'light']) {
             const context = await browser.newContext({ viewport: { width, height: width < 500 ? 844 : 768 }, serviceWorkers: 'block', isMobile: width < 500, hasTouch: width < 500 });
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'recovery') {
+                await context.addInitScript(() => {
+                    if (!sessionStorage.getItem('qa-cloud-document')) sessionStorage.setItem('qa-cloud-document',JSON.stringify({
+                        hygiene_tracker_data:JSON.stringify({listerine:{status:'paused',startDate:null}})
+                    }));
+                });
+            }
             await context.addInitScript(() => {
                 const registration = { active: {}, addEventListener() {}, pushManager: { getSubscription: async () => null } };
                 Object.defineProperty(navigator, 'serviceWorker', { value: { register: async () => registration, ready: Promise.resolve(registration), getRegistration: async () => registration, addEventListener() {} } });
@@ -40,6 +48,10 @@ const { runPrivacyLockSmoke } = require('./privacy-lock-smoke.cjs');
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'recovery') {
+                await runRecoverySmoke(page, {width,theme}); assert.deepEqual(errors,[]);
+                console.log(JSON.stringify({width,theme,recoveryLegacy:true})); await context.close(); continue;
+            }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'privacy') {
                 await runPrivacyLockSmoke(page, { width, theme }); assert.deepEqual(errors, []);
                 console.log(JSON.stringify({width,theme,privacyLock:true})); await context.close(); continue;
