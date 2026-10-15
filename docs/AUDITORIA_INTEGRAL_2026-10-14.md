@@ -1,10 +1,12 @@
 # Auditoría integral de LifeCycle — 14/10/2026
 
-Auditoría estática/local y recorridos funcionales ampliados en QA real.
-Render volvió a aceptar despliegues: 0144573 quedó publicado mediante Manual
-Deploy y se verificaron hash completo, build, health y logs. La revisión de
-cierre incorpora el bloqueo manual autorizado y B04; su recibo de publicación
-exacta se conserva en .tmp-sb/audit-completion-release.json.
+Auditoría estática/local y recorridos funcionales ampliados en QA real,
+cerrados razonablemente dentro de la cobertura documentada. Los defectos
+encontrados se corrigieron y se volvieron a comprobar; también se completaron
+el bloqueo manual, logout/reingreso, recuperación cifrada y las dos pruebas
+físicas de Push confirmadas por el usuario. Render volvió a aceptar Manual
+Deploy: cada publicación correctiva tiene recibo de commit, build, health y
+logs. El recibo final se conserva en .tmp-sb/audit-final-release.json.
 No se declara probada cada combinación posible.
 Transcripciones/IA y Android nativo quedan excluidos y conservados.
 
@@ -45,7 +47,7 @@ Transcripciones/IA y Android nativo quedan excluidos y conservados.
 | B03 / alta | QA real: registrar un PR con el formulario y exportar muestra `gym_records[0].rir debería ser un número válido`. El select guarda etiquetas como Fallo/RIR 1.5. También impide mostrar correctamente ese RIR. No se perdieron registros. | Nuevos PR numéricos, lectura/exportación compatible con etiquetas anteriores. Revalidación real publicada: PR 0/1,5 y backup completo válidos. |
 | B04 / baja | QA real: dos cobros del 50% del saldo de un proyecto neto100 registran50+25 correctamente, pero la etiqueta suma50%+50%=100%. | Porcentaje calculado desde el neto efectivamente liberado:75%. Regresión mediante dos cobros UI y total de movimientos75, en escritorio/móvil y ambos temas. No cambia pagos ni datos existentes. |
 | B05 / alta para respaldos | Captura del usuario: la copia de su cuenta en Brave falla con hygiene_tracker_data.listerine debería ser una lista. a07d1f2 introdujo un objeto de ciclo (status/startDate); d4d925b quitó la tarjeta, pero el dato podía permanecer. QA no tenía ese objeto. Reproducción exacta con datos sintéticos en el código actual: no es evidencia de un deploy viejo ni de una falla propia de Brave. | Compatibilidad acotada con ese objeto histórico, conservando el dato completo y los controles de JSON seguro. Exportación/importación, cifrado/descifrado y UI en1440/390, ambos temas, aprobados. No se borra el resto ni se reactiva la tarjeta. El usuario confirmó en su Brave personal la creación, consulta y descarga cifrada correctas después del despliegue. |
-| B06 / media | Reingreso real QA: el input de contraseña del acceso conserva su valor después de autenticarse y ocultarse el formulario. Se comprobó sólo presencia/ausencia, sin exponer el valor ni guardarlo en el informe. | Limpiar los campos de contraseña al completar un acceso exitoso, antes de continuar con el bloqueo local. Regresión de autenticación y comprobación UI. No se cambia la contraseña de la cuenta. |
+| B06 / media | Reingreso real QA: el input de contraseña del acceso conserva su valor después de autenticarse y ocultarse el formulario. Se comprobó sólo presencia/ausencia, sin exponer el valor ni guardarlo en el informe. | Limpiar los campos de contraseña al completar un acceso exitoso, antes de continuar con el bloqueo local. Regresión de autenticación, UI y nuevo logout/reingreso en QA publicado: ambos campos vacíos. El bloqueo sigue funcionando. No se cambia la contraseña de la cuenta. |
 
 Los avisos sobre el
 global clients del Service Worker y sobre bind/getters eran falsos positivos.
@@ -68,7 +70,7 @@ identidad de la tarjeta para no cambiar de objetivo al alcanzar su límite.
 | Facultad | Materias, evaluaciones, pendientes, reprogramación, pausa, completar, archivo y expiración de avisos. | Alta y pausa tras recarga; archivo/reactivación de materia; pendiente creado/completado; agenda y evaluación marcada realizada. |
 | Tareas | Vacío rechazado, texto escapado, completar/reabrir, borrar/deshacer y captura rápida; contraste de detalle. | Vacío rechazado, crear/editar/completar/reabrir/borrar/Deshacer; recarga. V05/A02 confirmados en detalle. |
 | Hoy / búsqueda / perfil | 28 vistas, destinos de búsqueda, 8 pestañas del perfil, módulos, temas y preferencias. | Navegación de los 13 módulos; Hoy; búsqueda de tarea llega a la categoría correcta; cambio claro/oscuro y restauración del tema inicial. |
-| Recordatorios / Push | Multihorario, agregar/quitar, categorías, edición/recarga, límites, expiración/idempotencia, API y Service Worker simulado. | Mensual día31 desactivado, horarios09:00/15:00, edición y persistencia tras recarga. Sin suscribir QA ni enviar pruebas al teléfono personal. |
+| Recordatorios / Push | Multihorario, agregar/quitar, categorías, edición/recarga, límites, expiración/idempotencia, API y Service Worker simulado. | Mensual día31 desactivado, horarios09:00/15:00, edición y persistencia tras recarga. Sin suscribir QA ni enviar pruebas desde QA al teléfono personal. El usuario probó su Android instalado: recibió con app en segundo plano y con app cerrada/pantalla bloqueada; sin horarios para medir demora. |
 | Acceso / nube / backup | Reconexión, aislamiento entre usuarios, sin escrituras en reposo, copia cifrada, backup válido/inválido, snapshots obsoletos y retry; estado retirado Listerine. | Restauración completa sincronizada. Visor real: clave incorrecta rechazada, búsqueda, versión anterior, carga/desbloqueo sin red mediante Service Worker, descarga cifrada y JSON, reapertura del archivo. JSON recuperado válido e idéntico al backup normal en40secciones. |
 | Bloqueo manual (pedido adicional) | Clave equivocada, recarga bloqueada, desbloqueo sin red, otra cuenta, pestañas, cambio de clave, diálogos nativos, atajos, logout/login y ausencia del verificador en backup/nube. | Usuario configuró clave sólo en QA. Verificados: app oculta, Escape/atajos no la exponen, clave incorrecta rechazada, recarga bloqueada, desbloqueo sin red y coordinación entre pestañas. Logout/reingreso real conservó la configuración. |
 | Base de datos | Metadatos actuales; RLS/grants reproducidos; planificación SQL con conflictos e integridad. | 29 migraciones alineadas y asesores consultados. |
@@ -130,12 +132,16 @@ LIFECYCLE_PLAYWRIGHT_MODULE. El sembrado sintético rechaza orígenes no localho
 
 - No se probaron todas las combinaciones, navegadores/dispositivos ni carga
   concurrente alta en producción. Los ensayos adversos fueron aislados.
-- Push con teléfono dormido, sin conexión o restringido por Android requiere
-  ese dispositivo. Estas correcciones no prueban eliminar cualquier retraso
-  del teléfono/proveedor.
-- La recepción/visualización física de Push en Android sigue pendiente del
-  dispositivo. El bloqueo QA, cierre/reingreso con contraseña existente y
-  recuperación de los datos desde Supabase ya se verificaron realmente.
+- El usuario confirmó el14/10 ambas notificaciones de prueba en Android con la
+  aplicación instalada: una al volver al inicio del teléfono, otra después de
+  cerrar la app y bloquear la pantalla. Es evidencia de recepción/visualización
+  en esos dos casos. No registró horas de envío/aparición: demora exacta no
+  medida. No se verificaron desconexión prolongada, Doze prolongado ni todas las
+  restricciones del fabricante; no se garantiza ausencia de cualquier retraso.
+- El bloqueo QA, cierre/reingreso con contraseña existente y recuperación de
+  los datos desde Supabase se verificaron realmente. Después de publicar B06
+  se repitió logout/login: campos de contraseña vacíos, identidad QA correcta y
+  bloqueo/desbloqueo conservado.
 - El usuario confirmó el14/10 que habilitó la copia cifrada en su cuenta real
   de Brave, abrió el visor, vio sus datos y descargó el archivo cifrado. Es
   validación manual del usuario, separada de las pruebas directas en QA.
@@ -176,6 +182,21 @@ LIFECYCLE_PLAYWRIGHT_MODULE. El sembrado sintético rechaza orígenes no localho
 - Pruebas finales del bloqueo y sesión: .tmp-sb/qa-privacy-real-results.json y
   .tmp-sb/qa-relogin-validation.json. El recibo de la publicación de B06 y su
   comprobación posterior se guarda en .tmp-sb/auth-password-clear-release.json.
+- B06: b7d397d publicado manualmente el14/10 a22:10:00 Argentina; health200,
+  scheduler exitoso y19logs de build +50de aplicación sin errores/advertencias
+  hasta22:13:37. Reingreso real posterior aprobado; evidencia adicional en
+  .tmp-sb/auth-password-clear-real-qa.json y qa-privacy-final.png. La publicación
+  documental final no cambia lógica, SQL ni configuración.
+
+## Cierre
+
+- Sin errores conocidos pendientes que impidan cerrar esta auditoría dentro de
+  su alcance verificado. Las limitaciones anteriores permanecen explícitas;
+  no se promete probar todas las combinaciones ni eliminar futuros incidentes.
+- QA quedó disponible y desbloqueada, con la configuración de bloqueo local
+  conservada. No se cambió la contraseña de acceso ni la cuenta personal.
+- No hacen falta migraciones, cambios de infraestructura ni servicios pagos
+  adicionales para las correcciones realizadas.
 
 ## Diferencia entre los respaldos
 
