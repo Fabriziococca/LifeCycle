@@ -7,6 +7,7 @@ export class PrivacyLockModule {
         this.authenticated = false;
         this.locked = false;
         this.busy = false;
+        this.confirmingLock = false;
         this.record = null;
         this.closedDialogs = [];
         this.gate = document.getElementById('privacy-lock-gate');
@@ -111,15 +112,31 @@ export class PrivacyLockModule {
         target.textContent = message; target.classList.toggle('hidden', !message);
     }
 
-    requestLock() {
-        if (!this.authenticated || this.busy) return;
+    async requestLock() {
+        if (!this.authenticated || this.busy || this.locked || this.confirmingLock) return;
         this.readRecord();
         if (!this.record) return this.configure();
+        const ownerId = this.ownerId;
+        this.confirmingLock = true;
         try {
-            if (!this.record.invalid) localStorage.setItem(privacyLockKey(this.ownerId), JSON.stringify({ ...this.record, locked: true }));
+            if (!await this.app.confirmAction({
+                title: 'Bloquear LifeCycle',
+                message: '¿Seguro que querés bloquear la aplicación? Necesitarás tu clave para volver a entrar. Las notificaciones seguirán activas.',
+                confirmLabel: 'Bloquear',
+                cancelLabel: 'Cancelar',
+                tone: 'info',
+                icon: 'ph-lock-key'
+            })) return;
+            // A queued confirmation must not affect another account or restore
+            // a lock configuration changed in a second tab while it was open.
+            if (!this.authenticated || this.busy || this.locked || this.ownerId !== ownerId) return;
+            this.readRecord();
+            if (!this.record) return;
+            if (!this.record.invalid) localStorage.setItem(privacyLockKey(ownerId), JSON.stringify({ ...this.record, locked: true }));
             this.readRecord(); this.error(); this.render();
         } catch { void this.app.showMessage({ title: 'No se pudo guardar el bloqueo',
             message: 'El navegador no permite guardar la configuración local. Revisá el almacenamiento antes de dejar la app abierta.', tone: 'warning' }); }
+        finally { this.confirmingLock = false; }
     }
 
     configure() {

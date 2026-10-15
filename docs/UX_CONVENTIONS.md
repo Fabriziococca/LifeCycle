@@ -242,3 +242,12 @@ parte de estas reglas. No reemplazan la verificación funcional en navegador.
 - Eliminar un recordatorio requiere confirmación y ofrece deshacer. No puede
   eliminar tarjetas, tareas ni historiales de otros módulos.
 - Los recordatorios existentes deben migrar conservando hora, días y estado.
+
+## 15. Bloqueo manual
+
+- Una vez configurada la clave local, el botón `Bloquear` pide confirmación con
+  `Cancelar` y `Bloquear`. Cancelar o pulsar `Escape` conserva la app desbloqueada.
+- Confirmar no solicita la clave; se pide para desbloquear. El alta inicial ya
+  confirma la acción mediante `Habilitar y bloquear`.
+- El bloqueo oculta la interfaz de esa cuenta en ese navegador. No pausa los
+  avisos ni oculta el contenido de las notificaciones del sistema operativo.

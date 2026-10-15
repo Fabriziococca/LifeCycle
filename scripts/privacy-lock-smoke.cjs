@@ -6,6 +6,13 @@ async function runPrivacyLockSmoke(page, { width, theme }) {
     const gate = page.locator('#privacy-lock-gate');
     const settings = page.locator('#privacy-lock-settings');
     const lock = page.locator('#privacy-lock-btn');
+    const confirmation = page.locator('#app-feedback-dialog');
+    const requestLock = async () => {
+        await lock.click();
+        await confirmation.waitFor({ state: 'visible' });
+        await page.locator('#app-feedback-dialog [data-feedback-confirm]').click();
+        await gate.waitFor({ state: 'visible' });
+    };
     const unlock = async (password = phrase) => {
         await page.locator('#privacy-unlock-password').fill(password);
         await page.locator('#privacy-unlock-submit').click();
@@ -42,6 +49,22 @@ async function runPrivacyLockSmoke(page, { width, theme }) {
     await page.context().setOffline(true);
     await unlock();
     await page.context().setOffline(false);
+    // An accidental click, Cancel or Escape must leave the app usable and
+    // preserve the configured verifier. Only the explicit second click locks.
+    await lock.click();
+    await confirmation.waitFor({ state: 'visible' });
+    assert.match(await confirmation.innerText(), /¿Seguro que querés bloquear la aplicación\?/);
+    assert.equal(await gate.isVisible(), false);
+    await page.screenshot({ path: `.tmp-sb/ui-smoke/privacy-confirm-${width}-${theme}.png` });
+    await page.locator('#app-feedback-dialog [data-feedback-cancel]').click();
+    await confirmation.waitFor({ state: 'hidden' });
+    assert.equal(await page.locator('main.container').isVisible(), true);
+    assert.equal(await page.evaluate(() => JSON.parse(localStorage.getItem('lifecycle_privacy_lock:11111111-1111-4111-8111-111111111111')).locked), false);
+    await lock.click();
+    await confirmation.waitFor({ state: 'visible' });
+    await page.keyboard.press('Escape');
+    await confirmation.waitFor({ state: 'hidden' });
+    assert.equal(await gate.isVisible(), false);
     const stored = await page.evaluate(async () => {
         const { createBackupPayload } = await import('/backup-utils.mjs');
         return { raw: localStorage.getItem('lifecycle_privacy_lock:11111111-1111-4111-8111-111111111111'),
@@ -55,10 +78,15 @@ async function runPrivacyLockSmoke(page, { width, theme }) {
     const second = await page.context().newPage();
     await second.goto(page.url(), { waitUntil: 'networkidle' });
     await second.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId);
-    await lock.click();
+    await second.evaluate(() => window.lifecycle_controller.privacyLock.configure());
+    await second.locator('#privacy-lock-settings').waitFor({ state: 'visible' });
+    await requestLock();
     await second.locator('#privacy-lock-gate').waitFor({ state: 'visible' });
+    assert.equal(await second.locator('#privacy-lock-settings').isVisible(), false, 'native dialog covers privacy screen');
     await unlock();
     await second.locator('#privacy-lock-gate').waitFor({ state: 'hidden' });
+    await second.locator('#privacy-lock-settings').waitFor({ state: 'visible' });
+    await second.locator('#privacy-lock-cancel').click();
     await second.close();
 
     await page.evaluate(() => window.lifecycle_controller.openProfileTab('preferencias'));
@@ -71,20 +99,18 @@ async function runPrivacyLockSmoke(page, { width, theme }) {
     await page.locator('#privacy-lock-current').fill(phrase);
     await page.locator('#privacy-lock-save').click();
     await settings.waitFor({ state: 'hidden' });
-    await lock.click();
+    await requestLock();
     await unlock(nextPhrase);
 
-    // Native top-layer dialogs must not cover the privacy screen.
-    await page.evaluate(() => { window.lifecycle_controller.privacyLock.configure(); window.lifecycle_controller.privacyLock.requestLock(); });
-    await gate.waitFor({ state: 'visible' });
-    assert.equal(await settings.isVisible(), false);
+    await requestLock();
     await page.screenshot({ path: `.tmp-sb/ui-smoke/privacy-locked-${width}-${theme}.png` });
     await unlock(nextPhrase);
+    await page.locator('#privacy-lock-configure').click();
     assert.equal(await settings.isVisible(), true);
     await page.locator('#privacy-lock-cancel').click();
     assert.equal(await page.locator('#privacy-lock-current').inputValue(), '');
 
-    await lock.click();
+    await requestLock();
     await page.locator('#privacy-lock-signout').click();
     await page.locator('#access-gate-form').waitFor({ state: 'visible' });
     await page.locator('#access-email').fill('qa@example.invalid');

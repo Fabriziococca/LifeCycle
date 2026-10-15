@@ -2,6 +2,62 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createPrivacyLock, parsePrivacyLock, privacyLockKey, verifyPrivacyLock } from '../privacy-lock.mjs';
 import { CLOUD_SYNC_KEYS, CLOUD_LOCAL_CLEAR_KEYS } from '../sync-config.mjs';
+import { PrivacyLockModule } from '../modules/PrivacyLockModule.js';
+
+async function lockRequestFixture(t) {
+    const previousStorage = globalThis.localStorage;
+    const record = await createPrivacyLock('owner-a', 'synthetic-privacy-phrase');
+    const values = new Map([[privacyLockKey('owner-a'), JSON.stringify(record)]]);
+    globalThis.localStorage = { getItem: key => values.get(key) ?? null, setItem: (key, value) => values.set(key, value) };
+    t.after(() => { globalThis.localStorage = previousStorage; });
+    let confirm;
+    let confirmations = 0;
+    const lock = Object.assign(Object.create(PrivacyLockModule.prototype), {
+        authenticated: true, ownerId: 'owner-a', busy: false, locked: false, confirmingLock: false,
+        app: { confirmAction() { confirmations++; return new Promise(resolve => { confirm = resolve; }); } },
+        error() {}, render() { this.locked = this.record?.locked === true; }
+    });
+    return { lock, values, decide: value => confirm(value), count: () => confirmations };
+}
+
+test('canceling a lock request leaves the app unlocked and preserves the local configuration', async t => {
+    const {lock, values, decide} = await lockRequestFixture(t);
+    const before = values.get(privacyLockKey('owner-a'));
+    const pending = lock.requestLock();
+    assert.equal(lock.locked, false);
+    assert.equal(values.get(privacyLockKey('owner-a')), before);
+    decide(false);
+    await pending;
+    assert.equal(values.get(privacyLockKey('owner-a')), before);
+    assert.equal(lock.locked, false);
+    assert.equal(lock.confirmingLock, false);
+});
+
+test('confirming locks once and preserves a verifier changed while the confirmation was open', async t => {
+    const {lock, values, decide, count} = await lockRequestFixture(t);
+    const pending = lock.requestLock();
+    await lock.requestLock();
+    assert.equal(count(), 1, 'rapid clicks queued duplicate confirmations');
+    const newer = await createPrivacyLock('owner-a', 'a-new-synthetic-phrase');
+    values.set(privacyLockKey('owner-a'), JSON.stringify(newer));
+    decide(true);
+    await pending;
+    assert.equal(lock.locked, true);
+    assert.deepEqual(JSON.parse(values.get(privacyLockKey('owner-a'))), { ...newer, locked: true });
+    assert.equal(lock.confirmingLock, false);
+});
+
+test('a pending lock confirmation cannot write into a different account', async t => {
+    const {lock, values, decide} = await lockRequestFixture(t);
+    const before = values.get(privacyLockKey('owner-a'));
+    const pending = lock.requestLock();
+    lock.ownerId = 'owner-b';
+    decide(true);
+    await pending;
+    assert.equal(values.get(privacyLockKey('owner-a')), before);
+    assert.equal(values.has(privacyLockKey('owner-b')), false);
+    assert.equal(lock.locked, false);
+});
 
 test('privacy verifier is salted, scoped to its owner and contains no password', async () => {
     const phrase = 'synthetic-privacy-phrase';
