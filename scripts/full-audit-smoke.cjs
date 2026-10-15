@@ -38,6 +38,13 @@ async function runFullAuditSmoke(page, { width, theme }) {
         const issues = await page.evaluate(() => {
             const visible = e => e.checkVisibility() && e.getBoundingClientRect().width > 0 && e.getBoundingClientRect().height > 0;
             const issues = [];
+            const headerItems = [...document.querySelectorAll('.header-actions button, .app-header .header-title, #header-profile-btn')].filter(visible);
+            for (let i = 0; i < headerItems.length; i++) for (let j = i + 1; j < headerItems.length; j++) {
+                const a = headerItems[i].getBoundingClientRect(), b = headerItems[j].getBoundingClientRect();
+                if (Math.min(a.right,b.right)-Math.max(a.left,b.left)>2 && Math.min(a.bottom,b.bottom)-Math.max(a.top,b.top)>2) {
+                    issues.push({ type: 'header-overlap', a: headerItems[i].id || headerItems[i].className, b: headerItems[j].id || headerItems[j].className });
+                }
+            }
             for (const card of document.querySelectorAll('.main-section:not(.hidden) .card, .main-section:not(.hidden) .vehicle-info-card')) {
                 if (!visible(card)) continue;
                 if (card.scrollWidth > card.clientWidth + 3) issues.push({ type: 'card-overflow', id: card.id, classes: card.className, extra: card.scrollWidth - card.clientWidth });

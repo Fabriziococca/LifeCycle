@@ -1,9 +1,11 @@
 # Auditoría integral de LifeCycle — 14/10/2026
 
 Auditoría estática/local y recorridos funcionales ampliados en QA real.
-Las verificaciones posteriores al despliegue permanecen pendientes: Render
-mantiene pausados los deploys gratuitos. No se declara probada cada combinación
-posible ni publicada una versión que todavía no tiene deploy.
+Render volvió a aceptar despliegues: 0144573 quedó publicado mediante Manual
+Deploy y se verificaron hash completo, build, health y logs. La revisión de
+cierre incorpora el bloqueo manual autorizado y B04; su recibo de publicación
+exacta se conserva en .tmp-sb/audit-completion-release.json.
+No se declara probada cada combinación posible.
 Transcripciones/IA y Android nativo quedan excluidos y conservados.
 
 ## Alcance y datos
@@ -21,8 +23,9 @@ Transcripciones/IA y Android nativo quedan excluidos y conservados.
   Suscripciones, Trading, Facultad, Recordatorios, búsqueda y preferencias.
   Se conservan casos sintéticos con prefijo AUDIT QA. Avisos nuevos desactivados;
   la evaluación y la Saylor están finalizadas, la suscripción está pausada.
-- El respaldo anterior a esas altas está preservado. La exportación posterior
-  encontró el defecto B03 y deberá repetirse en QA tras publicar la corrección.
+- Los respaldos anteriores y posteriores a las altas están preservados. B03 se
+  volvió a comprobar corregido en QA publicado; exportación y restauración
+  completa también se verificaron tras recarga.
 - CI verde no equivale a cobertura infinita; aceptación Push por el proveedor no
   demuestra recepción/visualización física en el teléfono.
 
@@ -39,9 +42,10 @@ Transcripciones/IA y Android nativo quedan excluidos y conservados.
 | A01 / baja | Cierre de planificación usa × de texto, contra UX_CONVENTIONS. | Icono con nombre accesible y tooltip. |
 | V05 / media | QA real: texto de detalle de tarea blanco sobre fondo casi blanco en tema claro. | Color del tema; capturas y contraste mínimo 4,5:1 verificados en escritorio/móvil y ambos temas. |
 | A02 / baja | Detalle de tarea sin rol ni nombre de diálogo en el DOM. | role=dialog, aria-modal y título asociado; comprobación del diálogo por nombre accesible. |
-| B03 / alta | QA real: registrar un PR con el formulario y exportar muestra `gym_records[0].rir debería ser un número válido`. El select guarda etiquetas como Fallo/RIR 1.5. También impide mostrar correctamente ese RIR. No se perdieron registros. | Nuevos PR numéricos, lectura/exportación compatible con etiquetas anteriores sin reescribir el dato original. Regresión de respaldo completo generado desde UI y lectura de PR legacy; revalidación real pendiente del deploy. |
+| B03 / alta | QA real: registrar un PR con el formulario y exportar muestra `gym_records[0].rir debería ser un número válido`. El select guarda etiquetas como Fallo/RIR 1.5. También impide mostrar correctamente ese RIR. No se perdieron registros. | Nuevos PR numéricos, lectura/exportación compatible con etiquetas anteriores. Revalidación real publicada: PR 0/1,5 y backup completo válidos. |
+| B04 / baja | QA real: dos cobros del 50% del saldo de un proyecto neto100 registran50+25 correctamente, pero la etiqueta suma50%+50%=100%. | Porcentaje calculado desde el neto efectivamente liberado:75%. Regresión mediante dos cobros UI y total de movimientos75, en escritorio/móvil y ambos temas. No cambia pagos ni datos existentes. |
 
-No se confirmaron otros defectos durante los recorridos descritos. Los avisos sobre el
+Los avisos sobre el
 global clients del Service Worker y sobre bind/getters eran falsos positivos.
 Se estabilizaron los fixtures y su sincronización; el test de horarios fija la
 identidad de la tarjeta para no cambiar de objetivo al alcanzar su límite.
@@ -51,11 +55,11 @@ identidad de la tarjeta para no cambiar de objetivo al alcanzar su límite.
 | Superficie | Validación local / aislada | Navegador QA real |
 | --- | --- | --- |
 | Higiene / Cuidado / tarjetas | Migración legacy, registro, umbrales, pausa, archivo/recuperación; reglas y avisos. | Altas sin Push, 70/85 automático, registro, historial, pausa/reanudación y archivo/Deshacer en Higiene; alta/registro/pausa en Cuidado. |
-| Lentes | Temporizador, finalizar/cancelar, duración/historial; regresiones de stock y fechas. | Iniciar; cancelar salida conserva timer; finalizar e historial; borrar/Deshacer recupera sesión. No se cambió stock. |
-| Salud | HTTPS, rechazo de URL insegura, estudio sin adjunto, cancelación/borrado aislado; rutas privadas, MIME, límites y eliminación fallida. | Tarjeta médica, portal HTTPS, dos registros y PDF sintético de 605 bytes subido a Storage privado. Apertura en visor no verificable en IAB. Sin datos clínicos reales. |
-| Vehículo | Catálogo anterior/dinámico, pausa, aceite/kilometraje inválido y válido, documentos, falla/solución/deshacer, control mensual. | Control de 30 días, registro, pausa/reanudación; falla de baja urgencia, solución y Deshacer. |
+| Lentes | Temporizador, finalizar/cancelar, duración/historial; regresiones de stock y fechas. | Timer, historial, Deshacer; stock2→nuevo par→1 conservado tras recarga; stock0 rechaza descuento. Stock final0 como al inicio. |
+| Salud | HTTPS, rechazo de URL insegura, estudio sin adjunto, cancelación/borrado aislado; rutas privadas, MIME, límites y eliminación fallida. | Dos registros y PDF sintético privado de605bytes: carga y apertura en visor PDF confirmadas. Sin datos clínicos reales. |
+| Vehículo | Catálogo anterior/dinámico, pausa, aceite/kilometraje inválido y válido, documentos, falla/solución/deshacer, control mensual. | Control30días, pausa/reanudación, falla/solución/Deshacer; documento sintético con vencimiento2027-10-14, pausa impide guardar y recarga conserva fecha. |
 | Gimnasio | PR, rutina vinculada, sesión tras recarga, finalizar/descartar/cancelar, comidas generales/fijas, copia, edición, totales y peso; suplementos en regresiones. | PR; rutina Lunes/Jueves; sesión de 40 kg × 8 conservada tras recarga y finalizada; comida general→fija, edición 200→240 kcal, peso e historial. B03 detectado al exportar. Medicación no alterada. |
-| Proyectos | Arbitraje sin entrega demorada, fecha exacta, neto, cobros parciales, plantillas y tarjetas estables. | Alta con fecha exacta, plan guardado, arbitraje congela timer/plazo; resolución al 50% pasa a historial con neto USD 37,07 e ingreso. |
+| Proyectos | Arbitraje sin entrega demorada, fecha exacta, neto, cobros parciales, plantillas y tarjetas estables. | Arbitraje resuelto50%=37,07; proyecto neto100: parciales50+25, timer/navegación, entrega, cancelar pago conserva estado y pago final25 cierra sin duplicar ingresos. B04 detectado en etiqueta. |
 | Finanzas | Cuentas, transferencias, pago de tarjeta sin duplicar gasto, moneda nativa, presupuesto, edición, recurrentes, backup y editor obsoleto. | Banco 1000; gasto120 y pago120 dejan banco880/tarjeta0 sin otro gasto. Presupuesto100 excedido20; edición120→150; búsqueda; ARS12000 a cotización1200. Saylor: ingreso único300. |
 | Suscripciones | Paga/prueba/gratuita, gasto mensual, conversión, reactivación y fecha vencida rechazada, horarios y deduplicación. | Prueba gratis no suma; pausa/reactivación; conversión suma12/mes; pago confirmado en historial y renovación avanza un ciclo. Final pausada, sin Push ni gasto automático. |
 | Trading / Saylor | Eventos/reglas; 90 balas, posición/margen, cierre/edición/pérdida, retry idempotente y revisiones en conflicto. | Saylor alta/cierre al20% y vínculo a Finanzas. Evento pausado creado/editado con anticipos14/7/1, conservado tras recarga mediante RPC real. |
@@ -63,18 +67,21 @@ identidad de la tarjeta para no cambiar de objetivo al alcanzar su límite.
 | Tareas | Vacío rechazado, texto escapado, completar/reabrir, borrar/deshacer y captura rápida; contraste de detalle. | Vacío rechazado, crear/editar/completar/reabrir/borrar/Deshacer; recarga. V05/A02 confirmados en detalle. |
 | Hoy / búsqueda / perfil | 28 vistas, destinos de búsqueda, 8 pestañas del perfil, módulos, temas y preferencias. | Navegación de los 13 módulos; Hoy; búsqueda de tarea llega a la categoría correcta; cambio claro/oscuro y restauración del tema inicial. |
 | Recordatorios / Push | Multihorario, agregar/quitar, categorías, edición/recarga, límites, expiración/idempotencia, API y Service Worker simulado. | Mensual día31 desactivado, horarios09:00/15:00, edición y persistencia tras recarga. Sin suscribir QA ni enviar pruebas al teléfono personal. |
-| Acceso / nube / backup | Reconexión, aislamiento entre usuarios, sin escrituras en reposo, copia cifrada, backup válido/inválido, snapshots obsoletos y retry. | Sesión QA y datos de varios módulos conservados tras recarga. Exportación inicial válida; posterior bloqueada por B03 del código antiguo. |
+| Acceso / nube / backup | Reconexión, aislamiento entre usuarios, sin escrituras en reposo, copia cifrada, backup válido/inválido, snapshots obsoletos y retry. | Sesión QA, exportación válida y restauración completa sincronizada tras recarga. Tarea testigo eliminada por restauración; comparación de todas las secciones: única diferencia semánticamente neutra, updatedAt de Higiene. |
+| Bloqueo manual (pedido adicional) | Clave equivocada, recarga bloqueada, desbloqueo sin red, otra cuenta, pestañas, cambio de clave, diálogos nativos, atajos, logout/login y ausencia del verificador en backup/nube. | Configuración de clave real requiere entrada manual del usuario. No se configura en su cuenta personal. |
 | Base de datos | Metadatos actuales; RLS/grants reproducidos; planificación SQL con conflictos e integridad. | 29 migraciones alineadas y asesores consultados. |
 
 Resultados locales:
 
-- npm test tras la ampliación: **453 aprobados, 0 fallidos**.
+- npm test tras el cierre: **455 aprobados, 0 fallidos**.
 - node --check server.js; 82 archivos activos sin hallazgos del analizador de
   errores de lógica/sintaxis configurado. No es un auditor formal de seguridad.
 - npm audit --omit=dev: **0 vulnerabilidades conocidas reportadas**.
 - UI audit: 28 vistas × 7 anchos (1920, 1440, 1024, 768, 714, 390, 360) × 2 temas
   = **392 inspecciones geométricas**, sin desbordes/superposición de controles
   detectados por esas reglas. Capturas representativas inspeccionadas.
+- La matriz incluye ahora cruces entre acciones rápidas, título y Cuenta.
+  El botón nuevo motivó separar las filas en anchos menores de1100px.
 - UI modules, planning, improvements y suite general: cada una en escritorio
   1440 y móvil 390, claro/oscuro; sin excepciones no controladas. La suite general
   incluye horarios, Finanzas, recuperación y sesiones.
@@ -124,32 +131,34 @@ LIFECYCLE_PLAYWRIGHT_MODULE. El sembrado sintético rechaza orígenes no localho
 - Push con teléfono dormido, sin conexión o restringido por Android requiere
   ese dispositivo. Estas correcciones no prueban eliminar cualquier retraso
   del teléfono/proveedor.
-- Recepción/visualización física de Push, apertura del PDF en el visor integrado,
-  nueva autenticación/cambio de contraseña y publicación del commit corregido
-  no están verificadas en esta ampliación.
-- Restauración destructiva en producción y sesiones de
-  propietarios distintos no se forzaron sobre datos personales. Se contrastó
+- Recepción/visualización física de Push en Android, autenticación QA desde
+  cero y configuración manual del visor cifrado/bloqueo real dependen del
+  usuario. La apertura del PDF y restauración completa en QA sí se comprobaron.
+- No se forzaron restauraciones ni sesiones de
+  propietarios distintos sobre datos personales. Se contrastó
   RLS real y se ensayó en PostgreSQL aislado.
 - La cola existente no es edición offline sin conflictos por entidad. Siguen
   las limitaciones ya documentadas del plan anterior: Trading multihorario y
   renovación automática de gastos sin abrir la app; no se presentan como nuevas
   capacidades completadas por esta auditoría.
 - No se propone pagar servicios ni cambiar infraestructura para estos defectos.
-  Rollback de código: Manual Deploy del commit previo validado 08eceb0; sin SQL.
+  Rollback de esta ampliación: Manual Deploy de0144573; sin SQL. El bloqueo
+  oculta la interfaz, no cifra todos los datos locales ni las notificaciones del
+  sistema operativo. Su clave es por cuenta/navegador, independiente del respaldo.
 
-## Publicación y trabajo pendiente
+## Publicación y trazabilidad
 
-- El commit 590e040 fue enviado a origin/main y su CI aprobó. Live continúa
-  en 08eceb0: estas pruebas reales examinaron ese código; las correcciones se
-  verificaron además localmente, sin simular que ya estén publicadas.
-- Manual Deploy rechazado: 3 intentos por panel y 1 por conector, HTTP503;
-  sin nuevo deploy/build. Render confirmó pausa de deploys gratuitos y a las
-  21:04 UTC del 14/10 seguía trabajando en el incidente:
-  https://status.render.com/incidents/8tsd93r1wbmz.
-- La ampliación agrega V05/A02/B03 y su regresión. Registro privado de casos:
-  .tmp-sb/qa-real-audit-results.json; respaldo previo .tmp-sb/qa-real-audit-before.json.
-  No hay respaldo posterior exportado porque B03 lo impide en la versión live.
-- Cuando Render acepte deploys: Manual Deploy del último commit aprobado,
-  comprobar hash exacto, build, /api/health, scheduler y logs posteriores.
-  Repetir exportación QA y validar RIR legacy, detalle claro y cambios visuales
-  sobre la versión publicada. Sin migraciones ni costo adicional.
+- Incidente de Render recuperado: dep-db81c8psrm7s738bfde0 publicó exactamente
+  01445733e95fed1b13fb35bce521f54460e46328 el14/10 a20:54:57 Argentina.
+  Build correcto, health200, scheduler sin fallos;34logs posteriores sin errores
+  ni advertencias. Evidencia: .tmp-sb/deploy-0144573-receipt.json.
+- En0144573 se revalidaron detalle claro (contraste17:1), PRlegacy y nuevos,
+  backup; el cierre sumó stock, documentos, parciales, pago completo,
+  restauración y apertura PDF. Casos: .tmp-sb/qa-pending-tests-results.json.
+- Comparación del restore: .tmp-sb/qa-full-restore-validation.json. Respaldos
+  completos antes/después y capturas guardados localmente, ignorados por Git.
+- La publicación de la revisión de cierre exige Manual Deploy del commit
+  esperado, build, health, scheduler y logs; el recibo
+  .tmp-sb/audit-completion-release.json identifica la revisión verificada.
+- Las pruebas físicas de Android y los pasos de clave manual se mantienen
+  separados de las pruebas locales aprobadas. Sin SQL ni costo adicional.

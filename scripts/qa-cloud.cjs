@@ -28,7 +28,21 @@ function installFakeCloud() {
         }
     }
     window.supabase = { createClient: () => ({
-        auth: { getSession: async () => ({ data: { session: { user, access_token: 'qa-session' } } }), onAuthStateChange: callback => { window.qaAuthListeners.push(callback); return { data: { subscription: { unsubscribe() {} } } }; } },
+        auth: {
+            getSession: async () => ({ data: { session: sessionStorage.getItem('qa-signed-out') ? null : { user, access_token: 'qa-session' } } }),
+            onAuthStateChange: callback => { window.qaAuthListeners.push(callback); return { data: { subscription: { unsubscribe() {} } } }; },
+            signOut: async () => {
+                sessionStorage.setItem('qa-signed-out', '1');
+                window.qaAuthListeners.forEach(callback => callback('SIGNED_OUT', null));
+                return { error: null };
+            },
+            signInWithPassword: async ({ password }) => {
+                if (password !== 'qa-account-password') return { data: null, error: { message: 'Invalid login credentials' } };
+                sessionStorage.removeItem('qa-signed-out');
+                window.qaAuthListeners.forEach(callback => callback('SIGNED_IN', { user }));
+                return { data: { user }, error: null };
+            }
+        },
         from: table => new Query(table),
         rpc: async (name, parameters) => {
             if (name === 'save_lifecycle_planning') {

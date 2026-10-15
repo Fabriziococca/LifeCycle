@@ -188,6 +188,7 @@ export class AuthSyncModule {
         this.accessGate?.classList.toggle('hidden', isAuthenticated);
         this.appContainer?.classList.toggle('hidden', !isAuthenticated);
         document.body.classList.toggle('access-locked', !isAuthenticated);
+        this.app.privacyLock?.onAccessState(isAuthenticated, this.user?.id);
         if (!isAuthenticated) {
             // A native dialog's top layer would otherwise cover the access gate.
             document.querySelectorAll?.('dialog[open]').forEach(dialog => dialog.close());
@@ -334,7 +335,8 @@ export class AuthSyncModule {
         
         this.setLoading(true, "Iniciando sesión...");
         
-        const { error } = await this.supabase.auth.signInWithPassword({ email, password });
+        const { data, error } = await this.supabase.auth.signInWithPassword({ email, password });
+        if (!error) this.app.privacyLock?.accountLogin(data?.user?.id);
         
         if (error) {
             this.setLoading(false);

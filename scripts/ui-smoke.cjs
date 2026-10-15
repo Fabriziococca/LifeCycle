@@ -12,6 +12,7 @@ const httpServer = express().use(express.static(path.resolve(__dirname, '..'))).
 const { installFakeCloud } = require('./qa-cloud.cjs');
 const { runFullAuditSmoke } = require('./full-audit-smoke.cjs');
 const { runActiveModulesSmoke } = require('./active-modules-smoke.cjs');
+const { runPrivacyLockSmoke } = require('./privacy-lock-smoke.cjs');
 
 (async () => {
     await fs.mkdir('.tmp-sb/ui-smoke', { recursive: true });
@@ -39,6 +40,10 @@ const { runActiveModulesSmoke } = require('./active-modules-smoke.cjs');
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'privacy') {
+                await runPrivacyLockSmoke(page, { width, theme }); assert.deepEqual(errors, []);
+                console.log(JSON.stringify({width,theme,privacyLock:true})); await context.close(); continue;
+            }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'audit') {
                 await runFullAuditSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,fullAudit:true}));await context.close();continue;
             }

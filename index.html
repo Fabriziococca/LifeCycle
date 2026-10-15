@@ -42,6 +42,7 @@
     <script src="vendor/tus.min.js?v=4.3.1"></script>
     <!-- Styles -->
     <link rel="stylesheet" href="style.css">
+    <link rel="stylesheet" href="privacy-lock.css">
     <link rel="stylesheet" href="planning.css?v=20261014">
 </head>
 <body>
@@ -121,6 +122,48 @@
         </div>
     </div>
 
+    <section id="privacy-lock-gate" class="access-gate hidden" role="dialog" aria-modal="true" aria-labelledby="privacy-lock-title">
+        <div class="access-gate-card">
+            <div class="access-gate-brand">
+                <div class="access-gate-icon"><i class="ph ph-lock-key"></i></div>
+                <div><h2 id="privacy-lock-title">LifeCycle bloqueada</h2><p>Tus datos están ocultos.</p></div>
+            </div>
+            <form id="privacy-unlock-form" class="access-gate-form">
+                <div class="input-group">
+                    <label for="privacy-unlock-password">Clave de bloqueo</label>
+                    <input id="privacy-unlock-password" class="text-input" type="password" autocomplete="off" required maxlength="256">
+                </div>
+                <p id="privacy-unlock-error" class="access-gate-error hidden" role="alert"></p>
+                <button id="privacy-unlock-submit" type="submit" class="btn btn-primary">Desbloquear</button>
+            </form>
+            <p class="privacy-lock-help">Funciona sin conexión con la app abierta. Si olvidaste la clave, cerrá sesión y volvé a ingresar con la contraseña de tu cuenta para configurar otra.</p>
+            <button id="privacy-lock-signout" type="button" class="btn btn-secondary">Cerrar sesión</button>
+        </div>
+    </section>
+    <dialog id="privacy-lock-settings" class="privacy-lock-settings" aria-labelledby="privacy-lock-settings-title">
+        <h2 id="privacy-lock-settings-title">Clave de bloqueo</h2>
+        <p>Elegí una clave independiente para esta cuenta en este navegador. Este bloqueo oculta la app; no cifra los demás datos locales.</p>
+        <form id="privacy-lock-form" class="access-gate-form">
+            <div id="privacy-lock-current-group" class="input-group hidden">
+                <label for="privacy-lock-current">Clave de bloqueo actual</label>
+                <input id="privacy-lock-current" class="text-input" type="password" autocomplete="off" maxlength="256">
+            </div>
+            <div class="input-group">
+                <label for="privacy-lock-new">Nueva clave de bloqueo</label>
+                <input id="privacy-lock-new" class="text-input" type="password" autocomplete="new-password" required minlength="12" maxlength="256">
+                <small>Entre 12 y 256 caracteres. Es distinta de la clave del respaldo de emergencia.</small>
+            </div>
+            <div class="input-group">
+                <label for="privacy-lock-confirm">Repetir clave de bloqueo</label>
+                <input id="privacy-lock-confirm" class="text-input" type="password" autocomplete="new-password" required minlength="12" maxlength="256">
+            </div>
+            <p id="privacy-lock-error" class="access-gate-error hidden" role="alert"></p>
+            <div class="privacy-lock-settings-actions">
+                <button id="privacy-lock-cancel" type="button" class="btn btn-secondary">Cancelar</button>
+                <button id="privacy-lock-save" type="submit" class="btn btn-primary">Habilitar y bloquear</button>
+            </div>
+        </form>
+    </dialog>
     <div class="background-effects">
         <div class="glow-orb orb-1"></div>
         <div class="glow-orb orb-2"></div>
@@ -163,6 +206,10 @@
             </div>
 
             <!-- Centro de Notificaciones (Tareas Críticas en Rojo) -->
+            <button id="privacy-lock-btn" type="button" class="global-search-btn"
+                aria-label="Bloquear LifeCycle" data-tooltip="Bloquear LifeCycle">
+                <i class="ph ph-lock-key"></i><span>Bloquear</span>
+            </button>
             <div class="notifications-wrapper">
                 <button id="notification-bell-btn" class="bell-btn" aria-label="Abrir tareas críticas pendientes" data-tooltip="Tareas críticas pendientes">
                     <i class="ph ph-bell"></i>
@@ -2037,6 +2084,12 @@
                     
                     <!-- Pestaña: Preferencias -->
                     <div class="profile-tab-content" id="tab-preferencias">
+                        <div class="card privacy-lock-preference">
+                            <h3><i class="ph ph-lock-key"></i> Bloqueo de privacidad</h3>
+                            <p>Usá el botón Bloquear de la cabecera para ocultar la app. La clave es independiente de tu cuenta y funciona sin conexión con la app abierta.</p>
+                            <p>Se configura para esta cuenta en este navegador. No se incluye en el backup ni cifra los demás datos locales.</p>
+                            <button id="privacy-lock-configure" type="button" class="btn btn-secondary">Configurar bloqueo</button>
+                        </div>
                         <div class="card">
                             <div class="card-header">
                                 <div class="icon-container">

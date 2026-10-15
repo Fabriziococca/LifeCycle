@@ -120,6 +120,25 @@ async function runLifecycleImprovementsSmoke(page, { width, theme }) {
     assert.match(await page.locator('[data-project-id="qa-arbitration"] .project-exact-deadline').textContent(), /viernes, 09\/10\/2026 a las 23:00 h/);
     await page.locator('[data-project-id="qa-arbitration"]').screenshot({ path: `.tmp-sb/ui-smoke/improvements-project-${width}-${theme}.png` });
 
+    // Partial percentages apply to the balance, never add the two labels.
+    await page.evaluate(() => {
+        const app = window.lifecycle_controller;
+        app.projects.projects = [{ id: 'qa-partials', client: 'Cliente QA', project: 'Cobros parciales QA',
+            accepted: new Date().toISOString(), deadline: '2030-10-20T23:00:00-03:00', budgetGross: 100, budgetNet: 100,
+            timerStart: null, totalTime: 0, partialReleases: [] }];
+        app.projects.saveData(); app.projects.render();
+    });
+    for (const expected of [50, 75]) {
+        const project = page.locator('[data-project-id="qa-partials"]');
+        await project.getByRole('button', { name: 'Más opciones', exact: true }).click();
+        await project.locator('.btn-partial-release').click();
+        await page.locator('#proj-partial-pct').fill('50');
+        await page.locator('#proj-partial-save').click();
+        assert.match(await project.locator('.partial-release-badge').textContent(), new RegExp(`\\(${expected}%\\)`));
+    }
+    const payments = await page.evaluate(() => window.lifecycle_controller.projects.getIncomeMovements().filter(m => m.projectId === 'qa-partials'));
+    assert.equal(payments.reduce((total, payment) => total + payment.amount, 0), 75);
+
     await page.evaluate(async () => {
         const { createVehicleCard } = await import('/vehicle-catalog-utils.mjs');
         const app = window.lifecycle_controller;

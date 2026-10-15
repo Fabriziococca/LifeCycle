@@ -10,6 +10,7 @@ const fixedAssets = new Set([
     'index.html',
     'style.css',
     'planning.css',
+    'privacy-lock.css',
     'recovery.html',
     'recovery.css',
     'manifest.json',

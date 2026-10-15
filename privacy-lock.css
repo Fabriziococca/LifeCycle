@@ -1,0 +1,25 @@
+body.privacy-locked { overflow: hidden; }
+/* Body-level dialogs, tooltips and notifications must disappear as well. */
+body.privacy-locked > :not(#privacy-lock-gate):not(script):not(style) { display: none !important; }
+#privacy-lock-gate { z-index: 20000; }
+#privacy-lock-gate h2 { margin: 0; font-size: 1.5rem; line-height: 1.2; }
+.privacy-lock-help, .privacy-lock-preference p, .privacy-lock-settings > p {
+    color: var(--text-secondary); line-height: 1.55; margin-block: 1rem;
+}
+.privacy-lock-preference { margin-bottom: 1.5rem; }
+.privacy-lock-settings {
+    width: min(430px, calc(100vw - 2rem)); max-height: calc(100dvh - 2rem);
+    overflow-y: auto; margin: auto; padding: 1.5rem; border-radius: 20px;
+    border: 1px solid var(--surface-border); background: var(--surface-solid); color: var(--text-primary);
+}
+.privacy-lock-settings::backdrop { background: rgba(0, 0, 0, 0.65); }
+.privacy-lock-settings h2 { margin: 0; }
+.privacy-lock-settings-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .75rem; }
+.privacy-lock-settings .btn, #privacy-lock-gate .btn { min-height: 44px; white-space: normal; }
+/* Keep the extra quick action out of the title/account row on narrow layouts. */
+@media (max-width: 1099px) {
+    .container > .app-header { margin-top: 3.75rem; }
+}
+@media (min-width: 1100px) {
+    .app-header .header-title { max-width: calc(100% - 450px); }
+}

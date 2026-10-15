@@ -1522,14 +1522,17 @@ export class ProjectsModule {
             // Cálculos de liberaciones parciales existentes
             let sumPartialNet = 0;
             let sumPartialGross = 0;
-            let partialPctTotal = 0;
             if (Array.isArray(p.partialReleases) && p.partialReleases.length > 0) {
                 p.partialReleases.forEach(r => {
                     sumPartialNet += Number(r.netAmount || 0);
                     sumPartialGross += Number(r.grossAmount || 0);
-                    partialPctTotal += Number(r.percent || 0);
                 });
             }
+            // Each release is a percentage of the remaining balance, so those
+            // percentages cannot be added (50% + 50% of the remainder = 75%).
+            const partialPctTotal = Number(p.budgetNet) > 0
+                ? Number(Math.min(100, sumPartialNet / Number(p.budgetNet) * 100).toFixed(2))
+                : 0;
             const pendingNet = Math.max(0, Number(p.budgetNet || 0) - sumPartialNet);
 
             const safeClient = escapeHtml(p.client || '');
