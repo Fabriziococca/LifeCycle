@@ -337,7 +337,8 @@ test('browser restore fixtures stay representative and valid', () => {
         readFixture('backup-v2-full.json')
     );
     assert.equal(fullPlan.mode, 'full');
-    assert.equal(fullPlan.entries.length, CLOUD_SYNC_KEYS.length);
+    // This historical fixture predates optional charging records.
+    assert.equal(fullPlan.entries.length, CLOUD_SYNC_KEYS.length - 1);
     assert.equal(
         fullPlan.entries.find(([key]) => key === 'hygiene_tracker_data')[1],
         null

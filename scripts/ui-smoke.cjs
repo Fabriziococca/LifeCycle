@@ -6,6 +6,7 @@ const { runFinanceWorkspaceSmoke } = require('./finance-workspace-smoke.cjs');
 const { runAlertsScheduleSmoke } = require('./alerts-schedule-smoke.cjs');
 const { runPlanningSmoke } = require('./planning-smoke.cjs');
 const { runWorkSmoke } = require('./work-smoke.cjs');
+const { runChargingSmoke } = require('./charging-smoke.cjs');
 const { runLifecycleImprovementsSmoke } = require('./lifecycle-improvements-smoke.cjs');
 const path = require('node:path');
 const httpServer = express().use(express.static(path.resolve(__dirname, '..'))).listen(0, '127.0.0.1');
@@ -51,6 +52,9 @@ const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'work') {
                 await runWorkSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,work:true}));await context.close();continue;
+            }
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'charging') {
+                await runChargingSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,charging:true}));await context.close();continue;
             }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'recovery') {
                 await runRecoverySmoke(page, {width,theme}); assert.deepEqual(errors,[]);

@@ -42,6 +42,7 @@ const JSON_ROOT_TYPES = Object.freeze({
     lifecycle_work: 'object',
     lifecycle_saylor: 'object',
     lifecycle_faculty: 'object',
+    lifecycle_charging: 'object',
     hygiene_tracker_data: 'object',
     groomingData_v2: 'object',
     lensesHistory: 'array',
@@ -160,6 +161,7 @@ const CATEGORY_GROUPS = Object.freeze([
     { label: 'Finanzas', keys: ['finanzasData'] },
     { label: 'Saylor', keys: ['lifecycle_saylor'] },
     { label: 'Facultad', keys: ['lifecycle_faculty'] },
+    { label: 'Control de cargas (los avisos en curso quedarán pausados al restaurar)', keys: ['lifecycle_charging'] },
     { label: 'Trabajo · clientes y seguimientos', keys: [WORK_KEY] },
     { label: 'Suscripciones', keys: ['lifecycle_subscriptions'] },
     {
@@ -817,6 +819,7 @@ function validateBackupDataShape(key, value) {
             break;
         case 'lifecycle_saylor':
         case 'lifecycle_faculty':
+        case 'lifecycle_charging':
             validatePlanning(value, key);
             break;
         case 'finanzasData':

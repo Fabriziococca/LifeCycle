@@ -1,8 +1,10 @@
+import { CHARGING_KEY, emptyCharging, validateCharging } from './charging-utils.mjs';
 export const SAYLOR_KEY = 'lifecycle_saylor';
 export const FACULTY_KEY = 'lifecycle_faculty';
-export const PLANNING_KEYS = [SAYLOR_KEY, FACULTY_KEY];
+export const PLANNING_KEYS = [SAYLOR_KEY, FACULTY_KEY, CHARGING_KEY];
 export const planningId = prefix => `${prefix}_${crypto.randomUUID()}`;
 export function emptyPlanning(key) {
+    if(key===CHARGING_KEY)return emptyCharging();
     return key === SAYLOR_KEY ? { version: 1, revision: 0, campaigns: [] }
         : { version: 1, revision: 0, subjects: [], events: [], tasks: [] };
 }
@@ -93,6 +95,7 @@ export function dueFacultyNotices(value, now = new Date()) {
     });
 }
 export function validatePlanning(data, key) {
+    if(key===CHARGING_KEY)return validateCharging(data);
     assert(PLANNING_KEYS.includes(key) && data && data.version === 1 && Number.isSafeInteger(data.revision) && data.revision >= 0, 'Versión del seguimiento no compatible.');
     const text = (value,max=120) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
     const collection = (items,max,prefix) => {

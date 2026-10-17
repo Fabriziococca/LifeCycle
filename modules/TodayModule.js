@@ -6,6 +6,7 @@ import {
 } from '../product-preferences.mjs?v=20260729-product-preferences';
 
 const SOURCE_LABELS = Object.freeze({
+    charging: 'Cargas',
     tareas: 'Tareas',
     projects_tasks: 'Tarea de proyecto',
     projects: 'Proyectos',

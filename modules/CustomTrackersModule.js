@@ -633,6 +633,10 @@ export class CustomTrackersModule {
         if (trackers.length === 0) {
             title = 'Sin tarjetas visibles';
             detail = 'Podés crear una nueva desde Perfil → Tarjetas.';
+            if(sectionKey==='hygiene' && this.app.hygiene?.currentCategory==='tecnologia') {
+                const charges=this.app.charging?.store.value.devices.filter(d=>!d.archived&&!d.deleted).length||0;
+                if(charges){title=`${charges} ${charges===1?'dispositivo de carga':'dispositivos de carga'}`;detail='Revisá sus estados en Control de cargas.';}
+            }
             tone = 'empty';
         } else if (overdue.length > 0) {
             title = `${overdue.length} ${overdue.length === 1 ? 'vencida' : 'vencidas'}`;

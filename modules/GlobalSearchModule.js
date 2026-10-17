@@ -7,6 +7,7 @@ import {
 import { matchesKeyboardShortcut } from '../keyboard-shortcuts.mjs?v=20260801-shortcuts';
 
 const GROUP_META = Object.freeze({
+    charging: Object.freeze({label:'Cargas',icon:'ph-plug'}),
     work: Object.freeze({label:'Trabajo',icon:'ph-briefcase'}),
     command: Object.freeze({ label: 'Acciones', icon: 'ph-lightning' }),
     planning: Object.freeze({ label: 'Facultad y Saylor', icon: 'ph-graduation-cap' }),
@@ -151,6 +152,7 @@ export class GlobalSearchModule {
 
     buildIndex() {
         return [
+            ...(this.app.charging?.store.value.devices||[]).filter(d=>!d.deleted).map(d=>({id:`charging:${d.id}`,kind:'charging',title:d.name,subtitle:`Control de cargas${d.archived?' · Archivado':''}`,keywords:['cargar bateria tecnología'],target:{id:d.id}})),
             ...this.getWorkItems(),
             ...this.getCommandItems(),
             ...this.getPlanningItems(),
@@ -542,7 +544,9 @@ export class GlobalSearchModule {
         if (!result) return;
         this.close({ restoreFocus: false });
 
-        if(result.kind==='work') {
+        if(result.kind==='charging') {
+            this.app.notificationsCenter?.openItem({module:'charging',id:result.target.id});
+        } else if(result.kind==='work') {
             this.app.work.clientId=result.target.clientId;this.app.activateSection('work-clients-section');
         } else if (result.kind === 'planning') {
             if(result.target.section==='trading-section') { this.app.saylor?.activate('saylor'); this.app.activateSection?.('trading-section'); }

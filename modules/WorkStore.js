@@ -1,5 +1,6 @@
 import { WORK_KEY, emptyWork, validateWork } from '../work-utils.mjs';
 import { PLANNING_KEYS, emptyPlanning, readPlanning } from '../planning-utils.mjs';
+import { CHARGING_KEY, restoreCharging } from '../charging-utils.mjs';
 
 const canonical = value => {
     const next = structuredClone(value);
@@ -101,7 +102,7 @@ export class WorkStore {
             if(key===WORK_KEY) continue;
             if(PLANNING_KEYS.includes(key)) {
                 const old=readPlanning(snapshot[key]??null,key), item=value===null?emptyPlanning(key):readPlanning(value,key);
-                updates[key]=JSON.stringify({...item,revision:old.revision+1});
+                updates[key]=JSON.stringify({...(key===CHARGING_KEY?restoreCharging(item):item),revision:old.revision+1});
             } else if(value===null) deletes.push(key); else updates[key]=value;
         }
         await this.save(incoming,current.revision,{updates,deletes});

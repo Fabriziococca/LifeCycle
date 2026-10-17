@@ -10,6 +10,7 @@ const { isProjectDeliveryPending } = require('./project-status-utils.mjs');
 const { getPauseAdjustedDate } = require('./pause-utils.mjs');
 const { dueFacultyNotices } = require('./planning-utils.mjs');
 const { workNotificationCandidates, validateWork, isWorkRetryRelevant } = require('./work-utils.mjs');
+const { chargingNotificationCandidates, isChargingRetryRelevant } = require('./charging-utils.mjs');
 const {
     DEFAULT_PUSH_TTL_SECONDS,
     TIMED_NOTIFICATION_GRACE_MINUTES,
@@ -1200,7 +1201,9 @@ async function retryUndeliveredPushes(now = Date.now(), { signal = null } = {}) 
 
     for (const candidate of candidates) {
         throwIfAborted(signal);
-        const relevant = String(candidate.alert_key).startsWith('work:')
+        const relevant = String(candidate.alert_key).startsWith('charging:')
+            ? documentsByUser.has(candidate.user_id) && isChargingRetryRelevant(documentsByUser.get(candidate.user_id).lifecycle_charging,candidate,new Date(now))
+            : String(candidate.alert_key).startsWith('work:')
             ? workRetryStates.has(candidate.user_id) && isWorkRetryRelevant(workRetryStates.get(candidate.user_id),candidate,new Date(now))
             : documentsByUser.has(candidate.user_id) && isPushRetryRelevant(candidate.alert_key, documentsByUser.get(candidate.user_id));
         if (!relevant) {
@@ -2577,6 +2580,23 @@ async function checkWorkAlerts({signal=null}={}) {
     }
 }
 
+async function checkChargingAlerts({signal=null}={}) {
+    if(!supabase)return;
+    const now=new Date(),rows=await schedulerDocuments.load({signal});
+    const due=rows.flatMap(row=>chargingNotificationCandidates(row.data?.lifecycle_charging,now).map(notice=>({userId:row.user_id,notice})));
+    if(!due.length)return;
+    const probe=await withAbortSignal(supabase.from('notification_delivery_log').select('id,receipt_token_hash').limit(1),signal);
+    if(probe.error)throw new Error('No se confirmó la deduplicación de avisos de cargas.');
+    notificationHistorySchemaAvailable=true;notificationTelemetrySchemaAvailable=true;
+    const subs=await withAbortSignal(supabase.from('push_subscriptions').select('id,user_id,subscription,device_name,created_at').in('user_id',[...new Set(due.map(n=>n.userId))]),signal);
+    if(subs.error)throw new Error('No se pudieron cargar los dispositivos para avisos de cargas.');
+    const grouped=groupSubscriptionsByUser(subs.data||[]);
+    for(const {userId,notice} of due) {
+        throwIfAborted(signal);
+        await sendPushToSubscriptions({userId,subscriptions:grouped[userId]||[],payload:JSON.stringify({title:notice.title,body:notice.body,url:`/?open=charging&id=${encodeURIComponent(notice.deviceId)}`}),context:'Cargas',alertKey:notice.key,scheduledAt:notice.scheduledAt,expiresAt:notice.expiresAt,urgency:'high',signal});
+    }
+}
+
 async function runScheduledAlertChecks({
     forceAll = false,
     trigger = 'scheduler'
@@ -2619,6 +2639,11 @@ async function runScheduledAlertChecks({
             [
                 'work',
                 signal => checkWorkAlerts({signal}),
+                SCHEDULER_ENGINE_TIMEOUT_MS
+            ],
+            [
+                'charging',
+                signal => checkChargingAlerts({signal}),
                 SCHEDULER_ENGINE_TIMEOUT_MS
             ]
         ];

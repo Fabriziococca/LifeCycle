@@ -596,6 +596,7 @@ export class AuthSyncModule {
             localStorage.removeItem(SYNC_PENDING_STORAGE_KEY);
             localStorage.removeItem('has_unsynced_local_changes');
             sessionStorage.removeItem('is_explicit_login');
+            this.app.charging?.render();
         } finally {
             this.isRestoring = false;
         }
@@ -1040,6 +1041,7 @@ export class AuthSyncModule {
             }
             this.app.saylor?.render();
             this.app.faculty?.render();
+            this.app.charging?.render();
             this.app.work?.render();
             if (this.app.tareas) {
                 try { this.app.tareas.render(); } catch (e) { console.error("Error rendering tareas:", e); }

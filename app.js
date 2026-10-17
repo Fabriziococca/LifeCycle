@@ -1,4 +1,5 @@
 import { HygieneModule } from './modules/HygieneModule.js';
+import { ChargingModule } from './modules/ChargingModule.js';
 import { GroomingModule } from './modules/GroomingModule.js';
 import { LensModule } from './modules/LensModule.js';
 import { HealthModule } from './modules/HealthModule.js';
@@ -674,7 +675,9 @@ class AppController {
 
         let itemToOpen = null;
 
-        if (openParam === 'work') {
+        if (openParam === 'charging') {
+            this.notificationsCenter?.openItem({module:'charging',id:searchParams.get('id')});
+        } else if (openParam === 'work') {
             this.activateSection('work-summary-section');
             return;
         }
@@ -967,6 +970,7 @@ class AppController {
         this.faculty = new FacultyModule(this);
         this.tareas = new TareasModule(this);
         this.customTrackers = new CustomTrackersModule(this);
+        this.charging = new ChargingModule(this);
         this.work = new WorkModule(this);
         this.backups = new BackupModule(this);
         this.recovery = new RecoveryModule(this);

@@ -4,6 +4,7 @@ const $ = id => document.getElementById(id);
 let vaults = [], opened = null, lockTimer, generation = 0;
 const titles = {
     lifecycle_work: 'Trabajo · clientes, proyectos vinculados, seguimientos y notas',
+    lifecycle_charging: 'Dispositivos e historial de cargas',
     hygiene_tracker_data: 'Tarjetas, registros e historial', groomingData_v2: 'Cuidado personal',
     lensDate: 'Lentes · fecha de apertura', lensesHistory: 'Lentes · historial', lensesStartTime: 'Lentes · inicio de uso',
     solutionDate: 'Solución · apertura', caseDate: 'Estuche · cambio', lensStock: 'Lentes · stock',

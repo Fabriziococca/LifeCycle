@@ -23,13 +23,14 @@ export class PlanningStore {
         };
         try {
             if (!await auth.flushPendingKeySync()) throw new Error('Primero deben sincronizarse los cambios pendientes de la aplicación.');
-            if (auth.user?.id !== user || auth.readyUserId !== user) throw new Error('La sesión cambió.');
+            if (auth.user?.id !== user || auth.readyUserId !== user || auth.syncGeneration !== generation) throw new Error('La sesión cambió.');
             auth.planningWriteCount = (auth.planningWriteCount || 0) + 1;
             auth.localEditGeneration = (auth.localEditGeneration || 0) + 1;
             writing = true;
             const { data, error } = await auth.supabase.rpc('save_lifecycle_planning', {
                 p_key: this.key, p_expected_revision: expectedRevision, p_value: next
             });
+            if (auth.user?.id !== user || auth.readyUserId !== user || auth.syncGeneration !== generation) throw new Error('La sesión cambió durante el guardado.');
             if (error) {
                 release();
                 if (String(error.code) === '40001') {
@@ -38,7 +39,6 @@ export class PlanningStore {
                 }
                 throw new Error('No se confirmó el guardado. Conservá este formulario y verificá la conexión antes de reintentar.');
             }
-            if (auth.user?.id !== user || auth.readyUserId !== user) throw new Error('La sesión cambió durante el guardado.');
             if (!data?.workspace) throw new Error('El servidor no confirmó el seguimiento. Recargá antes de reintentar.');
             const confirmed = validatePlanning(data.workspace, this.key);
             const cloudRevision = Number(data.documentRevision);
@@ -50,7 +50,7 @@ export class PlanningStore {
             finally { auth.isRestoring = restoring; }
             auth.cloudRevision = null; auth.appliedCloudRevision = null;
             this.app.recovery?.scheduleSnapshot();
-            this.app.saylor?.render(); this.app.faculty?.render();
+            this.app.saylor?.render(); this.app.faculty?.render(); this.app.charging?.render();
             this.app.finanzas?.render(); this.app.notificationsCenter?.updateBadge();
             return confirmed;
         } finally { release(); this.busy = false; }

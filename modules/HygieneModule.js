@@ -150,6 +150,7 @@ export class HygieneModule {
     }
 
     render() {
+        this.app.charging?.render();
         if (!this.container) return;
         
         this.container.innerHTML = '';
