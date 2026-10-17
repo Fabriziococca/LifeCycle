@@ -2,6 +2,7 @@ import { readFile } from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import { PGlite } from '../.tmp-sb/pglite/node_modules/@electric-sql/pglite/dist/index.js';
 import { validateCharging, readCharging } from '../charging-utils.mjs';
+import { createEmptyCustomTrackerRegistry, createCustomTracker, normalizeCustomTrackerRegistry } from '../custom-tracker-utils.mjs';
 const db=new PGlite(),owner='11111111-1111-4111-8111-111111111111',friend='22222222-2222-4222-8222-222222222222';
 try {
  await db.exec(`create role anon;create role authenticated;create role service_role;create schema auth;create schema private;
@@ -37,5 +38,24 @@ try {
  await db.exec('reset role;set role service_role');await assert.rejects(save(next,1),/permission denied/);
  await db.exec('reset role');
  assert.equal(readCharging((await db.query('select data from public.user_data where user_id=$1',[owner])).rows[0].data.lifecycle_charging).revision,3);
+ const registry=createEmptyCustomTrackerRegistry();
+ registry.trackers.push(createCustomTracker({name:'Computadora (Teclado y Ext.)',actionLabel:'Registrar limpieza',section:'hygiene',template:'routine',cadence:{unit:'days',value:21},thresholds:{mode:'automatic',red:21}},{id:'trk_original-exterior'}));
+ registry.histories['trk_original-exterior']=['2026-10-01T15:00:00.000Z'];
+ const weekly=await readFile(new URL('../supabase/migrations/20261017223000_owner_computer_weekly_cards.sql',import.meta.url),'utf8');
+ const friendBefore=(await db.query('select data from public.user_data where user_id=$1',[friend])).rows[0].data;
+ for(const stringFormat of [true,false]) {
+  const original={legacyRetained:['2026-09-01T00:00:00Z'],__trackers_v2:registry};
+  const rowBefore=(await db.query('select data from public.user_data where user_id=$1',[owner])).rows[0].data;
+  await db.query("update public.user_data set data=data||jsonb_build_object('hygiene_tracker_data',$2::jsonb) where user_id=$1",[owner,JSON.stringify(stringFormat?JSON.stringify(original):original)]);
+  await db.exec(weekly);
+  const updated=(await db.query('select data,revision from public.user_data where user_id=$1',[owner])).rows[0],raw=updated.data.hygiene_tracker_data,h=stringFormat?JSON.parse(raw):raw;
+  assert.deepEqual(h.legacyRetained,original.legacyRetained);normalizeCustomTrackerRegistry(h.__trackers_v2,{strict:true});
+  assert.deepEqual(h.__trackers_v2.trackers[0],registry.trackers[0]);assert.deepEqual(h.__trackers_v2.histories['trk_original-exterior'],registry.histories['trk_original-exterior']);
+  for(const card of h.__trackers_v2.trackers.slice(1)){assert.equal(card.intervalDays,7);assert.deepEqual(card.thresholds,{mode:'automatic',yellow:4,orange:5,red:7});assert.deepEqual(h.__trackers_v2.histories[card.id],[]);}
+  const {hygiene_tracker_data:omit,...retained}=updated.data;const {hygiene_tracker_data:oldOmit,...expected}=rowBefore;assert.deepEqual(retained,expected);
+  await db.exec(weekly);assert.equal((await db.query('select revision from public.user_data where user_id=$1',[owner])).rows[0].revision,updated.revision);
+ }
+ assert.deepEqual((await db.query('select data from public.user_data where user_id=$1',[friend])).rows[0].data,friendBefore);
  console.log('Charging SQL: seed preservation, row locking, idempotence, conflicts, atomic restore, validation, grants and account isolation passed.');
+ console.log('Weekly computer cards: string/object formats, exact existing-card/history preservation, 7-day automatic thresholds, empty histories, account isolation and idempotence passed.');
 } finally {await db.close();}
