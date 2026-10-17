@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 
 import {
+    BACKUP_KEYS,
     applyBackupEntries,
     BACKUP_FORMAT_VERSION,
     BackupValidationError,
@@ -136,9 +137,9 @@ test('versioned backups round-trip every cloud-owned key', () => {
 
     assert.equal(payload.backupVersion, BACKUP_FORMAT_VERSION);
     assert.equal(payload.exportDate, now.toISOString());
-    assert.deepEqual(Object.keys(payload.data), CLOUD_SYNC_KEYS);
+    assert.deepEqual(Object.keys(payload.data), BACKUP_KEYS);
     assert.equal(plan.mode, 'full');
-    assert.equal(plan.entries.length, CLOUD_SYNC_KEYS.length);
+    assert.equal(plan.entries.length, BACKUP_KEYS.length);
     assert.equal(
         plan.entries.find(([key]) => key === 'tareas_list')[1],
         storedValues.get('tareas_list')

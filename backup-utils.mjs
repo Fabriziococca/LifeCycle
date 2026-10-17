@@ -17,6 +17,8 @@ import {
 } from './vehicle-catalog-utils.mjs';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs';
 import { PLANNING_KEYS, validatePlanning } from './planning-utils.mjs';
+import { WORK_KEY, validateWork } from './work-utils.mjs';
+export const BACKUP_KEYS = Object.freeze([...CLOUD_SYNC_KEYS,WORK_KEY]);
 
 export const BACKUP_APP_NAME = 'LifeCycle';
 export const BACKUP_FORMAT_VERSION = 2;
@@ -37,6 +39,7 @@ const FORBIDDEN_PROPERTY_NAMES = new Set([
 ]);
 
 const JSON_ROOT_TYPES = Object.freeze({
+    lifecycle_work: 'object',
     lifecycle_saylor: 'object',
     lifecycle_faculty: 'object',
     hygiene_tracker_data: 'object',
@@ -157,6 +160,7 @@ const CATEGORY_GROUPS = Object.freeze([
     { label: 'Finanzas', keys: ['finanzasData'] },
     { label: 'Saylor', keys: ['lifecycle_saylor'] },
     { label: 'Facultad', keys: ['lifecycle_faculty'] },
+    { label: 'Trabajo · clientes y seguimientos', keys: [WORK_KEY] },
     { label: 'Suscripciones', keys: ['lifecycle_subscriptions'] },
     {
         label: 'Tareas',
@@ -170,7 +174,7 @@ const CATEGORY_GROUPS = Object.freeze([
     }
 ]);
 
-const SUPPORTED_KEY_SET = new Set(CLOUD_SYNC_KEYS);
+const SUPPORTED_KEY_SET = new Set(BACKUP_KEYS);
 const OPTIONAL_FULL_BACKUP_KEYS = new Set([
     // Incorporada después de publicar el formato v2. Los backups v2 anteriores
     // siguen siendo válidos y restauran esta sección como vacía.
@@ -553,6 +557,9 @@ function validateGymSession(session, path) {
 
 function validateBackupDataShape(key, value) {
     switch (key) {
+        case WORK_KEY:
+            validateWork(value);
+            break;
         case 'hygiene_tracker_data':
             Object.entries(value).forEach(([itemKey, itemValue]) => {
                 if (itemKey === CUSTOM_TRACKER_FIELD) {
@@ -988,7 +995,7 @@ export function createBackupPayload(readStorageValue, now = new Date()) {
     const safeNow = Number.isFinite(now?.getTime?.()) ? new Date(now.getTime()) : new Date();
     const data = {};
 
-    CLOUD_SYNC_KEYS.forEach(key => {
+    BACKUP_KEYS.forEach(key => {
         const rawValue = readStorageValue(key);
         data[key] = normalizeBackupStorageEntry(key, rawValue).portableValue;
     });
@@ -1053,7 +1060,7 @@ export function parseAndValidateBackupText(text) {
             throw new BackupValidationError(`El backup está incompleto: falta la sección "${missingKeys[0]}".`);
         }
 
-        const entries = CLOUD_SYNC_KEYS.filter(key => !PLANNING_KEYS.includes(key) || Object.hasOwn(root.data,key)).map(key => {
+        const entries = BACKUP_KEYS.filter(key => (![...PLANNING_KEYS,WORK_KEY].includes(key)) || Object.hasOwn(root.data,key)).map(key => {
             const normalized = normalizeBackupStorageEntry(key, root.data[key]);
             return [key, normalized.storageValue];
         });
@@ -1062,12 +1069,12 @@ export function parseAndValidateBackupText(text) {
             mode: 'full',
             version: BACKUP_FORMAT_VERSION,
             entries,
-            categories: getBackupCategories(CLOUD_SYNC_KEYS)
+            categories: getBackupCategories(entries.map(([key])=>key))
         };
     }
 
     const entries = [];
-    CLOUD_SYNC_KEYS.forEach(key => {
+    BACKUP_KEYS.forEach(key => {
         if (!Object.hasOwn(root, key) || root[key] === null || root[key] === undefined) return;
         const normalized = normalizeBackupStorageEntry(key, root[key]);
         entries.push([key, normalized.storageValue]);

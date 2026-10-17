@@ -1,5 +1,6 @@
 import { createBackupPayload } from '../backup-utils.mjs';
 import { CLOUD_SYNC_KEYS } from '../sync-config.mjs';
+import { WORK_KEY } from '../work-utils.mjs';
 import { createRecoveryVault, encryptRecoverySnapshot, readRecoveryVault, saveRecoveryVault } from '../recovery-vault.mjs';
 
 export class RecoveryModule {
@@ -46,6 +47,7 @@ export class RecoveryModule {
         button.disabled = true;
         try {
             this.setStatus('Creando copia cifrada en este dispositivo…');
+            await this.app.work?.store.load(true);
             const vault = await createRecoveryVault(ownerId, password.value);
             password.value = confirm.value = '';
             if (ownerId !== this.app.auth?.readyUserId) return;
@@ -65,13 +67,16 @@ export class RecoveryModule {
 
     async capture() {
         const ownerId = this.app.auth?.readyUserId;
-        if (!ownerId) return;
+        if (!ownerId || this.app.work?.store.busy || this.app.auth.planningWriteCount) return;
         try {
-            const fingerprint = JSON.stringify([ownerId, this.app.auth.pendingSyncKeys.size, this.app.auth.isSyncing,
-                CLOUD_SYNC_KEYS.map(key => localStorage.getItem(key))]);
+            let fingerprint = JSON.stringify([ownerId, this.app.auth.pendingSyncKeys.size, this.app.auth.isSyncing,
+                [...CLOUD_SYNC_KEYS,WORK_KEY].map(key => localStorage.getItem(key))]);
             if (fingerprint === this.lastFingerprint) return;
             const vault = await readRecoveryVault(ownerId);
             if (!vault || ownerId !== this.app.auth?.readyUserId) return;
+            await this.app.work?.store.load();
+            fingerprint = JSON.stringify([ownerId, this.app.auth.pendingSyncKeys.size, this.app.auth.isSyncing,
+                [...CLOUD_SYNC_KEYS,WORK_KEY].map(key => localStorage.getItem(key))]);
             const snapshot = await encryptRecoverySnapshot(vault, this.payload(ownerId));
             if (ownerId !== this.app.auth?.readyUserId) return;
             await saveRecoveryVault(vault, snapshot);

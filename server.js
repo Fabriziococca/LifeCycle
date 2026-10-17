@@ -9,6 +9,7 @@ const sharedRules = require('./shared_rules.json');
 const { isProjectDeliveryPending } = require('./project-status-utils.mjs');
 const { getPauseAdjustedDate } = require('./pause-utils.mjs');
 const { dueFacultyNotices } = require('./planning-utils.mjs');
+const { workNotificationCandidates, validateWork, isWorkRetryRelevant } = require('./work-utils.mjs');
 const {
     DEFAULT_PUSH_TTL_SECONDS,
     TIMED_NOTIFICATION_GRACE_MINUTES,
@@ -1193,10 +1194,16 @@ async function retryUndeliveredPushes(now = Date.now(), { signal = null } = {}) 
     const subscriptionsByUser = groupSubscriptionsByUser(subscriptionResult.data || []);
     const currentDocuments = await schedulerDocuments.load({ signal });
     const documentsByUser = new Map(currentDocuments.map(row => [row.user_id, row.data || {}]));
+    const workRetries = candidates.some(c=>String(c.alert_key).startsWith('work:'))
+        ? await loadWorkNotificationStates(new Date(now),signal) : [];
+    const workRetryStates = new Map(workRetries.map(row=>[row.user_id,row.state]));
 
     for (const candidate of candidates) {
         throwIfAborted(signal);
-        if (!documentsByUser.has(candidate.user_id) || !isPushRetryRelevant(candidate.alert_key, documentsByUser.get(candidate.user_id))) {
+        const relevant = String(candidate.alert_key).startsWith('work:')
+            ? workRetryStates.has(candidate.user_id) && isWorkRetryRelevant(workRetryStates.get(candidate.user_id),candidate,new Date(now))
+            : documentsByUser.has(candidate.user_id) && isPushRetryRelevant(candidate.alert_key, documentsByUser.get(candidate.user_id));
+        if (!relevant) {
             summary.noLongerRelevant++;
             continue;
         }
@@ -2546,6 +2553,30 @@ function getArgentinaTime() {
 // ==========================================================================
 let scheduledAlertCheckRunning = false;
 
+async function loadWorkNotificationStates(now,signal) {
+    const {data,error}=await withAbortSignal(supabase.rpc('work_notification_states',{p_now:now.toISOString()}),signal);
+    if(error) throw new Error('No se pudieron verificar los avisos de Trabajo: '+error.code);
+    return (data||[]).map(row=>({...row,state:validateWork(row.state)}));
+}
+async function checkWorkAlerts({signal=null}={}) {
+    if(!supabase)return;
+    const now=new Date(), rows=await loadWorkNotificationStates(now,signal);
+    const due=rows.flatMap(row=>workNotificationCandidates(row.state,now).map(notice=>({userId:row.user_id,notice})));
+    if(!due.length)return;
+    // These notices require the reservation/receipt schema: never fall back to
+    // an unclaimed send, which could repeat on every scheduler tick.
+    const probe=await withAbortSignal(supabase.from('notification_delivery_log').select('id,receipt_token_hash').limit(1),signal);
+    if(probe.error)throw new Error('No se confirmó la deduplicación de avisos de Trabajo.');
+    notificationHistorySchemaAvailable=true;notificationTelemetrySchemaAvailable=true;
+    const subs=await withAbortSignal(supabase.from('push_subscriptions').select('id,user_id,subscription,device_name,created_at').in('user_id',[...new Set(due.map(n=>n.userId))]),signal);
+    if(subs.error)throw new Error('No se pudieron cargar los dispositivos de Trabajo.');
+    const grouped=groupSubscriptionsByUser(subs.data||[]);
+    for(const {userId,notice} of due) {
+        throwIfAborted(signal);
+        await sendPushToSubscriptions({userId,subscriptions:grouped[userId]||[],payload:JSON.stringify({title:notice.title,body:notice.body,url:'/?open=work'}),context:'Trabajo',alertKey:notice.key,scheduledAt:notice.scheduledAt,expiresAt:notice.expiresAt,urgency:'high',signal});
+    }
+}
+
 async function runScheduledAlertChecks({
     forceAll = false,
     trigger = 'scheduler'
@@ -2583,6 +2614,11 @@ async function runScheduledAlertChecks({
             [
                 'configured',
                 signal => checkAndSendAllAlerts(forceAll, { signal }),
+                SCHEDULER_ENGINE_TIMEOUT_MS
+            ],
+            [
+                'work',
+                signal => checkWorkAlerts({signal}),
                 SCHEDULER_ENGINE_TIMEOUT_MS
             ]
         ];

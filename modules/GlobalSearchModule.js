@@ -7,6 +7,7 @@ import {
 import { matchesKeyboardShortcut } from '../keyboard-shortcuts.mjs?v=20260801-shortcuts';
 
 const GROUP_META = Object.freeze({
+    work: Object.freeze({label:'Trabajo',icon:'ph-briefcase'}),
     command: Object.freeze({ label: 'Acciones', icon: 'ph-lightning' }),
     planning: Object.freeze({ label: 'Facultad y Saylor', icon: 'ph-graduation-cap' }),
     tracker: Object.freeze({ label: 'Tarjetas', icon: 'ph-stack' }),
@@ -150,6 +151,7 @@ export class GlobalSearchModule {
 
     buildIndex() {
         return [
+            ...this.getWorkItems(),
             ...this.getCommandItems(),
             ...this.getPlanningItems(),
             ...this.getTrackerItems(),
@@ -228,6 +230,13 @@ export class GlobalSearchModule {
                 target: { command: 'notification-settings' }
             }
         ].filter(item => item.id !== 'command:transcripciones' || this.app.transcriptions);
+    }
+
+    getWorkItems() {
+        let data;try{data=this.app.work?.store.value;}catch{return [];}
+        if(!data)return [];
+        return [...data.clients.map(c=>({id:'work-client:'+c.id,kind:'work',title:c.name,subtitle:c.archived?'Cliente archivado':'Cliente',keywords:[c.contact,c.context],target:{clientId:c.id}})),
+            ...data.followups.map(f=>({id:'work-followup:'+f.id,kind:'work',title:f.title,subtitle:'Seguimiento · '+(data.clients.find(c=>c.id===f.clientId)?.name||''),keywords:[f.actor,f.status],target:{clientId:f.clientId}}))];
     }
 
     getPlanningItems() {
@@ -533,7 +542,9 @@ export class GlobalSearchModule {
         if (!result) return;
         this.close({ restoreFocus: false });
 
-        if (result.kind === 'planning') {
+        if(result.kind==='work') {
+            this.app.work.clientId=result.target.clientId;this.app.activateSection('work-clients-section');
+        } else if (result.kind === 'planning') {
             if(result.target.section==='trading-section') { this.app.saylor?.activate('saylor'); this.app.activateSection?.('trading-section'); }
             else if(result.target.eventId) this.app.notificationsCenter?.openItem({module:'faculty',id:result.target.eventId});
             else { const f=this.app.faculty; if(f){f.view=result.target.view;f.subject=result.target.subjectId||'';f.month='';}this.app.activateSection?.('faculty-section'); }

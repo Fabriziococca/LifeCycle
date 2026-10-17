@@ -564,6 +564,7 @@ export class AuthSyncModule {
     }
 
     clearLocalUserData() {
+        this.app.work?.reset();
         const planningDialog = globalThis.document?.getElementById?.('planning-dialog');
         if (planningDialog) {
             planningDialog.remove();
@@ -1039,6 +1040,7 @@ export class AuthSyncModule {
             }
             this.app.saylor?.render();
             this.app.faculty?.render();
+            this.app.work?.render();
             if (this.app.tareas) {
                 try { this.app.tareas.render(); } catch (e) { console.error("Error rendering tareas:", e); }
             }

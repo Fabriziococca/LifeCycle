@@ -44,6 +44,7 @@
     <link rel="stylesheet" href="style.css">
     <link rel="stylesheet" href="privacy-lock.css">
     <link rel="stylesheet" href="planning.css?v=20261014">
+    <link rel="stylesheet" href="work.css?v=20261017">
 </head>
 <body>
     <div id="access-gate" class="access-gate" aria-live="polite">
@@ -276,6 +277,9 @@
             <button class="nav-btn" data-section="gym-section">
                 <i class="ph ph-barbell"></i> Gimnasio
             </button>
+            <button class="nav-btn hidden" data-section="work-summary-section"><i class="ph ph-house-line"></i><span class="nav-label">Resumen</span></button>
+            <button class="nav-btn hidden" data-section="work-clients-section"><i class="ph ph-users"></i><span class="nav-label">Clientes</span></button>
+            <button class="nav-btn hidden" data-section="work-followups-section"><i class="ph ph-list-checks"></i><span class="nav-label">Seguimientos</span></button>
             <button class="nav-btn" data-section="projects-section">
                 <i class="ph ph-briefcase"></i> Proyectos
             </button>
@@ -1452,6 +1456,9 @@
 
             
         <!-- SECCIÓN: PROYECTOS (ProjectPulse) -->
+        <section id="work-summary-section" class="main-section hidden"><div class="work-content planning-workspace"></div></section>
+        <section id="work-clients-section" class="main-section hidden"><div class="work-content planning-workspace"></div></section>
+        <section id="work-followups-section" class="main-section hidden"><div class="work-content planning-workspace"></div></section>
         <section id="projects-section" class="main-section hidden">
             <!-- Dashboard Financiero -->
             <div class="financial-summary-toolbar">

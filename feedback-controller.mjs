@@ -128,7 +128,8 @@ export class FeedbackController {
                 this.resolve(false);
             }
         });
-        dialog.addEventListener('keydown', this.boundKeydown);
+        // Escape must also work in the frame before focus enters the dialog.
+        this.document.addEventListener('keydown', this.boundKeydown, true);
     }
 
     message(options) {
@@ -203,6 +204,7 @@ export class FeedbackController {
 
         if (event.key === 'Escape') {
             event.preventDefault();
+            event.stopPropagation();
             this.resolve(false);
             return;
         }

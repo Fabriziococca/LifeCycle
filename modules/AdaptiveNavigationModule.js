@@ -149,10 +149,12 @@ export class AdaptiveNavigationModule {
     getVisibleModuleIds() {
         return Object.keys(this.getModuleCatalog()).filter(moduleId => (
             this.app.customTrackers?.isModuleVisible?.(moduleId) !== false
+            && this.app.work?.visible(moduleId) !== false
         ));
     }
 
     getMobileFavoriteIds(visibleModuleIds) {
+        if(this.app.work?.area==='work')return ['work-summary-section','work-clients-section','work-followups-section','projects-section','finanzas-section'].filter(id=>visibleModuleIds.includes(id)).slice(0,4);
         const requested = this.app.customTrackers?.getFavoriteModuleIds?.() || [];
         const visible = new Set(visibleModuleIds);
         const favorites = requested.filter(moduleId => visible.has(moduleId));
@@ -170,6 +172,7 @@ export class AdaptiveNavigationModule {
         const favoriteSet = new Set(favorites);
         this.moduleButtons.forEach((button, moduleId) => {
             button.classList.toggle('is-mobile-favorite', favoriteSet.has(moduleId));
+            button.classList.toggle('hidden', !visibleModuleIds.includes(moduleId));
         });
         this.renderMoreList(visibleModuleIds.filter(moduleId => !favoriteSet.has(moduleId)));
         document.body.dataset.navigationMode = window.innerWidth < 768

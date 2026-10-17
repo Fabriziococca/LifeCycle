@@ -17,6 +17,7 @@ import { FinanzasModule } from './modules/FinanzasModule.js';
 import { TradingModule } from './modules/TradingModule.js';
 import { SaylorModule } from './modules/SaylorModule.js';
 import { FacultyModule } from './modules/FacultyModule.js';
+import { WorkModule } from './modules/WorkModule.js';
 import { TareasModule } from './modules/TareasModule.js';
 import { AlertsModule } from './modules/AlertsModule.js';
 import { NotificationsCenterModule } from './modules/NotificationsCenterModule.js';
@@ -307,6 +308,7 @@ class AppController {
     setFinancialAmountsHidden(hidden) {
         this.financialAmountsHidden = Boolean(hidden);
         this.saylor?.render();
+        this.work?.render();
         localStorage.setItem(
             FINANCIAL_AMOUNTS_HIDDEN_KEY,
             this.financialAmountsHidden ? '1' : '0'
@@ -505,7 +507,9 @@ class AppController {
     }
 
     renderSection(sectionId) {
-        if (sectionId === 'hoy-section') {
+        if (sectionId.startsWith('work-')) {
+            this.work?.render();
+        } else if (sectionId === 'hoy-section') {
             this.today?.render();
         } else if (sectionId === 'cuidado-section') {
             this.grooming?.render();
@@ -572,6 +576,7 @@ class AppController {
         const targetButton = mainNav?.querySelector(`.nav-btn[data-section="${sectionId}"]`);
         const targetSection = document.getElementById(sectionId);
         if (!targetButton || !targetSection) return false;
+        this.work?.enter(sectionId);
 
         mainNav.classList.remove('hidden');
         document.body.classList.remove('profile-view-active');
@@ -668,6 +673,11 @@ class AppController {
         const hash = window.location.hash || '';
 
         let itemToOpen = null;
+
+        if (openParam === 'work') {
+            this.activateSection('work-summary-section');
+            return;
+        }
 
         if (openParam === 'vitamina_d' || hash.includes('vitamina_d')) {
             itemToOpen = {
@@ -957,6 +967,7 @@ class AppController {
         this.faculty = new FacultyModule(this);
         this.tareas = new TareasModule(this);
         this.customTrackers = new CustomTrackersModule(this);
+        this.work = new WorkModule(this);
         this.backups = new BackupModule(this);
         this.recovery = new RecoveryModule(this);
         this.privacyLock = new PrivacyLockModule(this);
@@ -990,6 +1001,7 @@ class AppController {
                 else if (activeSection.id === 'finanzas-section') this.finanzas.render();
                 else if (activeSection.id === 'trading-section') this.trading.render();
                 else if (activeSection.id === 'tareas-section') this.tareas.render();
+                else if (activeSection.id.startsWith('work-')) this.work.render();
                 else {
                     const customModule = this.customTrackers?.getCustomModuleBySectionId?.(
                         activeSection.id

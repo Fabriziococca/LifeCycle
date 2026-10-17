@@ -26,7 +26,9 @@ const VALID_SECTIONS = new Set([
     'projects-section',
     'finanzas-section',
     'trading-section',
-    'tareas-section'
+    'tareas-section',
+    'faculty-section', 'suscripciones-section',
+    'work-summary-section', 'work-clients-section', 'work-followups-section'
 ]);
 
 const VALID_PROFILE_TABS = new Set([

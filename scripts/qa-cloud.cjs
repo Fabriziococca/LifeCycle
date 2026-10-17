@@ -3,6 +3,7 @@ function installFakeCloud() {
     const cloudDocument = JSON.parse(sessionStorage.getItem('qa-cloud-document') || '{}');
     window.qaCloudDocument = () => structuredClone(cloudDocument);
     let revision = 1;
+    let work=JSON.parse(sessionStorage.getItem('qa-work')||'null')||{version:1,revision:0,clients:[],links:[],followups:[],notes:[],settings:{dailyEnabled:false,dailyTime:'15:00',financeScopes:{}}};
     const listeners = new Set();
     window.qaSyncMetrics = { writes: 0, realtimeEvents: 0, fullReads: 0, revisionReads: 0, transcriptionReads: 0 };
     window.qaAuthListeners = [];
@@ -45,6 +46,17 @@ function installFakeCloud() {
         },
         from: table => new Query(table),
         rpc: async (name, parameters) => {
+            if(name==='get_work_state')return {data:structuredClone(work),error:null};
+            if(name==='work_backup_snapshot')return {data:{work:structuredClone(work),personal:structuredClone(cloudDocument)},error:null};
+            if(name==='save_work_state') {
+                if(parameters.p_expected_revision!==work.revision) {
+                    if(JSON.stringify(work)===JSON.stringify(parameters.p_state))return {data:structuredClone(work),error:null};
+                    return {data:null,error:{code:'40001',message:'revision conflict'}};
+                }
+                work=structuredClone(parameters.p_state);sessionStorage.setItem('qa-work',JSON.stringify(work));
+                if(parameters.p_updates){Object.assign(cloudDocument,parameters.p_updates);(parameters.p_delete_keys||[]).forEach(k=>delete cloudDocument[k]);sessionStorage.setItem('qa-cloud-document',JSON.stringify(cloudDocument));revision++;}
+                return {data:structuredClone(work),error:null};
+            }
             if (name === 'save_lifecycle_planning') {
                 const key=parameters.p_key, current=cloudDocument[key] ? (typeof cloudDocument[key]==='string'?JSON.parse(cloudDocument[key]):cloudDocument[key]) : {revision:0};
                 if(JSON.stringify(current)===JSON.stringify(parameters.p_value)) return {data:{workspace:structuredClone(current),documentRevision:revision},error:null};

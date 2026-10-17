@@ -1,6 +1,7 @@
 import { escapeHtml as esc } from '../text-utils.mjs';
 import { getLocalISODate, getLocalISOMonth } from '../utils.js';
 import { RESOURCE_KEYS } from '../resource-policy.mjs';
+import { financeWorkScope, WORK_SCOPES } from '../work-utils.mjs';
 import { financeWorkspace, buildFinanceAccount, buildFinanceMovement, buildFinanceTransfer,
     buildFinanceBudget, buildWorkspaceMovements, accountBalanceMinor, budgetSpentMinor,
     validateFinanceWorkspace } from '../finance-workspace-utils.mjs';
@@ -15,12 +16,13 @@ export class FinanceWorkspaceModule {
         this.root = document.getElementById('finance-workspace');
         if (!this.root) return;
         this.tab = 'summary'; this.currency = 'USD'; this.month = this.app.uiState?.financeMonth || getLocalISOMonth();
-        this.query = ''; this.type = ''; this.page = 1;
+        this.query = ''; this.type = ''; this.page = 1; this.scope = 'all';
         this.root.innerHTML = `
             <div class="fw-toolbar"><div><span class="fw-eyebrow">TU DINERO, EN ORDEN</span><h2>Finanzas</h2></div>
             <button type="button" class="btn-primary" data-fw-action="new-movement">＋ Nuevo movimiento</button></div>
             <div class="fw-controls"><label>Mes <input id="fw-month" type="month" value="${esc(this.month)}"></label>
             <label>Moneda de los registros <select id="fw-currency">${option('USD','USD','USD')}${option('ARS','ARS','USD')}</select></label>
+            <label>Ámbito <select id="fw-scope">${Object.entries(WORK_SCOPES).map(([key,label])=>option(key,label,'all')).join('')}</select></label>
             <button type="button" class="financial-privacy-toggle" data-fw-action="privacy">Mostrar / ocultar montos</button></div>
             <nav class="fw-tabs" aria-label="Secciones de Finanzas">${Object.entries(TABS).map(([key, label]) => `<button type="button" data-fw-tab="${key}">${label}</button>`).join('')}</nav>
             <p class="fw-note">Los registros antiguos sin moneda original aparecen como equivalente USD guardado. No se inventan importes en pesos ni se convierten al valor de hoy.</p>
@@ -38,6 +40,7 @@ export class FinanceWorkspaceModule {
             this.month = event.target.value; this.page = 1; this.app.saveUiState?.({ financeMonth: this.month }); this.render();
         });
         this.root.querySelector('#fw-currency').addEventListener('change', event => { this.currency = event.target.value; this.page = 1; this.render(); });
+        this.root.querySelector('#fw-scope').addEventListener('change', event => { this.scope=event.target.value;this.page=1;this.render(); });
         this.root.querySelector('#fw-search').addEventListener('input', event => { this.query = event.target.value; this.page = 1; this.renderBody(); });
         this.root.querySelector('#fw-type').addEventListener('change', event => { this.type = event.target.value; this.page = 1; this.renderBody(); });
         this.dialog.addEventListener('close', () => this.returnFocus?.isConnected && this.returnFocus.focus());
@@ -49,13 +52,15 @@ export class FinanceWorkspaceModule {
     get movements() { return buildWorkspaceMovements({ ...this.finance.data, expenses: this.finance.getCombinedExpenses() }, this.finance.getCombinedEntries()); }
     money(value, code = this.currency) { return this.app.financialAmountsHidden ? '••••••' : new Intl.NumberFormat('es-AR', { style: 'currency', currency: code }).format(value / 100); }
     category(value, type) { return this.finance.getFinanceRecurringCategoryLabel(type, value); }
-    monthly() { return this.movements.filter(item => item.date?.slice(0, 7) === this.month && item.nativeCurrency === this.currency); }
+    scopeOf(item) { return financeWorkScope(item,this.app.work?.store?.state?.settings?.financeScopes||{}); }
+    monthly() { return this.movements.filter(item => item.date?.slice(0, 7) === this.month && item.nativeCurrency === this.currency && (this.scope==='all'||this.scopeOf(item)===this.scope)); }
     empty(text, action = '') { return `<div class="fw-empty"><h3>Todavía no hay registros</h3><p>${esc(text)}</p>${action}</div>`; }
     button(action, text, recordId = '') { return `<button type="button" class="btn-secondary" data-fw-action="${action}" data-fw-id="${esc(recordId)}">${esc(text)}</button>`; }
     render() {
         if (!this.root) return;
         this.root.querySelectorAll('[data-fw-tab]').forEach(button => button.setAttribute('aria-current', button.dataset.fwTab === this.tab ? 'page' : 'false'));
         this.root.querySelector('#fw-filters').hidden = this.tab !== 'movements';
+        this.root.querySelector('#fw-scope').disabled = !['summary','movements'].includes(this.tab);
         this.renderBody();
     }
     renderBody() {
@@ -85,7 +90,7 @@ export class FinanceWorkspaceModule {
             const account = this.workspace.accounts.find(account => account.id === item.accountId);
             return `<article class="fw-movement"><div><span class="fw-kind ${item.type === 'income' ? 'fw-positive' : 'fw-negative'}">${item.type === 'income' ? '↗ Ingreso' : '↘ Gasto'}</span><h4>${esc(item.description || 'Sin detalle')}</h4>
                 <p>${esc(item.date || '')} · ${esc(this.category(item.category,item.type))} · ${esc(item.sourceLabel)} · ${esc(account?.name || 'Sin cuenta asignada')}</p>${item.legacyEquivalent ? '<small>Equivalente USD guardado; moneda original no disponible.</small>' : ''}</div>
-                <div class="fw-movement-end"><strong>${this.money(item.nativeAmountMinor,item.nativeCurrency)}</strong><div>${item.editable ? this.button('edit-movement','Editar',item.key) + this.button('delete-movement','Eliminar',item.key) : this.button(item.subscriptionId ? 'subscriptions' : 'projects', 'Ver origen')}</div></div></article>`;
+                <div class="fw-movement-end"><strong>${this.money(item.nativeAmountMinor,item.nativeCurrency)}</strong><small>${WORK_SCOPES[this.scopeOf(item)]}</small><div>${!['Proyecto','Saylor'].includes(item.sourceLabel)?this.button('scope','Clasificar',item.key):''}${item.editable ? this.button('edit-movement','Editar',item.key) + this.button('delete-movement','Eliminar',item.key) : this.button(item.sourceLabel==='Saylor'?'saylor':item.subscriptionId ? 'subscriptions' : 'projects', 'Ver origen')}</div></div></article>`;
         }).join('')}</div>`;
     }
     movementList() {
@@ -128,7 +133,13 @@ export class FinanceWorkspaceModule {
         if (action === 'all-movements') { this.tab = 'movements'; this.render(); return; }
         if (action === 'previous' || action === 'next') { this.page = Math.max(1,this.page+(action==='next'?1:-1)); this.renderBody(); return; }
         if (action === 'recurring') { this.finance.openFinanceRecurringModal(button); return; }
-        if (action === 'subscriptions' || action === 'projects') { this.app.activateSection(action==='subscriptions'?'suscripciones-section':'projects-section'); return; }
+        if (action === 'subscriptions' || action === 'projects' || action==='saylor') { this.app.activateSection(action==='saylor'?'trading-section':action==='subscriptions'?'suscripciones-section':'projects-section'); return; }
+        if (action==='scope') {
+            const item=this.movements.find(x=>x.key===recordId);if(!item)return;
+            const {planningDialog}=await import('./PlanningStore.js');
+            const data=this.app.work.store.value,revision=data.revision;
+            planningDialog(this.app,'Clasificar movimiento',`<p>Se cambia sólo el ámbito. El importe, la cuenta y el registro original se conservan.</p><label>Ámbito<select name="scope">${Object.entries(WORK_SCOPES).filter(([key])=>key!=='all').map(([key,label])=>option(key,label,this.scopeOf(item))).join('')}</select></label>`,async f=>{data.settings.financeScopes[item.type+':'+item.id]=f.get('scope');await this.app.work.store.save(data,revision);this.render();});return;
+        }
         if (action === 'void-transfer') {
             const ownerId = this.app.auth?.readyUserId;
             const confirmed = await this.app.confirmAction({ title:'Anular traspaso / pago', message:'Se conserva el registro, pero deja de afectar los saldos. No revierte ningún pago real en tu banco.', confirmLabel:'Anular registro', tone:'warning' });

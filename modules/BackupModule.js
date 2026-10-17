@@ -37,10 +37,11 @@ export class BackupModule {
         }
     }
 
-    exportUnifiedData() {
+    async exportUnifiedData() {
         try {
+            const snapshot=this.app.work ? await this.app.work.store.backupSnapshot() : null;
             const unifiedData = createBackupPayload(
-                key => localStorage.getItem(key)
+                key => snapshot ? snapshot[key] ?? null : localStorage.getItem(key)
             );
             const serializedBackup = JSON.stringify(unifiedData, null, 2);
             const blob = new Blob(
@@ -149,6 +150,7 @@ export class BackupModule {
     async importData(event) {
         const file = event.target.files?.[0];
         if (!file) return;
+        const ownerId=this.app.auth?.readyUserId,generation=this.app.auth?.syncGeneration;
 
         this.setImportBusy(true);
         this.setStatus('Validando el archivo antes de modificar tus datos...', 'working');
@@ -175,7 +177,10 @@ export class BackupModule {
             }
 
             this.setStatus('Restaurando el backup de forma segura...', 'working');
-            const changedKeys = this.applyPlanAtomically(plan);
+            if(ownerId!==this.app.auth?.readyUserId||generation!==this.app.auth?.syncGeneration)throw new BackupValidationError('La sesión cambió. Volvé a seleccionar el archivo en la cuenta correcta.');
+            const changedKeys = this.app.work
+                ? await this.app.work.store.restore(plan)
+                : this.applyPlanAtomically(plan);
 
             if (changedKeys.length === 0) {
                 this.setStatus('El backup ya coincide con los datos actuales.', 'success');
@@ -188,7 +193,7 @@ export class BackupModule {
             }
 
             this.setStatus('Datos restaurados. Sincronizando con la nube...', 'working');
-            const cloudSynced = await this.queueCloudSync(changedKeys);
+            const cloudSynced = this.app.work ? true : await this.queueCloudSync(changedKeys);
             const changedCategories = getBackupCategories(changedKeys);
             const categoryList = changedCategories.map(category => `- ${category}`).join('\n');
 
@@ -221,7 +226,7 @@ export class BackupModule {
                 : 'No se pudo procesar el archivo sin arriesgar tus datos.';
             this.setStatus(message, 'error');
             await this.app.showMessage({
-                title: 'No se importó ningún dato',
+                title: 'La restauración no se confirmó',
                 message,
                 tone: 'danger'
             });

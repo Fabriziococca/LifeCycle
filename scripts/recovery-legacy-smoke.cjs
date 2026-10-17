@@ -26,9 +26,11 @@ async function runRecoverySmoke(page, {width, theme}) {
     assert.deepEqual(preserved,{cycle:{status:'paused',startDate:null},source:{status:'paused',startDate:null},valid:true});
     await page.screenshot({path:`.tmp-sb/ui-smoke/recovery-legacy-${width}-${theme}.png`,fullPage:true});
     await page.getByRole('link',{name:'Abrir consulta y descargar copia cifrada',exact:true}).click();
+    await page.locator('#snapshot-select option').first().waitFor({state:'attached'});
     await page.locator('#vault-password').fill('incorrect-key');
     await page.locator('#unlock-form [type=submit]').click();
-    await page.locator('#recovery-message').filter({hasText:'Clave incorrecta'}).waitFor();
+    try{await page.locator('#recovery-message').filter({hasText:'Clave incorrecta'}).waitFor();}
+    catch(error){console.log('Recovery diagnostic:',await page.locator('#recovery-message').textContent());throw error;}
     assert.equal(await page.locator('#read-view').isVisible(),false);
     await page.context().setOffline(true);
     await page.locator('#vault-password').fill('synthetic-recovery-pass');
