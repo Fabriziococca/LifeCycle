@@ -23,6 +23,15 @@ const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
     try {
         for (const width of (process.env.LIFECYCLE_UI_WIDTH ? [Number(process.env.LIFECYCLE_UI_WIDTH)] : process.env.LIFECYCLE_UI_SMOKE_ONLY === 'audit' ? [1920,1440,1024,768,714,390,360] : [1440,390])) for (const theme of ['dark', 'light']) {
             const context = await browser.newContext({ viewport: { width, height: width < 500 ? 844 : 768 }, serviceWorkers: 'block', isMobile: width < 500, hasTouch: width < 500 });
+            if(process.env.LIFECYCLE_UI_SMOKE_ONLY==='work') {
+                // Reproduce an existing account with Hoy hidden before login,
+                // rather than changing preferences during startup hydration.
+                await context.addInitScript(()=>{
+                    if(!sessionStorage.getItem('qa-cloud-document'))sessionStorage.setItem('qa-cloud-document',JSON.stringify({
+                        hygiene_tracker_data:JSON.stringify({__trackers_v2:{version:3,customModules:[],trackers:[],histories:{},modulePreferences:{'hoy-section':{visible:false}}}})
+                    }));
+                });
+            }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'recovery') {
                 await context.addInitScript(() => {
                     if (!sessionStorage.getItem('qa-cloud-document')) sessionStorage.setItem('qa-cloud-document',JSON.stringify({

@@ -2,13 +2,14 @@ import { escapeHtml as esc } from '../text-utils.mjs';
 import { WORK_SECTIONS, WORK_NAV, WORK_ACTORS, WORK_SCOPES, argentinaDate, workOverview, activeProjectCandidates } from '../work-utils.mjs';
 import { planningDialog } from './PlanningStore.js';
 import { WorkStore } from './WorkStore.js';
+import { isProductModuleEnabled } from '../product-features.mjs';
 const field=(label,name,value='',type='text',extra='')=>`<label>${label}<input class="text-input" name="${name}" value="${esc(value)}" type="${type}" ${extra}></label>`;
 const opt=(value,label,current)=>`<option value="${esc(value)}" ${String(current)===String(value)?'selected':''}>${esc(label)}</option>`;
 const btn=(action,label,id='',extra='')=>`<button type="button" class="btn btn-secondary" data-work-action="${action}" data-id="${esc(id)}" ${extra}>${label}</button>`;
 const stamp=()=>new Date().toISOString();
 export class WorkModule {
     constructor(app) {
-        this.app=app;this.area='personal';this.store=new WorkStore(app);this.clientId='';this.archived=false;this.status='open';this.query='';this.error='';
+        this.app=app;this.area='personal';this.store=new WorkStore(app);this.clientId='';this.archived=false;this.status='open';this.query='';this.error='';this.lastPersonalSectionId=null;
         for(const id of Object.keys(WORK_NAV)) {
             const section=document.getElementById(id);
             section.addEventListener('click',e=>{const b=e.target.closest('[data-work-action]');if(b)void this.action(b.dataset.workAction,b.dataset.id).catch(err=>app.showMessage({title:'No se pudo completar',message:err.message,tone:'warning'}));});
@@ -18,15 +19,27 @@ export class WorkModule {
         this.switchButton=document.createElement('button');this.switchButton.id='workspace-switch';this.switchButton.className='btn btn-secondary';this.switchButton.innerHTML='<i class="ph ph-briefcase"></i><span>Trabajo</span>';
         const header=document.getElementById('privacy-lock-btn')?.parentElement;
         header?.prepend(this.switchButton);
-        this.switchButton.addEventListener('click',()=>this.app.activateSection(this.area==='work'?'hoy-section':'work-summary-section'));
-        window.addEventListener('lifecycle:auth-ready',()=>{this.store.reset();this.clientId='';this.error='';void this.refresh(true);});
+        this.switchButton.addEventListener('click',()=>this.switchWorkspace());
+        window.addEventListener('lifecycle:auth-ready',()=>{this.store.reset();this.clientId='';this.error='';this.lastPersonalSectionId=null;void this.refresh(true);});
         window.addEventListener('focus',()=>{if(this.area==='work'&&app.auth?.readyUserId&&!document.getElementById('planning-dialog'))void this.refresh();});
         document.addEventListener('visibilitychange',()=>{if(!document.hidden&&this.area==='work'&&app.auth?.readyUserId&&!document.getElementById('planning-dialog'))void this.refresh();});
         window.addEventListener('lifecycle:work-refresh',()=>void this.refresh(true));
     }
     isWork(id) {return WORK_SECTIONS.includes(id);}
     visible(id) {return this.isWork(id)===(this.area==='work');}
+    switchWorkspace() {
+        const toWork=this.area!=='work';
+        const available=Object.keys(this.app.customTrackers.getAppModules()).filter(id=>
+            this.isWork(id)===toWork && isProductModuleEnabled(id) && this.app.customTrackers.isModuleVisible(id));
+        const preferred=toWork?'work-summary-section':this.lastPersonalSectionId||'hoy-section';
+        const targets=[...new Set([preferred,...available])].filter(id=>available.includes(id));
+        for(const target of targets)if(this.app.activateSection(target))return true;
+        this.app.openProfileTab('modulos');
+        this.app.showToast?.(`Activá al menos un módulo de ${toWork?'Trabajo':'LifeCycle'} para entrar a ese espacio.`,{tone:'warning'});
+        return false;
+    }
     enter(id) {
+        if(!this.isWork(id))this.lastPersonalSectionId=id;
         this.area=this.isWork(id)?'work':'personal';document.body.dataset.workspace=this.area;
         this.switchButton.innerHTML=this.area==='work'?'<i class="ph ph-arrow-left"></i><span>LifeCycle</span>':'<i class="ph ph-briefcase"></i><span>Trabajo</span>';
         this.switchButton.setAttribute('aria-label',this.area==='work'?'Volver a LifeCycle':'Abrir Trabajo');
@@ -35,7 +48,7 @@ export class WorkModule {
         this.app.adaptiveNavigation?.refresh();
         if(this.area==='work'&&this.app.auth?.readyUserId)void this.refresh();
     }
-    reset() {this.store.reset();this.clientId='';this.error='';this.render();}
+    reset() {this.store.reset();this.clientId='';this.error='';this.lastPersonalSectionId=null;this.render();}
     async refresh(force=false) {try{await this.store.load(force);this.error='';this.render();}catch(e){this.error=e.message;this.render();}}
     get projects() {return this.app.projects?.projects||[];}
     get allProjects() {return [...this.projects,...(this.app.projects?.history||[])];}

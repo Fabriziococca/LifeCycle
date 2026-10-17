@@ -2,6 +2,13 @@ const assert=require('node:assert/strict');
 exports.runWorkSmoke=async(page,{width,theme})=>{
  const app=()=>window.lifecycle_controller;
  await page.waitForFunction(()=>window.lifecycle_controller.work.store.state);
+ await page.evaluate(()=>window.lifecycle_controller.activateSection('higiene-section'));
+ await page.waitForFunction(()=>{const h=window.qaCloudDocument().hygiene_tracker_data;return h&&JSON.parse(h).__trackers_v2.modulePreferences['hoy-section'].visible===false;});
+ await page.locator('#workspace-switch').click();
+ await page.locator('#work-summary-section').waitFor({state:'visible'});
+ await page.locator('#workspace-switch').click();
+ await page.locator('#higiene-section').waitFor({state:'visible'});
+ assert.equal(await page.evaluate(()=>window.lifecycle_controller.customTrackers.isModuleVisible('hoy-section')),false,'switching must preserve hidden Hoy');
  await page.locator('#workspace-switch').click();
  await page.locator('#work-summary-section').waitFor({state:'visible'});
  assert.equal(await page.locator('#main-nav [data-section="higiene-section"]').isVisible(),false);
@@ -21,6 +28,9 @@ exports.runWorkSmoke=async(page,{width,theme})=>{
  await page.locator('#work-summary-section [data-work-action=settings]').click();await field('dailyEnabled').check();await field('dailyTime').fill('16:30');await save();
  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>window.lifecycle_controller.work.store.state?.clients.length===1);
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.settings.dailyTime),'16:30');
+ await page.locator('#workspace-switch').click();await page.locator('#higiene-section').waitFor({state:'visible'});
+ assert.equal(await page.evaluate(()=>window.lifecycle_controller.customTrackers.isModuleVisible('hoy-section')),false);
+ await page.locator('#workspace-switch').click();await page.locator('#work-summary-section').waitFor({state:'visible'});
  await page.evaluate(()=>window.lifecycle_controller.activateSection('work-clients-section'));
  await clients.locator('[data-work-action=detail]').click();await clients.locator('[data-work-action=archive]').click();await page.locator('#app-feedback-dialog [data-feedback-confirm]').click();
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.clients[0].archived),true);
@@ -38,7 +48,12 @@ exports.runWorkSmoke=async(page,{width,theme})=>{
  await page.evaluate(()=>window.lifecycle_controller.activateSection('work-summary-section'));
  await page.screenshot({path:`.tmp-sb/ui-smoke/work-${width}-${theme}.png`,fullPage:true,animations:'disabled'});
  assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false,'page overflow');
- await page.locator('#workspace-switch').click();assert.equal(await page.locator('#main-nav [data-section="finanzas-section"]').isVisible(),false);
+ for(const section of ['work-summary-section','work-clients-section','work-followups-section','projects-section','finanzas-section']) {
+  await page.evaluate(id=>window.lifecycle_controller.activateSection(id),section);
+  await page.locator('#workspace-switch').click();await page.locator('#higiene-section').waitFor({state:'visible'});
+  assert.equal(await page.locator('#main-nav [data-section="finanzas-section"]').isVisible(),false);
+  await page.locator('#workspace-switch').click();await page.locator('#work-summary-section').waitFor({state:'visible'});
+ }
  await page.evaluate(()=>window.lifecycle_controller.auth.clearLocalUserData());
  assert.equal(await page.evaluate(()=>localStorage.getItem('lifecycle_work')),null);
 };

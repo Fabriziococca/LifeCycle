@@ -37,3 +37,19 @@ test('A confirmation begun in one account cannot modify another account',async()
  const pending=module.action('archive',c.id);module.app.auth.readyUserId='second-owner';module.app.auth.syncGeneration++;
  resolveConfirmation(true);await assert.rejects(pending,/sesión cambió/);assert.equal(writes,0);
 });
+
+test('Workspace return respects hidden Hoy and falls back after reload or a hidden previous section',()=>{
+ const module=Object.create(WorkModule.prototype),hidden=new Set(['hoy-section']),opened=[];
+ module.area='work';module.lastPersonalSectionId='higiene-section';
+ module.app={customTrackers:{getAppModules:()=>({'hoy-section':{},'higiene-section':{},'cuidado-section':{},'work-summary-section':{},'work-clients-section':{}}),isModuleVisible:id=>!hidden.has(id)},activateSection:id=>{opened.push(id);return true;}};
+ assert.equal(module.switchWorkspace(),true);assert.equal(opened.pop(),'higiene-section');
+ module.lastPersonalSectionId=null;module.switchWorkspace();assert.equal(opened.pop(),'higiene-section');
+ module.lastPersonalSectionId='higiene-section';hidden.add('higiene-section');module.switchWorkspace();assert.equal(opened.pop(),'cuidado-section');
+ module.area='personal';hidden.add('work-summary-section');module.switchWorkspace();assert.equal(opened.pop(),'work-clients-section');
+ assert.equal(hidden.has('hoy-section'),true);
+});
+test('An entirely hidden destination opens module settings instead of silently rejecting the workspace switch',()=>{
+ const module=Object.create(WorkModule.prototype);module.area='work';let settings=null,message=null;
+ module.app={customTrackers:{getAppModules:()=>({'hoy-section':{},'work-summary-section':{}}),isModuleVisible:id=>id==='work-summary-section'},activateSection:()=>{throw new Error('No hidden section should be opened');},openProfileTab:id=>settings=id,showToast:text=>message=text};
+ assert.equal(module.switchWorkspace(),false);assert.equal(settings,'modulos');assert.match(message,/LifeCycle/);
+});
