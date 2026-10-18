@@ -21,6 +21,7 @@ import {
     normalizeResourcePolicy
 } from '../resource-policy.mjs?v=20260829-feature-limits';
 import { PushManagementModule } from './PushManagementModule.js?v=20260801-push-diagnostics';
+import {FINANCIAL_SYNC_KEYS,readFinancialBase,rememberFinancialBase,mergeFinancialValue} from '../financial-sync-utils.mjs';
 
 function isMissingCloudRevisionSchema(error) {
     const code = String(error?.code || '');
@@ -592,6 +593,10 @@ export class AuthSyncModule {
             this.syncRetryTimer = null;
             this.realtimeRefreshTimer = null;
             CLOUD_LOCAL_CLEAR_KEYS.forEach(key => localStorage.removeItem(key));
+            for(let index=localStorage.length-1;index>=0;index--){
+                const key=localStorage.key(index);
+                if(key?.startsWith('lifecycle_financial_sync_base:'))localStorage.removeItem(key);
+            }
             this.pendingSyncKeys.clear();
             this.cloudRevision = null;
             localStorage.removeItem(SYNC_PENDING_STORAGE_KEY);
@@ -607,6 +612,44 @@ export class AuthSyncModule {
         return Object.fromEntries(
             keys.map(key => [key, localStorage.getItem(key)])
         );
+    }
+
+    rememberFinancialSnapshot(document) {
+        if(this.user?.id)rememberFinancialBase(localStorage,this.user.id,document);
+    }
+
+    async syncFinancialPatch(updates,deleteKeys,isCurrentSession){
+        const base=readFinancialBase(localStorage,this.user.id);
+        for(let attempt=0;attempt<3;attempt++){
+            const {data:row,error}=await this.readCloudRow('revision,finance:data->finanzasData,subscriptions:data->lifecycle_subscriptions',this.user.id);
+            if(error)throw error;
+            if(!isCurrentSession())throw new Error('La sesión cambió durante el guardado.');
+            if(!row?.revision)throw new Error('No se pudo confirmar la revisión financiera.');
+            const remote=row.data||{finanzasData:row.finance,lifecycle_subscriptions:row.subscriptions};
+            const merged={...updates};
+            for(const key of FINANCIAL_SYNC_KEYS)if(Object.hasOwn(updates,key)){
+                merged[key]=JSON.stringify(mergeFinancialValue(key,base[key],updates[key],remote[key]));
+            }
+            const result=await this.supabase.rpc('merge_user_data_at_revision',{
+                p_updates:merged,p_delete_keys:deleteKeys,p_expected_revision:row.revision
+            });
+            if(result.error?.code==='40001')continue;
+            if(result.error)throw result.error;
+            if(!isCurrentSession())throw new Error('La sesión cambió durante el guardado.');
+            if(Number.isSafeInteger(result.data?.revision))this.minimumCloudRevision=Math.max(this.minimumCloudRevision||0,result.data.revision);
+            this.rememberFinancialSnapshot({...remote,...merged});
+            const restoring=this.isRestoring;this.isRestoring=true;
+            try{
+                for(const key of FINANCIAL_SYNC_KEYS)if(Object.hasOwn(merged,key)
+                    && !this.pendingSyncKeys.has(key) && areStoredValuesEqual(localStorage.getItem(key),updates[key])){
+                    localStorage.setItem(key,merged[key]);
+                    if(key==='finanzasData'&&this.app.finanzas){this.app.finanzas.data=this.app.finanzas.loadData();this.app.finanzas.render();}
+                    if(key==='lifecycle_subscriptions'&&this.app.subscriptions){this.app.subscriptions.loadData({syncAlerts:false});this.app.subscriptions.render();}
+                }
+            }finally{this.isRestoring=restoring;}
+            return;
+        }
+        const error=new Error('Los datos cambiaron en otro dispositivo. Reintentá el guardado.');error.code='40001';throw error;
     }
 
     areValuesEqual(val1, val2) {
@@ -694,11 +737,15 @@ export class AuthSyncModule {
                     key => localStorage.getItem(key)
                 );
 
-                const { error } = await this.supabase.rpc('merge_user_data_keys', {
-                    p_updates: updates,
-                    p_delete_keys: deleteKeys
-                });
-                if (error) throw error;
+                if(keysToSync.some(key=>FINANCIAL_SYNC_KEYS.includes(key))){
+                    await this.syncFinancialPatch(updates,deleteKeys,isCurrentSession);
+                }else{
+                    const { error } = await this.supabase.rpc('merge_user_data_keys', {
+                        p_updates: updates,
+                        p_delete_keys: deleteKeys
+                    });
+                    if (error) throw error;
+                }
 
                 if (!isCurrentSession()) return false;
                 // The RPC also succeeds on a no-op. Only the database can tell
@@ -863,6 +910,7 @@ export class AuthSyncModule {
                 return true; // A newer Realtime event arrived while this HTTP read was pending.
             }
             const cloudData = data.data || {};
+            this.rememberFinancialSnapshot(cloudData);
 
             // Internal scheduler state belongs only to the backend and should not remain cached.
             CLOUD_SERVER_MANAGED_KEYS.forEach(key => localStorage.removeItem(key));
@@ -1274,6 +1322,7 @@ export class AuthSyncModule {
                     }
                     this.cloudRevision = revision;
                     this.appliedCloudRevision = revision;
+                    this.rememberFinancialSnapshot(newCloudData);
                 }
             })
             .subscribe();

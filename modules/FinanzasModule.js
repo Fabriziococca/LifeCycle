@@ -1705,7 +1705,10 @@ export class FinanzasModule {
                     recurringRules: normalizeFinanceRecurringRules(reconciledFinance.recurringRules),
                     tradingEvents: normalizeTradingEvents(reconciledFinance.tradingEvents)
                 };
-                this.saveData();
+                const restoring=auth.isRestoring;auth.isRestoring=true;
+                try{this.saveData();}finally{auth.isRestoring=restoring;}
+                auth.rememberFinancialSnapshot?.({finanzasData:cloudFinance,lifecycle_subscriptions:result.subscription_registry});
+                if(result.document_revision)auth.minimumCloudRevision=Math.max(auth.minimumCloudRevision||0,result.document_revision);
                 this.render();
             }
             return {

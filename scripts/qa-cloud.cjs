@@ -65,7 +65,8 @@ function installFakeCloud() {
                 sessionStorage.setItem('qa-cloud-document',JSON.stringify(cloudDocument));window.qaSyncMetrics.writes++;
                 return {data:{workspace:structuredClone(cloudDocument[key]),documentRevision:revision},error:null};
             }
-            if (name === 'merge_user_data_keys') {
+            if (name === 'merge_user_data_keys' || name === 'merge_user_data_at_revision') {
+                if(name==='merge_user_data_at_revision'&&parameters.p_expected_revision!==revision)return {data:null,error:{code:'40001',message:'Cloud revision conflict'}};
                 const previous = JSON.stringify(cloudDocument);
                 (parameters.p_delete_keys || []).forEach(key => delete cloudDocument[key]);
                 Object.assign(cloudDocument, parameters.p_updates || {});
@@ -79,6 +80,7 @@ function installFakeCloud() {
                     window.qaSyncMetrics.realtimeEvents += 1;
                     listener(payload);
                 }), 20);
+                if(name==='merge_user_data_at_revision')return {data:{revision,updated_at:new Date().toISOString()},error:null};
             }
             return { data: name === 'get_my_resource_policy' ? { tier: 'owner', unlimited: true, limits: {} } : new Date().toISOString(), error: null };
         },

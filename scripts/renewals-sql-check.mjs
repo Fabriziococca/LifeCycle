@@ -67,5 +67,14 @@ try {
  assert.equal(await claim(key+'@18:00'),false);assert.equal(await claim(key+'@09:00'),true);assert.equal(await claim(key+'@09:00'),false);
  await db.exec('reset role');
  assert.deepEqual((await db.query('select data from public.user_data where user_id=$1',[b])).rows[0].data,{unrelated:'other-owner'});
- console.log('SQL passed: atomic manual/server idempotence, billing anchors/leap years, ARS, flags, grants, isolation, exact unrelated-data preservation, Trading projection/slot claims and legacy compatibility.');
+ await db.exec(`create function public.merge_user_data_keys(p_updates jsonb,p_delete_keys text[]) returns timestamptz language plpgsql security definer as $$begin update public.user_data set data=(data-p_delete_keys)||p_updates,updated_at=now() where user_id=auth.uid();return now();end;$$;`);
+ await db.exec(await readFile(new URL('../supabase/migrations/20261018053000_financial_sync_revision_guard.sql',import.meta.url),'utf8'));
+ const revision=(await read()).revision;
+ await db.exec(`set request.jwt.claim.sub='${a}';set role authenticated`);
+ const cas=await db.query("select public.merge_user_data_at_revision('{\"cas\":true}','{}',$1) result",[revision]);
+ assert.equal(cas.rows[0].result.revision,revision+1);
+ await assert.rejects(db.query("select public.merge_user_data_at_revision('{\"cas\":false}','{}',$1)",[revision]),/conflict/);
+ await db.exec('reset role;set role anon');await assert.rejects(db.query("select public.merge_user_data_at_revision('{}','{}',1)"),/permission denied/);await db.exec('reset role');
+ assert.equal((await read()).data.cas,true);
+ console.log('SQL passed: atomic renewals, dates/ARS/flags, grants/isolation/preservation, Trading slots and revision-guarded financial synchronization.');
 } finally {await db.close();}

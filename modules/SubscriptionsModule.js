@@ -661,7 +661,8 @@ export class SubscriptionsModule {
         if (!recorded) return false;
         if (result?.subscriptionRegistry) {
             this.subscriptions = normalizeSubscriptionRegistry(result.subscriptionRegistry).subscriptions;
-            this.saveData({sync:false});
+            const auth=this.app.auth,restoring=auth.isRestoring;auth.isRestoring=true;
+            try{this.saveData({sync:false});}finally{auth.isRestoring=restoring;}
             this.render();
             if (!silent) this.app.showToast?.(result.duplicate ? 'Ese período ya estaba registrado.' : 'Gasto registrado y renovación actualizada.');
             return true;
