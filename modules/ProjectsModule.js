@@ -56,6 +56,19 @@ export class ProjectsModule {
         this.loadData();
         this.setupListeners();
         this.startTimersLoop();
+        document.getElementById('btn-new-project')?.addEventListener('click', () => this.openCreateForm());
+        document.getElementById('project-create-panel')?.addEventListener('toggle', event => {
+            document.getElementById('btn-new-project')?.setAttribute('aria-expanded', String(event.target.open));
+        });
+    }
+
+    openCreateForm() {
+        const panel = document.getElementById('project-create-panel');
+        if (!panel) return false;
+        panel.open = true;
+        panel.scrollIntoView({ block: 'start', behavior: 'instant' });
+        document.getElementById('clientName')?.focus({ preventScroll: true });
+        return true;
     }
 
     loadData() {
@@ -227,6 +240,7 @@ export class ProjectsModule {
             this.updateProjectTemplateSummary();
             return;
         }
+        document.getElementById('project-create-panel')?.setAttribute('open', '');
 
         const projectName = document.getElementById('projectName');
         const deliveryDays = document.getElementById('deliveryDays');
@@ -742,6 +756,10 @@ export class ProjectsModule {
                     );
                 }
                 this.app.showToast?.(successMessage);
+                document.getElementById('project-create-panel')?.removeAttribute('open');
+                document.getElementById('btn-new-project')?.focus({ preventScroll: true });
+                document.querySelector('#projectsList')?.scrollIntoView({ block: 'start', behavior: 'instant' });
+                void this.app.visual?.afterSync([`#projectsList [data-project-id="${projectId}"]`]);
             });
         }
 
@@ -1566,6 +1584,11 @@ export class ProjectsModule {
             card.style.borderColor = colorVar;
 
             card.innerHTML = `
+                <div class="project-state-line" aria-label="Estado del proyecto">
+                    <span class="project-state-chip ${!p.isDelivered ? 'is-current' : 'is-done'}"><i class="ph ${p.isDelivered ? 'ph-check' : 'ph-circle-half'}" aria-hidden="true"></i> ${p.isArbitration ? 'En arbitraje' : 'En curso'}</span>
+                    <i class="ph ph-arrow-right" aria-hidden="true"></i>
+                    <span class="project-state-chip ${p.isDelivered ? 'is-done is-current' : ''}"><i class="ph ${p.isDelivered ? 'ph-check-circle' : 'ph-circle'}" aria-hidden="true"></i> ${p.isDelivered ? 'Entregado' : 'Entrega pendiente'}</span>
+                </div>
                 <div class="project-card-header" style="margin-bottom: 0.5rem; display:flex; justify-content:space-between; align-items:flex-start;">
                     <div class="project-card-info" style="min-width:0; flex:1;">
                         <h3 class="project-client" style="color:var(--text-primary); font-size:1.15rem; margin:0; font-weight:700; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;">
@@ -1599,6 +1622,7 @@ export class ProjectsModule {
                     <strong class="net-amount" style="font-size: 0.9rem; color: var(--status-green);">Neto Pendiente: ${this.formatAmount(pendingNet)}</strong>
                 </div>
 
+                <div class="save-feedback-slot" data-save-feedback></div>
                 <div class="project-actions-compact-row">
                     <button class="btn btn-timer project-btn-icon" data-tooltip="${timerButtonLabel}" aria-label="${timerButtonLabel}" style="background:${btnTimerBg}; color:${btnTimerColor}; border:none;">
                         ${btnTimerIcon}
@@ -1703,6 +1727,7 @@ export class ProjectsModule {
             list.appendChild(card);
         });
 
+        this.app.visual?.restore();
         // Close dropdowns on outside click
         document.addEventListener('click', () => {
             document.querySelectorAll('.dropdown-menu-content').forEach(el => el.classList.add('hidden'));

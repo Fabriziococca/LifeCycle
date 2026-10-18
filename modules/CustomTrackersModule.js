@@ -3273,6 +3273,9 @@ export class CustomTrackersModule {
 
         this.persistRegistry();
         if (navigator.vibrate) navigator.vibrate(40);
+        if (!nextActive) void this.app.visual?.afterSync([
+            `.custom-tracker-card[data-tracker-id="${CSS.escape(trackerId)}"]`
+        ]);
         this.showRuntimeFeedback(
             nextActive
                 ? `${tracker.name}: avisos iniciados.`
@@ -3334,6 +3337,9 @@ export class CustomTrackersModule {
 
         this.persistRegistry();
         if (navigator.vibrate) navigator.vibrate(trackers.length > 1 ? [40, 35, 40] : 40);
+        void this.app.visual?.afterSync(result.recordedIds.map(id =>
+            `.custom-tracker-card[data-tracker-id="${CSS.escape(id)}"]`
+        ));
         this.showRuntimeFeedback(
             trackers.length === 1
                 ? `${trackers[0].name}: registro guardado.`
@@ -4503,6 +4509,7 @@ export class CustomTrackersModule {
         sectionRoot?.classList.toggle('is-custom-reordering', isReordering);
         sectionRoot?.classList.toggle('is-custom-bulk', isBulkSelecting);
         this.updateRuntimeOrderControls(sectionKey);
+        this.app.visual?.restore();
         if (isReordering) {
             this.initializeSortableLists(sectionRoot);
         }
@@ -4661,9 +4668,9 @@ export class CustomTrackersModule {
                         <p class="custom-tracker-prediction">${escapeHtml(prediction)}</p>
                     ` : ''}
                 `}
-                <button type="button" class="btn btn-secondary tracker-pause-button" data-custom-runtime-action="toggle-pause" data-tracker-id="${tracker.id}">
+                <div class="tracker-utility-row"><button type="button" class="btn btn-secondary tracker-pause-button" data-custom-runtime-action="toggle-pause" data-tracker-id="${tracker.id}">
                     <i class="ph ${tracker.paused ? 'ph-play' : 'ph-pause'}" aria-hidden="true"></i> ${tracker.paused ? 'Reanudar' : 'Pausar'}
-                </button>
+                </button><span class="save-feedback-slot" data-save-feedback></span></div>
                 <button type="button" class="btn btn-primary custom-tracker-record" data-custom-runtime-action="record" data-tracker-id="${tracker.id}" ${tracker.paused ? 'disabled' : ''}>
                     <i class="ph ${isStateReminder && !state.active ? 'ph-warning' : (isMedicalStudy ? 'ph-plus-circle' : 'ph-check-circle')}"></i>
                     ${safeAction}

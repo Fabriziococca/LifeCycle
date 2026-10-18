@@ -114,6 +114,7 @@ export class TodayModule {
         if (!action || !this.activateActionModule(action.moduleId)) return false;
 
         if (actionId === 'new_project') {
+            this.app.projects?.openCreateForm();
             requestAnimationFrame(() => {
                 const input = document.getElementById('clientName');
                 input?.scrollIntoView({ behavior: 'smooth', block: 'center' });

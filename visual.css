@@ -1,0 +1,219 @@
+/* Shared visual foundation. Keep business colours, layouts and controls intact.
+   Effects are finite and never hold back navigation or a save action. */
+:root {
+    --bg-color: #101722;
+    --surface-color: #1b2533;
+    --surface-solid: #1b2533;
+    --surface-elevated: #243143;
+    --surface-section: #141e2b;
+    --surface-border: #344154;
+    --surface-subtle: rgba(148, 163, 184, .07);
+    --text-secondary: #a7b5c8;
+    --primary-color: #386ed8;
+    --primary-hover: #2c5dbb;
+    --shadow-glass: 0 4px 16px rgba(0, 0, 0, .12);
+    --shadow-btn: none;
+    --border-radius-lg: 20px;
+    --border-radius-md: 12px;
+    --transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+    --workspace-accent: var(--primary-color);
+}
+:root[data-theme="light"] {
+    --bg-color: #f4f5f7;
+    --surface-color: #fff;
+    --surface-solid: #fff;
+    --surface-elevated: #fff;
+    --surface-section: #f0f3f7;
+    --surface-border: #d7dee8;
+    --surface-subtle: rgba(51, 65, 85, .035);
+    --text-secondary: #526278;
+    --primary-color: #2c62cf;
+    --primary-hover: #204eac;
+    --status-green: #087d60;
+    --status-yellow: #8a5c00;
+    --status-orange: #a8450c;
+    --status-red: #c43142;
+    --status-purple: #7735bc;
+    --shadow-glass: 0 4px 16px rgba(30, 41, 59, .04);
+}
+body[data-workspace="work"] { --workspace-accent: #54c9b4; }
+:root[data-theme="light"] body[data-workspace="work"] { --workspace-accent: #087e70; }
+body { background: var(--bg-color); }
+.glow-orb { display: none; animation: none; }
+.card, .custom-tracker-card, .fw-panel, .fw-metric {
+    box-shadow: var(--shadow-glass);
+    backdrop-filter: none;
+}
+.card:hover { transform: none; }
+.btn, button.icon-btn, .nav-btn, .tab-btn, .theme-choice,
+.planning-tabs button, .fw-tabs button {
+    transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
+}
+.btn { border-radius: 12px; box-shadow: none; line-height: 1.35; }
+.btn-primary:hover, .btn-secondary:hover { transform: none; }
+.btn:disabled { cursor: not-allowed; opacity: .55; }
+.btn-secondary { background: var(--surface-subtle); }
+.btn-primary:active:not(:disabled) { background: var(--primary-hover); }
+button:focus-visible, summary:focus-visible, a:focus-visible,
+input:focus-visible, select:focus-visible, textarea:focus-visible {
+    outline: 3px solid var(--primary-color); outline-offset: 3px;
+}
+.adaptive-nav-brand { border-bottom-color: var(--surface-border); }
+.adaptive-nav-brand > i, .adaptive-nav-brand-icon { color: var(--workspace-accent); }
+body[data-workspace="work"] .nav-btn.active {
+    background: color-mix(in srgb, var(--workspace-accent) 14%, var(--surface-solid));
+    color: var(--workspace-accent); box-shadow: inset 3px 0 var(--workspace-accent);
+}
+#workspace-switch { border-color: color-mix(in srgb, var(--workspace-accent) 45%, var(--surface-border)); }
+.app-context-title { letter-spacing: -.035em; }
+.planning-heading h2, .fw-toolbar h2, .work-content h2 { letter-spacing: -.035em; }
+.planning-heading > div, .planning-heading .planning-actions { min-width: 0; }
+.planning-heading p { line-height: 1.55; margin-top: .35rem; }
+
+/* One family of compact, immediately usable tabs across the application. */
+.tabs-container, .planning-tabs, .fw-tabs {
+    display: flex; gap: 4px; justify-content: flex-start;
+    padding: 5px; border-radius: 14px;
+    background: var(--surface-section); border: 1px solid var(--surface-border);
+    box-shadow: none; max-width: 100%;
+}
+.tabs-container .tab-btn, .planning-tabs > .btn, #finance-workspace .fw-tabs button {
+    width: auto; flex: 0 0 auto; min-height: 40px; margin: 0;
+    padding: 10px 15px; border: 1px solid transparent; border-radius: 10px;
+    background: transparent; color: var(--text-secondary); box-shadow: none;
+    font-size: .88rem; font-weight: 600; white-space: nowrap;
+}
+.tabs-container .tab-btn.active, .planning-tabs > .btn-primary,
+#finance-workspace .fw-tabs [aria-current="page"] {
+    background: var(--surface-elevated); color: var(--text-primary);
+    border-color: var(--surface-border); box-shadow: 0 1px 3px rgba(0,0,0,.08);
+}
+.tabs-container .tab-btn.active::after, .planning-tabs > .btn-primary::after { content: none; }
+.tabs-container .tab-btn:hover, .planning-tabs > .btn:hover { transform: none; background: var(--surface-hover); }
+
+/* Trackers: a clear identity, a quiet timeline, one main action. */
+.custom-tracker-card {
+    position: relative; background: var(--surface-color); border: 1px solid var(--surface-border);
+    border-top: 3px solid var(--custom-status-color); border-radius: 18px; padding: 23px;
+}
+:root[data-theme] .custom-tracker-card { background: var(--surface-color); border-top-color: var(--custom-status-color); }
+.custom-tracker-card-header { align-items: flex-start; }
+.custom-tracker-identity h3 { font-size: 1.06rem; line-height: 1.4; white-space: normal; overflow: visible; text-overflow: clip; overflow-wrap: anywhere; }
+.custom-tracker-icon { border-radius: 12px; background: var(--surface-section); }
+.custom-tracker-status { letter-spacing: .04em; font-size: .67rem; }
+.custom-tracker-metric { margin-top: 10px; margin-bottom: 4px; }
+.custom-tracker-metric > strong { font-size: 2.6rem; font-variant-numeric: tabular-nums; letter-spacing: -.055em; }
+.custom-tracker-metric > span { font-size: .85rem; }
+.custom-tracker-dates { padding: 12px 0; border-top: 1px solid var(--surface-border); }
+.custom-tracker-dates strong { margin-top: 4px; font-variant-numeric: tabular-nums; }
+.custom-tracker-progress { height: 5px; margin-top: 4px; margin-bottom: 16px; }
+.custom-tracker-progress > span { transition: none; }
+.custom-tracker-card .tracker-pause-button {
+    width: auto; margin: 0; padding: 7px 11px; font-size: .8rem;
+    background: transparent; border-color: transparent; color: var(--text-secondary);
+}
+.custom-tracker-record { margin-top: auto; min-height: 44px; }
+.custom-tracker-card.is-featured { background: var(--surface-color); }
+.card.status-red .status-dot, .card.status-red .btn-wash { animation: none; }
+.save-confirmation {
+    position: static; pointer-events: none; white-space: nowrap;
+    display: inline-flex; align-items: center; gap: 5px; padding: 6px 10px;
+    color: var(--text-primary); background: var(--surface-elevated); border: 1px solid var(--status-green);
+    box-shadow: var(--shadow-glass); border-radius: 99px; font-size: .75rem; font-weight: 600;
+}
+.save-feedback-slot { display: flex; align-items: center; justify-content: flex-end; min-height: 29px; }
+.tracker-utility-row { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: auto; }
+.save-confirmation svg { width: 18px; height: 18px; stroke: var(--status-green); stroke-width: 2.5; stroke-linecap: round; stroke-linejoin: round; }
+#records-list > .card { position: relative; }
+
+/* Charges: this is elapsed time, never a measured battery level. */
+.charging-card { position: relative; border-radius: 18px; border-top: 3px solid var(--surface-border); gap: 18px; }
+.charging-grid > .charging-card:only-child { max-width: 600px; width: 100%; justify-self: start; }
+.charging-card[data-charge-state="active"] { border-top-color: var(--primary-color); }
+.charging-card[data-charge-state="due"] { border-top-color: var(--status-orange); }
+.charging-icon { background: var(--surface-section); }
+.charging-icon svg { width: 26px; height: 26px; stroke: currentColor; fill: none; stroke-width: 1.6; stroke-linecap: round; stroke-linejoin: round; }
+.charging-card[data-charge-state="active"] .charging-icon { color: var(--primary-color); background: var(--surface-active); }
+.charging-card[data-charge-state="due"] .charging-icon { color: var(--status-orange); }
+.charging-status { font-size: .72rem; border: 1px solid var(--surface-border); border-radius: 99px; }
+.charging-time strong { font-size: 2.35rem; font-variant-numeric: tabular-nums; }
+.charging-time span { display: block; width: 100%; }
+.charging-time-track { display: flex; justify-content: space-between; gap: 12px; font-size: .75rem; color: var(--text-secondary); margin-bottom: 7px; }
+.charging-progress { height: 6px; display: block; border: 0; border-radius: 99px; overflow: hidden; background: var(--progress-track); }
+.charging-progress::-webkit-progress-bar { background: var(--progress-track); }
+.charging-progress::-webkit-progress-value { background: var(--primary-color); border-radius: 99px; }
+.charging-due .charging-progress::-webkit-progress-value { background: var(--status-orange); }
+.charging-remaining { font-size: .82rem; color: var(--text-secondary); margin-top: 9px; }
+.charging-due .charging-remaining { color: var(--status-orange); }
+.charging-notice { box-shadow: none; padding: 12px; background: var(--surface-section); }
+.charging-notice-caption { font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; }
+.charging-notice p, .charging-notice small { margin: 0; }
+.charging-card details > summary { cursor: pointer; padding: 8px 0; color: var(--text-secondary); font-size: .8rem; }
+.charging-card details .charging-settings { margin: 6px 0; }
+.charging-secondary .btn { border-color: transparent; background: transparent; color: var(--text-secondary); }
+.charging-primary .btn { min-height: 44px; }
+.charging-empty { padding: 36px 24px; border: 1px dashed var(--surface-border); border-radius: 18px; text-align: center; color: var(--text-secondary); }
+.charging-empty i { display: block; font-size: 2rem; margin-bottom: 10px; }
+.charging-guide { margin-top: 20px; color: var(--text-secondary); font-size: .8rem; line-height: 1.6; }
+.charging-guide summary { cursor: pointer; padding: 9px 0; }
+.charging-guide p { max-width: 75ch; }
+
+/* Projects stay first; the original form and all its templates remain available. */
+.projects-page-heading { display: flex; justify-content: space-between; align-items: center; gap: 16px; margin-bottom: 24px; }
+.projects-page-heading h2 { margin: 0; font-size: 1.65rem; letter-spacing: -.04em; }
+.projects-page-heading p { color: var(--text-secondary); font-size: .88rem; margin: 6px 0 0; }
+.projects-page-heading .btn { width: auto; flex-shrink: 0; }
+.projects-create-panel { margin-top: 24px; padding: 0; }
+.projects-create-panel > summary { cursor: pointer; display: flex; align-items: center; gap: 10px; padding: 20px; font-weight: 600; list-style: none; }
+.projects-create-panel > summary::-webkit-details-marker { display: none; }
+.projects-create-panel > summary::after { content: '+'; margin-left: auto; color: var(--text-secondary); font-size: 1.3rem; }
+.projects-create-panel[open] > summary::after { content: '−'; }
+.projects-create-panel > .card-body { padding: 0 24px 24px; }
+.projects-financial-summary { grid-template-columns: repeat(4,minmax(0,1fr)) !important; margin-bottom: 24px !important; }
+.projects-financial-summary > .card { border-color: var(--surface-border) !important; border-radius: 14px; box-shadow: none; }
+#projectsList > .card { position: relative; border-width: 1px; border-left-width: 3px; border-radius: 18px; }
+.project-state-line { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; margin-bottom: 14px; }
+.project-state-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 99px; font-size: .72rem; font-weight: 600; background: var(--surface-section); color: var(--text-secondary); }
+.project-state-chip.is-current { color: var(--text-primary); border: 1px solid var(--surface-border); }
+.project-state-chip.is-done { color: var(--status-green); }
+.project-state-line > i { color: var(--text-secondary); font-size: .7rem; }
+.project-plan-reading-surface.is-phases { border-left: 2px solid var(--primary-color); padding-left: 20px; }
+.planning-magazine-cells { display: grid; grid-template-columns: repeat(10,minmax(0,1fr)); gap: 4px; margin-top: 10px; }
+.planning-magazine-cells > span { height: 7px; background: var(--progress-track); border-radius: 2px; }
+.planning-magazine-cells > span.is-filled { background: var(--primary-color); }
+.planning-magazines label { padding: 12px; border: 1px solid var(--surface-border); border-radius: 12px; font-size: .85rem; }
+.planning-magazines progress { height: 5px; margin-top: 8px; }
+.motion-preference { display: grid; gap: 8px; margin-top: 20px; max-width: 360px; }
+.motion-preference select { width: 100%; padding: 11px 12px; background: var(--control-bg); color: var(--text-primary); border: 1px solid var(--surface-border); border-radius: 10px; font: inherit; }
+.motion-preference small { color: var(--text-secondary); line-height: 1.5; }
+:root[data-theme="light"] .btn-primary { background: var(--primary-color); box-shadow: none; }
+:root[data-theme="light"] .btn-secondary { background: var(--surface-subtle); box-shadow: none; }
+:root[data-theme="light"] .tabs-container .tab-btn.active,
+:root[data-theme="light"] .planning-tabs > .btn-primary { background: var(--surface-elevated); color: var(--text-primary); border-color: var(--surface-border); box-shadow: none; }
+
+/* Calm shared surfaces in the remaining modules. */
+.work-metrics > .card, .planning-metrics.card { border-radius: 16px; box-shadow: none; }
+.work-metrics strong { font-variant-numeric: tabular-nums; letter-spacing: -.04em; }
+.fw-note, .planning-hint { max-width: 85ch; }
+.planning-dialog .planning-actions { position: sticky; bottom: -24px; margin-bottom: -24px; padding: 14px 0 24px; background: var(--surface-solid); border-top: 1px solid var(--surface-border); z-index: 2; }
+@media (max-width: 900px) {
+    .projects-financial-summary { grid-template-columns: repeat(2,minmax(0,1fr)) !important; }
+}
+@media (max-width: 600px) {
+    .tabs-container, .planning-tabs, .fw-tabs { border-radius: 12px; flex-wrap: wrap; }
+    .tabs-container .tab-btn, .planning-tabs > .btn, #finance-workspace .fw-tabs button { min-height: 44px; padding: 9px 12px; white-space: normal; }
+    .custom-tracker-card, .charging-card { padding: 20px; }
+    .custom-tracker-card .tracker-pause-button, .charging-secondary .btn { min-height: 44px; }
+    .projects-page-heading { align-items: flex-start; flex-wrap: wrap; }
+    .projects-page-heading .btn { min-height: 44px; }
+    .projects-create-panel > .card-body { padding: 0 16px 16px; }
+    .projects-financial-summary > .card { padding: 12px !important; }
+    .planning-dialog .planning-actions { bottom: -18px; margin-bottom: -18px; padding-bottom: 18px; }
+}
+/* Disable finite/legacy motion too. Status, focus and success text remain. */
+:root[data-motion="reduced"] *, :root[data-motion="reduced"] *::before, :root[data-motion="reduced"] *::after {
+    animation: none !important; transition: none !important; scroll-behavior: auto !important;
+}
+@media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
+}

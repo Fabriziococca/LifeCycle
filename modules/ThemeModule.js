@@ -41,7 +41,7 @@ export class ThemeModule {
         this.document.documentElement.style.colorScheme = theme;
         this.document.querySelector('meta[name="theme-color"]')?.setAttribute(
             'content',
-            theme === 'light' ? '#f1f5f9' : '#0f172a'
+            theme === 'light' ? '#f4f5f7' : '#101722'
         );
 
         if (persist) {

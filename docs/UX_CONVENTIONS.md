@@ -178,6 +178,24 @@ Antes de entregar un cambio de interfaz:
 3. Probar navegación por teclado y foco visible.
 4. Probar el flujo principal con mouse y en un ancho móvil.
 5. Verificar que los controles dinámicos también reciben tooltips.
+
+## 10. Base visual y movimiento (18/10/2026)
+
+- `visual.css` se carga después de los estilos de los módulos y reúne los tokens,
+  pestañas, controles y superficies comunes. No agrega servicios ni dependencias.
+- El contenido y sus controles están disponibles inmediatamente. Las transiciones
+  son breves y finitas; no se anima por cada sincronización, tick o rerender.
+- Se respeta siempre `prefers-reduced-motion`. Perfil → Preferencias permite
+  reducir más el movimiento sólo en ese navegador; no modifica datos de la cuenta.
+- La confirmación visual de registros espera el resultado de la sincronización.
+  Los errores o cambios de cuenta no producen una confirmación de éxito.
+- Cargas representa tiempo transcurrido, nunca porcentaje de batería medido.
+  Aceptación Push, recepción y publicación siguen siendo estados diferentes.
+- Proyectos muestra activos antes del alta desplegable. Los accesos rápidos abren
+  el formulario original. El recorrido usa estados reales, no un porcentaje de
+  avance inferido del texto libre de las fases.
+- Los cargadores de Saylor muestran segmentos estáticos según sus aportes reales.
+  No ejecutan operaciones, consultan precios ni generan movimiento decorativo.
 6. Confirmar que cancelar un modo de edición no modifica datos.
 
 Las pruebas de contratos de interfaz en `tests/ui-contracts.test.mjs` cubren

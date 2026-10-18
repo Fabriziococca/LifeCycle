@@ -28,6 +28,7 @@ import { GlobalSearchModule } from './modules/GlobalSearchModule.js';
 import { KeyboardShortcutsModule } from './modules/KeyboardShortcutsModule.js';
 import { AdaptiveNavigationModule } from './modules/AdaptiveNavigationModule.js';
 import { ThemeModule } from './modules/ThemeModule.js';
+import { VisualFeedback } from './visual-feedback.mjs';
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs?v=20260729-project-templates';
 import {
     readUiState,
@@ -63,6 +64,7 @@ class AppController {
         this.tooltips.init();
         this.feedback = new FeedbackController(document);
         this.feedback.init();
+        this.visual = new VisualFeedback(this);
         this.currencyRateRequest = null;
         this.currencyRateRetryTimer = null;
         this.currencyRateRetryAttempt = 0;
@@ -549,6 +551,7 @@ class AppController {
     }
 
     activateSection(sectionId, { persist = true, render = true, smooth = false } = {}) {
+        const previousSectionId = this.lastActiveSectionId;
         if (!isProductModuleEnabled(sectionId)) return false;
         const mainNav = document.getElementById('main-nav');
         const reorderContext = this.customTrackers?.reorderContext;
@@ -595,6 +598,7 @@ class AppController {
         this.scrollControlIntoView(mainNav, targetButton, smooth);
         if (render) this.renderSection(sectionId);
         if (sectionId === 'higiene-section') void this.charging?.refreshNotices();
+        if (previousSectionId !== sectionId) this.visual.enter(targetSection);
         return true;
     }
 

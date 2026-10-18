@@ -258,6 +258,7 @@ export class GymModule {
                 this.saveData('gym_records');
                 this.renderRecords();
                 recordForm.reset();
+                void this.app.visual?.afterSync([`#records-list [data-record-id="${newRecord.id}"]`]);
             });
         }
 
@@ -952,6 +953,7 @@ export class GymModule {
             const safeDate = escapeHtml(r.date || '-');
             const card = document.createElement('div');
             card.className = 'card';
+            card.dataset.recordId = r.id;
             card.innerHTML = `
                 <div class="card-header" style="justify-content: space-between;">
                     <h3 style="color: var(--text-primary); font-size: 1rem; margin: 0;">🏆 ${safeName}</h3>
@@ -968,6 +970,7 @@ export class GymModule {
                     <div style="font-size: 0.75rem; color: var(--text-secondary); margin-top: 10px; text-align: right;">
                         Logrado: ${safeDate}
                     </div>
+                    <div class="save-feedback-slot" data-save-feedback></div>
                 </div>
             `;
             card.querySelector('.btn-history-delete').addEventListener('click', () => {
@@ -975,6 +978,7 @@ export class GymModule {
             });
             list.appendChild(card);
         });
+        this.app.visual?.restore();
     }
 
     deleteRecord(id) {

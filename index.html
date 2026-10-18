@@ -45,6 +45,7 @@
     <link rel="stylesheet" href="privacy-lock.css">
     <link rel="stylesheet" href="planning.css?v=20261017-charging">
     <link rel="stylesheet" href="work.css?v=20261017">
+    <link rel="stylesheet" href="visual.css?v=20261018">
 </head>
 <body>
     <div id="access-gate" class="access-gate" aria-live="polite">
@@ -1462,6 +1463,10 @@
         <section id="work-clients-section" class="main-section hidden"><div class="work-content planning-workspace"></div></section>
         <section id="work-followups-section" class="main-section hidden"><div class="work-content planning-workspace"></div></section>
         <section id="projects-section" class="main-section hidden">
+            <header class="projects-page-heading">
+                <div><h2>Proyectos</h2><p>Lo que tenés en marcha, sus entregas y cobros.</p></div>
+                <button type="button" id="btn-new-project" class="btn btn-primary" aria-controls="project-create-panel" aria-expanded="false"><i class="ph ph-plus" aria-hidden="true"></i> Nuevo proyecto</button>
+            </header>
             <!-- Dashboard Financiero -->
             <div class="financial-summary-toolbar">
                 <span>Resumen financiero</span>
@@ -1575,14 +1580,14 @@
                 </div>
             </div>
 
-            <!-- Nuevo Proyecto -->
-            <div class="card" style="margin-bottom: 2rem;">
-                <div class="card-header">
-                    <div class="icon-container">
-                        <i class="ph ph-briefcase"></i>
-                    </div>
-                    <h3>Nuevo Proyecto</h3>
-                </div>
+            <!-- Proyectos Activos -->
+            <div class="projects-header" style="display:flex; justify-content:space-between; align-items:center;">
+                <h3>Proyectos Activos</h3>
+                <span id="activeCount" class="badge" style="padding: 4px 8px; font-size: 0.85rem;">0</span>
+            </div>
+            <div id="projectsList" style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem;"></div>
+            <details id="project-create-panel" class="card projects-create-panel">
+                <summary><i class="ph ph-plus-circle" aria-hidden="true"></i> Nuevo proyecto</summary>
                 <div class="card-body">
                     <form id="projectForm">
                         <div class="project-template-picker">
@@ -1673,14 +1678,8 @@
                         <button type="submit" class="btn btn-primary" style="margin-top: 0.5rem;">➕ Agregar Proyecto</button>
                     </form>
                 </div>
-            </div>
+            </details>
 
-            <!-- Proyectos Activos -->
-            <div class="projects-header" style="display:flex; justify-content:space-between; align-items:center;">
-                <h3>Proyectos Activos</h3>
-                <span id="activeCount" class="badge" style="padding: 4px 8px; font-size: 0.85rem;">0</span>
-            </div>
-            <div id="projectsList" style="display: flex; flex-direction: column; gap: 1.5rem; margin-top: 1rem;"></div>
         </section>
 
         <!-- SECCIÓN: FINANZAS (FinanzasTracker) -->
@@ -2188,6 +2187,10 @@
                                     </button>
                                 </div>
                                 <p class="theme-choice-help">La elección se guarda solamente en este navegador y no modifica tus datos.</p>
+                                <label class="motion-preference" for="motion-preference">Movimiento
+                                    <select id="motion-preference"><option value="system">Sutil · respetar mi dispositivo</option><option value="reduced">Reducido · sin animaciones</option></select>
+                                    <small>Las acciones son inmediatas. Si tu dispositivo pide movimiento reducido, siempre lo respetamos.</small>
+                                </label>
                             </div>
                         </div>
                         <div class="card starter-pack-card">

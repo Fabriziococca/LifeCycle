@@ -26,6 +26,7 @@ export class ChargingModule {
         this.render();
     }
     render() {
+        const guideOpen=this.root.querySelector('.charging-guide')?.open===true;
         const focused=this.root.contains(document.activeElement)?document.activeElement:null;
         const focusAction=focused?.dataset?.chargeAction,focusId=focused?.dataset?.id,focusFilter=focused?.name==='charging-view';
         this.root.hidden=this.app.hygiene?.currentCategory!=='cargas';
@@ -35,23 +36,24 @@ export class ChargingModule {
         const loading=[...this.notices.values()].some(n=>n.state==='loading');
         this.root.innerHTML=`<header class="planning-heading"><div><h2><i class="ph ph-plug" aria-hidden="true"></i> Cargas</h2><p>Conectá, seguí el tiempo y registrá cuándo lo desconectaste.</p></div>${button('edit','Nuevo dispositivo')}</header>
             <div class="charging-toolbar"><div class="charging-filter"><label>Mostrar<select name="charging-view" class="time-input">${[['active','Activos'],['archived','Archivados'],['trash','Papelera']].map(([v,l])=>`<option value="${v}" ${this.view===v?'selected':''}>${l}</option>`).join('')}</select></label></div>${button('refresh',loading?'Consultando avisos…':'Actualizar avisos','',loading?'disabled':'')}</div>
-            <div class="cards-grid charging-grid">${devices.map(d=>this.card(d)).join('')||'<p>No hay dispositivos en esta vista.</p>'}</div>
-            <p class="fw-note">Los avisos se revisan cada cinco minutos y pueden demorar en llegar al teléfono. El estado se consulta al abrir esta pestaña o al tocar Actualizar avisos. LifeCycle no corta la corriente; usá el plazo indicado por el fabricante.</p>`;
+            <div class="cards-grid charging-grid">${devices.map(d=>this.card(d)).join('')||'<div class="charging-empty"><i class="ph ph-plug" aria-hidden="true"></i><strong>No hay dispositivos en esta vista.</strong><p>Agregá uno o cambiá el filtro para ver los que guardaste.</p></div>'}</div>
+            <details class="charging-guide" ${guideOpen?'open':''}><summary>Cómo funcionan los avisos de carga</summary><p>Los avisos se revisan cada cinco minutos y pueden demorar en llegar al teléfono. El estado se consulta al abrir esta pestaña o al tocar Actualizar avisos. LifeCycle no corta la corriente; usá el plazo indicado por el fabricante.</p></details>`;
         if(focusAction)[...this.root.querySelectorAll('[data-charge-action]')].find(b=>b.dataset.chargeAction===focusAction&&b.dataset.id===focusId)?.focus({preventScroll:true});
         else if(focusFilter)this.root.querySelector('[name="charging-view"]')?.focus({preventScroll:true});
+        this.app.visual?.restore();
     }
     card(d) {
         const s=chargingState(d),status=d.deleted?'En papelera':d.archived?'Archivado':s.active?(s.overdue?'Revisar y desconectar':'Cargando'):'Sin carga en curso';
         const last=d.sessions.filter(x=>x.finishedAt).sort((a,b)=>Date.parse(b.finishedAt)-Date.parse(a.finishedAt))[0];
         const limit=s.active?s.active.limitMinutes:d.maxMinutes;
         const settings=d.paused?'Avisos pausados. El tiempo físico de carga sigue transcurriendo.':!d.notify?'Avisos desactivados.':!limit?'Sin plazo: no hay aviso automático para esta carga.':`Aviso al cumplir el plazo${d.repeatMinutes?` y cada ${d.repeatMinutes} minutos hasta desconectar`:': una sola vez'}.`;
-        return `<article class="card charging-card ${s.overdue?'charging-due':''}" id="charge-${d.id}" data-charging-id="${d.id}">
-            <header class="charging-card-heading"><span class="charging-icon" aria-hidden="true"><i class="ph ph-plug"></i></span><div><h3>${esc(d.name)}</h3><span class="charging-status">${status}</span></div></header>
+        return `<article class="card charging-card ${s.overdue?'charging-due':''}" id="charge-${d.id}" data-charging-id="${d.id}" data-charge-state="${d.deleted||d.archived?'archived':s.active?(s.overdue?'due':'active'):'idle'}">
+            <header class="charging-card-heading"><span class="charging-icon" aria-hidden="true"><svg viewBox="0 0 32 32"><path d="M16 21v4a3 3 0 0 0 3 3h5"/><g class="charging-plug"><path d="M11 5v6m10-6v6M9 11h14v4a7 7 0 0 1-14 0z"/></g></svg></span><div><h3>${esc(d.name)}</h3><span class="charging-status">${status}</span></div></header>
             <div class="charging-time"><strong>${s.active?chargingDuration(s.elapsedMinutes):limit?chargingDuration(limit):'Sin plazo'}</strong><span>${s.active?'desde el inicio':'plazo configurado'}</span></div>
-            ${s.active&&limit?`<progress class="charging-progress" max="${limit}" value="${Math.min(limit,s.elapsedMinutes)}" aria-label="Tiempo de carga transcurrido"></progress><p class="charging-remaining">${s.overdue?'Plazo cumplido · revisá el dispositivo':`Faltan ${chargingDuration(s.remainingMinutes)}`}</p>`:''}
+            ${s.active&&limit?`<div><div class="charging-time-track"><span>Tiempo transcurrido</span><span>Plazo: ${chargingDuration(limit)}</span></div><progress class="charging-progress" max="${limit}" value="${Math.min(limit,s.elapsedMinutes)}" aria-label="Tiempo de carga transcurrido"></progress><p class="charging-remaining">${s.overdue?'Plazo cumplido · revisá el dispositivo':`Faltan ${chargingDuration(s.remainingMinutes)}`}</p></div>`:''}
             <dl class="charging-meta">${s.active?`<div><dt>Conectado</dt><dd>${format(s.active.startedAt)}</dd></div><div><dt>Revisar a las</dt><dd>${s.dueAt?format(s.dueAt):'Sin plazo configurado'}</dd></div>`:`<div><dt>Última desconexión</dt><dd>${last?format(last.finishedAt):'Sin registros'}</dd></div>`}${s.active&&limit?`<div><dt>Plazo de esta carga</dt><dd>${chargingDuration(limit)}</dd></div>`:''}</dl>
             <p class="charging-settings">${settings}</p>${this.noticeCard(d,s)}
-            <div class="charging-card-actions">${!d.deleted&&!d.archived?`<div class="charging-primary">${s.active?button('stop','Ya lo desconecté',d.id):button('start','Poner a cargar',d.id,d.paused?'disabled':'')}</div><div class="charging-secondary">${button('edit','Editar',d.id)}${button('pause',d.paused?'Reanudar avisos':'Pausar avisos',d.id)}</div>`:button('restore',d.deleted?'Restaurar dispositivo':'Reactivar dispositivo',d.id)}
+            <div class="save-feedback-slot" data-save-feedback></div><div class="charging-card-actions">${!d.deleted&&!d.archived?`<div class="charging-primary">${s.active?button('stop','Ya lo desconecté',d.id):button('start','Poner a cargar',d.id,d.paused?'disabled':'')}</div><div class="charging-secondary">${button('edit','Editar',d.id)}${button('pause',d.paused?'Reanudar avisos':'Pausar avisos',d.id)}</div>`:button('restore',d.deleted?'Restaurar dispositivo':'Reactivar dispositivo',d.id)}
                 <div class="charging-secondary">${button('history',`Historial (${d.sessions.length})`,d.id)}${!d.deleted&&!s.active?button('archive',d.archived?'Enviar a papelera':'Archivar',d.id):''}</div></div></article>`;
     }
     noticeCard(d,s) {
@@ -127,7 +129,10 @@ export class ChargingModule {
             if(!await this.app.confirmAction({title:trash?'Enviar a papelera':'Archivar dispositivo',message:`${d.name}. Se conserva todo el historial y podés recuperarlo después.`,confirmLabel:trash?'Enviar a papelera':'Archivar',tone:'warning'}))return;
             d.archived=true;d.deleted=trash;
         } else return;
-        sameOwner();await this.store.save(data,revision);this.app.showToast?.('Carga guardada y sincronizada.');
+        sameOwner();await this.store.save(data,revision);sameOwner();
+        if(action==='start')this.app.visual?.connect(`#charge-${CSS.escape(id)} .charging-plug`);
+        if(['start','stop'].includes(action))this.app.visual?.saved(`#charge-${CSS.escape(id)}`);
+        this.app.showToast?.(action==='start'?'Inicio de carga guardado.':action==='stop'?'Desconexión guardada.':'Carga guardada y sincronizada.');
     }
     getOverdueItems() {
         return this.store.value.devices.filter(d=>!d.deleted&&!d.archived&&!d.paused&&chargingState(d).overdue).map(d=>({module:'charging',id:d.id,name:d.name,icon:'ph-plug',desc:'Se cumplió el plazo de carga. Confirmá cuando lo desconectes.'}));
