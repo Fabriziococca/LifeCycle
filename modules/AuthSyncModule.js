@@ -565,6 +565,7 @@ export class AuthSyncModule {
 
     clearLocalUserData() {
         this.app.work?.reset();
+        this.app.charging?.reset();
         const planningDialog = globalThis.document?.getElementById?.('planning-dialog');
         if (planningDialog) {
             planningDialog.remove();

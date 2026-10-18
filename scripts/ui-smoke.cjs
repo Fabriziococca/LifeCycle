@@ -54,7 +54,7 @@ const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
             await context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2', route => route.fulfill({ contentType: 'application/javascript', body: `(${installFakeCloud.toString()})();` }));
             await context.route('**/api/**', route => route.fulfill({ json: route.request().url().endsWith('/api/config')
                 ? { supabaseUrl: 'https://qa.invalid', supabaseAnonKey: 'qa', registrationEnabled: false }
-                : { devices: [], events: [], deliveries: [], engine: {}, success: true } }));
+                : { devices: [], events: [], deliveries: [], entries: [], available: true, engine: {}, success: true } }));
             await page.goto(`http://localhost:${httpServer.address().port}/`, { waitUntil: 'networkidle' });
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }

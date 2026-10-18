@@ -594,6 +594,7 @@ class AppController {
         this.adaptiveNavigation?.updateActiveState?.(sectionId);
         this.scrollControlIntoView(mainNav, targetButton, smooth);
         if (render) this.renderSection(sectionId);
+        if (sectionId === 'higiene-section') void this.charging?.refreshNotices();
         return true;
     }
 

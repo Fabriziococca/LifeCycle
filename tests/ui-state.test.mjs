@@ -106,6 +106,12 @@ test('UI state survives malformed storage without blocking startup', () => {
     assert.deepEqual(readUiState(storage), DEFAULT_UI_STATE);
 });
 
+test('Cargas tab survives navigation state restoration',()=>{
+    const storage=new MemoryStorage();
+    writeUiState(storage,DEFAULT_UI_STATE,{section:'higiene-section',hygieneCategory:'cargas'});
+    assert.equal(readUiState(storage).hygieneCategory,'cargas');
+});
+
 test('UI state updates one preference without losing the others', () => {
     const storage = new MemoryStorage();
     const current = {

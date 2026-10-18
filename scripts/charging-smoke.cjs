@@ -2,6 +2,10 @@ const assert=require('node:assert/strict');
 exports.runChargingSmoke=async(page,{width,theme})=>{
  await page.evaluate(()=>{const a=window.lifecycle_controller;a.hygiene.currentCategory='tecnologia';a.activateSection('higiene-section');a.hygiene.render();});
  const root=page.locator('#charging-root'),dialog=page.locator('#planning-dialog'),field=n=>dialog.locator(`[name="${n}"]`);
+ assert.equal(await root.isVisible(),false);
+ await page.locator('#tabs-container [data-category=cargas]').click();await root.waitFor({state:'visible'});
+ assert.equal(await page.locator('#tracker-container').isVisible(),false);
+ assert.equal(await page.locator('[data-runtime-order-section=hygiene]').isVisible(),false);
  const save=async()=>{await dialog.locator('[type=submit]').click();await dialog.waitFor({state:'hidden'});};
  await root.locator('[data-charge-action=edit]').click();await field('name').fill('Voltra QA <texto>');await field('minutes').fill('180');await save();
  let card=root.locator('[data-charging-id]').first();await card.locator('[data-charge-action=start]').click();await card.getByText('Cargando',{exact:true}).waitFor();
@@ -18,6 +22,7 @@ exports.runChargingSmoke=async(page,{width,theme})=>{
  const racket=root.locator('[data-charging-id]').filter({has:page.getByRole('heading',{name:'Raqueta QA',exact:true})});await racket.locator('[data-charge-action=start]').click();await racket.getByText(/Sin plazo configurado/).waitFor();
  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>window.lifecycle_controller?.auth?.readyUserId&&window.lifecycle_controller.charging.store.value.devices.length===2);
  await page.evaluate(()=>window.lifecycle_controller.activateSection('higiene-section'));assert.equal(await root.locator('[data-charging-id]').count(),2);
+ assert.equal(await page.evaluate(()=>window.lifecycle_controller.hygiene.currentCategory),'cargas');
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.charging.store.value.devices[0].sessions.length),1);
  const backup=await page.evaluate(async()=>{const a=window.lifecycle_controller,s=await a.work.store.backupSnapshot(),u=await import('/backup-utils.mjs');return u.createBackupPayload(k=>s[k]??null);});
  await page.evaluate(async b=>{const a=window.lifecycle_controller,u=await import('/backup-utils.mjs');await a.work.store.restore(u.parseAndValidateBackupText(JSON.stringify(b)));},backup);
@@ -29,10 +34,24 @@ exports.runChargingSmoke=async(page,{width,theme})=>{
  // receives synthetic dates through runtime evaluation.
  await page.evaluate(async()=>{const a=window.lifecycle_controller,d=a.charging.store.value;d.devices[0].sessions.push({id:'cs_due-local-test',startedAt:new Date(Date.now()-120000).toISOString(),finishedAt:null,limitMinutes:1});await a.charging.store.save(d,d.revision);});
  await root.getByText('Revisar y desconectar',{exact:true}).waitFor();assert.ok(await page.evaluate(()=>window.lifecycle_controller.notificationsCenter.getOverdueItems().some(x=>x.module==='charging')));
+ const due=await page.evaluate(()=>{const d=window.lifecycle_controller.charging.store.value.devices[0];return {device:d.id,session:d.sessions.at(-1).id};});
+ let historyMode='accepted',historyRequests=0;
+ await page.route('**/api/push/history?scope=charging*',route=>{
+  historyRequests++;const device=new URL(route.request().url()).searchParams.get('device');
+  if(historyMode==='failed')return route.fulfill({status:503,json:{error:'QA network failure'}});
+  return route.fulfill({json:{available:true,entries:device===due.device?[{id:'42',alert_key:`charging:${due.device}:${due.session}:0`,attempted_at:new Date().toISOString(),status:'accepted',endpoint_fingerprint:'local-qa',...(historyMode==='displayed'?{displayed_at:new Date().toISOString()}:{} )}]:[]}});
+ });
+ await root.locator('[data-charge-action=refresh]').click();await card.getByText('Enviado · recepción sin confirmar',{exact:true}).waitFor();
+ historyMode='displayed';await root.locator('[data-charge-action=refresh]').click();await card.getByText('Mostrado en 1 dispositivo',{exact:true}).waitFor();
+ historyMode='failed';await root.locator('[data-charge-action=refresh]').click();await card.getByText('No se pudo verificar el último aviso',{exact:true}).waitFor();
+ historyMode='accepted';await root.locator('[data-charge-action=refresh]').click();await card.getByText('Enviado · recepción sin confirmar',{exact:true}).waitFor();
+ const reads=historyRequests;await page.evaluate(()=>window.lifecycle_controller.charging.render());assert.equal(historyRequests,reads);
  await page.locator('#tabs-container [data-category=dormitorio_bano]').click();assert.equal(await root.isVisible(),false);
- await page.locator('#tabs-container [data-category=tecnologia]').click();await root.waitFor({state:'visible'});
+ await page.locator('#tabs-container [data-category=tecnologia]').click();assert.equal(await root.isVisible(),false);assert.equal(await page.locator('#tracker-container').getAttribute('hidden'),null);
+ await page.locator('#tabs-container [data-category=cargas]').click();await root.waitFor({state:'visible'});
  const overflow=await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+1);assert.equal(overflow,false);
  await page.screenshot({path:`.tmp-sb/ui-smoke/${width}-${theme}-charging.png`,fullPage:true,animations:'disabled'});
  await page.evaluate(async()=>{const a=window.lifecycle_controller;await a.auth.supabase.auth.signOut();});
  await page.waitForFunction(()=>!window.lifecycle_controller.auth.readyUserId);assert.equal(await page.evaluate(()=>localStorage.getItem('lifecycle_charging')),null);
+ assert.equal(await page.evaluate(()=>window.lifecycle_controller.charging.notices.size),0);
 };

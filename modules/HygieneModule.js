@@ -150,6 +150,10 @@ export class HygieneModule {
     }
 
     render() {
+        const charging = this.currentCategory === 'cargas';
+        document.getElementById('higiene-section').dataset.hygieneCategory = this.currentCategory;
+        document.querySelectorAll('#tabs-container .tab-btn').forEach(tab => tab.classList.toggle('active',tab.dataset.category === this.currentCategory));
+        if (this.container) this.container.hidden = charging;
         this.app.charging?.render();
         if (!this.container) return;
         

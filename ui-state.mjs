@@ -43,6 +43,7 @@ const VALID_PROFILE_TABS = new Set([
 
 const VALID_HYGIENE_CATEGORIES = new Set([
     'tecnologia',
+    'cargas',
     'dormitorio_bano',
     'cuidado_personal'
 ]);

@@ -11,6 +11,7 @@ const { getPauseAdjustedDate } = require('./pause-utils.mjs');
 const { dueFacultyNotices } = require('./planning-utils.mjs');
 const { workNotificationCandidates, validateWork, isWorkRetryRelevant } = require('./work-utils.mjs');
 const { chargingNotificationCandidates, isChargingRetryRelevant } = require('./charging-utils.mjs');
+const { chargingHistoryPrefix } = require('./charging-notice-utils.mjs');
 const {
     DEFAULT_PUSH_TTL_SECONDS,
     TIMED_NOTIFICATION_GRACE_MINUTES,
@@ -2211,9 +2212,15 @@ app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
     }
     const status = normalizeHistoryStatus(req.query.status);
     const limit = normalizeHistoryLimit(req.query.limit, 50);
-    const scope = req.query.scope === 'trading' ? 'trading' : '';
+    const scope = ['trading','charging'].includes(req.query.scope) ? req.query.scope : '';
+    const chargingPrefix = scope === 'charging' ? chargingHistoryPrefix(req.query.device) : null;
+    if (scope === 'charging' && !chargingPrefix) {
+        return res.status(400).json({ error: 'El dispositivo de carga no es válido.' });
+    }
     try {
-        const baseColumns = 'id, alert_key, context, title, body, endpoint_fingerprint, device_name, status, provider_status, error_message, attempted_at, confirmed_at';
+        const baseColumns = scope === 'charging'
+            ? 'id,alert_key,endpoint_fingerprint,status,attempted_at'
+            : 'id, alert_key, context, title, body, endpoint_fingerprint, device_name, status, provider_status, error_message, attempted_at, confirmed_at';
         const telemetryColumns = `${baseColumns}, scheduled_at, expires_at, received_at, displayed_at, discarded_at, attempt_no, retry_of_id`;
         const buildHistoryQuery = columns => {
             let query = supabase
@@ -2224,6 +2231,7 @@ app.get('/api/push/history', requireSupabaseUser, async (req, res) => {
                 .limit(limit);
             if (status) query = query.eq('status', status);
             if (scope === 'trading') query = query.like('alert_key', `${TRADING_ALERT_PREFIX}%`);
+            if (chargingPrefix) query = query.like('alert_key', `${chargingPrefix.replaceAll('_','\\_')}%`);
             return query;
         };
 

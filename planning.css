@@ -1,8 +1,10 @@
 .planning-workspace{max-width:1100px;margin:auto;min-width:0}
 .charging-root{margin:24px 0 32px;min-width:0}
 .charging-root[hidden]{display:none}
+#higiene-section[data-hygiene-category="cargas"] .custom-runtime-order-toolbar,
+#tracker-container[hidden]{display:none}
 .charging-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));margin:16px 0}
-.charging-card{margin:0;display:flex;flex-direction:column;gap:10px}
+.charging-card{margin:0;display:flex;flex-direction:column;gap:16px;padding:24px;min-width:0;overflow-wrap:anywhere}
 .charging-card h3{overflow-wrap:anywhere;flex:1;min-width:0}
 .charging-card p{margin:0;color:var(--text-secondary)}
 .charging-card .planning-actions{margin-top:auto;padding-top:12px}
@@ -13,6 +15,36 @@
 .charging-elapsed strong{font-size:1.6rem;color:var(--text-primary)}
 .charging-filter{max-width:260px;margin:12px 0}
 .charging-filter label{display:grid;gap:6px}
+.charging-root .btn{width:auto;margin:0;padding:10px 16px}
+.charging-root select{padding:10px 12px;width:100%;background:var(--input-bg,var(--surface-color));color:var(--text-primary);border:1px solid var(--surface-border);border-radius:10px;font:inherit}
+.charging-toolbar{display:flex;align-items:flex-end;justify-content:space-between;gap:16px;flex-wrap:wrap;margin:16px 0}
+.charging-toolbar .charging-filter{margin:0;width:220px;max-width:100%}
+.charging-card-heading{display:flex;gap:12px;align-items:flex-start}
+.charging-card-heading>div{min-width:0;flex:1}
+.charging-card-heading h3{margin:0 0 8px;font-size:1.15rem;line-height:1.3}
+.charging-icon{display:grid;place-items:center;width:44px;height:44px;flex:none;border-radius:13px;background:var(--primary-light,rgba(59,130,246,.12));color:var(--primary-color);font-size:1.4rem}
+.charging-status{display:inline-block;padding:4px 9px;line-height:1.3}
+.charging-time{display:flex;align-items:baseline;flex-wrap:wrap;gap:6px 10px}
+.charging-time strong{font-size:1.9rem;letter-spacing:-.04em;line-height:1.2}
+.charging-time span,.charging-notice-caption,.charging-notice small{color:var(--text-secondary);font-size:.85rem}
+.charging-progress{width:100%;height:8px;accent-color:var(--primary-color)}
+.charging-due .charging-progress{accent-color:var(--status-orange)}
+.charging-meta{display:grid;gap:10px;margin:0;padding:14px 0;border-block:1px solid var(--surface-border);font-size:.9rem}
+.charging-meta>div{display:flex;justify-content:space-between;gap:16px}
+.charging-meta dt{color:var(--text-secondary)}
+.charging-meta dd{margin:0;text-align:right;font-weight:600}
+.charging-card .charging-settings{font-size:.85rem;line-height:1.5}
+.charging-notice{display:grid;gap:7px;border:1px solid var(--surface-border);background:var(--input-bg,rgba(0,0,0,.08));border-radius:13px;padding:14px;line-height:1.4}
+.charging-notice strong{font-size:.9rem}
+.charging-notice p{font-size:.8rem}
+.charging-notice[data-tone="success"] strong{color:var(--status-green)}
+.charging-notice[data-tone="warning"] strong{color:var(--status-orange)}
+.charging-notice[data-tone="danger"] strong{color:var(--status-red)}
+.charging-card-actions{margin-top:auto;display:grid;gap:10px}
+.charging-primary .btn{width:100%}
+.charging-secondary{display:flex;flex-wrap:wrap;gap:8px}
+.charging-secondary .btn{flex:1;padding:9px 12px;font-size:.85rem}
+@media(max-width:600px){.charging-card{padding:18px}.charging-time strong{font-size:1.75rem}.charging-meta>div{gap:10px}.charging-root>.planning-heading>.btn{width:100%}}
 .charging-history{max-height:52dvh;overflow:auto}
 .planning-heading,.planning-actions,.planning-tabs{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
 .planning-tabs{justify-content:flex-start;margin:12px 0 24px}
