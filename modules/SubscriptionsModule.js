@@ -63,10 +63,8 @@ export class SubscriptionsModule {
         this.subscriptions = [];
         this.activeFilter = 'all';
         this.editingSubscriptionId = null;
-        this.processingAutomaticRenewals = false;
         this.loadData({ persistMigration: true });
         this.bindEvents();
-        queueMicrotask(() => this.processDueAutomaticRenewals());
     }
 
     loadData({ persistMigration = false, syncAlerts = true } = {}) {
@@ -616,7 +614,7 @@ export class SubscriptionsModule {
         const renewalDate = subscription.nextRenewalDate;
         const occurrenceKey = getSubscriptionExpenseOccurrenceKey(subscription, renewalDate);
         if (!occurrenceKey) return false;
-        if (subscription.lastExpenseRecordedPeriod === occurrenceKey) {
+        if (subscription.lastExpenseRecordedPeriod === occurrenceKey && !this.app.auth?.supabase) {
             if (subscription.autoRenew && getDaysUntilRenewal(renewalDate) <= 0) {
                 this.subscriptions[index] = appendSubscriptionHistoryEvent(
                     advanceSubscriptionRenewal(subscription, renewalDate),
@@ -661,6 +659,13 @@ export class SubscriptionsModule {
         });
         const recorded = result === true || result?.created === true || result?.duplicate === true;
         if (!recorded) return false;
+        if (result?.subscriptionRegistry) {
+            this.subscriptions = normalizeSubscriptionRegistry(result.subscriptionRegistry).subscriptions;
+            this.saveData({sync:false});
+            this.render();
+            if (!silent) this.app.showToast?.(result.duplicate ? 'Ese período ya estaba registrado.' : 'Gasto registrado y renovación actualizada.');
+            return true;
+        }
         const now = new Date().toISOString();
         let updated = appendSubscriptionHistoryEvent({
             ...subscription,
@@ -691,38 +696,4 @@ export class SubscriptionsModule {
         return true;
     }
 
-    async processDueAutomaticRenewals() {
-        // Automatic charges must be serialized by the authenticated database RPC.
-        // Waiting for cloud restore also prevents a stale local snapshot from being
-        // charged before the current account has finished loading.
-        if (
-            this.processingAutomaticRenewals
-            || !this.app.finanzas
-            || !this.app.auth?.user
-            || !this.app.auth?.supabase
-        ) return;
-        this.processingAutomaticRenewals = true;
-        try {
-            for (const subscription of [...this.subscriptions]) {
-                if (
-                    subscription.status !== 'active'
-                    || !isPaidSubscription(subscription)
-                    || !subscription.autoRenew
-                    || !subscription.autoRecordExpense
-                ) continue;
-                let guard = 0;
-                let current = this.subscriptions.find(item => item.id === subscription.id);
-                while (current && getDaysUntilRenewal(current.nextRenewalDate) <= 0 && guard < 24) {
-                    const previousDate = current.nextRenewalDate;
-                    const recorded = await this.recordExpense(current.id, { automatic: true, silent: true });
-                    if (!recorded) break;
-                    current = this.subscriptions.find(item => item.id === subscription.id);
-                    if (!current || current.nextRenewalDate === previousDate) break;
-                    guard += 1;
-                }
-            }
-        } finally {
-            this.processingAutomaticRenewals = false;
-        }
-    }
 }

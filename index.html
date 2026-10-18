@@ -2896,6 +2896,7 @@
                         <input type="checkbox" id="sub-auto-record-expense">
                         <span>Registrar gasto automáticamente en Finanzas al renovar</span>
                     </label>
+                      <small class="field-help">Se registra aunque la app esté cerrada, si la suscripción está activa y tiene renovación automática. No realiza pagos al proveedor.</small>
                 </div>
 
                 <fieldset class="subscription-alert-card">
@@ -3315,7 +3316,12 @@
                 </div>
 
                 <div class="input-group trading-event-field-full">
-                <label for="trading-event-notes">Notas <span class="optional-label">opcional</span></label>
+                    <div id="trading-event-notice-times"></div>
+                    <small class="field-help">En cada fecha de aviso elegida, hasta seis horarios. Horario de Argentina; los avisos vencen a los 15 minutos.</small>
+                  </div>
+
+                  <div class="input-group trading-event-field-full">
+                    <label for="trading-event-notes">Notas <span class="optional-label">opcional</span></label>
                 <textarea id="trading-event-notes" class="text-input" maxlength="800" rows="3" placeholder="Qué querés revisar cuando llegue la fecha"></textarea>
                 </div>
 

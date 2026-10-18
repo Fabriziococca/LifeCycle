@@ -1034,7 +1034,6 @@ export class AuthSyncModule {
             if (this.app.subscriptions) {
                 try {
                     this.app.subscriptions.render();
-                    void this.app.subscriptions.processDueAutomaticRenewals?.();
                 } catch (e) { console.error("Error rendering subscriptions:", e); }
             }
             if (this.app.finanzas) {

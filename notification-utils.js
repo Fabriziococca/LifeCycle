@@ -1,6 +1,7 @@
 'use strict';
 const { getPauseAdjustedDate, getPauseAdjustedKm } = require('./pause-utils.mjs');
 const { readPlanning, FACULTY_KEY } = require('./planning-utils.mjs');
+const { isTradingRetryRelevant } = require('./trading-event-utils');
 
 const SERVER_MANAGED_USER_DATA_KEYS = new Set([
     'alerts_sent_log',
@@ -534,6 +535,7 @@ function getCustomTrackerAlertKey(tracker) {
 }
 
 function isPushRetryRelevant(alertKey, snapshot = {}) {
+    if (String(alertKey).startsWith('trading_event:')) return isTradingRetryRelevant(alertKey,snapshot);
     const key = String(alertKey || '').split('@')[0];
     if (key.startsWith('faculty:')) {
         const [,id,version] = key.split(':');

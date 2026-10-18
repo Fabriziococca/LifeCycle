@@ -18,6 +18,21 @@
     const MAX_TRADING_NOTICES = 12;
     const TRADING_EVENT_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{2,95}$/;
     const TRADING_ALERT_PREFIX = 'trading_event:';
+    const TIME_PATTERN = /^([01]\d|2[0-3]):[0-5]\d$/;
+    const NOTICE_GRACE_MS = 15 * 60 * 1000;
+
+    function normalizeTradingNoticeTimes(value) {
+        return [...new Set((Array.isArray(value) ? value : [])
+            .filter(time => typeof time === 'string' && TIME_PATTERN.test(time)))].sort().slice(0, 6);
+    }
+
+    function argentinaDate(value) {
+        return new Date(new Date(value).getTime() - 3 * 3600000).toISOString().slice(0, 10);
+    }
+
+    function argentinaEventTime(value) {
+        return new Date(new Date(value).getTime() - 3 * 3600000).toISOString().slice(11, 16);
+    }
 
     function cleanText(value, maxLength) {
         return String(value ?? '')
@@ -96,6 +111,7 @@
             notes: cleanText(value.notes, 800),
             sourceUrl: normalizeTradingSourceUrl(value.sourceUrl),
             noticeDays,
+            noticeTimes: normalizeTradingNoticeTimes(value.noticeTimes),
             status: value.status === 'paused' ? 'paused' : 'active',
             createdAt,
             updatedAt
@@ -126,6 +142,7 @@
             notes: value.notes,
             sourceUrl: value.source_url,
             noticeDays: value.notice_days,
+            noticeTimes: value.notice_times,
             status: value.status,
             createdAt: value.created_at,
             updatedAt: value.updated_at
@@ -157,7 +174,7 @@
         return normalized ? normalized.replace(/[-:.]/g, '') : '';
     }
 
-    function buildTradingEventAlertKey(event, noticeDays) {
+    function buildTradingEventAlertKey(event, noticeDays, time = null) {
         const normalized = normalizeTradingEvent(event);
         const leadDays = Number(noticeDays);
         const scheduleToken = normalized
@@ -171,12 +188,13 @@
         ) {
             return '';
         }
-        return `${TRADING_ALERT_PREFIX}${normalized.id}:${scheduleToken}:${leadDays}d`;
+        if (time !== null && !TIME_PATTERN.test(time)) return '';
+        return `${TRADING_ALERT_PREFIX}${normalized.id}:${scheduleToken}:${leadDays}d${time ? `@${time}` : ''}`;
     }
 
     function parseTradingEventAlertKey(value) {
         const key = String(value ?? '');
-        const match = key.match(/^trading_event:([a-z0-9][a-z0-9_-]{2,95}):([0-9TZ]{16,24}):(\d{1,3})d$/);
+        const match = key.match(/^trading_event:([a-z0-9][a-z0-9_-]{2,95}):([0-9TZ]{16,24}):(\d{1,3})d(?:@((?:[01]\d|2[0-3]):[0-5]\d))?$/);
         if (!match) return null;
         const noticeDays = Number(match[3]);
         if (
@@ -187,8 +205,44 @@
         return {
             eventId: match[1],
             scheduleToken: match[2],
-            noticeDays
+            noticeDays,
+            ...(match[4] ? { time: match[4] } : {})
         };
+    }
+
+    function getDueTradingEventNotices(value, now = new Date()) {
+        const event = normalizeTradingEvent(value), timestamp = new Date(now).getTime();
+        if (!event || event.status !== 'active' || !Number.isFinite(timestamp)
+            || timestamp >= Date.parse(event.scheduledAt)) return [];
+        // Existing records retain their original once-per-threshold behavior until
+        // the user explicitly configures hours. No synthetic history migration.
+        if (!event.noticeTimes.length) {
+            const legacy = getDueTradingEventNotice(event, now);
+            return legacy ? [legacy] : [];
+        }
+        const date = argentinaDate(event.scheduledAt);
+        return event.noticeDays.flatMap(days => {
+            const day = new Date(Date.parse(`${date}T12:00:00Z`) - days * DAY_MS).toISOString().slice(0, 10);
+            return event.noticeTimes.flatMap(time => {
+                const scheduledAt = new Date(`${day}T${time}:00-03:00`).toISOString();
+                const expiresAt = new Date(Math.min(Date.parse(scheduledAt) + NOTICE_GRACE_MS, Date.parse(event.scheduledAt))).toISOString();
+                return timestamp >= Date.parse(scheduledAt) && timestamp < Date.parse(expiresAt)
+                    ? [{event, noticeDays:days, time, triggerAt:scheduledAt, scheduledAt, expiresAt,
+                        alertKey:buildTradingEventAlertKey(event, days, time),
+                        legacyKey:time === argentinaEventTime(event.scheduledAt) ? buildTradingEventAlertKey(event, days) : null}]
+                    : [];
+            });
+        });
+    }
+
+    function isTradingRetryRelevant(alertKey, snapshot, now = new Date()) {
+        const parsed = parseTradingEventAlertKey(alertKey);
+        if (!parsed) return false;
+        let finance = snapshot?.finanzasData;
+        if (typeof finance === 'string') { try { finance = JSON.parse(finance); } catch { return false; } }
+        const event = normalizeTradingEvents(finance?.tradingEvents).find(item => item.id === parsed.eventId);
+        if (!event || event.status !== 'active') return false;
+        return getDueTradingEventNotices(event, now).some(notice => notice.alertKey === alertKey);
     }
 
     function getDueTradingEventNotice(value, now = new Date()) {
@@ -234,6 +288,10 @@
         buildTradingEventAlertKey,
         createTradingEventId,
         getDueTradingEventNotice,
+        getDueTradingEventNotices,
+        isTradingRetryRelevant,
+        normalizeTradingNoticeTimes,
+        argentinaEventTime,
         isMissingTradingPersistenceSchema,
         normalizeTradingEvent,
         normalizeTradingEvents,

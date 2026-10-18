@@ -1,4 +1,5 @@
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
+import { renderAlertTimesEditor } from '../alert-schedule-utils.mjs';
 import '../trading-event-utils.js?v=20260829-trading-capacity';
 import {
     RESOURCE_KEYS,
@@ -16,7 +17,8 @@ const {
     normalizeTradingEvents,
     normalizeTradingSourceUrl,
     parseTradingEventAlertKey,
-    parseTradingNoticeDays
+    parseTradingNoticeDays,
+    argentinaEventTime
 } = globalThis.LifeCycleTradingEvents;
 
 export class TradingModule {
@@ -120,6 +122,10 @@ export class TradingModule {
         document.getElementById('trading-event-notice-days').value = (
             event?.noticeDays || DEFAULT_TRADING_NOTICE_DAYS
         ).join(', ');
+        this.noticeTimesEditor = renderAlertTimesEditor(document.getElementById('trading-event-notice-times'), {
+            times: event ? (event.noticeTimes.length ? event.noticeTimes : [argentinaEventTime(event.scheduledAt)]) : ['09:00'],
+            label: 'Horarios de aviso (Argentina)'
+        });
         document.getElementById('trading-event-notes').value = event?.notes || '';
         document.getElementById('trading-event-source').value = event?.sourceUrl || '';
         document.getElementById('trading-event-enabled').checked = event?.status !== 'paused';
@@ -184,6 +190,7 @@ export class TradingModule {
             name,
             scheduledAt: scheduledAt.toISOString(),
             noticeDays,
+            noticeTimes: this.noticeTimesEditor.getTimes(),
             notes,
             sourceUrl,
             status: enabled ? 'active' : 'paused',
@@ -333,6 +340,7 @@ export class TradingModule {
                 ) {
                     eventEntries.set(entry.alert_key, {
                         noticeDays: parsed.noticeDays,
+                        time: parsed.time,
                         status: entry.status,
                         attemptedAt: entry.attempted_at
                     });
@@ -383,7 +391,7 @@ export class TradingModule {
                 <ul class="trading-history-list">
                     ${entries.map(entry => `
                         <li>
-                            <span>Aviso ${escapeHtml(String(entry.noticeDays))} ${entry.noticeDays === 1 ? 'día' : 'días'} antes</span>
+                            <span>Aviso ${escapeHtml(String(entry.noticeDays))} ${entry.noticeDays === 1 ? 'día' : 'días'} antes${entry.time ? ` · ${escapeHtml(entry.time)}` : ''}</span>
                             <small>${escapeHtml(statusLabels[entry.status] || 'Intento registrado')} · ${escapeHtml(this.formatDateTime(entry.attemptedAt))}</small>
                         </li>
                     `).join('')}
@@ -464,6 +472,7 @@ export class TradingModule {
                         <span>Avisos</span>
                         ${event.noticeDays.map(days => `<span class="trading-notice-chip">${days}d</span>`).join('')}
                     </div>
+                    <p class="field-help">${event.noticeTimes.length ? `A las ${event.noticeTimes.join(', ')} · Argentina` : 'Aviso original por intervalo; editá para elegir horarios.'}</p>
                     ${event.notes ? `<p class="trading-event-notes">${escapeHtml(event.notes)}</p>` : ''}
                     ${source}
                     ${this.renderHistory(event.id)}

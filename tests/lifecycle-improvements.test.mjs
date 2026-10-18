@@ -87,7 +87,7 @@ test('automatic progressive thresholds recalculate at 70/85%, including short pe
     assert.deepEqual(normalizeCustomTrackerDayThresholds({ red: 400, yellow: 180, orange: 270 }).thresholds, { red: 400, yellow: 180, orange: 270 });
 });
 
-test('free and trial subscriptions preserve real price through sync but cannot create manual or automatic expenses', async () => {
+test('free and trial subscriptions preserve real price through sync but cannot create manual expenses', async () => {
     for (const billingMode of ['trial', 'free']) {
         const sub = normalizeSubscription({ id: 'sub_trial_test', name: 'Servicio de prueba', cost: 20, billingMode, nextRenewalDate: '2026-10-01', autoRecordExpense: true });
         const restored = normalizeSubscriptionRegistry(JSON.stringify({ subscriptions: [sub] })).subscriptions[0];
@@ -96,7 +96,6 @@ test('free and trial subscriptions preserve real price through sync but cannot c
         let expenses = 0;
         const module = { subscriptions: [restored], app: { finanzas: { recordSubscriptionExpense: () => { expenses++; } }, auth: { user: {}, supabase: {} } }, recordExpense: SubscriptionsModule.prototype.recordExpense };
         assert.equal(await module.recordExpense(sub.id), false);
-        await SubscriptionsModule.prototype.processDueAutomaticRenewals.call(module);
         assert.equal(expenses, 0);
         assert.equal(module.subscriptions[0].nextRenewalDate, '2026-10-01');
     }

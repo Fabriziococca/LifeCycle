@@ -518,6 +518,12 @@ function validateTradingEvent(event, path) {
     ) {
         throw new BackupValidationError(`"${path}.noticeDays" no contiene intervalos válidos.`);
     }
+    if (event.noticeTimes !== undefined && (!Array.isArray(event.noticeTimes)
+        || event.noticeTimes.length > 6
+        || new Set(event.noticeTimes).size !== event.noticeTimes.length
+        || event.noticeTimes.some(time => typeof time !== 'string' || !/^([01]\d|2[0-3]):[0-5]\d$/.test(time)))) {
+        throw new BackupValidationError(`"${path}.noticeTimes" no contiene horarios válidos.`);
+    }
     if (event.sourceUrl) {
         try {
             const source = new URL(event.sourceUrl);

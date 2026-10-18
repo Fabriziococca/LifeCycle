@@ -68,13 +68,14 @@ const {
 } = require('./push-management');
 const {
     TRADING_ALERT_PREFIX,
-    getDueTradingEventNotice,
+    getDueTradingEventNotices,
     isMissingTradingPersistenceSchema,
     normalizeTradingEvents,
     tradingEventFromDatabaseRow
 } = require('./trading-event-utils');
 const { collectSupabaseRangePages } = require('./supabase-pagination-utils');
 const { SchedulerDocumentCache } = require('./scheduler-document-cache');
+const { SubscriptionRenewalWorker } = require('./subscription-renewal-worker');
 const {
     createFixedWindowRateLimiter,
     normalizeClientAddress
@@ -288,6 +289,7 @@ const supabase = supabaseUrl
     : null;
 const hasSupabaseServiceRole = Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY);
 const schedulerDocuments = new SchedulerDocumentCache(supabase);
+const subscriptionRenewals = new SubscriptionRenewalWorker(supabase);
 const registrationAccessCodeHash = process.env.REGISTRATION_ACCESS_CODE_SHA256 || '';
 const registrationEnabled = isInvitedRegistrationConfigured({
     authAdmin: hasSupabaseServiceRole ? supabase?.auth?.admin : null,
@@ -694,6 +696,7 @@ async function loadTradingEventProjection(signal = null) {
         'notes',
         'source_url',
         'notice_days',
+        'notice_times',
         'status',
         'created_at',
         'updated_at'
@@ -738,7 +741,8 @@ async function loadTradingEventProjection(signal = null) {
 }
 
 async function claimTradingNotificationDispatch({ userId, notice, forceAll }) {
-    if (forceAll || !supabase || tradingDispatchSchemaAvailable === false) return true;
+    if (forceAll) return true;
+    if (!supabase || tradingDispatchSchemaAvailable === false) return false;
 
     const { data, error } = await supabase.rpc('claim_trading_notification_dispatch', {
         p_user_id: userId,
@@ -753,12 +757,12 @@ async function claimTradingNotificationDispatch({ userId, notice, forceAll }) {
             tradingDispatchSchemaAvailable = false;
             reportOptionalSchemaWarning(
                 'trading-dispatch',
-                '[Trading] La idempotencia persistente todavía no está aplicada; continúa activa la protección compatible.'
+                '[Trading] No se envían avisos mientras la reserva persistente no esté disponible.'
             );
         } else {
             console.error('[Trading] No se pudo reservar el aviso persistente:', error.message);
         }
-        return true;
+        return false;
     }
 
     tradingDispatchSchemaAvailable = true;
@@ -1543,12 +1547,13 @@ async function sendDueTradingEventAlerts({
         : {};
     const dateStr = getArgentinaTime().dateStr;
     const dueNotices = tradingEvents
-        .map(event => getDueTradingEventNotice(event, now))
+        .flatMap(event => getDueTradingEventNotices(event, now))
         .filter(Boolean)
         .filter(notice => (
             forceAll
             || (
                 !Object.prototype.hasOwnProperty.call(sentLog, notice.alertKey)
+                && !(notice.legacyKey && Object.hasOwn(sentLog,notice.legacyKey))
                 && !wasSentForDate(userId, notice.alertKey, dateStr)
             )
         ))
@@ -1584,6 +1589,8 @@ async function sendDueTradingEventAlerts({
                 payload,
                 context: `evento de Trading ${notice.event.id}`,
                 alertKey: notice.alertKey,
+                scheduledAt: notice.scheduledAt,
+                expiresAt: notice.expiresAt,
                 delayMs: 250,
                 urgency: 'high',
                 signal
@@ -1797,6 +1804,7 @@ app.get('/api/health', (req, res) => {
             lastRetryCheckAt: notificationRuntimeState.lastRetryCheckAt,
             lastRetryCount: notificationRuntimeState.lastRetryCount
         },
+        subscriptionRenewals: subscriptionRenewals.snapshot(),
         transcriptions: {
             ...transcriptionWorker.runtime,
             pipelineAvailable: transcriptionWorker.pipelineAvailable
@@ -2742,7 +2750,13 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
         const { year, month, day, hour, minutes, dayOfWeek, dateStr } = getArgentinaTime();
         const schedulerNow = new Date();
 
-        const usersData = await schedulerDocuments.load({ signal });
+        let usersData = await schedulerDocuments.load({ signal });
+        if (!forceAll) {
+            const renewalResult = await subscriptionRenewals.run(usersData,{signal,now:schedulerNow});
+            if (renewalResult.summary.failed) console.error(`[Subscription Renewals] ${renewalResult.summary.failed} occurrence(s) could not be recorded; retained for retry.`);
+            for (const id of renewalResult.changed) schedulerDocuments.forget(id);
+            if (renewalResult.changed.size) usersData = await schedulerDocuments.load({signal});
+        }
         throwIfAborted(signal);
         const { data: subs, error: subError } = await withAbortSignal(
             supabase.from('push_subscriptions').select('*'),

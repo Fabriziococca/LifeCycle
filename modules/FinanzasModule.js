@@ -1647,7 +1647,7 @@ export class FinanzasModule {
                 && e.date === dateVal
             )
         );
-        if (existing) {
+        if (existing && !this.app.auth?.supabase) {
             return { created: false, duplicate: true };
         }
 
@@ -1710,7 +1710,8 @@ export class FinanzasModule {
             }
             return {
                 created: result?.created === true,
-                duplicate: result?.duplicate === true
+                duplicate: result?.duplicate === true,
+                subscriptionRegistry: result?.subscription_registry
             };
         }
 

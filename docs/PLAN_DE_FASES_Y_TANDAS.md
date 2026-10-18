@@ -2,6 +2,13 @@
 
 ## Estado vigente al 27/09/2026
 
+**Actualización del 18/10/2026:** Trading multihorario y renovaciones automáticas
+desde el servidor implementadas y probadas; ver
+[comportamiento y verificación](TRADING_Y_RENOVACIONES_2026-10-18.md).
+Esta ampliación resuelve esos dos pendientes B/C. La tabla histórica siguiente
+conserva el diagnóstico anterior y no acredita por sí sola el cierre de A–F.
+La publicación exacta y QA se contrastan con el recibo operativo de esa ampliación.
+
 **Actualización acotada del 11/10/2026:** ver
 [mejoras de seguimiento](MEJORAS_SEGUIMIENTOS_2026-10-11.md) para arbitraje,
 entrega exacta, modalidades gratuitas, pausas y avisos automáticos. Este pedido
