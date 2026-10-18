@@ -1460,7 +1460,6 @@ body.access-locked {
 /* --- Control de Secciones --- */
 .main-section {
     width: 100%;
-    animation: fadeIn 0.4s ease-out;
 }
 
 .hidden {

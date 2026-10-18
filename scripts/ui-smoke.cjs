@@ -9,6 +9,7 @@ const { runWorkSmoke } = require('./work-smoke.cjs');
 const { runChargingSmoke } = require('./charging-smoke.cjs');
 const { runLifecycleImprovementsSmoke } = require('./lifecycle-improvements-smoke.cjs');
 const { runVisualSmoke } = require('./visual-smoke.cjs');
+const { runNavigationVisualSmoke } = require('./navigation-visual-smoke.cjs');
 const path = require('node:path');
 const httpServer = express().use(express.static(path.resolve(__dirname, '..'))).listen(0, '127.0.0.1');
 
@@ -60,6 +61,11 @@ const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'navigation') {
+                await runNavigationVisualSmoke(page,{width,theme}); assert.deepEqual(errors,[]);
+                console.log(JSON.stringify({width,theme,navigationOpaque:true,logoContrast:true}));
+                await context.close();continue;
+            }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'visual') {
                 await runVisualSmoke(page, {width, theme}); assert.deepEqual(errors, []);
                 console.log(JSON.stringify({width, theme, visual:true, reducedMotion:true, failureRecovery:true}));

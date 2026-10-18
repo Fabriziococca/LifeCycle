@@ -26,6 +26,23 @@ los documentos e historiales.
 
 ## Validación
 
-Pendiente de completar antes de la publicación: suite, QA visual y funcional
-aislada en escritorio/móvil y claro/oscuro, sesión QA autenticada y comprobación
-del commit publicado, `/api/health` y logs posteriores.
+La base visual se publicó en `e4fc076` después de 492 tests, pruebas visuales
+locales en 1440/390 px con ambos temas, controles de desborde en siete anchos
+con ambos temas y navegación autenticada en QA. Se verificaron commit exacto,
+`/api/health` y logs posteriores al Manual Deploy.
+
+## Corrección posterior: navegación e iconos
+
+- Se elimina el fade con desplazamiento CSS y la segunda entrada por Web
+  Animations al cambiar de módulo: el contenido permanece opaco e inmóvil.
+- El logo conserva el glifo blanco sobre azul tanto en LifeCycle como en Trabajo.
+- El icono heredado `ph-spray` del pañuelo se representa con `ph-spray-bottle`
+  en las tarjetas y el selector, sin modificar el valor ni historial guardados.
+- La regresión de navegación se reproduce con el código anterior. La prueba
+  inspecciona doce cuadros consecutivos por cambio de módulo y comprueba contraste
+  del logo e icono del pañuelo, en escritorio/móvil y claro/oscuro.
+- Los efectos de confirmación de guardado y conexión de Cargas se conservan.
+
+Validación local de la corrección: 492 tests sin fallos; navegación e iconos en
+1440/390 px, claro/oscuro; y regresión visual de guardado, Cargas, Proyectos,
+movimiento reducido y recuperación de errores en los mismos cuatro escenarios.

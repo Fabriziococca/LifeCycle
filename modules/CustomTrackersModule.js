@@ -44,7 +44,7 @@ import {
     getLocalISODate
 } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
-import { createIconPicker } from '../icon-picker-utils.mjs?v=20260818-icon-preview';
+import { createIconPicker, resolveIconClass } from '../icon-picker-utils.mjs?v=20260818-icon-preview';
 import {
     getSuggestedAlertTime,
     MAX_ALERT_TIMES_PER_DAY,
@@ -4365,7 +4365,7 @@ export class CustomTrackersModule {
                 ${isReordering ? 'data-reorder-item aria-grabbed="false"' : ''}
             >
                 <div class="custom-manager-row-name">
-                    <i class="ph ${tracker.icon}"></i>
+                    <i class="ph ${resolveIconClass(tracker.icon)}"></i>
                     <span>
                         <strong>${escapeHtml(tracker.name)}</strong>
                         <small>${escapeHtml(subsection?.label || '')}</small>
@@ -4404,7 +4404,7 @@ export class CustomTrackersModule {
         return `
             <div class="custom-manager-row archived">
                 <div class="custom-manager-row-name">
-                    <i class="ph ${awaitingConfirmation ? 'ph-warning' : tracker.icon}"></i>
+                    <i class="ph ${awaitingConfirmation ? 'ph-warning' : resolveIconClass(tracker.icon)}"></i>
                     <span>
                         <strong>${awaitingConfirmation ? `¿Borrar ${escapeHtml(tracker.name)} y todo su historial?` : escapeHtml(tracker.name)}</strong>
                         <small>${awaitingConfirmation ? deletionDetail : `${historyCount} ${historyCount === 1 ? 'registro conservado' : 'registros conservados'}`}</small>
@@ -4568,7 +4568,7 @@ export class CustomTrackersModule {
             >
                 <div class="custom-tracker-card-header">
                     <div class="custom-tracker-identity">
-                        <span class="custom-tracker-icon"><i class="ph ${tracker.icon}"></i></span>
+                        <span class="custom-tracker-icon"><i class="ph ${resolveIconClass(tracker.icon)}"></i></span>
                         <div>
                             <h3>${safeName}</h3>
                             <span class="custom-tracker-status">${status.label}</span>

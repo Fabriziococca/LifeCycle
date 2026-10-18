@@ -15,7 +15,8 @@ test('System reduced motion and a local reduced preference both disable interact
     for (const options of [{ reduced: true }, { preference: 'reduced' }]) {
         const { visual, documentRef } = fixture(options);
         let played = 0;
-        visual.enter({ getClientRects: () => [1], animate: () => played++ });
+        documentRef.querySelector = () => ({ getClientRects: () => [1], animate: () => played++ });
+        visual.connect('plug');
         assert.equal(played, 0);
         assert.equal(documentRef.documentElement.dataset.motion, 'reduced');
     }

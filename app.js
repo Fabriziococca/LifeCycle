@@ -551,7 +551,6 @@ class AppController {
     }
 
     activateSection(sectionId, { persist = true, render = true, smooth = false } = {}) {
-        const previousSectionId = this.lastActiveSectionId;
         if (!isProductModuleEnabled(sectionId)) return false;
         const mainNav = document.getElementById('main-nav');
         const reorderContext = this.customTrackers?.reorderContext;
@@ -598,7 +597,6 @@ class AppController {
         this.scrollControlIntoView(mainNav, targetButton, smooth);
         if (render) this.renderSection(sectionId);
         if (sectionId === 'higiene-section') void this.charging?.refreshNotices();
-        if (previousSectionId !== sectionId) this.visual.enter(targetSection);
         return true;
     }
 

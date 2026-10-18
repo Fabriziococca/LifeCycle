@@ -1,3 +1,8 @@
+// Keep saved legacy values intact while displaying the current Phosphor glyph.
+export function resolveIconClass(icon) {
+    return icon === 'ph-spray' ? 'ph-spray-bottle' : icon;
+}
+
 function getOptionLabel(select, value, labels) {
     const option = [...select.options].find(candidate => candidate.value === value);
     return labels[value] || option?.textContent?.trim() || value;
@@ -5,7 +10,7 @@ function getOptionLabel(select, value, labels) {
 
 function createIconNode(documentRef, icon) {
     const glyph = documentRef.createElement('i');
-    glyph.className = `ph ${icon}`;
+    glyph.className = `ph ${resolveIconClass(icon)}`;
     glyph.setAttribute('aria-hidden', 'true');
     return glyph;
 }

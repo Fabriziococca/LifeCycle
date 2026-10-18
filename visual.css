@@ -59,7 +59,7 @@ input:focus-visible, select:focus-visible, textarea:focus-visible {
     outline: 3px solid var(--primary-color); outline-offset: 3px;
 }
 .adaptive-nav-brand { border-bottom-color: var(--surface-border); }
-.adaptive-nav-brand > i, .adaptive-nav-brand-icon { color: var(--workspace-accent); }
+.adaptive-nav-brand > i { color: var(--text-on-accent); }
 body[data-workspace="work"] .nav-btn.active {
     background: color-mix(in srgb, var(--workspace-accent) 14%, var(--surface-solid));
     color: var(--workspace-accent); box-shadow: inset 3px 0 var(--workspace-accent);

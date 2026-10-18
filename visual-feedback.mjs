@@ -33,11 +33,6 @@ export class VisualFeedback {
         });
     }
 
-    enter(element) {
-        if (!element || this.reduced || this.document.hidden || !element.getClientRects().length) return;
-        element.animate?.([{ opacity: .88 }, { opacity: 1 }], { duration: 180, easing: 'ease-out' });
-    }
-
     connect(selector) {
         const element = this.document.querySelector(selector);
         if (this.reduced || this.document.hidden || !element?.getClientRects().length) return;
