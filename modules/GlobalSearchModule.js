@@ -10,7 +10,7 @@ const GROUP_META = Object.freeze({
     charging: Object.freeze({label:'Cargas',icon:'ph-plug'}),
     work: Object.freeze({label:'Trabajo',icon:'ph-briefcase'}),
     command: Object.freeze({ label: 'Acciones', icon: 'ph-lightning' }),
-    planning: Object.freeze({ label: 'Facultad y Saylor', icon: 'ph-graduation-cap' }),
+    planning: Object.freeze({ label: 'Agenda y planificación', icon: 'ph-calendar-check' }),
     tracker: Object.freeze({ label: 'Tarjetas', icon: 'ph-stack' }),
     task: Object.freeze({ label: 'Tareas', icon: 'ph-check-square' }),
     project: Object.freeze({ label: 'Proyectos', icon: 'ph-briefcase' }),

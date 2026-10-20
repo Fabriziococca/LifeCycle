@@ -55,6 +55,20 @@ de datos existentes. Publicación y QA se acreditan en el recibo local ignorado
 - Preview de migración en Supabase con registros sintéticos QA y ROLLBACK.
   Aplicación posterior: checksums de contenido personal y QA sin cambios; sin
   hallazgos nuevos en asesores de seguridad/rendimiento.
+- 508 pruebas automáticas aprobadas. Regresión de Trabajo en los cuatro tamaños/
+  temas y de Facultad/Saylor en móvil claro/oscuro. El diálogo largo de backup
+  limita su altura y permite desplazar el contenido manteniendo visibles sus
+  acciones; se verifica también con una ventana de sólo 620 px de alto.
+- QA autenticada: crear, editar, pausar, archivar y reactivar rutina; registrar
+  realización el 20/10 y comprobar próxima revisión el 22/10 e historial único.
+  Turno: tres tramos, reprogramación, pausa/reactivación, búsqueda, vínculo al
+  estudio existente, realización, reapertura, cancelación y archivo.
+- Avisos automáticos con la app fuera de ejecución: programados 14:00 Argentina,
+  procesados 14:02 el 20/10. Un registro por dominio, ambos `no_devices`; no se
+  interpreta como entrega Push. Las muestras quedaron archivadas al terminar.
+- Backup real QA validado y vista previa de importación cancelada sin restaurar.
+  Comparación antes/después: 41 claves anteriores y todos los registros previos
+  de Trabajo conservados, con un cliente/rutina y un turno sintéticos añadidos.
 
 El scheduler conserva su intervalo de cinco minutos y su ventana de frescura.
 Una reserva o aceptación Push no demuestra recepción en Android. La cuenta QA

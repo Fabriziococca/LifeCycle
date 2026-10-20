@@ -41,6 +41,14 @@ exports.runCareSmoke=async(page,{width,theme})=>{
  await health.locator('[data-appointment-action=archive]').click();await confirm();
  const backup=await page.evaluate(async()=>{const a=window.lifecycle_controller,s=await a.work.store.backupSnapshot(),b=await import('/backup-utils.mjs');return b.createBackupPayload(k=>s[k]??null);});
  assert.equal(backup.data.lifecycle_appointments.events.length,1);assert.equal(backup.data.lifecycle_work.followups[0].maintenance.history.length,1);
+ const viewport=page.viewportSize();await page.setViewportSize({width,height:620});
+ await page.evaluate(()=>window.lifecycle_controller.openProfileTab('backup'));
+ await page.locator('#importFileUnified').setInputFiles({name:'qa-care-backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});
+ await page.locator('#app-feedback-dialog').waitFor({state:'visible'});
+ const bounds=await page.locator('#app-feedback-dialog [data-feedback-confirm]').evaluate(el=>{const r=el.getBoundingClientRect();return{top:r.top,bottom:r.bottom,height:innerHeight};});
+ assert.ok(bounds.top>=0&&bounds.bottom<=bounds.height,'long backup confirmation keeps actions within short viewport');
+ await page.locator('#app-feedback-dialog [data-feedback-cancel]').click();
+ await page.setViewportSize(viewport);
  await page.evaluate(async b=>{const a=window.lifecycle_controller,u=await import('/backup-utils.mjs');await a.work.store.restore(u.parseAndValidateBackupText(JSON.stringify(b)));},backup);
  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>window.lifecycle_controller?.auth?.readyUserId&&window.lifecycle_controller.work.store.state);
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.appointments.store.value.events[0].archived),true);
