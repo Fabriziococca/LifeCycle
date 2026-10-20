@@ -23,6 +23,13 @@ no incorpora servicios pagos ni integraciones con equipos, Webshare u OBS.
 - Entre uno y cuatro tramos, cada uno con anticipación de 0–365 días y hasta
   seis horarios de Argentina. El tramo más cercano reemplaza al anterior.
   Ningún aviso de asistencia se programa a partir de la hora de la cita.
+- El lugar conserva su campo de texto. Un enlace de ubicación HTTPS opcional
+  aparece por separado con `Abrir ubicación` y `Copiar enlace`. Se mantiene
+  visible y seleccionable si el navegador rechaza el portapapeles. Abrir o
+  copiar no guarda, reprograma ni cambia la revisión del turno.
+- El formulario explica que los avisos son diarios y los tramos no se suman.
+  La tarjeta muestra los rangos sin superposición (por ejemplo, de 15 a 8 días
+  antes y desde 7 días antes hasta la cita), siempre sujetos a la hora del turno.
 - Cumplir la fecha no confirma asistencia: queda pendiente de confirmar. El
   usuario puede realizar, reprogramar, cancelar, pausar, archivar o eliminar.
   Confirmar una cita no fabrica resultados ni modifica controles o archivos.
@@ -37,6 +44,10 @@ Los turnos viven en `lifecycle_appointments`, con revisión y guardado mediante 
 RPC existente. Los dos dominios conservan control de cuenta y conflictos de
 revisión. La agenda entra en sincronización, backup, restore atómico de Trabajo
 y consulta cifrada. Un backup antiguo que no la incluye no la vacía.
+
+`locationUrl` es opcional y admite hasta 4096 caracteres. Las agendas previas sin
+ese campo siguen siendo válidas. Usa la misma RPC y JSON existente, sin migración
+ni reescritura de turnos personales. Se conserva en sincronización y backups.
 
 Migración `20261020164626_client_maintenance_and_health_appointments.sql`:
 validación de documentos e historial, ampliación de claves admitidas y consulta

@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { completeMaintenance,nextMaintenanceDate,validateMaintenance,alignMaintenanceDate } from '../maintenance-utils.mjs';
 import { emptyWork,validateWork,workOverview,workNotificationCandidates,isWorkRetryRelevant } from '../work-utils.mjs';
-import { APPOINTMENTS_KEY,emptyAppointments,validateAppointments,appointmentState,appointmentNotificationCandidates,isAppointmentRetryRelevant } from '../appointments-utils.mjs';
+import { APPOINTMENTS_KEY,emptyAppointments,validateAppointments,appointmentState,appointmentNotificationCandidates,isAppointmentRetryRelevant,appointmentLocationUrl,appointmentStageSummary } from '../appointments-utils.mjs';
 import { createBackupPayload,parseAndValidateBackupText } from '../backup-utils.mjs';
 export const client={id:'11111111-1111-4111-8111-111111111111',name:'QA care',archived:false};
 export const routine=()=>({id:'22222222-2222-4222-8222-222222222222',clientId:client.id,title:'Revisar equipo',actor:'me',status:'open',priority:'normal',reviewOn:'2026-01-31',promisedOn:'',reminderEnabled:true,reminderTime:'09:00',maintenance:{version:1,scheduleVersion:1,instructions:'Prueba sintética',paused:false,archived:false,times:['09:00','18:00'],history:[],cadence:{type:'interval',every:1,unit:'months',anchor:'calendar',anchorDate:'2026-01-31'}}});
@@ -63,4 +63,26 @@ test('agenda validation and backups preserve both domains and old backups do not
  const b=createBackupPayload(key=>key===APPOINTMENTS_KEY?JSON.stringify(a):key==='lifecycle_work'?JSON.stringify(state()):null);
  const plan=parseAndValidateBackupText(JSON.stringify(b));assert.ok(plan.entries.some(([k])=>k===APPOINTMENTS_KEY));
  delete b.data[APPOINTMENTS_KEY];assert.equal(parseAndValidateBackupText(JSON.stringify(b)).entries.some(([k])=>k===APPOINTMENTS_KEY),false);
+});
+
+test('optional location links preserve old appointments, round-trip backups and reject executable or credentialed URLs',()=>{
+ const old=agenda(appointment()),before=structuredClone(old);validateAppointments(old);assert.deepEqual(old,before);
+ assert.equal(appointmentLocationUrl(),'');assert.equal(appointmentLocationUrl('  '),'');
+ const url='https://www.google.com/maps/search/?api=1&query=Consultorio%20QA';
+ assert.equal(appointmentLocationUrl(' '+url+' '),url);
+ const data=agenda({...appointment(),locationUrl:url});validateAppointments(data);
+ const backup=createBackupPayload(key=>key===APPOINTMENTS_KEY?JSON.stringify(data):null);
+ const entry=parseAndValidateBackupText(JSON.stringify(backup)).entries.find(([k])=>k===APPOINTMENTS_KEY);
+ assert.equal(JSON.parse(entry[1]).events[0].locationUrl,url);
+ for(const bad of ['javascript:alert(1)','data:text/html,hello','file:///tmp/map','http://example.com','//example.com','https://user:password@example.com','https://example.com/a\nb','https://example.com/a b','no es un enlace',null,42,'https://example.com/'+ 'a'.repeat(4096)])
+  assert.throws(()=>validateAppointments(agenda({...appointment(),locationUrl:bad})));
+ const now=new Date('2026-10-13T12:04:00Z');
+ assert.deepEqual(appointmentNotificationCandidates(data,now).map(({event,...notice})=>notice),appointmentNotificationCandidates(old,now).map(({event,...notice})=>notice),'links do not change notice scheduling or expose the URL in Push text');
+});
+
+test('stage descriptions show non-overlapping daily ranges including the day of appointment',()=>{
+ const stages=[{days:7,times:['09:00','18:00']},{days:15,times:['14:00']}],before=structuredClone(stages);
+ assert.deepEqual(appointmentStageSummary(stages),['Desde 15 hasta 8 días antes: todos los días a las 14:00.','Desde 7 días antes hasta el día del turno: todos los días a las 09:00, 18:00.']);
+ assert.deepEqual(stages,before);
+ assert.deepEqual(appointmentStageSummary([{days:1,times:['09:00']},{days:0,times:['08:00']}]),['1 día antes: todos los días a las 09:00.','El día del turno: a las 08:00.']);
 });

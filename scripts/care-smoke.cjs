@@ -25,10 +25,29 @@ exports.runCareSmoke=async(page,{width,theme})=>{
  await page.evaluate(()=>{const a=window.lifecycle_controller;a.activateSection('salud-section');a.appointments.activate('turnos');});
  const health=page.locator('#health-appointments');await health.getByRole('button',{name:'Nuevo turno',exact:true}).click();
  await field('name').fill('Turno QA <prueba>');await field('professional').fill('Profesional sintético');await field('date').fill('2026-12-20');await field('location').fill('Consultorio de prueba');
+ await dialog.getByText('sus horarios reemplazan a los anteriores; no se suman.',{exact:false}).waitFor();
+ await field('locationUrl').fill('http://example.com/ubicacion');await dialog.locator('[type=submit]').click();
+ await dialog.getByRole('alert').getByText('Usá un enlace HTTPS válido',{exact:false}).waitFor();
+ const locationUrl='https://www.google.com/maps/search/?api=1&query=Consultorio%20QA';
+ await field('locationUrl').fill(locationUrl);
  await field('stageDays1').fill('15');await dialog.locator('[type=submit]').click();
  await dialog.getByRole('alert').getByText('Los tramos deben tener días distintos',{exact:false}).waitFor();
  await field('stageDays1').fill('7');await dialog.locator('[data-add-stage]').click();await field('stageTimes2').fill('08:00, 12:00');await save();
  let event=await page.evaluate(()=>window.lifecycle_controller.appointments.store.value.events[0]);assert.equal(event.stages.length,3);assert.equal(event.status,'pending');
+ assert.equal(event.locationUrl,locationUrl);
+ const locationLink=health.getByRole('link',{name:'Abrir ubicación'});
+ assert.equal(await locationLink.getAttribute('href'),locationUrl);assert.equal(await locationLink.getAttribute('target'),'_blank');assert.match(await locationLink.getAttribute('rel'),/noopener/);
+ await page.context().route('https://www.google.com/maps/**',route=>route.fulfill({contentType:'text/html',body:'<h1>Ubicación QA</h1>'}));
+ await locationLink.focus();const popupPromise=page.waitForEvent('popup');await page.keyboard.press('Enter');const popup=await popupPromise;await popup.waitForLoadState('domcontentloaded');assert.equal(popup.url(),locationUrl);await popup.close();
+ await page.context().grantPermissions(['clipboard-read','clipboard-write']);
+ await health.getByRole('button',{name:'Copiar enlace',exact:true}).click();assert.equal(await page.evaluate(()=>navigator.clipboard.readText()),locationUrl);
+ await page.evaluate(()=>{window.qaLocationClipboardWrite=navigator.clipboard.writeText;navigator.clipboard.writeText=async()=>{throw new Error('QA denied');};});
+ await health.getByRole('button',{name:'Copiar enlace',exact:true}).click();
+ assert.equal(await health.locator('[data-location-url]').evaluate(el=>document.activeElement===el&&el.selectionStart===0&&el.selectionEnd===el.value.length),true,'clipboard denial leaves the full URL selected for manual copying');
+ await page.evaluate(()=>{navigator.clipboard.writeText=window.qaLocationClipboardWrite;delete window.qaLocationClipboardWrite;});
+ assert.equal(await page.evaluate(()=>window.lifecycle_controller.appointments.store.value.revision),1,'opening/copying location never saves or reschedules the appointment');
+ await health.locator('details').filter({has:page.getByText('Programación de avisos',{exact:true})}).locator('summary').click();
+ await health.getByText('Desde 15 hasta 8 días antes: todos los días a las 09:00.',{exact:true}).waitFor();
  await health.locator('[data-appointment-action=edit]').click();await field('time').fill('19:00');await save();
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.appointments.store.value.events[0].scheduleVersion),2);
  await health.locator('[data-appointment-action=pause]').click();await confirm();await health.getByText('Avisos pausados',{exact:true}).waitFor();
@@ -41,6 +60,7 @@ exports.runCareSmoke=async(page,{width,theme})=>{
  await health.locator('[data-appointment-action=archive]').click();await confirm();
  const backup=await page.evaluate(async()=>{const a=window.lifecycle_controller,s=await a.work.store.backupSnapshot(),b=await import('/backup-utils.mjs');return b.createBackupPayload(k=>s[k]??null);});
  assert.equal(backup.data.lifecycle_appointments.events.length,1);assert.equal(backup.data.lifecycle_work.followups[0].maintenance.history.length,1);
+ assert.equal(backup.data.lifecycle_appointments.events[0].locationUrl,locationUrl);
  const viewport=page.viewportSize();await page.setViewportSize({width,height:620});
  await page.evaluate(()=>window.lifecycle_controller.openProfileTab('backup'));
  await page.locator('#importFileUnified').setInputFiles({name:'qa-care-backup.json',mimeType:'application/json',buffer:Buffer.from(JSON.stringify(backup))});
@@ -52,6 +72,7 @@ exports.runCareSmoke=async(page,{width,theme})=>{
  await page.evaluate(async b=>{const a=window.lifecycle_controller,u=await import('/backup-utils.mjs');await a.work.store.restore(u.parseAndValidateBackupText(JSON.stringify(b)));},backup);
  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>window.lifecycle_controller?.auth?.readyUserId&&window.lifecycle_controller.work.store.state);
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.appointments.store.value.events[0].archived),true);
+ assert.equal(await page.evaluate(()=>window.lifecycle_controller.appointments.store.value.events[0].locationUrl),locationUrl,'location survives restore and reload');
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.followups[0].maintenance.history.length),1);
  // Past appointment remains unconfirmed, is visible in Hoy/bell and opens Salud.
  await page.evaluate(async()=>{const a=window.lifecycle_controller,d=a.appointments.store.value;d.events[0].status='pending';d.events[0].archived=false;d.events[0].date='2026-01-01';d.events[0].scheduleVersion++;await a.appointments.store.save(d);});

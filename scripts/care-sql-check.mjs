@@ -14,9 +14,9 @@ try {
  for(const file of ['20261014191358_personal_planning.sql','20261017183000_work_workspace.sql','20261017220000_charging_controls.sql','20261020164626_client_maintenance_and_health_appointments.sql'])await db.exec(await readFile(new URL('../supabase/migrations/'+file,import.meta.url),'utf8'));
  await db.exec(`set request.jwt.claim.sub='${a}';set role authenticated`);
  const saveAgenda=async(v,r)=>(await db.query("select public.save_lifecycle_planning('lifecycle_appointments',$1,$2) as v",[r,v])).rows[0].v;
- const e={id:'ha_test-event',name:'QA appointment',professional:'',location:'',notes:'',trackerId:'',date:'2026-10-30',time:'18:00',kind:'consultation',status:'pending',paused:false,archived:false,scheduleVersion:1,stages:[{days:15,times:['09:00','18:00']}]};
+ const e={id:'ha_test-event',name:'QA appointment',professional:'',location:'',locationUrl:'https://maps.app.goo.gl/qa-location',notes:'',trackerId:'',date:'2026-10-30',time:'18:00',kind:'consultation',status:'pending',paused:false,archived:false,scheduleVersion:1,stages:[{days:15,times:['09:00','18:00']}]};
  const agenda={...emptyAppointments(),revision:1,events:[e]};
- assert.equal((await saveAgenda(agenda,0)).workspace.events.length,1);
+ assert.equal((await saveAgenda(agenda,0)).workspace.events[0].locationUrl,e.locationUrl,'existing SQL RPC preserves optional location link without a migration');
  assert.equal((await saveAgenda(agenda,0)).workspace.revision,1,'lost-response retry is idempotent');
  await assert.rejects(saveAgenda({...agenda,revision:2},0),/conflict/);
  for(const patch of [{date:'2026-02-30'},{time:'25:00'},{stages:[{days:7,times:['09:00','09:00']}]},{stages:[{days:7,times:['09:00']},{days:7,times:['18:00']}]},{paused:null},{status:'done',completedOn:'2050-01-01'}])await assert.rejects(saveAgenda({...agenda,revision:2,events:[{...e,...patch}]},1));
