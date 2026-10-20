@@ -1,4 +1,5 @@
 export const CLOUD_SYNC_KEYS = Object.freeze([
+    'lifecycle_appointments',
     'lifecycle_charging',
     'lifecycle_saylor',
     'lifecycle_faculty',

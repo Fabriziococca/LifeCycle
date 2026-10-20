@@ -390,6 +390,12 @@ export class NotificationsCenterModule {
             console.error("Error in getOverdueItems:", e);
         }
         items.push(...(this.app.faculty?.getOverdueItems?.() || []));
+        items.push(...(this.app.appointments?.getOverdueItems?.() || []));
+        try {
+            const state=this.app.work?.store.value;
+            if(state) for(const f of state.followups) if(f.maintenance&&!f.maintenance.paused&&!f.maintenance.archived&&f.reviewOn<=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires'}).format(new Date())&&state.clients.some(c=>c.id===f.clientId&&!c.archived))
+                items.push({module:'maintenance',id:f.id,clientId:f.clientId,name:f.title,desc:'Mantenimiento · '+f.reviewOn,icon:'ph-wrench',urgency:'urgente',completable:false});
+        } catch {}
         items.push(...(this.app.charging?.getOverdueItems?.() || []));
         return items;
     }
@@ -405,7 +411,14 @@ export class NotificationsCenterModule {
         let targetTab = null;
         let targetElementId = item.targetElementId || null;
 
-        if (item.module === 'charging') {
+        if (item.module === 'appointment') {
+            sectionId = 'salud-section';
+            targetElementId = this.app.appointments?.open(item.id);
+        } else if (item.module === 'maintenance') {
+            sectionId = 'work-clients-section';
+            if(this.app.work){this.app.work.clientId=item.clientId;this.app.work.render();}
+            targetElementId = 'maintenance-'+item.id;
+        } else if (item.module === 'charging') {
             sectionId = 'higiene-section';
             targetElementId = this.app.charging?.open(item.id);
         } else if (item.module === 'faculty') {
@@ -449,6 +462,7 @@ export class NotificationsCenterModule {
                 vehicle: 'vehiculo-section'
             };
             sectionId = sectionMap[tracker?.section] || tracker?.section || null;
+            if(sectionId==='salud-section')this.app.appointments?.activate('controls');
             targetElementId = targetElementId || (tracker ? `custom-card-${tracker.id}` : null);
         } else if (item.module === 'gym') {
             sectionId = 'gym-section';

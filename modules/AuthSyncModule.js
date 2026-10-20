@@ -1089,6 +1089,7 @@ export class AuthSyncModule {
             }
             this.app.saylor?.render();
             this.app.faculty?.render();
+            this.app.appointments?.render();
             this.app.charging?.render();
             this.app.work?.render();
             if (this.app.tareas) {

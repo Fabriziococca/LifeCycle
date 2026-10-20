@@ -3,6 +3,7 @@ import { listRecoveryVaults, decryptRecoverySnapshot } from './recovery-vault.mj
 const $ = id => document.getElementById(id);
 let vaults = [], opened = null, lockTimer, generation = 0;
 const titles = {
+    lifecycle_appointments: 'Turnos de Salud y programación de avisos',
     lifecycle_work: 'Trabajo · clientes, proyectos vinculados, seguimientos y notas',
     lifecycle_charging: 'Dispositivos e historial de cargas',
     hygiene_tracker_data: 'Tarjetas, registros e historial', groomingData_v2: 'Cuidado personal',

@@ -1,3 +1,4 @@
+import { validateMaintenance, maintenanceActive } from './maintenance-utils.mjs';
 export const WORK_KEY = 'lifecycle_work';
 export const WORK_SECTIONS = Object.freeze(['work-summary-section', 'work-clients-section', 'work-followups-section', 'projects-section', 'finanzas-section']);
 export const WORK_NAV = Object.freeze({
@@ -28,6 +29,7 @@ export function validateWork(input) {
         assert(clients.has(f.clientId) && text(f.title, 300, true) && Object.hasOwn(WORK_ACTORS, f.actor) && ['open', 'completed', 'cancelled'].includes(f.status) && ['normal', 'high'].includes(f.priority), 'Seguimiento no válido.');
         assert(!f.projectId || input.links.some(l => String(l.projectId) === String(f.projectId) && l.clientId === f.clientId), 'El proyecto no pertenece a este cliente.');
         assert((!f.reviewOn || validWorkDate(f.reviewOn)) && (!f.promisedOn || validWorkDate(f.promisedOn)) && typeof f.reminderEnabled === 'boolean' && /^([01]\d|2[0-3]):[0-5]\d$/.test(f.reminderTime), 'Fecha u horario de seguimiento no válido.');
+        validateMaintenance(f);
     }
     for (const n of input.notes) { identity(n); assert(clients.has(n.clientId) && text(n.body, 4000, true) && ['note', 'pending', 'agreement'].includes(n.kind), 'Nota de cliente no válida.');assert(!n.projectId||input.links.some(l=>l.clientId===n.clientId&&l.projectId===n.projectId),'El proyecto de la nota no pertenece al cliente.'); }
     assert(input.settings && typeof input.settings.dailyEnabled === 'boolean' && /^([01]\d|2[0-3]):[0-5]\d$/.test(input.settings.dailyTime), 'Configuración de resumen no válida.');
@@ -39,7 +41,7 @@ export function validateWork(input) {
 export function readWork(raw) { return raw ? validateWork(typeof raw === 'string' ? JSON.parse(raw) : raw) : emptyWork(); }
 export function workOverview(state, projects = [], now = new Date()) {
     const day = argentinaDate(now), active = new Set(state.clients.filter(c => !c.archived).map(c => c.id));
-    const open = state.followups.filter(f => f.status === 'open' && active.has(f.clientId));
+    const open = state.followups.filter(f => f.status === 'open' && active.has(f.clientId) && maintenanceActive(f));
     const due = open.filter(f => f.reviewOn && f.reviewOn <= day);
     const linked = new Set(state.links.filter(l => active.has(l.clientId)).map(l => String(l.projectId)));
     const list = projects.filter(p => linked.has(String(p.id)));
@@ -65,7 +67,10 @@ export function workNotificationCandidates(state, now = new Date()) {
         if (now >= scheduled && now < expires) result.push({ key: key + ':' + day, scheduledAt: scheduled.toISOString(), expiresAt: expires.toISOString(), title, body, followup });
     };
     if (state.settings.dailyEnabled && overview.due.length) add('work:daily', state.settings.dailyTime, 'Trabajo · resumen diario', overview.mine.length + ' acciones para vos · ' + overview.due.filter(f => f.actor !== 'me').length + ' esperas para revisar.');
-    for (const f of overview.due) if (f.reminderEnabled) add('work:followup:' + f.id, f.reminderTime, 'Trabajo · seguimiento', f.title, f);
+    for (const f of overview.due) if (f.reminderEnabled) {
+        if(f.maintenance)for(const time of f.maintenance.times)add(`work:maintenance:${f.id}:${f.maintenance.scheduleVersion}:${time.replace(':','')}`,time,'Trabajo · mantenimiento',f.title+' · '+state.clients.find(c=>c.id===f.clientId).name,f);
+        else add('work:followup:' + f.id, f.reminderTime, 'Trabajo · seguimiento', f.title, f);
+    }
     return result;
 }
 export function isWorkRetryRelevant(state,candidate,now=new Date()) {

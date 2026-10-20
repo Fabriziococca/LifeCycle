@@ -52,6 +52,7 @@
     "tareas_pinned_project_ids": null,
     "tareas_removed_project_ids": null,
     "lifecycle_saylor": null,
-    "lifecycle_faculty": null
+    "lifecycle_faculty": null,
+    "lifecycle_appointments": null
   }
 }

@@ -9,6 +9,7 @@ const sharedRules = require('./shared_rules.json');
 const { isProjectDeliveryPending } = require('./project-status-utils.mjs');
 const { getPauseAdjustedDate } = require('./pause-utils.mjs');
 const { dueFacultyNotices } = require('./planning-utils.mjs');
+const { appointmentNotificationCandidates, isAppointmentRetryRelevant } = require('./appointments-utils.mjs');
 const { workNotificationCandidates, validateWork, isWorkRetryRelevant } = require('./work-utils.mjs');
 const { chargingNotificationCandidates, isChargingRetryRelevant } = require('./charging-utils.mjs');
 const { chargingHistoryPrefix } = require('./charging-notice-utils.mjs');
@@ -1206,7 +1207,9 @@ async function retryUndeliveredPushes(now = Date.now(), { signal = null } = {}) 
 
     for (const candidate of candidates) {
         throwIfAborted(signal);
-        const relevant = String(candidate.alert_key).startsWith('charging:')
+        const relevant = String(candidate.alert_key).startsWith('appointment:')
+            ? documentsByUser.has(candidate.user_id) && isAppointmentRetryRelevant(documentsByUser.get(candidate.user_id).lifecycle_appointments,candidate,new Date(now))
+            : String(candidate.alert_key).startsWith('charging:')
             ? documentsByUser.has(candidate.user_id) && isChargingRetryRelevant(documentsByUser.get(candidate.user_id).lifecycle_charging,candidate,new Date(now))
             : String(candidate.alert_key).startsWith('work:')
             ? workRetryStates.has(candidate.user_id) && isWorkRetryRelevant(workRetryStates.get(candidate.user_id),candidate,new Date(now))
@@ -2592,7 +2595,7 @@ async function checkWorkAlerts({signal=null}={}) {
     const grouped=groupSubscriptionsByUser(subs.data||[]);
     for(const {userId,notice} of due) {
         throwIfAborted(signal);
-        await sendPushToSubscriptions({userId,subscriptions:grouped[userId]||[],payload:JSON.stringify({title:notice.title,body:notice.body,url:'/?open=work'}),context:'Trabajo',alertKey:notice.key,scheduledAt:notice.scheduledAt,expiresAt:notice.expiresAt,urgency:'high',signal});
+        await sendPushToSubscriptions({userId,subscriptions:grouped[userId]||[],payload:JSON.stringify({title:notice.title,body:notice.body,url:notice.followup?.maintenance?'/?open=maintenance&id='+encodeURIComponent(notice.followup.id):'/?open=work'}),context:'Trabajo',alertKey:notice.key,scheduledAt:notice.scheduledAt,expiresAt:notice.expiresAt,urgency:'high',signal});
     }
 }
 
@@ -2832,6 +2835,15 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
 
             let dataChanged = false;
             const sentLogUpdates = {};
+
+            for (const notice of appointmentNotificationCandidates(data.lifecycle_appointments, schedulerNow)) {
+                throwIfAborted(signal);
+                if(Object.hasOwn(data.alerts_sent_log,notice.key))continue;
+                const result=await sendPushToSubscriptions({userId,subscriptions:userSubs,
+                    payload:JSON.stringify({title:notice.title,body:notice.body,url:'/?open=appointment&id='+encodeURIComponent(notice.event.id)}),
+                    context:'Turno de Salud',alertKey:notice.key,scheduledAt:notice.scheduledAt,expiresAt:notice.expiresAt,urgency:'high',signal});
+                if(result.successCount>0){sentLogUpdates[notice.key]=dateStr;dataChanged=true;}
+            }
 
             for (const notice of dueFacultyNotices(data.lifecycle_faculty, schedulerNow)) {
                 throwIfAborted(signal);

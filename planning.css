@@ -98,3 +98,23 @@
 body.access-locked #planning-dialog{display:none}
 
 .planning-metrics.card{padding:20px 24px;margin:18px 0;gap:16px}
+.care-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr)); gap:1rem; }
+#health-appointments .btn { width:auto; }
+.appointment-card .badge.yellow { color:var(--status-orange); border:1px solid var(--status-orange); }
+.care-form-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:1rem; }
+.care-stage { display:grid; gap:.65rem; border-bottom:1px solid var(--border-subtle); padding:.8rem 0; }
+.care-weekdays { display:flex; flex-wrap:wrap; gap:.6rem; }
+.care-dates { display:flex; flex-wrap:wrap; gap:1rem 2rem; }
+.care-dates dt,.care-history small { color:var(--text-secondary); }
+.care-dates dd { margin:0; font-weight:600; }
+.care-history { padding:.75rem 0; border-bottom:1px solid var(--border-subtle); }
+.care-history small { display:block; }
+.maintenance-section { margin:1.5rem 0; }
+.maintenance-card,.appointment-card { min-width:0; overflow-wrap:anywhere; }
+.appointment-card details,.maintenance-card details { margin:.75rem 0; }
+.appointment-card summary,.maintenance-card summary,.maintenance-section>details>summary { cursor:pointer; padding:.5rem 0; }
+#salud-section [hidden],.planning-dialog [hidden] { display:none!important; }
+#salud-section[data-health-view="turnos"] .custom-runtime-order-toolbar { display:none; }
+.planning-dialog .lifecycle-checkbox-label { display:flex; align-items:center; }
+.planning-dialog input.lifecycle-checkbox { width:auto; }
+@media(max-width:500px) { .care-form-grid { grid-template-columns:1fr; } }

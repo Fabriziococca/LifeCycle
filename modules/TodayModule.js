@@ -6,6 +6,8 @@ import {
 } from '../product-preferences.mjs?v=20260729-product-preferences';
 
 const SOURCE_LABELS = Object.freeze({
+    appointment: 'Turnos de Salud',
+    maintenance: 'Mantenimiento de clientes',
     charging: 'Cargas',
     tareas: 'Tareas',
     projects_tasks: 'Tarea de proyecto',

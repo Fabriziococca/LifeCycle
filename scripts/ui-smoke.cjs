@@ -6,6 +6,7 @@ const { runFinanceWorkspaceSmoke } = require('./finance-workspace-smoke.cjs');
 const { runAlertsScheduleSmoke } = require('./alerts-schedule-smoke.cjs');
 const { runPlanningSmoke } = require('./planning-smoke.cjs');
 const { runWorkSmoke } = require('./work-smoke.cjs');
+const { runCareSmoke } = require('./care-smoke.cjs');
 const { runChargingSmoke } = require('./charging-smoke.cjs');
 const { runLifecycleImprovementsSmoke } = require('./lifecycle-improvements-smoke.cjs');
 const { runVisualSmoke } = require('./visual-smoke.cjs');
@@ -62,6 +63,9 @@ const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'care') {
+                await runCareSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,care:true}));await context.close();continue;
+            }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'renewals') {
                 await runSchedulesRenewalsSmoke(page,{width,theme}); assert.deepEqual(errors,[]);
                 console.log(JSON.stringify({width,theme,tradingTimes:true,reload:true,browserRenewalsDisabled:true}));

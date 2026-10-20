@@ -245,6 +245,7 @@ export class GlobalSearchModule {
         const faculty = this.app.faculty?.store?.value;
         const saylor = this.app.saylor?.store?.value;
         return [
+            ...(this.app.appointments?.store.value.events || []).map(e=>({id:'appointment:'+e.id,kind:'planning',title:e.name,subtitle:'Turno de Salud · '+e.date+' '+e.time,keywords:[e.professional,e.location],target:{section:'salud-section',appointmentId:e.id}})),
             ...(faculty?.subjects || []).map(s => ({ id:`subject:${s.id}`,kind:'planning',title:s.name,subtitle:'Materia · Facultad',keywords:[s.teacher,s.term],target:{section:'faculty-section',view:'subjects',subjectId:s.id} })),
             ...(faculty?.events || []).map(e => ({ id:`faculty:${e.id}`,kind:'planning',title:e.name,subtitle:`Facultad · ${e.date} ${e.time}`,keywords:[faculty.subjects.find(s=>s.id===e.subjectId)?.name],target:{section:'faculty-section',view:'agenda',eventId:e.id} })),
             ...(faculty?.tasks || []).map(t => ({id:`faculty-task:${t.id}`,kind:'planning',title:t.name,subtitle:'Pendiente · Facultad',keywords:[],target:{section:'faculty-section',view:'tasks',subjectId:t.subjectId}})),
@@ -549,7 +550,8 @@ export class GlobalSearchModule {
         } else if(result.kind==='work') {
             this.app.work.clientId=result.target.clientId;this.app.activateSection('work-clients-section');
         } else if (result.kind === 'planning') {
-            if(result.target.section==='trading-section') { this.app.saylor?.activate('saylor'); this.app.activateSection?.('trading-section'); }
+            if(result.target.appointmentId) this.app.notificationsCenter?.openItem({module:'appointment',id:result.target.appointmentId});
+            else if(result.target.section==='trading-section') { this.app.saylor?.activate('saylor'); this.app.activateSection?.('trading-section'); }
             else if(result.target.eventId) this.app.notificationsCenter?.openItem({module:'faculty',id:result.target.eventId});
             else { const f=this.app.faculty; if(f){f.view=result.target.view;f.subject=result.target.subjectId||'';f.month='';}this.app.activateSection?.('faculty-section'); }
         } else if (result.kind === 'tracker') {

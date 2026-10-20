@@ -563,6 +563,7 @@ export class HealthModule {
     render() {
         this.renderMedicalCards();
         this.renderBloodTestsCard();
+        this.controller.appointments?.render();
     }
 
     renderMedicalCards() {

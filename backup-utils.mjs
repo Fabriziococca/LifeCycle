@@ -39,6 +39,7 @@ const FORBIDDEN_PROPERTY_NAMES = new Set([
 ]);
 
 const JSON_ROOT_TYPES = Object.freeze({
+    lifecycle_appointments: 'object',
     lifecycle_work: 'object',
     lifecycle_saylor: 'object',
     lifecycle_faculty: 'object',
@@ -161,6 +162,7 @@ const CATEGORY_GROUPS = Object.freeze([
     { label: 'Finanzas', keys: ['finanzasData'] },
     { label: 'Saylor', keys: ['lifecycle_saylor'] },
     { label: 'Facultad', keys: ['lifecycle_faculty'] },
+    { label: 'Turnos de Salud', keys: ['lifecycle_appointments'] },
     { label: 'Control de cargas (los avisos en curso quedarán pausados al restaurar)', keys: ['lifecycle_charging'] },
     { label: 'Trabajo · clientes y seguimientos', keys: [WORK_KEY] },
     { label: 'Suscripciones', keys: ['lifecycle_subscriptions'] },
@@ -825,6 +827,7 @@ function validateBackupDataShape(key, value) {
             break;
         case 'lifecycle_saylor':
         case 'lifecycle_faculty':
+        case 'lifecycle_appointments':
         case 'lifecycle_charging':
             validatePlanning(value, key);
             break;

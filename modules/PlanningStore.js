@@ -50,7 +50,7 @@ export class PlanningStore {
             finally { auth.isRestoring = restoring; }
             auth.cloudRevision = null; auth.appliedCloudRevision = null;
             this.app.recovery?.scheduleSnapshot();
-            this.app.saylor?.render(); this.app.faculty?.render(); this.app.charging?.render();
+            this.app.saylor?.render(); this.app.faculty?.render(); this.app.appointments?.render(); this.app.charging?.render();
             this.app.finanzas?.render(); this.app.notificationsCenter?.updateBadge();
             return confirmed;
         } finally { release(); this.busy = false; }

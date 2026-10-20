@@ -18,6 +18,7 @@ import { FinanzasModule } from './modules/FinanzasModule.js';
 import { TradingModule } from './modules/TradingModule.js';
 import { SaylorModule } from './modules/SaylorModule.js';
 import { FacultyModule } from './modules/FacultyModule.js';
+import { AppointmentsModule } from './modules/AppointmentsModule.js';
 import { WorkModule } from './modules/WorkModule.js';
 import { TareasModule } from './modules/TareasModule.js';
 import { AlertsModule } from './modules/AlertsModule.js';
@@ -680,6 +681,14 @@ class AppController {
 
         if (openParam === 'charging') {
             this.notificationsCenter?.openItem({module:'charging',id:searchParams.get('id')});
+        } else if (openParam === 'maintenance') {
+            const id=searchParams.get('id');
+            void this.work.refresh(true).then(()=>{
+                const f=this.work.store.value.followups.find(f=>f.id===id&&f.maintenance);
+                if(f)this.notificationsCenter.openItem({module:'maintenance',id:f.id,clientId:f.clientId});
+                else {this.activateSection('work-summary-section');this.showToast?.('La rutina ya no está disponible.');}
+            }).catch(()=>this.showToast?.('No se pudo sincronizar la rutina. Reintentá con conexión.',{tone:'warning'}));
+            return;
         } else if (openParam === 'work') {
             this.activateSection('work-summary-section');
             return;
@@ -708,6 +717,8 @@ class AppController {
                     ? `subscription-${searchParams.get('id')}`
                     : null
             };
+        } else if (openParam === 'appointment') {
+            itemToOpen = { module: 'appointment', id: searchParams.get('id') };
         } else if (openParam === 'faculty') {
             itemToOpen = { module: 'faculty', id: searchParams.get('id') };
         } else if (openParam === 'vehicle' || hash.includes('vehiculo')) {
@@ -971,6 +982,7 @@ class AppController {
         this.trading = new TradingModule(this);
         this.saylor = new SaylorModule(this);
         this.faculty = new FacultyModule(this);
+        this.appointments = new AppointmentsModule(this);
         this.tareas = new TareasModule(this);
         this.customTrackers = new CustomTrackersModule(this);
         this.charging = new ChargingModule(this);
