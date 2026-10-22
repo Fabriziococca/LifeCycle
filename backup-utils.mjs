@@ -18,6 +18,7 @@ import {
 import { CLOUD_SYNC_KEYS } from './sync-config.mjs';
 import { PLANNING_KEYS, validatePlanning } from './planning-utils.mjs';
 import { WORK_KEY, validateWork } from './work-utils.mjs';
+import { validateReminderSchedule } from './recurring-reminder-utils.mjs';
 export const BACKUP_KEYS = Object.freeze([...CLOUD_SYNC_KEYS,WORK_KEY]);
 
 export const BACKUP_APP_NAME = 'LifeCycle';
@@ -786,8 +787,12 @@ function validateBackupDataShape(key, value) {
                 if (Object.hasOwn(config, 'schedule')) {
                     assertRecord(config.schedule, `${path}.schedule`);
                     const type = config.schedule.type;
-                    if (!['weekly', 'monthly', 'yearly'].includes(type)) {
+                    if (!['once', 'interval', 'weekly', 'monthly', 'yearly'].includes(type)) {
                         throw new BackupValidationError(`"${path}.schedule.type" no es compatible.`);
+                    }
+                    if (type === 'once' || type === 'interval') {
+                        try { validateReminderSchedule(config.schedule); }
+                        catch (error) { throw new BackupValidationError(`"${path}.schedule": ${error.message}`); }
                     }
                     if (
                         type === 'weekly'

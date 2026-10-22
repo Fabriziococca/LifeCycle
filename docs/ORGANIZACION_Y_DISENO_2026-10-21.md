@@ -60,7 +60,9 @@ la selección de ventanas del scheduler. No reescribe documentos personales ni
 cambia políticas de acceso. Las RPC existentes conservan sus grants y propietario.
 
 Pruebas de modelo, SQL PostgreSQL aislado, UI local en 1440/390 px con ambos temas,
-regresiones de turnos/cobros y navegación. QA real únicamente con la identidad
+regresiones de turnos/cobros y navegación. Exportación/restauración y copia
+cifrada admiten las nuevas frecuencias con la misma validación de calendario.
+QA real únicamente con la identidad
 previamente autorizada, respaldo previo, datos sintéticos y limpieza posterior.
 El recibo operativo ignorado `.tmp-sb/organization-release.json` registra la
 verificación final de QA, commit, migración, Manual Deploy, salud y logs.

@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { matchesRecurringSchedule, nextReminderDay, upsertRecurringReminder, migrateRecurringReminderConfigs, validateReminderSchedule } from '../recurring-reminder-utils.mjs';
 import { completeMaintenance, maintenanceSchedule } from '../maintenance-utils.mjs';
 import { emptyWork, workNotificationCandidates, validateWork, isWorkRetryRelevant, WORK_SECTIONS } from '../work-utils.mjs';
+import { createBackupPayload, parseAndValidateBackupText } from '../backup-utils.mjs';
+import { createRecoveryVault, encryptRecoverySnapshot, decryptRecoverySnapshot } from '../recovery-vault.mjs';
 
 const cid='11111111-1111-4111-8111-111111111111', fid='22222222-2222-4222-8222-222222222222';
 function state(schedule,repeatUntilDone=false){
@@ -58,4 +60,18 @@ test('legacy completion-based routines keep their original cadence and history o
     delete s.followups[0].maintenance.repeatUntilDone;
     const next=completeMaintenance(s.followups[0],{id:'mh_qa-legacy',doneOn:'2026-10-21',now:new Date('2026-10-21T13:00:00Z')});
     assert.equal(next.reviewOn,'2026-10-24');assert.equal(next.maintenance.cadence.anchor,'completion');assert.equal(maintenanceSchedule(next).every,3);
+});
+test('full backup and encrypted recovery round-trip new reminder frequencies and original workspace associations',async()=>{
+    let alerts=upsertRecurringReminder({}, {id:'reminder_qa_once',name:'QA once',workspace:'work',category:'trabajo',schedule:{type:'once',date:'2026-12-21'},times:['09:00','18:00']});
+    alerts=upsertRecurringReminder(alerts,{id:'reminder_qa_interval',name:'QA interval',workspace:'personal',schedule:{type:'interval',startDate:'2026-12-20',every:3,unit:'days'}});
+    const work=state({type:'once',date:'2026-10-21'}),data={alerts_config:JSON.stringify(alerts),lifecycle_work:JSON.stringify(work)};
+    const payload=createBackupPayload(k=>data[k]??null),plan=parseAndValidateBackupText(JSON.stringify(payload));
+    const restored=Object.fromEntries(plan.entries);
+    assert.deepEqual(JSON.parse(restored.alerts_config),alerts);assert.deepEqual(JSON.parse(restored.lifecycle_work),work);
+    const vault=await createRecoveryVault('qa-unified-owner','qa-local-recovery-phrase');
+    vault.snapshots=[await encryptRecoverySnapshot(vault,{...payload,ownerId:vault.ownerId})];
+    const decrypted=await decryptRecoverySnapshot(vault,'qa-local-recovery-phrase');
+    assert.deepEqual(decrypted.data,payload.data);
+    const invalid=structuredClone(payload);invalid.data.alerts_config.reminder_qa_once.schedule.date='2026-02-30';
+    assert.throws(()=>parseAndValidateBackupText(JSON.stringify(invalid)));
 });

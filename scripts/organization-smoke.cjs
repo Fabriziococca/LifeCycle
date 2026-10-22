@@ -42,6 +42,11 @@ exports.runOrganizationSmoke=async(page,{width,theme})=>{
     await page.locator(width<768?'#header-profile-btn':'#profile-btn').click();await page.locator('.profile-menu-item[data-tab=cuenta]').click();
     assert.equal(await page.locator('#profile-email').isVisible(),true);
     assert.equal(await page.locator('#btnExportUnified').count(),1,'one shared account and backup UI');
+    await page.locator('.profile-menu-item[data-tab=backup]').click();
+    const downloadEvent=page.waitForEvent('download');await page.locator('#btnExportUnified').click();
+    const backup=JSON.parse(await require('node:fs/promises').readFile(await (await downloadEvent).path(),'utf8'));
+    assert.ok(backup.data.alerts_config.__recurring_reminders.reminders.some(r=>r.name==='QA personal puntual'));
+    assert.equal(backup.data.lifecycle_work.followups[0].maintenance.cadence.schedule.type,'monthly');
     await page.locator('.profile-menu-item[data-tab=alertas]').click();
     assert.equal(await page.locator('#work-reminders-section').isVisible(),true,'account shortcut returns to the same workspace reminders');
     await open('personal-reminders-section');
