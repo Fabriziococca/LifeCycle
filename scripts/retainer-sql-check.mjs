@@ -40,4 +40,3 @@ try {
  console.log('Retainer SQL passed: transactional validation, owner isolation, billing-only scheduler, duplicate receipt prevention, CAS/retry, backup and safe relinking.');
 } catch(e) {console.error({message:e.message,detail:e.detail,where:e.where});process.exitCode=1;}
 finally {await db.close();}
-
