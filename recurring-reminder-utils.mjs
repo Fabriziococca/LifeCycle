@@ -1,14 +1,18 @@
 import { normalizeAlertTimes } from './alert-schedule-utils.mjs';
+import { validDay, addDays, addMonths, dayDistance } from './schedule-date-utils.mjs';
 export const RECURRING_REMINDERS_FIELD = '__recurring_reminders';
 export const RECURRING_REMINDER_SCHEMA_VERSION = 2;
 
 export const RECURRING_SCHEDULE_TYPES = Object.freeze([
+    'once',
+    'interval',
     'weekly',
     'monthly',
     'yearly'
 ]);
 
 export const RECURRING_REMINDER_CATEGORIES = Object.freeze([
+    'trabajo',
     'higiene',
     'cuidado',
     'lentes',
@@ -111,6 +115,15 @@ export function normalizeRecurringSchedule(value, fallback = null) {
     const typeCandidate = String(source.type || fallbackSource.type || 'weekly');
     const type = SCHEDULE_TYPE_SET.has(typeCandidate) ? typeCandidate : 'weekly';
 
+    if (type === 'once') return { type, date: String(source.date ?? fallbackSource.date ?? '') };
+    if (type === 'interval') return {
+        type,
+        startDate: String(source.startDate ?? fallbackSource.startDate ?? ''),
+        every: normalizeBoundedInteger(source.every, normalizeBoundedInteger(fallbackSource.every, 1, 1, 365), 1, 365),
+        unit: ['days', 'weeks', 'months'].includes(source.unit) ? source.unit
+            : (['days', 'weeks', 'months'].includes(fallbackSource.unit) ? fallbackSource.unit : 'days')
+    };
+
     if (type === 'monthly') {
         return {
             type,
@@ -152,6 +165,8 @@ export function normalizeRecurringSchedule(value, fallback = null) {
 
 export function describeRecurringSchedule(value) {
     const schedule = normalizeRecurringSchedule(value);
+    if (schedule.type === 'once') return `Una sola vez · ${formatReminderDay(schedule.date)}`;
+    if (schedule.type === 'interval') return `Cada ${schedule.every} ${{days:'días',weeks:'semanas',months:'meses'}[schedule.unit]} · desde ${formatReminderDay(schedule.startDate)}`;
     if (schedule.type === 'monthly') {
         return `Mensual · día ${schedule.day} (o último día válido)`;
     }
@@ -180,12 +195,59 @@ export function matchesRecurringSchedule(value, candidate) {
         || day > 31
     ) return false;
 
+    const date = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+    if (!validDay(date)) return false;
+    if (schedule.type === 'once') return validDay(schedule.date) && date === schedule.date;
+    if (schedule.type === 'interval') {
+        if (!validDay(schedule.startDate) || date < schedule.startDate) return false;
+        if (schedule.unit !== 'months') return dayDistance(schedule.startDate, date) % (schedule.every * (schedule.unit === 'weeks' ? 7 : 1)) === 0;
+        const months = (year - Number(schedule.startDate.slice(0,4))) * 12 + month - Number(schedule.startDate.slice(5,7));
+        return months % schedule.every === 0 && addMonths(schedule.startDate, months) === date;
+    }
+
     if (schedule.type === 'weekly') {
         return Number.isInteger(dayOfWeek) && schedule.days.includes(dayOfWeek);
     }
     if (schedule.type === 'yearly' && month !== schedule.month) return false;
     const lastDay = new Date(Date.UTC(year, month, 0)).getUTCDate();
     return day === Math.min(schedule.day, lastDay);
+}
+
+export function formatReminderDay(day) {
+    return validDay(day) ? `${day.slice(8,10)}/${day.slice(5,7)}/${day.slice(0,4)}` : 'Sin fecha';
+}
+
+export function validateReminderSchedule(value) {
+    if (!value || !RECURRING_SCHEDULE_TYPES.includes(value.type)) throw new Error('Elegí una frecuencia válida.');
+    if (value.type === 'once' && !validDay(value.date)) throw new Error('Elegí la fecha del aviso.');
+    if (value.type === 'interval' && (!validDay(value.startDate) || !Number.isInteger(value.every) || value.every < 1 || value.every > 365 || !['days','weeks','months'].includes(value.unit))) throw new Error('Completá el intervalo y la fecha del primer aviso.');
+    if (value.type === 'weekly' && (!Array.isArray(value.days) || !value.days.length || value.days.some(d => !Number.isInteger(d) || d < 0 || d > 6))) throw new Error('Elegí al menos un día de la semana.');
+    if (['monthly','yearly'].includes(value.type) && (!Number.isInteger(value.day) || value.day < 1 || value.day > 31)) throw new Error('Elegí un día entre 1 y 31.');
+    if (value.type === 'yearly' && (!Number.isInteger(value.month) || value.month < 1 || value.month > 12)) throw new Error('Elegí un mes válido.');
+    return normalizeRecurringSchedule(value);
+}
+
+export function nextReminderDay(value, fromDay, { inclusive = true } = {}) {
+    const s = validateReminderSchedule(value);
+    if (!validDay(fromDay)) throw new Error('Fecha de referencia inválida.');
+    const from = inclusive ? fromDay : addDays(fromDay, 1);
+    if (s.type === 'once') return s.date >= from ? s.date : null;
+    if (s.type === 'interval') {
+        if (s.startDate >= from) return s.startDate;
+        if (s.unit !== 'months') {
+            const step = s.every * (s.unit === 'weeks' ? 7 : 1);
+            return addDays(s.startDate, Math.ceil(dayDistance(s.startDate,from)/step)*step);
+        }
+        const months = (Number(from.slice(0,4))-Number(s.startDate.slice(0,4)))*12 + Number(from.slice(5,7))-Number(s.startDate.slice(5,7));
+        let n = Math.max(0, Math.floor(months/s.every));
+        while (addMonths(s.startDate,n*s.every) < from) n++;
+        return addMonths(s.startDate,n*s.every);
+    }
+    for (let i=0; i<=366; i++) {
+        const date = addDays(from,i), d = new Date(date+'T12:00:00Z');
+        if (matchesRecurringSchedule(s,{year:d.getUTCFullYear(),month:d.getUTCMonth()+1,day:d.getUTCDate(),dayOfWeek:d.getUTCDay()})) return date;
+    }
+    return null;
 }
 
 export function normalizeRecurringReminder(reminder, fallback = {}) {
@@ -209,6 +271,7 @@ export function normalizeRecurringReminder(reminder, fallback = {}) {
 
     return {
         id: idCandidate,
+        workspace: reminder?.workspace === 'work' || (!reminder?.workspace && reminder?.category === 'trabajo') ? 'work' : 'personal',
         name: cleanText(reminder?.name, 90, fallback.name || 'Recordatorio'),
         category: CATEGORY_SET.has(categoryCandidate) ? categoryCandidate : 'otros',
         title: cleanText(reminder?.title, 100, fallback.title || reminder?.name || 'Recordatorio'),
@@ -299,6 +362,7 @@ export function buildRecurringReminderDefinitions(alertConfigs) {
         key: reminder.id,
         name: reminder.name,
         category: reminder.category,
+        workspace: reminder.workspace,
         type: 'recurring',
         defaultEnabled: true,
         defaultTime: reminder.defaultTime,

@@ -173,7 +173,7 @@
     <main class="container hidden">
         <!-- Botón de Perfil en la Esquina Superior Izquierda -->
         <div class="profile-wrapper">
-            <button id="profile-btn" class="profile-corner-btn" aria-label="Abrir configuración del perfil" data-tooltip="Configuración del perfil">
+            <button id="profile-btn" class="profile-corner-btn" aria-label="Abrir cuenta y configuración" data-tooltip="Cuenta y ajustes">
                 <i class="ph ph-user"></i>
             </button>
         </div>
@@ -257,6 +257,8 @@
             id="main-nav"
             aria-label="Módulos principales"
         >
+            <button class="nav-btn hidden" data-section="personal-reminders-section"><i class="ph ph-bell-ringing"></i><span class="nav-label">Recordatorios</span></button>
+            <button class="nav-btn hidden" data-section="work-reminders-section"><i class="ph ph-bell-ringing"></i><span class="nav-label">Recordatorios</span></button>
             <button class="nav-btn active" data-section="hoy-section">
                 <i class="ph ph-house-line"></i> Hoy
             </button>
@@ -1459,6 +1461,8 @@
 
             
         <!-- SECCIÓN: PROYECTOS (ProjectPulse) -->
+        <section id="personal-reminders-section" class="main-section hidden"><div class="reminders-host"></div></section>
+        <section id="work-reminders-section" class="main-section hidden"><div class="reminders-host"></div></section>
         <section id="work-summary-section" class="main-section hidden"><div class="work-content planning-workspace"></div></section>
         <section id="work-clients-section" class="main-section hidden"><div class="work-content planning-workspace"></div></section>
         <section id="work-followups-section" class="main-section hidden"><div class="work-content planning-workspace"></div></section>
@@ -2043,8 +2047,8 @@
             </button>
             <div class="profile-layout">
                 <!-- Barra lateral (Sidebar) / Navegación superior en móvil -->
-                <aside class="profile-sidebar" aria-label="Opciones del perfil">
-                    <span class="profile-menu-group">Cuenta</span>
+                <aside class="profile-sidebar" aria-label="Cuenta y ajustes de ambos espacios">
+                    <span class="profile-menu-group">Cuenta compartida</span>
                     <button class="profile-menu-item active" data-tab="cuenta">
                         <i class="ph ph-user"></i>
                         <span>Mi Cuenta</span>
@@ -2058,7 +2062,7 @@
                         <span>Recordatorios</span>
                     </button>
 
-                    <span class="profile-menu-group">Personalización</span>
+                    <span class="profile-menu-group">Personalización de la aplicación</span>
                     <button class="profile-menu-item" data-tab="preferencias">
                         <i class="ph ph-sliders"></i>
                         <span>Preferencias</span>
@@ -2072,7 +2076,7 @@
                         <span>Módulos</span>
                     </button>
 
-                    <span class="profile-menu-group">Datos y aplicación</span>
+                    <span class="profile-menu-group">Datos de ambos espacios</span>
                     <button class="profile-menu-item" data-tab="backup">
                         <i class="ph ph-shield-check"></i>
                         <span>Copia de Seguridad</span>
@@ -2089,6 +2093,7 @@
 
                 <!-- Contenido principal de las pestañas -->
                 <div class="profile-main-content">
+                    <p class="fw-note account-shared-note">Una sola cuenta para Personal y Trabajo. Seguridad, dispositivos, apariencia y copias de seguridad se comparten.</p>
                     
                     <!-- Pestaña: Preferencias -->
                     <div class="profile-tab-content" id="tab-preferencias">
@@ -2684,7 +2689,7 @@
                 <div>
                     <span class="global-search-eyebrow">AVISO PROGRAMADO</span>
                     <h3 id="recurring-reminder-modal-title">Nuevo recordatorio</h3>
-                    <p class="modal-desc">Creá avisos semanales, mensuales o anuales sin modificar código.</p>
+                    <p class="modal-desc" id="reminder-editor-context">Elegí cuándo querés recibir el aviso, una sola vez o con repetición.</p>
                 </div>
                 <button
                     type="button"
@@ -2695,6 +2700,7 @@
                 ><i class="ph ph-x"></i></button>
             </header>
 
+            <div id="reminder-client-context" class="hidden"></div>
             <div class="form-row">
                 <div class="input-group half">
                     <label for="recurring-reminder-name">Nombre</label>
@@ -2738,12 +2744,23 @@
             <div class="input-group recurring-reminder-frequency-field">
                 <label for="recurring-reminder-frequency">Frecuencia</label>
                 <select id="recurring-reminder-frequency" class="text-input">
+                    <option value="once">Una sola vez</option>
+                    <option value="interval">Cada cierto tiempo</option>
                     <option value="weekly">Semanal</option>
                     <option value="monthly">Mensual</option>
                     <option value="yearly">Anual</option>
                 </select>
             </div>
 
+            <div class="input-group hidden" data-recurring-schedule-fields="once">
+                <label for="recurring-reminder-date">Fecha del aviso</label>
+                <input id="recurring-reminder-date" class="text-input" type="date">
+                <small class="field-help">Se envía sólo en esta fecha, en los horarios elegidos. No se repite otros días.</small>
+            </div>
+            <div class="hidden recurring-reminder-schedule-fields" data-recurring-schedule-fields="interval">
+                <div class="care-form-grid"><label>Cada<input id="recurring-reminder-every" class="text-input" type="number" min="1" max="365" value="3"></label><label>Unidad<select id="recurring-reminder-unit" class="text-input"><option value="days">Días</option><option value="weeks">Semanas</option><option value="months">Meses</option></select></label></div>
+                <label>Primer aviso<input id="recurring-reminder-start" class="text-input" type="date"></label>
+            </div>
             <fieldset id="recurring-reminder-weekly-fields" class="recurring-reminder-days-fieldset" data-recurring-schedule-fields="weekly">
                 <legend>Días activos</legend>
                 <div id="recurring-reminder-days" class="day-selectors">

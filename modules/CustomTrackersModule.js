@@ -930,7 +930,7 @@ export class CustomTrackersModule {
                         </span>
                         <span class="module-visibility-copy">
                             <strong>${escapeHtml(module.label)}</strong>
-                            <small>${visible ? 'Visible en la navegación' : 'Oculto · datos conservados'}</small>
+                            <small>${this.app.work?.isWork(moduleId)?'Trabajo':'Personal'} · ${visible ? 'Visible en la navegación' : 'Oculto · datos conservados'}</small>
                         </span>
                         <span class="module-visibility-actions">
                             <button

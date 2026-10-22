@@ -1,5 +1,10 @@
 # Plan definitivo de LifeCycle — estado auditado
 
+**Ampliación del 21/10/2026:** separación Personal/Trabajo, recordatorios puntuales
+con editor compartido y Suscripciones en Trabajo; dirección visual carbón/piedra.
+Ver [organización, reglas y verificación](ORGANIZACION_Y_DISENO_2026-10-21.md).
+La evidencia de publicación se registra separadamente en el recibo operativo.
+
 ## Estado vigente al 27/09/2026
 
 **Actualización del 18/10/2026:** Trading multihorario y renovaciones automáticas

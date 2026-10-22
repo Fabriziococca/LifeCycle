@@ -1,7 +1,8 @@
-import { validateMaintenance, maintenanceActive } from './maintenance-utils.mjs';
+import { validateMaintenance, maintenanceActive, maintenanceNoticeDue } from './maintenance-utils.mjs';
 import { validateRetainers, pendingRetainers } from './retainer-utils.mjs';
+import { addDays } from './schedule-date-utils.mjs';
 export const WORK_KEY = 'lifecycle_work';
-export const WORK_SECTIONS = Object.freeze(['work-summary-section', 'work-clients-section', 'work-followups-section', 'projects-section', 'finanzas-section']);
+export const WORK_SECTIONS = Object.freeze(['work-summary-section', 'work-clients-section', 'work-followups-section', 'work-reminders-section', 'projects-section', 'finanzas-section', 'suscripciones-section']);
 export const WORK_NAV = Object.freeze({
     'work-summary-section': { label: 'Resumen', icon: 'ph-house-line' },
     'work-clients-section': { label: 'Clientes', icon: 'ph-users' },
@@ -44,7 +45,7 @@ export function readWork(raw) { return raw ? validateWork(typeof raw === 'string
 export function workOverview(state, projects = [], now = new Date()) {
     const day = argentinaDate(now), active = new Set(state.clients.filter(c => !c.archived).map(c => c.id));
     const open = state.followups.filter(f => f.status === 'open' && active.has(f.clientId) && maintenanceActive(f));
-    const due = open.filter(f => f.reviewOn && f.reviewOn <= day);
+    const due = open.filter(f => f.reviewOn && f.reviewOn <= day && (!f.maintenance || f.maintenance.repeatUntilDone!==false));
     const linked = new Set(state.links.filter(l => active.has(l.clientId)).map(l => String(l.projectId)));
     const list = projects.filter(p => linked.has(String(p.id)));
     const nextWeek = new Date(day + 'T12:00:00Z'); nextWeek.setUTCDate(nextWeek.getUTCDate() + 7);
@@ -63,7 +64,11 @@ export function financeWorkScope(item, scopes = {}) {
     return scopes[item.type + ':' + item.id] || 'unclassified';
 }
 export function workNotificationCandidates(state, now = new Date()) {
-    const day = argentinaDate(now), result = [], overview = workOverview(state, [], now);
+    const today=argentinaDate(now);
+    return [addDays(today,-1),today].flatMap(day=>workNotificationCandidatesForDay(state,now,day));
+}
+function workNotificationCandidatesForDay(state,now,day) {
+    const result = [], overview = workOverview(state, [], new Date(day+'T12:00:00Z'));
     const at = time => new Date(day + 'T' + time + ':00-03:00');
     const add = (key, time, title, body, followup = null, retainer = null) => {
         const scheduled = at(time), expires = new Date(scheduled.getTime() + 15 * 60000);
@@ -71,8 +76,8 @@ export function workNotificationCandidates(state, now = new Date()) {
     };
     const bills=pendingRetainers(state,day);
     if (state.settings.dailyEnabled && (overview.due.length || bills.length)) add('work:daily', state.settings.dailyTime, 'Trabajo · resumen diario', overview.mine.length + ' acciones para vos · ' + overview.due.filter(f => f.actor !== 'me').length + ' esperas · '+bills.length+' cobros por confirmar.');
-    for (const f of overview.due) if (f.reminderEnabled) {
-        if(f.maintenance)for(const time of f.maintenance.times)add(`work:maintenance:${f.id}:${f.maintenance.scheduleVersion}:${time.replace(':','')}`,time,'Trabajo · recordatorio',f.title+' · '+state.clients.find(c=>c.id===f.clientId).name,f);
+    for (const f of overview.open.filter(f=>f.reviewOn&&f.reviewOn<=day)) if (f.reminderEnabled) {
+        if(f.maintenance){if(maintenanceNoticeDue(f,day))for(const time of f.maintenance.times)add(`work:maintenance:${f.id}:${f.maintenance.scheduleVersion}:${time.replace(':','')}`,time,f.maintenance.pushTitle||'Trabajo · recordatorio',f.title+' · '+state.clients.find(c=>c.id===f.clientId).name+(f.maintenance.instructions?' · '+f.maintenance.instructions.slice(0,240):''),f);}
         else add('work:followup:' + f.id, f.reminderTime, 'Trabajo · seguimiento', f.title, f);
     }
     for (const {client,retainer:r} of bills) if(r.reminderEnabled) for(const time of r.times)

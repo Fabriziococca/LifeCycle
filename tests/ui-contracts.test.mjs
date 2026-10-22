@@ -210,9 +210,9 @@ test('profile groups settings and exposes the complete keyboard shortcut referen
         'utf8'
     );
 
-    assert.match(index, /class="profile-menu-group">Cuenta</);
-    assert.match(index, /class="profile-menu-group">Personalización</);
-    assert.match(index, /class="profile-menu-group">Datos y aplicación</);
+    assert.match(index, /class="profile-menu-group">Cuenta compartida</);
+    assert.match(index, /class="profile-menu-group">Personalización de la aplicación</);
+    assert.match(index, /class="profile-menu-group">Datos de ambos espacios</);
     assert.match(index, /id="keyboard-shortcuts-list"/);
     assert.match(index, /data-profile-tab-link="alertas"/);
     assert.match(appSource, /new KeyboardShortcutsModule\(this\)/);
@@ -245,7 +245,7 @@ test('recurring reminders use an accessible editor and the shared destructive pa
     );
     assert.match(
         alertsSource,
-        /saveRecurringReminderFromEditor[\s\S]{0,1000}ensureRecurringReminderCreationCapacity\(\{ errorElement: error \}\)/
+        /saveRecurringReminderFromEditor[\s\S]{0,2200}ensureRecurringReminderCreationCapacity\(\{ errorElement: error \}\)/
     );
     assert.match(
         alertsSource,
@@ -547,7 +547,7 @@ test('appearance, recurring schedules and lightweight custom modules expose thei
     assert.match(alertsSource, /addEarningsSeasonReminderPreset/);
     assert.match(alertsSource, /schedule:[\s\S]{0,120}type: 'yearly'/);
     assert.match(serverSource, /function recurringScheduleMatchesCandidate/);
-    assert.match(serverSource, /Math\.min\(schedule\.day, lastDay\)/);
+    assert.match(serverSource, /return matchesRecurringSchedule\(value, candidate\)/);
 
     assert.match(index, /id="btn-new-custom-module"/);
     assert.match(index, /id="custom-modules-summary"/);

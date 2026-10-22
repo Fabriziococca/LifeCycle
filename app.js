@@ -22,6 +22,7 @@ import { AppointmentsModule } from './modules/AppointmentsModule.js';
 import { WorkModule } from './modules/WorkModule.js';
 import { TareasModule } from './modules/TareasModule.js';
 import { AlertsModule } from './modules/AlertsModule.js';
+import { RemindersModule } from './modules/RemindersModule.js';
 import { NotificationsCenterModule } from './modules/NotificationsCenterModule.js';
 import { CustomTrackersModule } from './modules/CustomTrackersModule.js';
 import { TodayModule } from './modules/TodayModule.js';
@@ -511,7 +512,9 @@ class AppController {
     }
 
     renderSection(sectionId) {
-        if (sectionId.startsWith('work-')) {
+        if (sectionId.endsWith('-reminders-section')) {
+            this.reminders?.render();
+        } else if (sectionId.startsWith('work-')) {
             this.work?.render();
         } else if (sectionId === 'hoy-section') {
             this.today?.render();
@@ -623,6 +626,7 @@ class AppController {
     }
 
     activateProfileTab(tabId, { persist = true, render = true, smooth = false } = {}) {
+        if(tabId==='alertas'&&render)return this.activateSection(this.work?.area==='work'?'work-reminders-section':'personal-reminders-section',{persist});
         const sidebar = document.querySelector('.profile-sidebar');
         if (
             this.customTrackers?.reorderContext?.scope === 'manager'
@@ -675,6 +679,7 @@ class AppController {
         if (typeof window === 'undefined') return;
         const searchParams = new URLSearchParams(window.location.search);
         const openParam = searchParams.get('open');
+        if(openParam==='reminders'){this.activateSection(searchParams.get('space')==='work'?'work-reminders-section':'personal-reminders-section');return;}
         const hash = window.location.hash || '';
 
         let itemToOpen = null;
@@ -745,7 +750,7 @@ class AppController {
         const mainNav = document.getElementById('main-nav');
 
         const handleOpenProfile = () => {
-            this.openProfileTab(this.uiState.profileTab, { persist: false });
+            this.openProfileTab(this.uiState.profileTab==='alertas'?'cuenta':this.uiState.profileTab, { persist: false });
         };
 
         if (profileBtn) {
@@ -779,7 +784,8 @@ class AppController {
         }
     }
 
-    openProfileTab(tabId = this.uiState.profileTab, { persist = true } = {}) {
+    openProfileTab(tabId = (this.uiState.profileTab==='alertas'?'cuenta':this.uiState.profileTab), { persist = true } = {}) {
+        if(tabId==='alertas')return this.activateSection(this.work?.area==='work'?'work-reminders-section':'personal-reminders-section',{persist});
         this.adaptiveNavigation?.closeMore?.({ restoreFocus: false });
         if (this.customTrackers?.reorderContext?.scope === 'runtime') {
             this.customTrackers.cancelReorderMode({ silent: true });
@@ -995,6 +1001,7 @@ class AppController {
         this.privacyLock = new PrivacyLockModule(this);
         this.auth = new AuthSyncModule(this);
         this.alerts = new AlertsModule(this);
+        this.reminders = new RemindersModule(this);
         this.starterPack = new StarterPackModule(this);
         this.subscriptions = new SubscriptionsModule(this);
         if (TRANSCRIPTIONS_ENABLED) this.transcriptions = new TranscriptionsModule(this);

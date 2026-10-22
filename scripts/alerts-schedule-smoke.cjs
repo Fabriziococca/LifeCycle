@@ -4,7 +4,8 @@ const assert = require('node:assert/strict');
 // No personal reminders or production notifications are created.
 async function runAlertsScheduleSmoke(page, { width, theme }) {
     const activate = locator => width < 500 ? locator.tap() : locator.click();
-    await page.evaluate(() => window.lifecycle_controller.openProfileTab('alertas'));
+    await page.evaluate(() => {const a=window.lifecycle_controller;a.activateSection('personal-reminders-section');});
+    await page.locator('#reminder-settings > summary').click();
     const categories = await page.locator('#alerts-category-tabs [data-category]').evaluateAll(
         buttons => buttons.map(button => button.dataset.category)
     );
@@ -95,7 +96,8 @@ async function runAlertsScheduleSmoke(page, { width, theme }) {
     }), saved, 'UI edits must reach the fake cloud');
     await page.reload({ waitUntil: 'networkidle' });
     await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId);
-    await page.evaluate(() => window.lifecycle_controller.openProfileTab('alertas'));
+    await page.evaluate(() => {const a=window.lifecycle_controller;a.activateSection('personal-reminders-section');});
+    await page.locator('#reminder-settings > summary').click();
     const reloaded = await page.evaluate(() => JSON.parse(JSON.stringify(window.lifecycle_controller.alerts.configs)));
     for (const [key, config] of Object.entries(saved)) assert.deepEqual(reloaded[key], config, `reload lost ${key}`);
     assert.equal(await page.locator('.alert-card-title').filter({ hasText: 'QA recordatorio editado' }).count(), 1);

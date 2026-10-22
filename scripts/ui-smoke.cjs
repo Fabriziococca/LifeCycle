@@ -8,6 +8,7 @@ const { runPlanningSmoke } = require('./planning-smoke.cjs');
 const { runWorkSmoke } = require('./work-smoke.cjs');
 const { runCareSmoke } = require('./care-smoke.cjs');
 const { runRetainerSmoke } = require('./retainer-smoke.cjs');
+const { runOrganizationSmoke } = require('./organization-smoke.cjs');
 const { runChargingSmoke } = require('./charging-smoke.cjs');
 const { runLifecycleImprovementsSmoke } = require('./lifecycle-improvements-smoke.cjs');
 const { runVisualSmoke } = require('./visual-smoke.cjs');
@@ -69,6 +70,9 @@ const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
             }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'care') {
                 await runCareSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,care:true}));await context.close();continue;
+            }
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'organization') {
+                await runOrganizationSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,organization:true}));await context.close();continue;
             }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'renewals') {
                 await runSchedulesRenewalsSmoke(page,{width,theme}); assert.deepEqual(errors,[]);

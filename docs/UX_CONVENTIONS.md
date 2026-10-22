@@ -234,7 +234,8 @@ parte de estas reglas. No reemplazan la verificación funcional en navegador.
 
 ## 14. Recordatorios configurables
 
-- Un recordatorio recurrente configura un aviso Push semanal; no representa que
+- Un recordatorio configura un aviso Push puntual, semanal, por intervalo,
+  mensual o anual; no representa que
   una tarea o una tarjeta haya sido completada.
 - Nombre, título, mensaje, hora, días activos, categoría y estado deben poder
   modificarse sin tocar código.
@@ -243,6 +244,9 @@ parte de estas reglas. No reemplazan la verificación funcional en navegador.
 - Eliminar un recordatorio requiere confirmación y ofrece deshacer. No puede
   eliminar tarjetas, tareas ni historiales de otros módulos.
 - Los recordatorios existentes deben migrar conservando hora, días y estado.
+- Personal y Trabajo comparten editor y calendario. Los del cliente mantienen
+  su vínculo e historial y se muestran también en Recordatorios de Trabajo.
+- Cuenta y los ajustes comunes existen una sola vez para los dos espacios.
 
 ## 15. Bloqueo manual
 

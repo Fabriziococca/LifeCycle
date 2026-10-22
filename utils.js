@@ -340,6 +340,7 @@ export const ALERT_DEFINITIONS = [
 ];
 
 export const CATEGORY_NAMES = {
+    trabajo: 'Trabajo',
     higiene: '💧 Higiene y Baño',
     cuidado: '✂️ Cuidado Corporal',
     lentes: '👁️ Lentes & Anteojos',

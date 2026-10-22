@@ -11,6 +11,7 @@ const { getPauseAdjustedDate } = require('./pause-utils.mjs');
 const { dueFacultyNotices } = require('./planning-utils.mjs');
 const { appointmentNotificationCandidates, isAppointmentRetryRelevant } = require('./appointments-utils.mjs');
 const { workNotificationCandidates, validateWork, isWorkRetryRelevant } = require('./work-utils.mjs');
+const { normalizeRecurringSchedule: sharedReminderSchedule, matchesRecurringSchedule } = require('./recurring-reminder-utils.mjs');
 const { chargingNotificationCandidates, isChargingRetryRelevant } = require('./charging-utils.mjs');
 const { chargingHistoryPrefix } = require('./charging-notice-utils.mjs');
 const {
@@ -373,80 +374,12 @@ const DEFAULT_RECURRING_REMINDERS = [
 
 const RECURRING_ID_PATTERN = /^[a-z0-9][a-z0-9_-]{2,95}$/;
 const RECURRING_TIME_PATTERN = /^([01]\d|2[0-3]):([0-5]\d)$/;
-const RECURRING_SCHEDULE_TYPES = new Set(['weekly', 'monthly', 'yearly']);
-
-function normalizeRecurringDays(value, fallback = []) {
-    const source = Array.isArray(value) ? value : fallback;
-    return [...new Set(source
-        .map(Number)
-        .filter(day => Number.isInteger(day) && day >= 0 && day <= 6))];
-}
-
-function normalizeRecurringBoundedInteger(value, fallback, min, max) {
-    const number = Number(value);
-    return Number.isInteger(number) && number >= min && number <= max
-        ? number
-        : fallback;
-}
-
 function normalizeRecurringSchedule(value, fallback = null) {
-    const source = value && typeof value === 'object' && !Array.isArray(value)
-        ? value
-        : {};
-    const fallbackSource = fallback && typeof fallback === 'object' && !Array.isArray(fallback)
-        ? fallback
-        : {};
-    const typeCandidate = String(source.type || fallbackSource.type || 'weekly');
-    const type = RECURRING_SCHEDULE_TYPES.has(typeCandidate) ? typeCandidate : 'weekly';
-    if (type === 'monthly') {
-        return {
-            type,
-            day: normalizeRecurringBoundedInteger(
-                source.day,
-                normalizeRecurringBoundedInteger(fallbackSource.day, 1, 1, 31),
-                1,
-                31
-            ),
-            overflow: 'last-day'
-        };
-    }
-    if (type === 'yearly') {
-        return {
-            type,
-            month: normalizeRecurringBoundedInteger(
-                source.month,
-                normalizeRecurringBoundedInteger(fallbackSource.month, 1, 1, 12),
-                1,
-                12
-            ),
-            day: normalizeRecurringBoundedInteger(
-                source.day,
-                normalizeRecurringBoundedInteger(fallbackSource.day, 1, 1, 31),
-                1,
-                31
-            ),
-            overflow: 'last-day'
-        };
-    }
-    return {
-        type: 'weekly',
-        days: normalizeRecurringDays(
-            source.days,
-            normalizeRecurringDays(fallbackSource.days, [1, 2, 3, 4, 5, 6, 0])
-        )
-    };
+    return sharedReminderSchedule(value, fallback);
 }
 
 function recurringScheduleMatchesCandidate(value, candidate) {
-    const schedule = normalizeRecurringSchedule(value);
-    if (schedule.type === 'weekly') {
-        return schedule.days.includes(candidate.dayOfWeek);
-    }
-    if (schedule.type === 'yearly' && candidate.month !== schedule.month) {
-        return false;
-    }
-    const lastDay = new Date(Date.UTC(candidate.year, candidate.month, 0)).getUTCDate();
-    return candidate.day === Math.min(schedule.day, lastDay);
+    return matchesRecurringSchedule(value, candidate);
 }
 
 function cleanRecurringText(value, maxLength, fallback = '') {
@@ -480,6 +413,7 @@ function ensureRecurringReminderConfigs(alertsConfig, oldReminders = {}) {
         const definition = {
             id,
             name: cleanRecurringText(candidate?.name, 90, 'Recordatorio'),
+            workspace: candidate?.workspace === 'work' || candidate?.category === 'trabajo' ? 'work' : 'personal',
             title: cleanRecurringText(candidate?.title, 100, candidate?.name || '⏰ Recordatorio'),
             body: cleanRecurringText(candidate?.body, 240, 'Tenés un recordatorio pendiente.'),
             defaultTime: RECURRING_TIME_PATTERN.test(candidate?.defaultTime || '')
@@ -3610,7 +3544,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
 
                     if (shouldNotify && title && body) {
                         console.log(`[Notification Dispatch] Preparando push de '${title}' para usuario ${userId}`);
-                        let targetUrl = '/';
+                        let targetUrl = recurringReminderMap.has(key) ? '/?open=reminders&space=' + recurringReminderMap.get(key).workspace : '/';
                         if (key === 'vitamina_d') targetUrl = '/?open=vitamina_d';
                         else if (key === 'robot') targetUrl = '/?open=robot';
                         else if (key === 'workana') targetUrl = '/?open=subscription&id=sub_workana_plan';

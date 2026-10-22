@@ -19,8 +19,10 @@ exports.runRetainerSmoke=async(page,{width,theme})=>{
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.revision),before,'cancel leaves links unchanged');
  await clients.locator('[data-work-action=link]').click();await dialog.locator('[value=qa-retainer-one]').check();await failSaveThenRetry();
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.links.length),1,'only selected project is linked');
- await clients.locator('[data-work-action=maintenance-new]').click();await field('title').fill('Reiniciar PC QA');await field('projectId').selectOption('qa-retainer-one');
- assert.equal(await field('unit').inputValue(),'days');assert.equal(await field('every').inputValue(),'3');assert.equal(await field('enabled').isChecked(),true);await save();
+ await clients.locator('[data-work-action=maintenance-new]').click();await page.locator('#recurring-reminder-name').fill('Reiniciar PC QA');await page.locator('#reminder-client-project').selectOption('qa-retainer-one');
+ await page.locator('#recurring-reminder-frequency').selectOption('interval');await page.locator('#recurring-reminder-every').fill('3');
+ assert.equal(await page.locator('#recurring-reminder-unit').inputValue(),'days');assert.equal(await page.locator('#recurring-reminder-enabled').isChecked(),true);
+ await page.locator('#recurring-reminder-form [type=submit]').click();await page.locator('#recurring-reminder-modal').waitFor({state:'hidden'});
  await clients.locator('[data-work-action=retainer-new]').click();await field('title').fill('Soporte PlayStation QA');await field('tasks').fill('Reiniciar PC, revisar proxies y OBS.');await field('amount').fill('200');await dialog.locator('[value=qa-retainer-one]').check();await failSaveThenRetry();
  let card=clients.locator('.retainer-card');assert.match(await card.innerText(),/Cobro por confirmar/i);
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.finanzas.getCombinedEntries().filter(x=>x.origin==='retainer').length),0);

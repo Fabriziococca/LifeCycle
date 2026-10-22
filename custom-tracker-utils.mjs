@@ -161,6 +161,8 @@ export const CUSTOM_TRACKER_SECTIONS = Object.freeze({
 
 export const APP_MODULES = Object.freeze({
     'hoy-section': Object.freeze({ label: 'Hoy', icon: 'ph-house-line' }),
+    'personal-reminders-section': Object.freeze({ label: 'Recordatorios', icon: 'ph-bell-ringing' }),
+    'work-reminders-section': Object.freeze({ label: 'Recordatorios', icon: 'ph-bell-ringing' }),
     'higiene-section': Object.freeze({ label: 'Higiene', icon: 'ph-sparkle' }),
     'cuidado-section': Object.freeze({ label: 'Cuidado', icon: 'ph-scissors' }),
     'lentes-section': Object.freeze({ label: 'Lentes', icon: 'ph-eye' }),

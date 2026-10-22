@@ -16,6 +16,8 @@ import {
     removeRecurringReminder,
     upsertRecurringReminder
 } from '../recurring-reminder-utils.mjs?v=20260829-reminder-limits';
+import { validateReminderSchedule } from '../recurring-reminder-utils.mjs';
+import { argentinaDay } from '../schedule-date-utils.mjs';
 import {
     RESOURCE_KEYS,
     createFallbackResourcePolicy,
@@ -98,6 +100,11 @@ export class AlertsModule {
             subscription.id === 'sub_workana_plan'
             || String(subscription.name || '').toLowerCase().includes('workana')
         )) === true;
+    }
+
+    getVisibleDefinitions() {
+        const space=this.app.work?.area||'personal';
+        return this.getDefinitions().filter(d=>(d.workspace||(d.category==='trabajo'?'work':'personal'))===space);
     }
 
     loadData() {
@@ -460,9 +467,13 @@ export class AlertsModule {
     }
 
     updateRecurringScheduleFields(type) {
-        const normalizedType = ['weekly', 'monthly', 'yearly'].includes(type)
+        const normalizedType = ['once', 'interval', 'weekly', 'monthly', 'yearly'].includes(type)
             ? type
             : 'weekly';
+        const advanced=document.querySelector('#reminder-client-context .reminder-advanced');
+        if(advanced)advanced.hidden=normalizedType==='once';
+        const completion=document.getElementById('reminder-from-completion');
+        if(completion)completion.closest('label').hidden=normalizedType!=='interval';
         document.querySelectorAll('[data-recurring-schedule-fields]').forEach(element => {
             element.classList.toggle(
                 'hidden',
@@ -473,6 +484,8 @@ export class AlertsModule {
 
     readRecurringScheduleFromEditor() {
         const type = document.getElementById('recurring-reminder-frequency')?.value || 'weekly';
+        if (type === 'once') return {type, date:document.getElementById('recurring-reminder-date').value};
+        if (type === 'interval') return {type, startDate:document.getElementById('recurring-reminder-start').value, every:Number(document.getElementById('recurring-reminder-every').value), unit:document.getElementById('recurring-reminder-unit').value};
         if (type === 'monthly') {
             return normalizeRecurringSchedule({
                 type,
@@ -572,27 +585,37 @@ export class AlertsModule {
         );
     }
 
-    openRecurringReminderEditor(reminderId = null, trigger = null) {
+    openRecurringReminderEditor(reminderId = null, trigger = null, context = {}) {
         this.saveCurrentCategoryUIState();
         const modal = document.getElementById('recurring-reminder-modal');
         const form = document.getElementById('recurring-reminder-form');
         if (!modal || !form) return;
 
-        const reminder = reminderId ? this.getRecurringReminder(reminderId) : null;
-        if (!reminderId && !this.ensureRecurringReminderCreationCapacity()) {
+        const reminder = context.initial || (reminderId ? this.getRecurringReminder(reminderId) : null);
+        if (!context.onSave && !reminderId && !this.ensureRecurringReminderCreationCapacity()) {
             return false;
         }
-        const config = reminder ? (this.configs[reminder.id] || {}) : {};
+        const config = context.config || (reminder ? (this.configs[reminder.id] || {}) : {});
+        this.reminderContext = {...context, workspace:context.workspace || reminder?.workspace || this.app.work?.area || 'personal', owner:this.app.auth?.readyUserId, generation:this.app.auth?.syncGeneration};
         this.editingRecurringReminderId = reminder?.id || null;
         this.reminderModalReturnFocus = trigger || document.activeElement;
 
-        document.getElementById('recurring-reminder-modal-title').textContent = reminder
+        document.getElementById('recurring-reminder-modal-title').textContent = reminder?.id
             ? 'Editar recordatorio'
             : 'Nuevo recordatorio';
         document.getElementById('recurring-reminder-name').value = reminder?.name || '';
         document.getElementById('recurring-reminder-category').value = reminder?.category || 'otros';
         document.getElementById('recurring-reminder-title').value = reminder?.title || '';
         document.getElementById('recurring-reminder-body').value = reminder?.body || '';
+        document.getElementById('recurring-reminder-name').maxLength = context.onSave ? 300 : 90;
+        document.getElementById('recurring-reminder-body').maxLength = context.onSave ? 2000 : 240;
+        document.getElementById('recurring-reminder-body').required = false;
+        const categoryField = document.getElementById('recurring-reminder-category').closest('.input-group');
+        categoryField.hidden = this.reminderContext.workspace === 'work';
+        const clientContext = document.getElementById('reminder-client-context');
+        clientContext.classList.toggle('hidden', !context.html);
+        clientContext.innerHTML = context.html || '';
+        document.getElementById('reminder-editor-context').textContent = context.label || `Recordatorio de ${this.reminderContext.workspace === 'work' ? 'Trabajo' : 'Personal'} · horarios de Argentina.`;
         const currentReminderTimes = Array.isArray(config.times) && config.times.length > 0
             ? config.times
             : [config.time || reminder?.defaultTime || '09:00'];
@@ -608,7 +631,13 @@ export class AlertsModule {
                 days: reminder?.defaultDays || [1, 2, 3, 4, 5, 6, 0]
             }
         );
+        this.reminderContext.originalSchedule=schedule;
+        this.reminderContext.originalTimes=[...currentReminderTimes].sort();
         document.getElementById('recurring-reminder-frequency').value = schedule.type;
+        document.getElementById('recurring-reminder-date').value = schedule.type === 'once' ? schedule.date : argentinaDay();
+        document.getElementById('recurring-reminder-start').value = schedule.type === 'interval' ? schedule.startDate : argentinaDay();
+        document.getElementById('recurring-reminder-every').value = schedule.type === 'interval' ? schedule.every : 3;
+        document.getElementById('recurring-reminder-unit').value = schedule.type === 'interval' ? schedule.unit : 'days';
         document.getElementById('recurring-reminder-month-day').value = String(
             schedule.type === 'monthly' ? schedule.day : 1
         );
@@ -648,12 +677,13 @@ export class AlertsModule {
             });
         }
         this.editingRecurringReminderId = null;
+        this.reminderContext = null;
         this.reminderModalReturnFocus = null;
     }
 
-    saveRecurringReminderFromEditor() {
+    async saveRecurringReminderFromEditor() {
         const name = document.getElementById('recurring-reminder-name')?.value.trim() || '';
-        const body = document.getElementById('recurring-reminder-body')?.value.trim() || '';
+        const body = document.getElementById('recurring-reminder-body')?.value.trim() || name;
         const error = document.getElementById('recurring-reminder-error');
         if (!name || !body) {
             error.textContent = 'Completá el nombre y el mensaje del recordatorio.';
@@ -662,11 +692,15 @@ export class AlertsModule {
         }
 
         const wasEditing = Boolean(this.editingRecurringReminderId);
-        const creationCapacity = wasEditing
+        const context = this.reminderContext || {};
+        if (context.owner !== this.app.auth?.readyUserId || context.generation !== this.app.auth?.syncGeneration) {
+            error.textContent = 'La sesión cambió. Cerrá y volvé a abrir el recordatorio.'; error.classList.remove('hidden'); return;
+        }
+        const creationCapacity = wasEditing || context.onSave
             ? null
             : this.getRecurringReminderCreationCapacity();
         if (
-            !wasEditing
+            !wasEditing && !context.onSave
             && !this.ensureRecurringReminderCreationCapacity({ errorElement: error })
         ) {
             return false;
@@ -698,14 +732,16 @@ export class AlertsModule {
             error.classList.remove('hidden');
             return;
         }
-        const schedule = this.readRecurringScheduleFromEditor();
+        let schedule;
+        try { schedule = validateReminderSchedule(this.readRecurringScheduleFromEditor()); }
+        catch (e) {error.textContent=e.message;error.classList.remove('hidden');return;}
         if (schedule.type === 'weekly' && schedule.days.length === 0) {
             error.textContent = 'Elegí al menos un día activo.';
             error.classList.remove('hidden');
             return;
         }
 
-        const category = document.getElementById('recurring-reminder-category').value;
+        const category = context.workspace === 'work' ? 'trabajo' : document.getElementById('recurring-reminder-category').value;
         const primaryTime = document.getElementById('recurring-reminder-time').value;
         const extraTimeInputs = document.getElementById('recurring-reminder-modal')
             ?.querySelectorAll('.recurring-extra-time-input') || [];
@@ -715,10 +751,27 @@ export class AlertsModule {
         });
         const normalized = normalizeAlertTimes(candidateTimes, primaryTime);
 
+        if(schedule.type==='once' && (schedule.date<argentinaDay() || (schedule.date===argentinaDay() && normalized.times.every(t=>Date.parse(`${schedule.date}T${t}:00-03:00`)<=Date.now()))) && (JSON.stringify(schedule)!==JSON.stringify(context.originalSchedule)||JSON.stringify(normalized.times)!==JSON.stringify(context.originalTimes))) {
+            error.textContent='Elegí una fecha y al menos un horario futuros para el aviso puntual.';error.classList.remove('hidden');return;
+        }
+
+        if (context.onSave) {
+            const submit = document.querySelector('#recurring-reminder-form [type="submit"]');
+            if (submit.disabled) return;
+            submit.disabled=true;
+            try {
+                await context.onSave({name, body:document.getElementById('recurring-reminder-body').value.trim(), title:document.getElementById('recurring-reminder-title').value.trim(), times:normalized.times, schedule, enabled:document.getElementById('recurring-reminder-enabled').checked, root:document.getElementById('recurring-reminder-form')});
+                this.closeRecurringReminderEditor(); this.app.reminders?.render(); this.app.showToast?.('Recordatorio guardado.');
+            } catch(e) {error.textContent=e.message;error.classList.remove('hidden');}
+            finally {submit.disabled=false;}
+            return;
+        }
+
         this.configs = upsertRecurringReminder(this.configs, {
             id: reminderId,
             name,
             category,
+            workspace: context.workspace,
             title: document.getElementById('recurring-reminder-title').value.trim() || `⏰ ${name}`,
             body,
             time: normalized.time,
@@ -839,7 +892,7 @@ export class AlertsModule {
         if (!tabsNav) return;
 
         let html = '';
-        const definitions = this.getDefinitions();
+        const definitions = this.getVisibleDefinitions();
         const availableCategories = Object.keys(CATEGORY_NAMES).filter(cat => (
             definitions.some(definition => definition.category === cat)
         ));
@@ -869,7 +922,7 @@ export class AlertsModule {
 
         container.innerHTML = '';
 
-        const list = this.getDefinitions().filter(def => def.category === this.activeCategory);
+        const list = this.getVisibleDefinitions().filter(def => def.category === this.activeCategory);
 
         if (list.length === 0) {
             container.innerHTML = '<div style="color: var(--text-secondary); text-align: center; padding: 2rem;">No hay alertas en esta categoría.</div>';
@@ -995,5 +1048,6 @@ export class AlertsModule {
         this.renderTabs();
         this.renderContent();
         this.setupListeners();
+        this.app.reminders?.renderList();
     }
 }

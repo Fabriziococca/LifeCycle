@@ -45,10 +45,10 @@ export class WorkModule {
     enter(id) {
         if(!this.isWork(id))this.lastPersonalSectionId=id;
         this.area=this.isWork(id)?'work':'personal';document.body.dataset.workspace=this.area;
-        this.switchButton.innerHTML=this.area==='work'?'<i class="ph ph-arrow-left"></i><span>LifeCycle</span>':'<i class="ph ph-briefcase"></i><span>Trabajo</span>';
-        this.switchButton.setAttribute('aria-label',this.area==='work'?'Volver a LifeCycle':'Abrir Trabajo');
-        const brand=document.querySelector('.adaptive-nav-brand span');if(brand)brand.textContent=this.area==='work'?'Trabajo':'LifeCycle';
-        const product=document.querySelector('.app-header-product');if(product)product.textContent=this.area==='work'?'Trabajo':'LifeCycle';
+        this.switchButton.innerHTML=this.area==='work'?'<i class="ph ph-user"></i><span>Personal</span>':'<i class="ph ph-briefcase"></i><span>Trabajo</span>';
+        this.switchButton.setAttribute('aria-label',this.area==='work'?'Abrir Personal':'Abrir Trabajo');
+        const brand=document.querySelector('.adaptive-nav-brand span');if(brand)brand.textContent=this.area==='work'?'Trabajo':'Personal';
+        const product=document.querySelector('.app-header-product');if(product)product.textContent=this.area==='work'?'Trabajo':'Personal';
         this.app.adaptiveNavigation?.refresh();
         if(this.area==='work'&&this.app.auth?.readyUserId)void this.refresh();
     }
@@ -66,6 +66,7 @@ export class WorkModule {
             if(!data){root.innerHTML=this.heading(WORK_NAV[id].label,'Clientes, proyectos y próximos pasos.')+`<div class="card planning-empty" role="status">${esc(this.error||'Sincronizando Trabajo…')}${btn('retry','Reintentar')}</div>`;continue;}
             root.innerHTML=(this.error?`<p role="status" class="work-warning">${esc(this.error)} ${btn('retry','Reintentar')}</p>`:'')+(id==='work-summary-section'?this.summary(data):id==='work-clients-section'?this.clients(data):this.followups(data));
         }
+        this.app.reminders?.renderList();
     }
     summary(data) {
         const o=workOverview(data,this.projects), candidates=activeProjectCandidates(this.projects,data.links), bills=pendingRetainers(data,argentinaDate());

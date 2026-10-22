@@ -1,43 +1,69 @@
 /* Shared visual foundation. Keep business colours, layouts and controls intact.
    Effects are finite and never hold back navigation or a save action. */
 :root {
-    --bg-color: #101722;
-    --surface-color: #1b2533;
-    --surface-solid: #1b2533;
-    --surface-elevated: #243143;
-    --surface-section: #141e2b;
-    --surface-border: #344154;
-    --surface-subtle: rgba(148, 163, 184, .07);
-    --text-secondary: #a7b5c8;
-    --primary-color: #386ed8;
-    --primary-hover: #2c5dbb;
-    --shadow-glass: 0 4px 16px rgba(0, 0, 0, .12);
+    --bg-color: #191a18;
+    --surface-color: #232420;
+    --surface-solid: #232420;
+    --surface-elevated: #30312c;
+    --surface-section: #1d1e1b;
+    --surface-border: #41423b;
+    --surface-subtle: rgba(229, 225, 214, .045);
+    --surface-hover: rgba(229, 225, 214, .08);
+    --surface-active: rgba(212, 195, 165, .12);
+    --control-bg: #1d1e1b;
+    --control-autofill-bg: #292a26;
+    --overlay-bg: rgba(12, 13, 11, .78);
+    --divider-color: #3a3b35;
+    --border-subtle: #363730;
+    --placeholder-color: #96988e;
+    --progress-track: #161714;
+    --text-primary: #f1f0e9;
+    --text-secondary: #b2b3a8;
+    --text-link: #d7c2a2;
+    --primary-color: #e0d9ca;
+    --primary-hover: #f1eada;
+    --text-on-accent: #25261f;
+    --focus-ring: rgba(219, 203, 173, .3);
+    --shadow-glass: none;
     --shadow-btn: none;
-    --border-radius-lg: 20px;
-    --border-radius-md: 12px;
+    --border-radius-lg: 12px;
+    --border-radius-md: 8px;
     --transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
     --workspace-accent: var(--primary-color);
 }
 :root[data-theme="light"] {
-    --bg-color: #f4f5f7;
-    --surface-color: #fff;
-    --surface-solid: #fff;
-    --surface-elevated: #fff;
-    --surface-section: #f0f3f7;
-    --surface-border: #d7dee8;
-    --surface-subtle: rgba(51, 65, 85, .035);
-    --text-secondary: #526278;
-    --primary-color: #2c62cf;
-    --primary-hover: #204eac;
+    --bg-color: #efeee8;
+    --surface-color: #f8f7f2;
+    --surface-solid: #f8f7f2;
+    --surface-elevated: #e4e2d9;
+    --surface-section: #e9e7df;
+    --surface-border: #cecec2;
+    --surface-subtle: rgba(45, 48, 38, .03);
+    --surface-hover: rgba(45, 48, 38, .06);
+    --surface-active: rgba(103, 86, 57, .09);
+    --control-bg: #f8f7f2;
+    --control-autofill-bg: #efeee8;
+    --overlay-bg: rgba(25, 26, 22, .42);
+    --divider-color: #d5d5c9;
+    --border-subtle: #d7d6cb;
+    --placeholder-color: #717568;
+    --progress-track: #d9d9cd;
+    --text-primary: #282b24;
+    --text-secondary: #5e6355;
+    --text-link: #72512d;
+    --primary-color: #343c2e;
+    --primary-hover: #48513e;
+    --text-on-accent: #faf8ef;
+    --focus-ring: rgba(59, 69, 45, .22);
     --status-green: #087d60;
     --status-yellow: #8a5c00;
     --status-orange: #a8450c;
     --status-red: #c43142;
     --status-purple: #7735bc;
-    --shadow-glass: 0 4px 16px rgba(30, 41, 59, .04);
+    --shadow-glass: none;
 }
-body[data-workspace="work"] { --workspace-accent: #54c9b4; }
-:root[data-theme="light"] body[data-workspace="work"] { --workspace-accent: #087e70; }
+body[data-workspace="work"] { --workspace-accent: #d7ba8e; }
+:root[data-theme="light"] body[data-workspace="work"] { --workspace-accent: #77582d; }
 body { background: var(--bg-color); }
 .glow-orb { display: none; animation: none; }
 .card, .custom-tracker-card, .fw-panel, .fw-metric {
@@ -45,11 +71,53 @@ body { background: var(--bg-color); }
     backdrop-filter: none;
 }
 .card:hover { transform: none; }
+.btn-primary, .day-btn.active, .nav-btn.active { color: var(--text-on-accent); }
+.adaptive-nav-brand > i { background: var(--primary-color); }
+.card, .planning-card, .fw-panel, .fw-metric { border-radius: 12px; }
+.adaptive-nav-brand { font-size: 1rem; }
+#main-nav { background: var(--surface-section); box-shadow: none; border-radius: 14px; }
+.nav-btn { border-radius: 8px; font-size: .88rem; }
+.app-context-title { font-weight: 600; }
+.text-input, .input-group input, .input-group select, .input-group textarea { border-radius: 8px; }
+.profile-main-content > .profile-tab-content > .card { box-shadow: none; }
+.reminders-host { max-width: 1250px; margin: 0 auto; }
+.reminder-list { display: grid; gap: 0; margin: 1.5rem 0 2rem; }
+.reminder-row { display: flex; align-items: center; justify-content: space-between; gap: 1.5rem; padding: 1.25rem 0; border-bottom: 1px solid var(--surface-border); }
+.reminder-row > div { min-width: 0; }
+.reminder-row h3 { font-size: 1rem; margin: .35rem 0 .5rem; overflow-wrap: anywhere; }
+.reminder-row p { color: var(--text-secondary); font-size: .85rem; line-height: 1.55; margin: .3rem 0; overflow-wrap: anywhere; }
+.reminder-row small { color: var(--text-secondary); font-size: .76rem; }
+.reminder-row .planning-actions { flex-shrink: 0; }
+.reminders-host .planning-actions { display: flex; flex-wrap: wrap; align-items: center; gap: .6rem; }
+.reminders-host .btn { width: auto; margin: 0; }
+.reminders-host .maintenance-card { background: transparent; border: 0; border-bottom: 1px solid var(--surface-border); border-radius: 0; padding: 1.25rem 0; }
+.reminders-host .maintenance-card p { font-size: .85rem; color: var(--text-secondary); margin: .5rem 0; }
+.reminders-host .maintenance-card h4 { font-size: 1rem; }
+.reminders-host .maintenance-card summary { margin-top: .8rem; font-size: .8rem; color: var(--text-secondary); cursor: pointer; }
+#reminder-settings > summary, .reminder-advanced > summary { cursor: pointer; padding: 1rem 0; color: var(--text-secondary); }
+.reminder-advanced label { margin: .85rem 0; }
+.reminder-advanced p { font-size: .8rem; line-height: 1.5; color: var(--text-secondary); }
+#reminder-client-context p { padding-bottom: .75rem; }
+#reminders-hub [hidden], #recurring-reminder-modal [hidden] { display: none !important; }
+.work-content .work-metrics > .card { border-width: 0 0 1px; border-radius: 0; background: transparent; padding: 1rem 0; }
+.work-content .work-metrics strong { font-variant-numeric: tabular-nums; font-weight: 600; }
+.work-content .work-columns { gap: 2rem; }
+.work-content .work-client-card, .work-content .maintenance-card { box-shadow: none; }
+.fw-movement { border-width: 0 0 1px; border-radius: 0; background: transparent; padding: 1rem 0; }
+.fw-metric { border-width: 0 0 2px; border-radius: 0; background: transparent; padding: 1rem 0; }
+.fw-balance, .fw-metric strong, .fw-movement-end { font-variant-numeric: tabular-nums; }
+.charging-card, .custom-tracker-card { box-shadow: none; }
+.tabs-container, .planning-tabs, .fw-tabs { border-radius: 8px; }
+@media (max-width: 600px) {
+    .reminder-row { flex-direction: column; align-items: stretch; gap: .8rem; }
+    .reminder-row .planning-actions { justify-content: flex-start; }
+    .reminder-row button { min-height: 44px; }
+}
 .btn, button.icon-btn, .nav-btn, .tab-btn, .theme-choice,
 .planning-tabs button, .fw-tabs button {
     transition: background-color 160ms ease, border-color 160ms ease, color 160ms ease;
 }
-.btn { border-radius: 12px; box-shadow: none; line-height: 1.35; }
+.btn { border-radius: 8px; box-shadow: none; line-height: 1.35; }
 .btn-primary:hover, .btn-secondary:hover { transform: none; }
 .btn:disabled { cursor: not-allowed; opacity: .55; }
 .btn-secondary { background: var(--surface-subtle); }
@@ -94,7 +162,7 @@ body[data-workspace="work"] .nav-btn.active {
 /* Trackers: a clear identity, a quiet timeline, one main action. */
 .custom-tracker-card {
     position: relative; background: var(--surface-color); border: 1px solid var(--surface-border);
-    border-top: 3px solid var(--custom-status-color); border-radius: 18px; padding: 23px;
+    border-top: 2px solid var(--custom-status-color); border-radius: 12px; padding: 18px;
 }
 :root[data-theme] .custom-tracker-card { background: var(--surface-color); border-top-color: var(--custom-status-color); }
 .custom-tracker-card-header { align-items: flex-start; }
@@ -102,7 +170,7 @@ body[data-workspace="work"] .nav-btn.active {
 .custom-tracker-icon { border-radius: 12px; background: var(--surface-section); }
 .custom-tracker-status { letter-spacing: .04em; font-size: .67rem; }
 .custom-tracker-metric { margin-top: 10px; margin-bottom: 4px; }
-.custom-tracker-metric > strong { font-size: 2.6rem; font-variant-numeric: tabular-nums; letter-spacing: -.055em; }
+.custom-tracker-metric > strong { font-size: 2.2rem; font-variant-numeric: tabular-nums; letter-spacing: -.055em; }
 .custom-tracker-metric > span { font-size: .85rem; }
 .custom-tracker-dates { padding: 12px 0; border-top: 1px solid var(--surface-border); }
 .custom-tracker-dates strong { margin-top: 4px; font-variant-numeric: tabular-nums; }
@@ -127,7 +195,7 @@ body[data-workspace="work"] .nav-btn.active {
 #records-list > .card { position: relative; }
 
 /* Charges: this is elapsed time, never a measured battery level. */
-.charging-card { position: relative; border-radius: 18px; border-top: 3px solid var(--surface-border); gap: 18px; }
+.charging-card { position: relative; border-radius: 12px; border-top: 2px solid var(--surface-border); gap: 18px; }
 .charging-grid > .charging-card:only-child { max-width: 600px; width: 100%; justify-self: start; }
 .charging-card[data-charge-state="active"] { border-top-color: var(--primary-color); }
 .charging-card[data-charge-state="due"] { border-top-color: var(--status-orange); }
@@ -217,3 +285,18 @@ body[data-workspace="work"] .nav-btn.active {
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; }
 }
+
+/* Finish inherited blue/glass treatments without changing status semantics. */
+.header-actions .btn, .header-actions .icon-btn, .profile-corner-btn,
+.header-profile-btn, #privacy-lock-btn, #global-search-btn, #global-quick-task-btn,
+#notification-bell-btn { box-shadow: none; background: var(--surface-subtle); border-color: var(--surface-border); color: var(--text-primary); }
+.app-context-title, .app-title { background: none; -webkit-text-fill-color: var(--text-primary); color: var(--text-primary); }
+.app-context-icon, .app-header-product { color: var(--text-secondary); background: transparent; box-shadow: none; }
+.app-header-brand { background: var(--surface-section); border-color: var(--surface-border); box-shadow: none; color: var(--text-secondary); }
+#app-context-icon { color: var(--text-secondary); }
+.card:hover, .planning-workspace .card:hover, .reminders-host .maintenance-card,
+.reminders-host .maintenance-card:hover { box-shadow: none; }
+.nav-btn.active { background: var(--surface-elevated); color: var(--text-primary); box-shadow: inset 3px 0 var(--workspace-accent); }
+.nav-btn:not(.active):hover { background: var(--surface-subtle); }
+.custom-tracker-record { background: var(--primary-color); color: var(--text-on-accent); }
+:root[data-theme="light"] .badge.green { color: var(--status-green); }
