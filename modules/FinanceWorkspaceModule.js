@@ -83,14 +83,14 @@ export class FinanceWorkspaceModule {
             <article class="fw-metric"><span>Balance del mes</span><strong>${this.money(income - expense)}</strong></article></div>
             <div class="fw-columns"><section class="fw-panel"><h3>En qué se fue</h3>${categories.size ? [...categories].sort((a,b) => b[1]-a[1]).map(([key,value]) => `<div class="fw-category"><div><span>${esc(this.category(key,'expense'))}</span><strong>${this.money(value)}</strong></div><progress max="${Math.max(1, expense)}" value="${Math.max(0,value)}" aria-label="${esc(this.category(key,'expense'))}"></progress></div>`).join('') : '<p>Sin gastos en esta moneda y mes.</p>'}</section>
             <section class="fw-panel"><h3>Tu organización</h3><p>Los cobros de Proyectos y los gastos de Suscripciones siguen apareciendo aquí sin duplicarlos.</p><p>${this.workspace.accounts.filter(item=>!item.archived).length} cuentas y tarjetas activas · ${this.workspace.budgets.filter(item=>item.month===this.month).length} presupuestos este mes.</p><p>Sin conexión bancaria ni servicios pagos añadidos.</p></section></div>
-            <div class="fw-heading"><h3>Últimos movimientos</h3>${this.button('all-movements','Ver todos')}</div>${list.length ? this.rows(list.slice(0,8)) : this.empty('Registrá tu primer movimiento de este mes y moneda.')}`;
+            ${this.app.work?.retainers?.pending(this.app.work.store.state)||''}<div class="fw-heading"><h3>Últimos movimientos</h3>${this.button('all-movements','Ver todos')}</div>${list.length ? this.rows(list.slice(0,8)) : this.empty('Registrá tu primer movimiento de este mes y moneda.')}`;
     }
     rows(list) {
         return `<div class="fw-movements">${list.map(item => {
             const account = this.workspace.accounts.find(account => account.id === item.accountId);
             return `<article class="fw-movement"><div><span class="fw-kind ${item.type === 'income' ? 'fw-positive' : 'fw-negative'}">${item.type === 'income' ? '↗ Ingreso' : '↘ Gasto'}</span><h4>${esc(item.description || 'Sin detalle')}</h4>
                 <p>${esc(item.date || '')} · ${esc(this.category(item.category,item.type))} · ${esc(item.sourceLabel)} · ${esc(account?.name || 'Sin cuenta asignada')}</p>${item.legacyEquivalent ? '<small>Equivalente USD guardado; moneda original no disponible.</small>' : ''}</div>
-                <div class="fw-movement-end"><strong>${this.money(item.nativeAmountMinor,item.nativeCurrency)}</strong><small>${WORK_SCOPES[this.scopeOf(item)]}</small><div>${!['Proyecto','Saylor'].includes(item.sourceLabel)?this.button('scope','Clasificar',item.key):''}${item.editable ? this.button('edit-movement','Editar',item.key) + this.button('delete-movement','Eliminar',item.key) : this.button(item.sourceLabel==='Saylor'?'saylor':item.subscriptionId ? 'subscriptions' : 'projects', 'Ver origen')}</div></div></article>`;
+                <div class="fw-movement-end"><strong>${this.money(item.nativeAmountMinor,item.nativeCurrency)}</strong><small>${WORK_SCOPES[this.scopeOf(item)]}</small><div>${!['Proyecto','Saylor','Mantenimiento'].includes(item.sourceLabel)?this.button('scope','Clasificar',item.key):''}${item.editable ? this.button('edit-movement','Editar',item.key) + this.button('delete-movement','Eliminar',item.key) : this.button(item.origin==='retainer'?'retainer':item.sourceLabel==='Saylor'?'saylor':item.subscriptionId ? 'subscriptions' : 'projects', 'Ver origen',item.retainerId||'')}</div></div></article>`;
         }).join('')}</div>`;
     }
     movementList() {
@@ -125,6 +125,8 @@ export class FinanceWorkspaceModule {
             }).join('')}</div>` : this.empty('Definí cuánto querés gastar por categoría en este mes. No borra ni limita tus movimientos.')}`;
     }
     async onClick(event) {
+        const workAction=event.target.closest('[data-work-action]');
+        if(workAction){try{await this.app.work.action(workAction.dataset.workAction,workAction.dataset.id);}catch(e){this.app.showToast?.(e.message,{tone:'warning'});}return;}
         const tab = event.target.closest('[data-fw-tab]');
         if (tab) { this.tab = tab.dataset.fwTab; this.render(); return; }
         const button = event.target.closest('[data-fw-action]'); if (!button) return;
@@ -133,6 +135,7 @@ export class FinanceWorkspaceModule {
         if (action === 'all-movements') { this.tab = 'movements'; this.render(); return; }
         if (action === 'previous' || action === 'next') { this.page = Math.max(1,this.page+(action==='next'?1:-1)); this.renderBody(); return; }
         if (action === 'recurring') { this.finance.openFinanceRecurringModal(button); return; }
+        if (action === 'retainer') { this.app.work.retainers.open(recordId); return; }
         if (action === 'subscriptions' || action === 'projects' || action==='saylor') { this.app.activateSection(action==='saylor'?'trading-section':action==='subscriptions'?'suscripciones-section':'projects-section'); return; }
         if (action==='scope') {
             const item=this.movements.find(x=>x.key===recordId);if(!item)return;

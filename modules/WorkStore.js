@@ -30,7 +30,7 @@ export class WorkStore {
         if(owner!==this.app.auth?.readyUserId) throw new Error('La sesión cambió.');
         this.state=canonical(state);this.owner=owner;this.loadedAt=Date.now();
         localStorage.setItem(WORK_KEY,JSON.stringify(this.state));
-        this.app.work?.render();this.app.finanzas?.workspaceView?.render?.();this.app.notificationsCenter?.updateBadge();
+        this.app.work?.render();this.app.finanzas?.render?.();this.app.projects?.render?.();this.app.notificationsCenter?.updateBadge();this.app.today?.render?.();
         return this.value;
     }
     async load(force=false) {

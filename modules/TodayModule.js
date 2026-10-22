@@ -7,7 +7,8 @@ import {
 
 const SOURCE_LABELS = Object.freeze({
     appointment: 'Turnos de Salud',
-    maintenance: 'Mantenimiento de clientes',
+    maintenance: 'Recordatorios de clientes',
+    retainer: 'Cobros de mantenimiento',
     charging: 'Cargas',
     tareas: 'Tareas',
     projects_tasks: 'Tarea de proyecto',

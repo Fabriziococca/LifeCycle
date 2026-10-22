@@ -689,6 +689,9 @@ class AppController {
                 else {this.activateSection('work-summary-section');this.showToast?.('La rutina ya no está disponible.');}
             }).catch(()=>this.showToast?.('No se pudo sincronizar la rutina. Reintentá con conexión.',{tone:'warning'}));
             return;
+        } else if (openParam === 'retainer') {
+            void this.work.refresh(true).then(()=>this.work.retainers.open(searchParams.get('id'))).catch(()=>{this.activateSection('work-summary-section');this.showToast?.('No se pudo abrir el mantenimiento. Revisá la conexión y el cliente.',{tone:'warning'});});
+            return;
         } else if (openParam === 'work') {
             this.activateSection('work-summary-section');
             return;

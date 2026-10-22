@@ -18,12 +18,12 @@ exports.runWorkSmoke=async(page,{width,theme})=>{
  await page.locator('#work-summary-section [data-work-action=client]').click();
  await field('name').fill('Cliente QA <texto>');await field('contact').fill('Referencia de prueba');await save();
  const clients=page.locator('#work-clients-section');await clients.waitFor({state:'visible'});
- await clients.locator('[data-work-action=followup]').click();await field('title').fill('Esperando credenciales QA');await field('actor').selectOption('client');await field('reminderEnabled').check();await field('promisedOn').fill('2026-12-20');await save();
- await clients.locator('[data-work-action=note]').click();await field('kind').selectOption('agreement');await field('body').fill('Acuerdo de prueba <sin HTML>');await save();
+ await clients.locator('.client-secondary > summary').click();await clients.locator('[data-work-action=followup]').click();await field('title').fill('Esperando credenciales QA');await field('actor').selectOption('client');await field('reminderEnabled').check();await field('promisedOn').fill('2026-12-20');await save();
+ await clients.locator('.client-secondary > summary').click();await clients.locator('[data-work-action=note]').click();await field('kind').selectOption('agreement');await field('body').fill('Acuerdo de prueba <sin HTML>');await save();
  await page.evaluate(()=>{const a=window.lifecycle_controller;a.projects.projects.push({id:'qa-work-project',client:'Cliente QA',project:'Proyecto activo QA',budgetNet:100,budgetGross:100,partialReleases:[],start:new Date().toISOString(),deadline:'2026-12-20T21:00:00Z',timerStart:null,totalTime:0,isDelivered:false,isArbitration:false});a.projects.saveData();});
- await clients.locator('[data-work-action=link]').click();await field('target-0').selectOption({label:'Cliente QA <texto>'});await save();
+ await clients.locator('[data-work-action=link]').click();await field('projectId').check();await save();
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.links.length),1);
- await clients.locator('[data-work-action=edit-followup]').click();await field('projectId').selectOption('qa-work-project');await save();
+ await clients.locator('.client-secondary > summary').click();await clients.locator('[data-work-action=edit-followup]').click();await field('projectId').selectOption('qa-work-project');await save();
  await page.evaluate(()=>window.lifecycle_controller.activateSection('work-summary-section'));
  await page.locator('#work-summary-section [data-work-action=settings]').click();await field('dailyEnabled').check();await field('dailyTime').fill('16:30');await save();
  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>window.lifecycle_controller.work.store.state?.clients.length===1);
@@ -35,8 +35,8 @@ exports.runWorkSmoke=async(page,{width,theme})=>{
  await clients.locator('[data-work-action=detail]').click();await clients.locator('[data-work-action=archive]').click();await page.locator('#app-feedback-dialog [data-feedback-confirm]').click();
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.clients[0].archived),true);
  await clients.locator('[data-work-action=archive]').click();await page.locator('#app-feedback-dialog [data-feedback-confirm]').click();
- await clients.locator('[data-work-action=complete]').click();assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.followups[0].status),'completed');
- await clients.locator('[data-work-action=reopen]').click();
+ await clients.locator('.client-secondary > summary').click();await clients.locator('[data-work-action=complete]').click();assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.followups[0].status),'completed');
+ await clients.locator('.client-secondary > summary').click();await clients.locator('[data-work-action=reopen]').click();
  const backup=await page.evaluate(async()=>{const a=window.lifecycle_controller,s=await a.work.store.backupSnapshot();const b=await import('/backup-utils.mjs');const payload=b.createBackupPayload(k=>s[k]??null);b.parseAndValidateBackupText(JSON.stringify(payload));return payload;});
  assert.equal(backup.data.lifecycle_work.clients.length,1);
  await page.evaluate(async b=>{const a=window.lifecycle_controller,u=await import('/backup-utils.mjs');await a.work.store.restore(u.parseAndValidateBackupText(JSON.stringify(b)));},backup);

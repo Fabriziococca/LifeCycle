@@ -1663,6 +1663,8 @@ export class ProjectsModule {
                 </div>
             `;
 
+            const maintenance=this.app.work?.retainers?.projectSection(String(p.id));
+            if(maintenance)card.insertAdjacentHTML('beforeend',maintenance);
             // Event Listeners
             card.querySelector('.btn-timer')?.addEventListener('click', (e) => {
                 this.toggleTimer(p.id, e);

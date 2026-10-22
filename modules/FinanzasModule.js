@@ -1,3 +1,4 @@
+import { retainerMovements } from '../retainer-utils.mjs';
 import {
     getLocalISODate,
     getLocalISOMonth,
@@ -1763,7 +1764,7 @@ export class FinanzasModule {
     }
 
     getCombinedEntries() {
-        const list = [...(this.data.entries || [])];
+        const list = [...(this.data.entries || []), ...retainerMovements(this.app.work?.store?.state)];
         list.push(...saylorMovements(localStorage.getItem(SAYLOR_KEY)).filter(m => m.resultType === 'income'));
 
         const projectMovements = buildProjectIncomeMovements({
