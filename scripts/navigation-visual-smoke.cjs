@@ -63,6 +63,12 @@ exports.runNavigationVisualSmoke = async (page, {width, theme}) => {
         assert.ok(result.contrast>=4.5,`Logo contrast ${result.contrast} in ${id}/${theme}`);
         assert.ok(result.glyph&&result.glyph!=='none'&&result.glyph!=='""','Brand glyph must be present');
         if(width>900)assert.equal(await icon.isVisible(),true);
+        const navContrast=await page.locator('#main-nav .nav-btn.active').evaluate(e=>{
+            const s=getComputedStyle(e),rgb=v=>v.match(/[\d.]+/g).slice(0,3).map(Number);
+            const lum=v=>rgb(v).map(n=>n/255).map(n=>n<=.04045?n/12.92:((n+.055)/1.055)**2.4).reduce((a,n,i)=>a+n*[.2126,.7152,.0722][i],0);
+            const a=lum(s.color),b=lum(s.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);
+        });
+        assert.ok(navContrast>=4.5,`Selected navigation contrast ${navContrast} at ${width}/${theme}`);
     }
     await page.screenshot({path:`.tmp-sb/ui-smoke/${width}-${theme}-navigation-fixed.png`,fullPage:false});
 };

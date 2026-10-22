@@ -298,5 +298,8 @@ body[data-workspace="work"] .nav-btn.active {
 .reminders-host .maintenance-card:hover { box-shadow: none; }
 .nav-btn.active { background: var(--surface-elevated); color: var(--text-primary); box-shadow: inset 3px 0 var(--workspace-accent); }
 .nav-btn:not(.active):hover { background: var(--surface-subtle); }
+:root[data-theme] #main-nav .nav-btn { color: var(--text-secondary); }
+:root[data-theme] #main-nav .nav-btn.active { color: var(--text-primary); background: var(--surface-elevated); }
+:root[data-theme] #main-nav .nav-btn:hover { color: var(--text-primary); }
 .custom-tracker-record { background: var(--primary-color); color: var(--text-on-accent); }
 :root[data-theme="light"] .badge.green { color: var(--status-green); }
