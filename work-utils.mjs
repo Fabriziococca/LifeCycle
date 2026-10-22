@@ -1,4 +1,5 @@
 import { validateMaintenance, maintenanceActive } from './maintenance-utils.mjs';
+import { validateRetainers, pendingRetainers } from './retainer-utils.mjs';
 export const WORK_KEY = 'lifecycle_work';
 export const WORK_SECTIONS = Object.freeze(['work-summary-section', 'work-clients-section', 'work-followups-section', 'projects-section', 'finanzas-section']);
 export const WORK_NAV = Object.freeze({
@@ -24,6 +25,7 @@ export function validateWork(input) {
     const identity = x => { assert(x && ID.test(x.id) && !ids.has(x.id), 'Identificador duplicado o no válido.'); ids.add(x.id); };
     for (const c of input.clients) { identity(c); assert(text(c.name, 120, true) && text(c.contact || '', 300) && text(c.context || '', 2000) && typeof c.archived === 'boolean', 'Ficha de cliente no válida.'); clients.add(c.id); }
     for (const l of input.links) { assert(l && clients.has(l.clientId) && /^[a-zA-Z0-9_-]{1,100}$/.test(String(l.projectId)) && !projects.has(String(l.projectId)), 'Vínculo de proyecto no válido.'); projects.add(String(l.projectId)); }
+    for (const c of input.clients) validateRetainers(c,input.links,ids);
     for (const f of input.followups) {
         identity(f);
         assert(clients.has(f.clientId) && text(f.title, 300, true) && Object.hasOwn(WORK_ACTORS, f.actor) && ['open', 'completed', 'cancelled'].includes(f.status) && ['normal', 'high'].includes(f.priority), 'Seguimiento no válido.');
@@ -55,6 +57,7 @@ export function activeProjectCandidates(projects, links) {
     return projects.filter(p => !used.has(String(p.id))).map(p => ({ projectId: String(p.id), name: String(p.client || '').trim(), project: String(p.project || '') }));
 }
 export function financeWorkScope(item, scopes = {}) {
+    if (item.origin === 'retainer') return 'work';
     if (item.origin === 'saylor' || item.sourceLabel === 'Saylor') return 'personal';
     if (item.sourceLabel === 'Proyecto' || /^proj-(?:partial-|final-)?/.test(String(item.id))) return 'work';
     return scopes[item.type + ':' + item.id] || 'unclassified';
@@ -62,15 +65,18 @@ export function financeWorkScope(item, scopes = {}) {
 export function workNotificationCandidates(state, now = new Date()) {
     const day = argentinaDate(now), result = [], overview = workOverview(state, [], now);
     const at = time => new Date(day + 'T' + time + ':00-03:00');
-    const add = (key, time, title, body, followup = null) => {
+    const add = (key, time, title, body, followup = null, retainer = null) => {
         const scheduled = at(time), expires = new Date(scheduled.getTime() + 15 * 60000);
-        if (now >= scheduled && now < expires) result.push({ key: key + ':' + day, scheduledAt: scheduled.toISOString(), expiresAt: expires.toISOString(), title, body, followup });
+        if (now >= scheduled && now < expires) result.push({ key: key + ':' + day, scheduledAt: scheduled.toISOString(), expiresAt: expires.toISOString(), title, body, followup, retainer });
     };
-    if (state.settings.dailyEnabled && overview.due.length) add('work:daily', state.settings.dailyTime, 'Trabajo · resumen diario', overview.mine.length + ' acciones para vos · ' + overview.due.filter(f => f.actor !== 'me').length + ' esperas para revisar.');
+    const bills=pendingRetainers(state,day);
+    if (state.settings.dailyEnabled && (overview.due.length || bills.length)) add('work:daily', state.settings.dailyTime, 'Trabajo · resumen diario', overview.mine.length + ' acciones para vos · ' + overview.due.filter(f => f.actor !== 'me').length + ' esperas · '+bills.length+' cobros por confirmar.');
     for (const f of overview.due) if (f.reminderEnabled) {
-        if(f.maintenance)for(const time of f.maintenance.times)add(`work:maintenance:${f.id}:${f.maintenance.scheduleVersion}:${time.replace(':','')}`,time,'Trabajo · mantenimiento',f.title+' · '+state.clients.find(c=>c.id===f.clientId).name,f);
+        if(f.maintenance)for(const time of f.maintenance.times)add(`work:maintenance:${f.id}:${f.maintenance.scheduleVersion}:${time.replace(':','')}`,time,'Trabajo · recordatorio',f.title+' · '+state.clients.find(c=>c.id===f.clientId).name,f);
         else add('work:followup:' + f.id, f.reminderTime, 'Trabajo · seguimiento', f.title, f);
     }
+    for (const {client,retainer:r} of bills) if(r.reminderEnabled) for(const time of r.times)
+        add(`work:retainer:${r.id}:${r.nextDue}:${r.scheduleVersion}:${time.replace(':','')}`,time,'Trabajo · cobro por confirmar',`¿${client.name} te pagó ${r.title}? Período ${r.nextDue}.`,null,{id:r.id,clientId:client.id});
     return result;
 }
 export function isWorkRetryRelevant(state,candidate,now=new Date()) {

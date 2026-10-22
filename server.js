@@ -2595,7 +2595,7 @@ async function checkWorkAlerts({signal=null}={}) {
     const grouped=groupSubscriptionsByUser(subs.data||[]);
     for(const {userId,notice} of due) {
         throwIfAborted(signal);
-        await sendPushToSubscriptions({userId,subscriptions:grouped[userId]||[],payload:JSON.stringify({title:notice.title,body:notice.body,url:notice.followup?.maintenance?'/?open=maintenance&id='+encodeURIComponent(notice.followup.id):'/?open=work'}),context:'Trabajo',alertKey:notice.key,scheduledAt:notice.scheduledAt,expiresAt:notice.expiresAt,urgency:'high',signal});
+        await sendPushToSubscriptions({userId,subscriptions:grouped[userId]||[],payload:JSON.stringify({title:notice.title,body:notice.body,url:notice.retainer?'/?open=retainer&id='+encodeURIComponent(notice.retainer.id):notice.followup?.maintenance?'/?open=maintenance&id='+encodeURIComponent(notice.followup.id):'/?open=work'}),context:'Trabajo',alertKey:notice.key,scheduledAt:notice.scheduledAt,expiresAt:notice.expiresAt,urgency:'high',signal});
     }
 }
 
