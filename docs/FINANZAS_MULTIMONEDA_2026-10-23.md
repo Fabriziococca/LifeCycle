@@ -14,6 +14,8 @@ servicios pagos ni obliga a registrar compras de dólares.
 - Una cotización actual sólo se sugiere para la fecha de hoy y con caché fresca.
   Fechas anteriores necesitan una cotización ingresada expresamente. Sin ella,
   el informe ARS identifica subtotal e importes sin convertir; no usa el dólar de hoy.
+  Si todos carecen de cotización, muestra el equivalente USD guardado y el
+  resultado pendiente; no presenta ingresos ni resultado en ARS como cero.
 - Los registros antiguos sin moneda original conservan su equivalente USD y se
   muestran por separado. No se los presenta como dólares efectivamente cobrados.
 - `workspace.receipts` permite completar datos del registro desde Finanzas sin

@@ -30,6 +30,9 @@ exports.runFinanceCurrencySmoke = async (page,{width,theme}) => {
     assert.match(await root.locator('.fw-current-balance .fw-balance').innerText(),/1\.500,00/);
     await page.evaluate(()=>{const f=window.lifecycle_controller.finanzas;f.data.entries.push({id:'old-qa',date:f.data.entries[0].date,amount:100,description:'Original desconocida QA',category:'otros'});f.saveData();f.render();});
     await root.locator('#fw-currency').selectOption('ARS');await root.getByText('El total en ARS está incompleto.',{exact:false}).waitFor();
+    await root.locator('#fw-original').selectOption('unknown');
+    assert.match(await income.locator('strong').innerText(),/100,00 eq\./,'unknown ARS history must not look like zero income');
+    await root.locator('#fw-original').selectOption('all');
     await root.locator('[data-fw-tab=movements]').click();await root.locator('#fw-original').selectOption('unknown');
     assert.equal(await root.locator('.fw-movement').count(),1);
     await root.locator('[data-fw-action=receipt]').click();assert.equal(await field('currency').inputValue(),'unknown');await field('rate').fill('1000');await save();
