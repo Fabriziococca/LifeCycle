@@ -389,6 +389,16 @@ function validateProject(project, path) {
     if (Object.hasOwn(project, 'tasks')) {
         assertArrayOfRecords(project.tasks, `${path}.tasks`, validateTask);
     }
+    const receipt = (value, label) => {
+        if (!isPlainObject(value) || !Number.isFinite(value.amountUsd) || value.amountUsd <= 0 || !isValidISODate(value.date)) throw new BackupValidationError(`"${label}" tiene un cobro inválido.`);
+        const equivalent=value.nativeAmountMinor/100/value.exchangeRate;
+        if (!Number.isFinite(equivalent) || Math.abs(equivalent-value.amountUsd)>.0050001) throw new BackupValidationError(`"${label}" no coincide con su equivalente guardado.`);
+        validateFinanceItem({...value,amount:equivalent},label);
+    };
+    if (project.paymentReceipt) receipt(project.paymentReceipt,`${path}.paymentReceipt`);
+    if (Array.isArray(project.partialReleases)) project.partialReleases.forEach((release,index)=>{
+        if (release.receipt) receipt(release.receipt,`${path}.partialReleases[${index}].receipt`);
+    });
 }
 
 function validateProjectTemplate(template, path) {
@@ -425,6 +435,9 @@ function validateFinanceItem(item, path) {
         'recurringOccurrence'
     ]);
     assertOptionalNumberFields(item, path, ['amount']);
+    if (Object.hasOwn(item, 'valuationRate') && (!Number.isFinite(item.valuationRate) || item.valuationRate < .000001 || item.valuationRate > 1_000_000)) {
+        throw new BackupValidationError(`"${path}" tiene una cotización histórica inválida.`);
+    }
     if (Object.hasOwn(item, 'nativeAmountMinor')) {
         if (!Number.isSafeInteger(item.nativeAmountMinor) || item.nativeAmountMinor <= 0
             || item.nativeAmountMinor > 1_000_000_000_000

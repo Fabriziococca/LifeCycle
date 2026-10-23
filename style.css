@@ -86,6 +86,10 @@
 .fw-metrics { display: grid; grid-template-columns: repeat(3,minmax(0,1fr)); gap: 1rem; margin: 1.5rem 0; }
 .fw-metric, .fw-panel { background: var(--surface-color); border: 1px solid var(--surface-border); border-radius: 1rem; padding: 1.3rem; min-width: 0; }
 .fw-metric span { display: block; font-size: .85rem; color: var(--text-secondary); }
+.fw-metric small { display:block; margin-top:.65rem; color:var(--text-secondary); line-height:1.5; overflow-wrap:anywhere; }
+.fw-warning { color:var(--status-yellow); font-size:.85rem; line-height:1.5; }
+.fw-current-balance { margin:1.25rem 0; }
+.fw-movement-end small { display:block; margin:.35rem 0; }
 .fw-metric strong, .fw-balance { display: block; margin-top: .5rem; font-size: clamp(1.3rem,2.5vw,2rem); overflow-wrap: anywhere; }
 .fw-income { border-color: var(--status-green); }.fw-expense { border-color: var(--status-red); }
 .fw-positive, .fw-income strong { color: var(--status-green); }.fw-negative, .fw-expense strong { color: var(--status-red); }

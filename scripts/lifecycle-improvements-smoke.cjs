@@ -134,6 +134,7 @@ async function runLifecycleImprovementsSmoke(page, { width, theme }) {
         await project.locator('.btn-partial-release').click();
         await page.locator('#proj-partial-pct').fill('50');
         await page.locator('#proj-partial-save').click();
+        await page.locator('#financial-receipt-dialog').getByRole('button',{name:'Confirmar cobro',exact:true}).click();
         assert.match(await project.locator('.partial-release-badge').textContent(), new RegExp(`\\(${expected}%\\)`));
     }
     const payments = await page.evaluate(() => window.lifecycle_controller.projects.getIncomeMovements().filter(m => m.projectId === 'qa-partials'));

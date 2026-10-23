@@ -31,7 +31,7 @@ exports.runFinanceWorkspaceSmoke = async function(page, {width,theme}) {
     await root.locator('#fw-search').fill('');
     await root.locator('[data-fw-action=new-movement]').click();
     await field('description').fill('Pesos QA'); await field('category').fill('transporte'); await field('currency').selectOption('ARS'); await field('amount').fill('12000'); await field('rate').fill('1200'); await save();
-    await root.locator('#fw-currency').selectOption('ARS'); await root.getByText('Pesos QA',{exact:true}).waitFor();
+    await root.locator('#fw-currency').selectOption('ARS'); await root.locator('#fw-original').selectOption('ARS'); await root.getByText('Pesos QA',{exact:true}).waitFor();
     const counts=await page.evaluate(async()=>{
         const {createBackupPayload,parseAndValidateBackupText}=await import('/backup-utils.mjs');
         const data=window.lifecycle_controller.finanzas.data;
@@ -39,7 +39,7 @@ exports.runFinanceWorkspaceSmoke = async function(page, {width,theme}) {
         return {expenses:data.expenses.length,ars:data.expenses.find(item=>item.description==='Pesos QA').amount,payments:data.workspace.transfers.length};
     });
     assert.deepEqual(counts,{expenses:2,ars:10,payments:1});
-    await root.locator('#fw-currency').selectOption('USD'); await root.locator('[data-fw-tab=summary]').click();
+    await root.locator('#fw-currency').selectOption('USD'); await root.locator('#fw-original').selectOption('USD'); await root.locator('[data-fw-tab=summary]').click();
     await page.screenshot({path:`.tmp-sb/ui-smoke/finance-${width}-${theme}.png`,fullPage:true,animations:'disabled'});
     if(width>=1100) assert.ok(await page.locator('#main-nav').evaluate(el=>el.getBoundingClientRect().width)<260,'desktop navigation overlaps content');
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false);

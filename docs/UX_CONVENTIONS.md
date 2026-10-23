@@ -275,3 +275,13 @@ parte de estas reglas. No reemplazan la verificación funcional en navegador.
   avance inferido del texto libre de las fases.
 - Los cargadores de Saylor muestran segmentos estáticos según sus aportes reales.
   No ejecutan operaciones, consultan precios ni generan movimiento decorativo.
+
+## 17. Monedas e informes (23/10/2026)
+
+- Mostrar USD/ARS cambia la presentación compartida con Proyectos. El filtro de
+  moneda original es independiente; el desglose conserva lo realmente cobrado.
+- Histórico usa cotizaciones guardadas por cobro/gasto. Saldo de cuentas usa la
+  referencia actual, con fecha y origen visibles. Ninguno modifica el otro.
+- Si falta información histórica, se indica sin inferir moneda ni cotización.
+- Registrar cuentas y conversiones es opcional; no hay compra de dólares ni
+  conexión bancaria. Convertir entre cuentas no duplica ingresos ni gastos.

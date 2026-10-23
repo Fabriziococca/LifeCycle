@@ -39,10 +39,17 @@ function buildPartialMovement(project, release, index, scope, fallbackDate) {
         kind: 'partial',
         date: normalizeMovementDate(release?.date, fallbackDate),
         amount: asAmount(release?.netAmount),
+        ...projectReceiptFields(release?.receipt,asAmount(release?.netAmount),normalizeMovementDate(release?.date,fallbackDate)),
         percent,
         canReverse: false,
         description: `[Parcial ${percent}%] ${identity.client} - ${identity.project}`
     };
+}
+
+function projectReceiptFields(receipt, amount, date) {
+    if (!receipt || receipt.amountUsd !== amount || receipt.date !== date) return {};
+    const {nativeCurrency,nativeAmountMinor,exchangeRate,valuationRate,accountId}=receipt;
+    return {nativeCurrency,nativeAmountMinor,exchangeRate,...(valuationRate?{valuationRate}:{}),accountId};
 }
 
 export function buildProjectIncomeMovements({
@@ -96,6 +103,7 @@ export function buildProjectIncomeMovements({
                 kind: 'total',
                 date: paymentDate,
                 amount: totalNet,
+                ...projectReceiptFields(project?.paymentReceipt,totalNet,paymentDate),
                 percent: 100,
                 canReverse: true,
                 description: `${identity.client} - ${identity.project}`
@@ -112,6 +120,7 @@ export function buildProjectIncomeMovements({
                 kind: 'final',
                 date: paymentDate,
                 amount: remainingNet,
+                ...projectReceiptFields(project?.paymentReceipt,remainingNet,paymentDate),
                 percent: null,
                 canReverse: true,
                 description: `[Final] ${identity.client} - ${identity.project}`

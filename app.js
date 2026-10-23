@@ -99,17 +99,11 @@ class AppController {
         this.updateCurrencyUI(activeCurrency);
 
         btnUsd?.addEventListener('click', () => {
-            localStorage.setItem('preferred_currency', 'USD');
-            this.clearCurrencyRateRetry();
-            this.updateCurrencyUI('USD');
-            this.refreshFinancialViews();
+            this.setPreferredCurrency('USD');
         });
 
         btnArs?.addEventListener('click', () => {
-            localStorage.setItem('preferred_currency', 'ARS');
-            this.updateCurrencyUI('ARS');
-            this.refreshFinancialViews();
-            void this.fetchLemonRate({ force: true });
+            this.setPreferredCurrency('ARS');
         });
 
         if (activeCurrency === 'ARS') {
@@ -134,6 +128,15 @@ class AppController {
                 void this.fetchLemonRate({ force: true });
             }
         });
+    }
+
+    setPreferredCurrency(currency) {
+        if (!['USD', 'ARS'].includes(currency)) return;
+        localStorage.setItem('preferred_currency', currency);
+        if (currency === 'USD') this.clearCurrencyRateRetry();
+        this.updateCurrencyUI(currency);
+        this.refreshFinancialViews();
+        if (currency === 'ARS') void this.fetchLemonRate();
     }
 
     getCachedExchangeRate() {

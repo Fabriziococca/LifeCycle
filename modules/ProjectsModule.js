@@ -1,6 +1,9 @@
 import { DateUtils, getLocalISODate, parseDateLocal } from '../utils.js';
 import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import { formatProjectDeadline } from '../project-status-utils.mjs';
+import { requestFinancialReceipt } from './FinancialReceiptDialog.js';
+import { buildWorkspaceMovements } from '../finance-workspace-utils.mjs';
+import { summarizeCurrency } from '../finance-currency-utils.mjs';
 import {
     buildProjectTemplate,
     getProjectTemplatePayload,
@@ -530,6 +533,16 @@ export class ProjectsModule {
     formatAmount(amount) {
         return this.app.formatFinancialAmount?.(amount)
             || this.app.formatCurrency(amount);
+    }
+
+    formatHistoricalIncome(movements) {
+        if(this.app.financialAmountsHidden)return '••••••';
+        const currency=localStorage.getItem('preferred_currency')==='ARS'?'ARS':'USD';
+        const rows=buildWorkspaceMovements({workspace:this.app.finanzas?.data.workspace},movements);
+        const report=summarizeCurrency(rows,currency);
+        const money=(minor,code)=>new Intl.NumberFormat('es-AR',{style:'currency',currency:code}).format(minor/100);
+        if(report.missingCount) return `${report.totalMinor?money(report.totalMinor,currency)+' + ':''}${money(report.missingUsd*100,'USD')} sin cambio histórico ARS`;
+        return money(report.totalMinor,currency);
     }
 
     getIncomeMovements({ includeZeroFinals = false } = {}) {
@@ -1122,7 +1135,7 @@ export class ProjectsModule {
         if (previewGross) previewGross.innerText = `(Bruto: ${this.formatAmount(releaseGross)})`;
     }
 
-    confirmPartialRelease() {
+    async confirmPartialRelease() {
         const id = this.selectedPartialProjectId;
         const project = this.projects.find(p => String(p.id) === String(id));
         if (!project) return;
@@ -1140,16 +1153,23 @@ export class ProjectsModule {
         const releaseNet = (pendingNet * pct) / 100;
         const releaseGross = totalNet > 0 ? (releaseNet * (totalGross / totalNet)) : releaseNet;
 
-        if (!Array.isArray(project.partialReleases)) project.partialReleases = [];
-
         const dateStr = getLocalISODate();
+        const owner=this.app.auth?.readyUserId, fingerprint=JSON.stringify(project);
+        const receipt=await requestFinancialReceipt(this.app,{title:'Confirmar cobro parcial',description:`${project.client} · ${project.project} · ${pct}% del pendiente`,amountUsd:releaseNet,date:dateStr});
+        if(!receipt)return;
+        if(owner!==this.app.auth?.readyUserId || JSON.stringify(this.projects.find(p=>String(p.id)===String(id)))!==fingerprint) {
+            this.app.showToast?.('El proyecto o la sesión cambió. Revisá el cobro antes de reintentar.');return;
+        }
+        const currentProject=this.projects.find(p=>String(p.id)===String(id));
+        if (!Array.isArray(currentProject.partialReleases)) currentProject.partialReleases = [];
 
-        project.partialReleases.push({
+        currentProject.partialReleases.push({
             id: Date.now(),
             date: dateStr,
             percent: pct,
             grossAmount: releaseGross,
-            netAmount: releaseNet
+            netAmount: releaseNet,
+            receipt
         });
 
         this.saveData();
@@ -1444,25 +1464,10 @@ export class ProjectsModule {
         const currYear = now.getFullYear();
         const currMonthKey = getMovementMonthKey(now);
 
-        let monthNetSum = 0;
-        let yearNetSum = 0;
-        let totalNetSum = 0;
-
-        this.getIncomeMovements().forEach(movement => {
-            const amount = Number(movement.amount || 0);
-            const movementDate = parseDateLocal(movement.date);
-            totalNetSum += amount;
-            if (movementDate?.getFullYear() === currYear) {
-                yearNetSum += amount;
-                if (getMovementMonthKey(movement.date) === currMonthKey) {
-                    monthNetSum += amount;
-                }
-            }
-        });
-
-        document.getElementById('monthUSD').innerText = this.formatAmount(monthNetSum);
-        document.getElementById('yearUSD').innerText = this.formatAmount(yearNetSum);
-        document.getElementById('totalUSD').innerText = this.formatAmount(totalNetSum);
+        const incomeMovements=this.getIncomeMovements();
+        document.getElementById('monthUSD').innerText = this.formatHistoricalIncome(incomeMovements.filter(m=>getMovementMonthKey(m.date)===currMonthKey));
+        document.getElementById('yearUSD').innerText = this.formatHistoricalIncome(incomeMovements.filter(m=>parseDateLocal(m.date)?.getFullYear()===currYear));
+        document.getElementById('totalUSD').innerText = this.formatHistoricalIncome(incomeMovements);
 
         if (this.projects.length === 0) {
             list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 25px;">No hay proyectos activos.</p>';
@@ -1986,7 +1991,10 @@ export class ProjectsModule {
         const paymentType = partialReleases.length > 0
             ? `Pago final restante (${partialReleases.length} parcial${partialReleases.length === 1 ? '' : 'es'} previa${partialReleases.length === 1 ? '' : 's'})`
             : 'Pago total';
-        const confirmed = await this.app.confirmAction({
+        const owner=this.app.auth?.readyUserId, fingerprint=JSON.stringify(project);
+        const receipt = paymentAmount > 0 ? await requestFinancialReceipt(this.app, {
+            title: 'Confirmar pago', description:`${project.client} · ${project.project} · ${paymentType}`, amountUsd:paymentAmount, date:paymentDate
+        }) : await this.app.confirmAction({
             title: 'Confirmar pago',
             message: 'Revisá el movimiento antes de finalizar el proyecto y registrarlo como ingreso.',
             tone: 'warning',
@@ -2012,12 +2020,16 @@ export class ProjectsModule {
             confirmLabel: 'Confirmar pago',
             closeOnBackdrop: false
         });
-        if (!confirmed) return;
+        if (!receipt) return;
 
         const currentIndex = this.projects.findIndex(proj => proj.id == id);
         if (currentIndex === -1) return;
         const currentProject = this.projects[currentIndex];
+        if(owner!==this.app.auth?.readyUserId || JSON.stringify(currentProject)!==fingerprint) {
+            this.app.showToast?.('El proyecto o la sesión cambió. Revisá el cobro antes de reintentar.');return;
+        }
         currentProject.deliveredDate = paymentDate;
+        if (paymentAmount > 0) currentProject.paymentReceipt = receipt;
 
         this.history.unshift(currentProject);
         this.projects.splice(currentIndex, 1);
@@ -2106,9 +2118,10 @@ export class ProjectsModule {
         }
 
         const averages = this.calculateAverages();
-        document.getElementById('proj-avgHistorical').innerText = this.formatAmount(averages.historical);
-        document.getElementById('proj-avg6Months').innerText = this.formatAmount(averages.last6);
-        document.getElementById('proj-avg3Months').innerText = this.formatAmount(averages.last3);
+        const usdAverage=value=>this.app.financialAmountsHidden?'••••••':new Intl.NumberFormat('es-AR',{style:'currency',currency:'USD'}).format(value)+' promedio USD guardado';
+        document.getElementById('proj-avgHistorical').innerText = usdAverage(averages.historical);
+        document.getElementById('proj-avg6Months').innerText = usdAverage(averages.last6);
+        document.getElementById('proj-avg3Months').innerText = usdAverage(averages.last3);
 
         const movements = this.getIncomeMovements({ includeZeroFinals: true });
         const monthsMap = groupProjectIncomeMovementsByMonth(movements);
@@ -2168,7 +2181,7 @@ export class ProjectsModule {
                                 <span class="history-project-date">${safeType} · ${safeDate}</span>
                             </div>
                             <div class="history-project-actions">
-                                <span class="history-project-net">+ ${this.formatAmount(movement.amount)}</span>
+                                <span class="history-project-net">+ ${this.formatHistoricalIncome([movement])}</span>
                                 ${reversalButton}
                             </div>
                         </div>
@@ -2183,7 +2196,7 @@ export class ProjectsModule {
                         ${isCurrent ? '<span class="badge yellow">En curso</span>' : ''}
                     </span>
                     <span class="history-month-total">
-                        <strong>+ ${this.formatAmount(month.totalNet)}</strong>
+                        <strong>+ ${this.formatHistoricalIncome(month.movements)}</strong>
                         <i class="ph ph-caret-down toggle-icon" aria-hidden="true"></i>
                     </span>
                 </summary>

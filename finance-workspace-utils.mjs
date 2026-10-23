@@ -1,3 +1,4 @@
+import { validFinanceRate } from './finance-currency-utils.mjs';
 // Additive model: existing entries, expenses and source occurrence IDs stay intact.
 // Native cents are used for accounts/budgets; legacy USD equivalents are explicit.
 const CURRENCIES = ['ARS', 'USD'];
@@ -54,6 +55,15 @@ export function buildFinanceAccount(input, existing = null) {
 }
 export function buildFinanceMovement(input, workspace, existing = null) {
     if (!['income', 'expense'].includes(input.type)) throw new Error('Tipo de movimiento no válido.');
+    if (input.currency === 'unknown' && existing?.id != null && !(CURRENCIES.includes(existing.nativeCurrency) && Number.isSafeInteger(existing.nativeAmountMinor))) {
+        const result={...existing,date:financeDate(input.date),category:requiredText(input.category,'Categoría',80),description:requiredText(input.description,'Detalle',300)};
+        delete result.valuationRate;
+        if (String(input.rate??'').trim()) {
+            if(!validFinanceRate(input.rate))throw new Error('Cotización histórica inválida.');
+            result.valuationRate=Number(input.rate);
+        }
+        return result;
+    }
     const nativeCurrency = currency(input.currency), nativeAmountMinor = moneyToMinor(input.amount);
     const rate = nativeCurrency === 'USD' ? 1 : Number(input.rate);
     if (!Number.isFinite(rate) || rate < 0.000001 || rate > 1_000_000) throw new Error('Ingresá la cotización ARS por USD usada para este movimiento.');
@@ -62,18 +72,49 @@ export function buildFinanceMovement(input, workspace, existing = null) {
         const account = workspace.accounts.find(item => item.id === accountId);
         if (!account || (account.archived && existing?.accountId !== accountId) || account.currency !== nativeCurrency) throw new Error('Elegí una cuenta activa en la misma moneda.');
     }
-    return { ...existing, id: existing?.id ?? id('movement'), date: financeDate(input.date),
+    const result = { ...existing, id: existing?.id ?? id('movement'), date: financeDate(input.date),
         category: requiredText(input.category, 'Categoría', 80), description: requiredText(input.description, 'Detalle', 300),
         amount: nativeAmountMinor / 100 / rate, nativeCurrency, nativeAmountMinor, exchangeRate: rate,
         accountId, origin: existing?.origin || 'manual-v2' };
+    delete result.valuationRate;
+    if (nativeCurrency === 'USD' && String(input.rate ?? '').trim()) {
+        if (!validFinanceRate(input.rate)) throw new Error('La cotización histórica debe ser ARS por 1 USD.');
+        result.valuationRate = Number(input.rate);
+    }
+    return result;
 }
 export function buildFinanceTransfer(input, workspace) {
     const from = workspace.accounts.find(account => account.id === input.fromId);
     const to = workspace.accounts.find(account => account.id === input.toId);
     if (!from || !to || from.archived || to.archived || from.id === to.id) throw new Error('Elegí dos cuentas activas diferentes.');
-    if (from.currency !== to.currency) throw new Error('Los traspasos de esta versión son entre cuentas de la misma moneda.');
-    return { id: id('transfer'), fromId: from.id, toId: to.id, currency: from.currency,
-        amountMinor: moneyToMinor(input.amount), date: financeDate(input.date), description: String(input.description || 'Traspaso').trim().slice(0, 300) };
+    const amountMinor = moneyToMinor(input.amount);
+    const result = { id: id('transfer'), fromId: from.id, toId: to.id, currency: from.currency,
+        amountMinor, date: financeDate(input.date), description: String(input.description || 'Traspaso').trim().slice(0, 300) };
+    if (from.currency !== to.currency) {
+        if (from.kind === 'credit' || to.kind === 'credit') throw new Error('La conversión es entre cuentas de dinero, no tarjetas de crédito.');
+        result.receivedCurrency = to.currency;
+        result.receivedAmountMinor = moneyToMinor(input.receivedAmount);
+        result.exchangeRate = from.currency === 'ARS' ? amountMinor / result.receivedAmountMinor : result.receivedAmountMinor / amountMinor;
+        if (!validFinanceRate(result.exchangeRate)) throw new Error('Revisá los importes enviados y recibidos.');
+    }
+    return result;
+}
+
+// Metadata for external sources is keyed to the exact saved movement. It does
+// not create another income, alter its USD history, or modify source documents.
+export function buildFinanceReceipt(input, movement, workspace) {
+    const identity = { key: movement.key, date: movement.date, amountUsd: movement.amount,
+        ...(movement.sourceFingerprint ? { sourceFingerprint:movement.sourceFingerprint } : {}) };
+    if (input.currency === 'unknown') {
+        if (!validFinanceRate(input.rate)) throw new Error('Indicá la cotización de ese cobro para completar su equivalente histórico en ARS.');
+        return { ...identity, valuationRate: Number(input.rate) };
+    }
+    const item = buildFinanceMovement({ ...input, type: movement.type, date: movement.date,
+        description: movement.description || 'Cobro', category: movement.category || 'otros' }, workspace);
+    if (Math.abs(item.amount - movement.amount) > .0050001) throw new Error('El importe y la cotización deben coincidir con el equivalente USD guardado. Corregí el cobro desde su origen si corresponde.');
+    return { ...identity,
+        nativeCurrency: item.nativeCurrency, nativeAmountMinor: item.nativeAmountMinor,
+        exchangeRate: item.exchangeRate, ...(item.valuationRate ? { valuationRate: item.valuationRate } : {}), accountId: item.accountId };
 }
 export function buildFinanceBudget(input, workspace, existingId = null) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month)) throw new Error('Elegí un mes válido.');
@@ -87,25 +128,30 @@ export function buildWorkspaceMovements(data, combinedIncome = data.entries || [
     const map = (entry, type) => {
         const native = CURRENCIES.includes(entry.nativeCurrency) && Number.isSafeInteger(entry.nativeAmountMinor);
         const own = (data.entries || []).some(item => String(item.id) === String(entry.id));
-        return { ...entry, type, key: `${type}:${entry.id}`, nativeCurrency: native ? entry.nativeCurrency : 'USD',
-            nativeAmountMinor: native ? entry.nativeAmountMinor : Math.round(Number(entry.amount || 0) * 100),
-            legacyEquivalent: !native, editable: entry.origin !== 'saylor' && (type === 'income' ? own : !entry.subscriptionId),
-            sourceLabel: entry.origin === 'retainer' ? 'Mantenimiento' : entry.origin === 'saylor' ? 'Saylor' : entry.subscriptionId ? 'Suscripción' : type === 'income' && !own ? 'Proyecto' : entry.recurringRuleId ? 'Recurrente' : 'Manual' };
+        const key = `${type}:${entry.id}`.replace(/^income:proj-partial-(active|hist)-/, 'income:proj-partial-');
+        const sourceFingerprint = JSON.stringify([entry.date,entry.amount,entry.nativeCurrency,entry.nativeAmountMinor,entry.exchangeRate,entry.valuationRate,entry.accountId]);
+        const detail = data.workspace?.receipts?.find(item => item.key === key && item.date === entry.date && item.amountUsd === entry.amount && (!item.sourceFingerprint || item.sourceFingerprint === sourceFingerprint));
+        return { ...entry, ...(detail || {}), type, key, nativeCurrency: detail?.nativeCurrency || (native ? entry.nativeCurrency : 'USD'),
+            nativeAmountMinor: detail?.nativeAmountMinor ?? (native ? entry.nativeAmountMinor : Math.round(Number(entry.amount || 0) * 100)),
+            legacyEquivalent: !detail?.nativeCurrency && !native, editable: entry.origin !== 'saylor' && (type === 'income' ? own : !entry.subscriptionId),
+            sourceFingerprint, sourceLabel: entry.origin === 'retainer' ? 'Mantenimiento' : entry.origin === 'saylor' ? 'Saylor' : entry.subscriptionId ? 'Suscripción' : type === 'income' && !own ? 'Proyecto' : entry.recurringRuleId ? 'Recurrente' : 'Manual' };
     };
     return [...combinedIncome.map(entry => map(entry, 'income')), ...(data.expenses || []).map(entry => map(entry, 'expense'))]
         .sort((a, b) => String(b.date).localeCompare(String(a.date)) || a.key.localeCompare(b.key));
 }
-export function accountBalanceMinor(account, movements, transfers) {
+export function accountBalanceMinor(account, movements, transfers, asOf = null) {
     let balance = account.openingMinor;
     for (const movement of movements) {
+        if (asOf && movement.date > asOf) continue;
         if (movement.accountId === account.id && movement.nativeCurrency === account.currency) {
             balance += (movement.type === 'income' ? 1 : -1) * movement.nativeAmountMinor;
         }
     }
     for (const transfer of transfers) {
-        if (transfer.voidedAt || transfer.currency !== account.currency) continue;
-        if (transfer.fromId === account.id) balance -= transfer.amountMinor;
-        if (transfer.toId === account.id) balance += transfer.amountMinor;
+        if (asOf && transfer.date > asOf) continue;
+        if (transfer.voidedAt) continue;
+        if (transfer.fromId === account.id && transfer.currency === account.currency) balance -= transfer.amountMinor;
+        if (transfer.toId === account.id && (transfer.receivedCurrency || transfer.currency) === account.currency) balance += transfer.receivedAmountMinor ?? transfer.amountMinor;
     }
     return balance;
 }
@@ -166,7 +212,31 @@ export function validateFinanceWorkspace(workspace) {
         minor(transfer.amountMinor); currency(transfer.currency); financeDate(transfer.date);
         if (transfer.voidedAt !== undefined && !Number.isFinite(Date.parse(transfer.voidedAt))) throw new Error('Anulación de traspaso inválida.');
         const from = workspace.accounts.find(item => item.id === transfer.fromId), to = workspace.accounts.find(item => item.id === transfer.toId);
-        if (transfer.amountMinor <= 0 || !from || !to || from.id === to.id || from.currency !== transfer.currency || to.currency !== transfer.currency) throw new Error('Traspaso inválido.');
+        if (transfer.amountMinor <= 0 || !from || !to || from.id === to.id || from.currency !== transfer.currency) throw new Error('Traspaso inválido.');
+        if (from.currency !== to.currency) {
+            minor(transfer.receivedAmountMinor);
+            const rate = from.currency === 'ARS' ? transfer.amountMinor / transfer.receivedAmountMinor : transfer.receivedAmountMinor / transfer.amountMinor;
+            if (from.kind === 'credit' || to.kind === 'credit' || transfer.receivedCurrency !== to.currency || transfer.receivedAmountMinor <= 0 || !validFinanceRate(rate) || Math.abs(rate - transfer.exchangeRate) > .000001) throw new Error('Conversión inválida.');
+        } else if (transfer.receivedCurrency !== undefined || transfer.receivedAmountMinor !== undefined) throw new Error('Traspaso de la misma moneda inválido.');
+    }
+    if (workspace.receipts !== undefined) {
+        if (!Array.isArray(workspace.receipts)) throw new Error('Datos de cobros inválidos.');
+        const keys = new Set();
+        for (const receipt of workspace.receipts) {
+            if (!receipt || typeof receipt.key !== 'string' || !/^(income|expense):.+$/.test(receipt.key) || keys.has(receipt.key) || !Number.isFinite(receipt.amountUsd) || receipt.amountUsd <= 0) throw new Error('Identificador de cobro inválido.');
+            keys.add(receipt.key);
+            financeDate(receipt.date);
+            if (receipt.sourceFingerprint !== undefined && (typeof receipt.sourceFingerprint !== 'string' || receipt.sourceFingerprint.length > 2000)) throw new Error('Referencia de cobro inválida.');
+            if (!receipt.nativeCurrency) {
+                if (!validFinanceRate(receipt.valuationRate) || receipt.nativeAmountMinor !== undefined || receipt.accountId) throw new Error('Cotización histórica inválida.');
+                continue;
+            }
+            const built = buildFinanceReceipt({ currency: receipt.nativeCurrency, amount: receipt.nativeAmountMinor / 100,
+                rate: receipt.nativeCurrency === 'ARS' ? receipt.exchangeRate : receipt.valuationRate,
+                accountId: receipt.accountId }, { key: receipt.key, date: receipt.date, amount: receipt.amountUsd, type: receipt.key.split(':')[0] },
+                { accounts: workspace.accounts.map(account => ({ ...account, archived: false })) });
+            if (built.exchangeRate !== receipt.exchangeRate) throw new Error('Cotización del cobro inválida.');
+        }
     }
     return workspace;
 }

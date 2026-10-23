@@ -1507,6 +1507,7 @@
                 </div>
             </div>
 
+            <p class="fw-note">Activos muestra lo pendiente al cambio de referencia actual. Mes, Año e Histórico conservan el cambio de cada cobro. Si falta una cotización antigua, se indica el equivalente USD guardado; podés completar ese dato desde Finanzas.</p>
             <!-- Suscripción Workana Card -->
             <div class="card hidden" id="legacy-workana-subscription-card" aria-hidden="true">
                 <div class="card-header" style="display:flex; justify-content:space-between; align-items:center; border-bottom: 1px solid var(--surface-border); padding-bottom: 12px; margin-bottom: 12px;">
@@ -1689,7 +1690,8 @@
         <!-- SECCIÓN: FINANZAS (FinanzasTracker) -->
         <section id="finanzas-section" class="main-section hidden">
             <div id="finance-workspace"></div>
-            <details class="fw-legacy"><summary>Vista anterior y detalles anuales</summary>
+            <details class="fw-legacy"><summary>Vista anterior y detalles anuales · referencia actual</summary>
+            <p class="fw-note">Esta vista anterior convierte los equivalentes USD al cambio de referencia actual. Para ingresos y gastos con cotizaciones históricas y desglose original, usá Resumen y Movimientos arriba.</p>
             <!-- Dashboard Financiero (6 tarjetas) -->
             <div class="financial-summary-toolbar">
                 <span>Resumen financiero</span>
@@ -3414,6 +3416,8 @@
                     </div>
                 </div>
 
+                <div class="input-group"><label for="fin-input-rate">Cotización de esa fecha (ARS por 1 USD)</label><input id="fin-input-rate" type="number" min="0.000001" max="1000000" step="any" placeholder="Opcional en USD"><small>Para una fecha pasada ingresala manualmente. No usamos el cambio de hoy para el histórico.</small></div>
+
                 <div class="modal-actions" style="margin-top:1.75rem;">
                     <button type="button" id="fin-log-cancel" class="btn btn-cancel">Cancelar</button>
                     <button type="submit" id="fin-log-save" class="btn btn-save">Guardar Ingreso</button>
@@ -3530,6 +3534,8 @@
                         </select>
                     </div>
                 </div>
+
+                <div class="input-group"><label for="fin-expense-rate">Cotización de esa fecha (ARS por 1 USD)</label><input id="fin-expense-rate" type="number" min="0.000001" max="1000000" step="any" placeholder="Opcional en USD"><small>Para una fecha pasada ingresala manualmente. No usamos el cambio de hoy para el histórico.</small></div>
 
                 <div class="modal-actions" style="margin-top:1.75rem;">
                     <button type="button" id="fin-expense-cancel" class="btn btn-cancel">Cancelar</button>

@@ -1,5 +1,9 @@
 # Plan definitivo de LifeCycle — estado auditado
 
+**Ampliación del 23/10/2026:** Finanzas con desglose original USD/ARS, histórico
+al cambio de cada cobro, saldos a referencia actual y conversiones opcionales.
+Ver [reglas y verificación de multimoneda](FINANZAS_MULTIMONEDA_2026-10-23.md).
+
 **Ampliación del 21/10/2026:** separación Personal/Trabajo, recordatorios puntuales
 con editor compartido y Suscripciones en Trabajo; dirección visual carbón/piedra.
 Ver [organización, reglas y verificación](ORGANIZACION_Y_DISENO_2026-10-21.md).

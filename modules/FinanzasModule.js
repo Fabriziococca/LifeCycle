@@ -8,6 +8,7 @@ import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import { FinanceWorkspaceModule } from './FinanceWorkspaceModule.js';
 import { saylorMovements, SAYLOR_KEY } from '../planning-utils.mjs';
 import { reconcileFinanceSnapshot } from '../finance-workspace-utils.mjs';
+import { suggestedReceiptRate, validFinanceRate } from '../finance-currency-utils.mjs';
 import { getCompactCurrencyDisplayParts } from '../finance-display-utils.mjs?v=20260808-finance-display';
 import {
     advanceFinanceRecurringRule,
@@ -1423,9 +1424,18 @@ export class FinanzasModule {
         const amountInput = parseFloat(document.getElementById('fin-input-amount')?.value) || 0;
         const currency = document.getElementById('fin-input-currency')?.value || 'USD';
 
-        let amount = amountInput;
+        const receiptDate = category === 'discord' ? `${document.getElementById('fin-input-month')?.value}-01` : document.getElementById('fin-input-date')?.value || getLocalISODate();
+        const quoteInput = document.getElementById('fin-input-rate')?.value;
+        let receiptQuote = String(quoteInput || '').trim() ? Number(quoteInput) : suggestedReceiptRate(receiptDate,getLocalISODate(),this.app.getCachedExchangeRate?.());
+        if (currency === 'ARS' && !receiptQuote && receiptDate === getLocalISODate()) {
+            await this.app.fetchLemonRate(); receiptQuote=suggestedReceiptRate(receiptDate,getLocalISODate(),this.app.getCachedExchangeRate?.());
+        }
+        if ((quoteInput && !validFinanceRate(receiptQuote)) || (currency === 'ARS' && !validFinanceRate(receiptQuote))) {
+            await this.app.showMessage({title:'Falta la cotización del cobro',message:'Completá la cotización ARS por USD de esa fecha. No usamos el cambio actual para un cobro anterior.',tone:'warning'});return;
+        }
+        let amount = amountInput, receiptRate = 1;
         if (currency === 'ARS') {
-            const rate = this.app.getValidCachedLemonRate() ?? await this.app.fetchLemonRate();
+            const rate = receiptQuote;
             if (rate === null) {
                 await this.app.showMessage({
                     title: 'Cotización no disponible',
@@ -1435,6 +1445,7 @@ export class FinanzasModule {
                 return;
             }
             amount = amountInput / rate;
+            receiptRate = rate;
         }
 
         let dateVal = '';
@@ -1464,6 +1475,8 @@ export class FinanzasModule {
             category,
             date: dateVal,
             amount,
+            nativeCurrency: currency, nativeAmountMinor: Math.round(amountInput*100), exchangeRate: receiptRate,
+            ...(currency === 'USD' && receiptQuote ? { valuationRate:receiptQuote } : {}),
             description: descVal,
             ...(recurringContext ? {
                 recurringRuleId: recurringContext.ruleId,
@@ -1557,9 +1570,17 @@ export class FinanzasModule {
         const dateVal = document.getElementById('fin-expense-date')?.value || getLocalISODate();
         const descVal = (document.getElementById('fin-expense-desc')?.value || '').trim();
 
-        let amount = amountInput;
+        const quoteInput = document.getElementById('fin-expense-rate')?.value;
+        let receiptQuote = String(quoteInput || '').trim() ? Number(quoteInput) : suggestedReceiptRate(dateVal,getLocalISODate(),this.app.getCachedExchangeRate?.());
+        if (currency === 'ARS' && !receiptQuote && dateVal === getLocalISODate()) {
+            await this.app.fetchLemonRate(); receiptQuote=suggestedReceiptRate(dateVal,getLocalISODate(),this.app.getCachedExchangeRate?.());
+        }
+        if ((quoteInput && !validFinanceRate(receiptQuote)) || (currency === 'ARS' && !validFinanceRate(receiptQuote))) {
+            await this.app.showMessage({title:'Falta la cotización del gasto',message:'Completá la cotización ARS por USD de esa fecha. No usamos el cambio actual para un gasto anterior.',tone:'warning'});return;
+        }
+        let amount = amountInput, receiptRate = 1;
         if (currency === 'ARS') {
-            const rate = this.app.getValidCachedLemonRate() ?? await this.app.fetchLemonRate();
+            const rate = receiptQuote;
             if (rate === null) {
                 await this.app.showMessage({
                     title: 'Cotización no disponible',
@@ -1569,6 +1590,7 @@ export class FinanzasModule {
                 return;
             }
             amount = amountInput / rate;
+            receiptRate = rate;
         }
 
         let category = categorySelect;
@@ -1581,6 +1603,8 @@ export class FinanzasModule {
             category,
             date: dateVal,
             amount,
+            nativeCurrency: currency, nativeAmountMinor: Math.round(amountInput*100), exchangeRate: receiptRate,
+            ...(currency === 'USD' && receiptQuote ? { valuationRate:receiptQuote } : {}),
             description: descVal,
             ...(recurringContext ? {
                 recurringRuleId: recurringContext.ruleId,
@@ -1774,6 +1798,7 @@ export class FinanzasModule {
         });
         projectMovements.forEach(movement => {
             list.push({
+                ...movement,
                 id: movement.id,
                 category: 'freelance',
                 source: movement.source,
