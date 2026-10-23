@@ -3,7 +3,7 @@ import { escapeHtml } from '../text-utils.mjs?v=20260727-safe-text';
 import { formatProjectDeadline } from '../project-status-utils.mjs';
 import { requestFinancialReceipt } from './FinancialReceiptDialog.js';
 import { buildWorkspaceMovements } from '../finance-workspace-utils.mjs';
-import { summarizeCurrency } from '../finance-currency-utils.mjs';
+import { summarizeCurrency, financeValuationMode } from '../finance-currency-utils.mjs';
 import {
     buildProjectTemplate,
     getProjectTemplatePayload,
@@ -539,9 +539,10 @@ export class ProjectsModule {
         if(this.app.financialAmountsHidden)return '••••••';
         const currency=localStorage.getItem('preferred_currency')==='ARS'?'ARS':'USD';
         const rows=buildWorkspaceMovements({workspace:this.app.finanzas?.data.workspace},movements);
-        const report=summarizeCurrency(rows,currency);
+        const mode=financeValuationMode(localStorage.getItem('finance_valuation_mode'));
+        const report=summarizeCurrency(rows,currency,{mode,rate:this.app.getCachedExchangeRate?.()?.rate});
         const money=(minor,code)=>new Intl.NumberFormat('es-AR',{style:'currency',currency:code}).format(minor/100);
-        if(report.missingCount) return `${report.totalMinor?money(report.totalMinor,currency)+' + ':''}${money(report.missingUsd*100,'USD')} sin cambio histórico ARS`;
+        if(report.missingCount) return `${report.totalMinor?money(report.totalMinor,currency)+' + ':''}${money(report.missingUsd*100,'USD')} eq. guardado · sin cambio ${mode==='current'?'actual':'histórico ARS'}`;
         return money(report.totalMinor,currency);
     }
 
@@ -1468,6 +1469,10 @@ export class ProjectsModule {
         document.getElementById('monthUSD').innerText = this.formatHistoricalIncome(incomeMovements.filter(m=>getMovementMonthKey(m.date)===currMonthKey));
         document.getElementById('yearUSD').innerText = this.formatHistoricalIncome(incomeMovements.filter(m=>parseDateLocal(m.date)?.getFullYear()===currYear));
         document.getElementById('totalUSD').innerText = this.formatHistoricalIncome(incomeMovements);
+        const valuationNote = document.getElementById('projects-valuation-note');
+        if (valuationNote) valuationNote.textContent = financeValuationMode(localStorage.getItem('finance_valuation_mode')) === 'current'
+            ? 'Mes, Año e Histórico se convierten automáticamente al cambio de referencia actual, igual que Finanzas. Los cobros antiguos sin moneda original usan su equivalente USD guardado. Podés elegir el cambio de cada cobro desde Finanzas → Cotización. Activos muestra lo pendiente al cambio actual.'
+            : 'Mes, Año e Histórico usan el cambio guardado de cada cobro. Si falta una cotización antigua, se indica el equivalente USD guardado. Para verlos sin completar cotizaciones, elegí Actual · automática desde Finanzas. Activos muestra lo pendiente al cambio actual.';
 
         if (this.projects.length === 0) {
             list.innerHTML = '<p style="color:var(--text-secondary); text-align:center; padding: 25px;">No hay proyectos activos.</p>';

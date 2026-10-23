@@ -280,8 +280,11 @@ parte de estas reglas. No reemplazan la verificación funcional en navegador.
 
 - Mostrar USD/ARS cambia la presentación compartida con Proyectos. El filtro de
   moneda original es independiente; el desglose conserva lo realmente cobrado.
-- Histórico usa cotizaciones guardadas por cobro/gasto. Saldo de cuentas usa la
-  referencia actual, con fecha y origen visibles. Ninguno modifica el otro.
+- Cotización Actual · automática es la vista predeterminada, compartida con
+  Proyectos. Convierte también los equivalentes USD antiguos sin completar cada
+  cotización. La opción histórica usa sólo cotizaciones guardadas por cobro/gasto.
+  Saldo de cuentas usa siempre la referencia actual, con fecha y origen visibles.
+  Las vistas no modifican monedas originales, importes ni cotizaciones guardadas.
 - Si falta información histórica, se indica sin inferir moneda ni cotización.
 - Registrar cuentas y conversiones es opcional; no hay compra de dólares ni
   conexión bancaria. Convertir entre cuentas no duplica ingresos ni gastos.

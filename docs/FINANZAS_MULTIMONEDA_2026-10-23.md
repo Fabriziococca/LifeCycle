@@ -1,4 +1,4 @@
-# Finanzas: moneda original, histórico y saldo actual
+# Finanzas: conversión automática, moneda original e histórico
 
 Alcance autorizado el 23/10/2026: totales USD/ARS compartiendo preferencia con
 Proyectos, desglose de moneda original, equivalentes históricos de cada cobro,
@@ -8,12 +8,20 @@ servicios pagos ni obliga a registrar compras de dólares.
 ## Reglas y conservación
 
 - `amount` sigue siendo el equivalente USD guardado. No se reescribe el historial.
+- La vista predeterminada convierte automáticamente al cambio actual de referencia
+  compartido con Proyectos (Lemon vía CriptoYa; respaldo identificado si falla).
+  No requiere completar cotizaciones antiguas. Usa los importes originales cuando
+  existen y el equivalente USD guardado cuando la moneda original es desconocida.
+  El selector Cotización permite alternar con el histórico de cada cobro/gasto.
+  Sólo se guarda la preferencia local de vista; nunca se guarda el cambio actual
+  como cotización de una fecha pasada ni se presume la moneda de cobros antiguos.
 - `nativeCurrency` y `nativeAmountMinor` conservan moneda e importe recibidos.
   En ARS, `exchangeRate` fija ARS por USD al registrar el cobro/gasto. En USD,
   `exchangeRate=1` y `valuationRate`, opcional, guarda la referencia histórica ARS.
 - Una cotización actual sólo se sugiere para la fecha de hoy y con caché fresca.
-  Fechas anteriores necesitan una cotización ingresada expresamente. Sin ella,
-  el informe ARS identifica subtotal e importes sin convertir; no usa el dólar de hoy.
+  Para el histórico estricto, fechas anteriores necesitan una cotización ingresada
+  expresamente. Sin ella, el informe ARS identifica subtotal e importes sin convertir;
+  no usa el dólar de hoy. La vista Actual · automática sigue disponible sin esa carga.
   Si todos carecen de cotización, muestra el equivalente USD guardado y el
   resultado pendiente; no presenta ingresos ni resultado en ARS como cero.
 - Los registros antiguos sin moneda original conservan su equivalente USD y se
@@ -35,8 +43,10 @@ servicios pagos ni obliga a registrar compras de dólares.
   lo neto recibido. La cotización surge de esos importes reales; no hay otro ingreso
   ni gasto. Anular conserva el registro y deja de afectar ambos saldos. Las
   conversiones no se aplican a tarjetas de crédito.
-- La vista anterior queda identificada como conversión al cambio de referencia
-  actual; el Resumen y Movimientos nuevos son los informes históricos.
+- Resumen, Movimientos y cobros de Proyectos comparten moneda de visualización y
+  criterio de cotización. El desglose original se conserva en ambas vistas. El
+  informe mensual a valor actual no representa dinero que aún conservás; el saldo
+  de cuentas se calcula separadamente a partir de los movimientos registrados.
 - Backups y recuperación cifrada usan el mismo validador para los campos nuevos.
   No hay migración SQL ni modificación masiva de datos/propietarios/permisos.
 
@@ -54,3 +64,5 @@ servicios pagos ni obliga a registrar compras de dólares.
 - Publicación: commit/CI y Manual Deploy se acreditan por separado con health y
   logs en el recibo local `.tmp-sb/currency-release.json`. Ese recibo distingue
   pruebas locales, QA y despliegue; este documento no acredita un despliegue solo.
+- La simplificación de vista automática se verifica sin escribir datos en QA;
+  su evidencia de publicación se guarda en `.tmp-sb/currency-auto-release.json`.

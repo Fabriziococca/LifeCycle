@@ -1,12 +1,36 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { historicalMinor, summarizeCurrency, currentBalanceValue, suggestedReceiptRate } from '../finance-currency-utils.mjs';
+import { historicalMinor, summarizeCurrency, currentBalanceValue, suggestedReceiptRate, financeValuationMode } from '../finance-currency-utils.mjs';
 import { buildFinanceMovement, buildFinanceAccount, buildFinanceTransfer, buildFinanceReceipt, buildWorkspaceMovements, accountBalanceMinor, validateFinanceWorkspace } from '../finance-workspace-utils.mjs';
 import { buildProjectIncomeMovements } from '../project-income-utils.mjs';
 import { createBackupPayload, parseAndValidateBackupText } from '../backup-utils.mjs';
 const ws = () => ({version:1,accounts:[],budgets:[],transfers:[]});
 const input = (currency,amount,rate) => ({type:'income',date:'2026-10-23',category:'freelance',description:'QA',currency,amount,rate});
 const account = (currency,opening=0) => buildFinanceAccount({name:currency,kind:'bank',currency,opening});
+
+test('automatic current reports convert native amounts and unknown legacy equivalents without modifying history',()=>{
+    const data={entries:[buildFinanceMovement(input('USD',1000,''),ws()),buildFinanceMovement(input('ARS',500000,1000),ws()),{id:'old',date:'2026-09-10',amount:100}]};
+    const before=structuredClone(data),rows=buildWorkspaceMovements(data),options={mode:'current',rate:1800};
+    assert.equal(financeValuationMode(null),'current');
+    assert.equal(financeValuationMode('historical'),'historical');
+    const ars=summarizeCurrency(rows,'ARS',options),usd=summarizeCurrency(rows,'USD',options);
+    assert.equal(ars.totalMinor,248000000);assert.equal(ars.missingCount,0);
+    assert.equal(usd.totalMinor,137778);assert.equal(usd.legacyCount,1);
+    assert.deepEqual(usd.originals,{USD:100000,ARS:50000000});
+    assert.equal(summarizeCurrency(rows,'ARS',{mode:'current',rate:2000}).totalMinor,270000000);
+    assert.equal(summarizeCurrency(rows,'ARS').missingCount,2,'current valuation must not fill historical quotes');
+    assert.equal(summarizeCurrency(rows,'USD').totalMinor,160000,'historical USD stays frozen');
+    assert.deepEqual(data,before);
+});
+
+test('automatic reports keep same-currency originals when the current quote is unavailable and never substitute receipt rates',()=>{
+    const rows=buildWorkspaceMovements({entries:[buildFinanceMovement(input('USD',100,1000),ws()),buildFinanceMovement(input('ARS',180000,1000),ws())]});
+    for (const rate of [null,undefined,0,NaN,Infinity,-1]) {
+        const ars=summarizeCurrency(rows,'ARS',{mode:'current',rate}),usd=summarizeCurrency(rows,'USD',{mode:'current',rate});
+        assert.equal(ars.totalMinor,18000000);assert.equal(ars.missingCount,1);
+        assert.equal(usd.totalMinor,10000);assert.equal(usd.missingCount,1);
+    }
+});
 
 test('mixed income retains original split and frozen USD/ARS totals despite later FX changes',()=>{
     const data={entries:[buildFinanceMovement(input('USD',1000,1000),ws()),buildFinanceMovement(input('ARS',500000,1000),ws())]};

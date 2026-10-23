@@ -5,7 +5,7 @@ import { financeWorkScope, WORK_SCOPES } from '../work-utils.mjs';
 import { financeWorkspace, buildFinanceAccount, buildFinanceMovement, buildFinanceTransfer,
     buildFinanceBudget, buildWorkspaceMovements, accountBalanceMinor, budgetSpentMinor,
     validateFinanceWorkspace, buildFinanceReceipt } from '../finance-workspace-utils.mjs';
-import { historicalMinor, summarizeCurrency, currentBalanceValue, suggestedReceiptRate } from '../finance-currency-utils.mjs';
+import { reportMinor, summarizeCurrency, currentBalanceValue, suggestedReceiptRate, financeValuationMode } from '../finance-currency-utils.mjs';
 
 const TABS = { summary: 'Resumen', movements: 'Movimientos', accounts: 'Cuentas', budgets: 'Presupuestos', cards: 'Tarjetas' };
 const KINDS = { cash: 'Efectivo', bank: 'Banco', wallet: 'Billetera', credit: 'Crédito' };
@@ -23,11 +23,12 @@ export class FinanceWorkspaceModule {
             <button type="button" class="btn-primary" data-fw-action="new-movement">＋ Nuevo movimiento</button></div>
             <div class="fw-controls"><label>Mes <input id="fw-month" type="month" value="${esc(this.month)}"></label>
             <label>Mostrar totales en <select id="fw-currency">${option('USD','USD',this.currency)}${option('ARS','ARS',this.currency)}</select></label>
+            <label>Cotización <select id="fw-valuation">${option('current','Actual · automática',this.valuationMode)}${option('historical','De cada cobro · histórico',this.valuationMode)}</select></label>
             <label>Moneda original <select id="fw-original">${option('all','Todas','all')}${option('USD','USD','all')}${option('ARS','ARS','all')}${option('unknown','Original no registrada','all')}</select></label>
             <label>Ámbito <select id="fw-scope">${Object.entries(WORK_SCOPES).map(([key,label])=>option(key,label,'all')).join('')}</select></label>
             <button type="button" class="financial-privacy-toggle" data-fw-action="privacy">Mostrar / ocultar montos</button></div>
             <nav class="fw-tabs" aria-label="Secciones de Finanzas">${Object.entries(TABS).map(([key, label]) => `<button type="button" data-fw-tab="${key}">${label}</button>`).join('')}</nav>
-            <p class="fw-note">El histórico usa la cotización de cada cobro o gasto. El saldo de cuentas usa la cotización actual. Cambiar la vista no modifica tus registros.</p>
+            <p id="fw-report-note" class="fw-note"></p>
             <div id="fw-filters" class="fw-controls" hidden><label>Buscar <input id="fw-search" type="search" placeholder="Detalle, categoría, origen…"></label>
             <label>Tipo <select id="fw-type">${option('', 'Ingresos y gastos', '')}${option('income','Ingresos','')}${option('expense','Gastos','')}</select></label></div>
             <div id="fw-body"></div>
@@ -42,6 +43,10 @@ export class FinanceWorkspaceModule {
             this.month = event.target.value; this.page = 1; this.app.saveUiState?.({ financeMonth: this.month }); this.render();
         });
         this.root.querySelector('#fw-currency').addEventListener('change', event => { this.page = 1; this.app.setPreferredCurrency(event.target.value); });
+        this.root.querySelector('#fw-valuation').addEventListener('change', event => {
+            localStorage.setItem('finance_valuation_mode', financeValuationMode(event.target.value));
+            this.page = 1; this.app.refreshFinancialViews();
+        });
         this.root.querySelector('#fw-original').addEventListener('change', event => { this.originalCurrency = event.target.value; this.page = 1; this.render(); });
         this.root.querySelector('#fw-scope').addEventListener('change', event => { this.scope=event.target.value;this.page=1;this.render(); });
         this.root.querySelector('#fw-search').addEventListener('input', event => { this.query = event.target.value; this.page = 1; this.renderBody(); });
@@ -56,6 +61,10 @@ export class FinanceWorkspaceModule {
         });
     }
     get currency() { return localStorage.getItem('preferred_currency') === 'ARS' ? 'ARS' : 'USD'; }
+    get valuationMode() { return financeValuationMode(localStorage.getItem('finance_valuation_mode')); }
+    get reportOptions() { return { mode:this.valuationMode, rate:this.app.getCachedExchangeRate?.()?.rate }; }
+    get reportBasis() { return this.valuationMode === 'current' ? 'equivalente actual' : 'histórico'; }
+    get missingQuote() { return this.valuationMode === 'current' ? 'cotización actual disponible' : 'cotización histórica ARS'; }
     get workspace() { return financeWorkspace(this.finance.data); }
     get movements() { return buildWorkspaceMovements({ ...this.finance.data, expenses: this.finance.getCombinedExpenses() }, this.finance.getCombinedEntries()); }
     money(value, code = this.currency) {
@@ -74,6 +83,8 @@ export class FinanceWorkspaceModule {
         this.root.querySelectorAll('[data-fw-tab]').forEach(button => button.setAttribute('aria-current', button.dataset.fwTab === this.tab ? 'page' : 'false'));
         this.root.querySelector('#fw-filters').hidden = this.tab !== 'movements';
         this.root.querySelector('#fw-currency').value = this.currency;
+        this.root.querySelector('#fw-valuation').value = this.valuationMode;
+        this.root.querySelector('#fw-valuation').disabled = !['summary','movements'].includes(this.tab);
         this.root.querySelector('#fw-scope').disabled = !['summary','movements'].includes(this.tab);
         this.root.querySelector('#fw-original').disabled = !['summary','movements'].includes(this.tab);
         this.renderBody();
@@ -86,6 +97,10 @@ export class FinanceWorkspaceModule {
     }
     renderBody() {
         const body = this.root.querySelector('#fw-body');
+        const report = ['summary','movements'].includes(this.tab);
+        this.root.querySelector('#fw-report-note').innerHTML = !report ? '' : this.valuationMode === 'current'
+            ? `Conversión automática al cambio de referencia actual, también para cobros antiguos. No es la cotización de la fecha del cobro. Cambiar la vista no modifica tus registros ni representa dinero que aún conservás.<br><small>${this.rateLabel(this.app.getCachedExchangeRate?.())}</small>`
+            : 'El histórico usa la cotización guardada de cada cobro o gasto. Si falta, podés completarla desde Movimientos o volver a la vista Actual · automática. El saldo de cuentas siempre usa la referencia actual.';
         try {
             if (this.tab === 'summary') body.innerHTML = this.summary();
             else if (this.tab === 'movements') body.innerHTML = this.movementList();
@@ -95,17 +110,18 @@ export class FinanceWorkspaceModule {
     }
     summary() {
         const list = this.monthly();
-        const income = summarizeCurrency(list.filter(item => item.type === 'income'), this.currency);
-        const expense = summarizeCurrency(list.filter(item => item.type === 'expense'), this.currency);
+        const options = this.reportOptions;
+        const income = summarizeCurrency(list.filter(item => item.type === 'income'), this.currency, options);
+        const expense = summarizeCurrency(list.filter(item => item.type === 'expense'), this.currency, options);
         const categories = new Map();
-        list.filter(item => item.type === 'expense').forEach(item => { const value = historicalMinor(item,this.currency); if(value!==null) categories.set(item.category, (categories.get(item.category) || 0) + value); });
+        list.filter(item => item.type === 'expense').forEach(item => { const value = reportMinor(item,this.currency,options); if(value!==null) categories.set(item.category, (categories.get(item.category) || 0) + value); });
         const incomplete = income.missingCount + expense.missingCount;
-        const metric = (label, report, css) => `<article class="fw-metric ${css}"><span>${label} · histórico</span><strong>${report.missingCount && !report.totalMinor ? `${this.money(report.missingUsd*100,'USD')} eq.` : `${report.missingCount?'Subtotal: ':''}${this.money(report.totalMinor)}`}</strong>${report.missingCount ? `<small class="fw-warning">${report.missingCount} sin cotización histórica ARS (${this.money(report.missingUsd*100,'USD')}). El equivalente USD guardado se conserva.</small>` : ''}<small>${this.originalBreakdown(report)}</small></article>`;
+        const metric = (label, report, css) => `<article class="fw-metric ${css}"><span>${label} · ${this.reportBasis}</span><strong>${report.missingCount && !report.totalMinor ? `${this.money(report.missingUsd*100,'USD')} eq. guardado` : `${report.missingCount?'Subtotal: ':''}${this.money(report.totalMinor)}`}</strong>${report.missingCount ? `<small class="fw-warning">${report.missingCount} sin ${this.missingQuote}. El equivalente USD guardado se conserva.</small>` : ''}<small>${this.originalBreakdown(report)}</small></article>`;
         return `<div class="fw-metrics">${metric('Ingresos del mes',income,'fw-income')}${metric('Gastos del mes',expense,'fw-expense')}
-            <article class="fw-metric"><span>Resultado del mes · histórico</span><strong>${incomplete ? 'Pendiente de cotización' : this.money(income.totalMinor-expense.totalMinor)}</strong><small>${incomplete ? `Subtotal conocido: ${this.money(income.totalMinor-expense.totalMinor)}. Faltan cotizaciones históricas.` : 'Ingresos menos gastos del período; no es tu saldo actual.'}</small></article></div>
-            ${incomplete ? '<p class="fw-warning" role="status">El total en ARS está incompleto. Podés completar la moneda y cotización de cada registro desde Movimientos. Los equivalentes USD guardados se conservan.</p>' : ''}
+            <article class="fw-metric"><span>Resultado del mes · ${this.reportBasis}</span><strong>${incomplete ? 'Pendiente de cotización' : this.money(income.totalMinor-expense.totalMinor)}</strong><small>${incomplete ? `Subtotal conocido: ${this.money(income.totalMinor-expense.totalMinor)}. Faltan cotizaciones.` : 'Ingresos menos gastos del período; no es tu saldo actual.'}</small></article></div>
+            ${incomplete ? `<p class="fw-warning" role="status">El total en ${esc(this.currency)} está incompleto. ${this.valuationMode === 'current' ? 'Falta la referencia actual; se actualizará automáticamente al estar disponible.' : 'Podés completar la cotización de cada registro desde Movimientos o elegir Actual · automática.'} Los equivalentes USD guardados se conservan.</p>` : ''}
             ${this.balanceSummary()}
-            <div class="fw-columns"><section class="fw-panel"><h3>En qué se fue</h3>${expense.missingCount ? '<p class="fw-warning">Sólo gastos con cotización histórica disponible.</p>' : ''}${categories.size ? [...categories].sort((a,b) => b[1]-a[1]).map(([key,value]) => `<div class="fw-category"><div><span>${esc(this.category(key,'expense'))}</span><strong>${this.money(Math.round(value))}</strong></div><progress max="${Math.max(1, expense.totalMinor)}" value="${Math.max(0,value)}" aria-label="${esc(this.category(key,'expense'))}"></progress></div>`).join('') : '<p>Sin gastos convertibles con estos filtros.</p>'}</section>
+            <div class="fw-columns"><section class="fw-panel"><h3>En qué se fue</h3>${expense.missingCount ? '<p class="fw-warning">Sólo gastos convertibles con la cotización elegida.</p>' : ''}${categories.size ? [...categories].sort((a,b) => b[1]-a[1]).map(([key,value]) => `<div class="fw-category"><div><span>${esc(this.category(key,'expense'))}</span><strong>${this.money(Math.round(value))}</strong></div><progress max="${Math.max(1, expense.totalMinor)}" value="${Math.max(0,value)}" aria-label="${esc(this.category(key,'expense'))}"></progress></div>`).join('') : '<p>Sin gastos convertibles con estos filtros.</p>'}</section>
             <section class="fw-panel"><h3>Tu organización</h3><p>Los cobros de Proyectos y los gastos de Suscripciones siguen apareciendo aquí sin duplicarlos.</p><p>${this.workspace.accounts.filter(item=>!item.archived).length} cuentas y tarjetas activas · ${this.workspace.budgets.filter(item=>item.month===this.month).length} presupuestos este mes.</p><p>Sin conexión bancaria ni servicios pagos añadidos.</p></section></div>
             ${this.app.work?.retainers?.pending(this.app.work.store.state)||''}<div class="fw-heading"><h3>Últimos movimientos</h3>${this.button('all-movements','Ver todos')}</div>${list.length ? this.rows(list.slice(0,8)) : this.empty('Registrá tu primer movimiento de este mes y moneda.')}`;
     }
@@ -134,16 +150,17 @@ export class FinanceWorkspaceModule {
     rows(list) {
         return `<div class="fw-movements">${list.map(item => {
             const account = this.workspace.accounts.find(account => account.id === item.accountId);
+            const value = reportMinor(item,this.currency,this.reportOptions);
             return `<article class="fw-movement"><div><span class="fw-kind ${item.type === 'income' ? 'fw-positive' : 'fw-negative'}">${item.type === 'income' ? '↗ Ingreso' : '↘ Gasto'}</span><h4>${esc(item.description || 'Sin detalle')}</h4>
                 <p>${esc(item.date || '')} · ${esc(this.category(item.category,item.type))} · ${esc(item.sourceLabel)} · ${esc(account?.name || 'Sin cuenta asignada')}</p>${item.legacyEquivalent ? '<small>Equivalente USD guardado; moneda original no disponible.</small>' : ''}</div>
-                <div class="fw-movement-end"><strong>${this.money(item.nativeAmountMinor,item.nativeCurrency)}${item.legacyEquivalent ? ' eq.' : ''}</strong><small>${historicalMinor(item,this.currency) === null ? 'Sin cotización histórica en ARS' : `${this.money(Math.round(historicalMinor(item,this.currency)))} histórico`}</small><small>${WORK_SCOPES[this.scopeOf(item)]}</small><div>${this.button('receipt','Moneda y cotización',item.key)}${!['Proyecto','Saylor','Mantenimiento'].includes(item.sourceLabel)?this.button('scope','Clasificar',item.key):''}${item.editable ? this.button('edit-movement','Editar',item.key) + this.button('delete-movement','Eliminar',item.key) : this.button(item.origin==='retainer'?'retainer':item.sourceLabel==='Saylor'?'saylor':item.subscriptionId ? 'subscriptions' : 'projects', 'Ver origen',item.retainerId||'')}</div></div></article>`;
+                <div class="fw-movement-end"><strong>${this.money(item.nativeAmountMinor,item.nativeCurrency)}${item.legacyEquivalent ? ' eq.' : ''}</strong><small>${value === null ? `Sin ${this.missingQuote}` : `${this.money(Math.round(value))} · ${this.reportBasis}`}</small><small>${WORK_SCOPES[this.scopeOf(item)]}</small><div>${this.button('receipt','Moneda y cotización',item.key)}${!['Proyecto','Saylor','Mantenimiento'].includes(item.sourceLabel)?this.button('scope','Clasificar',item.key):''}${item.editable ? this.button('edit-movement','Editar',item.key) + this.button('delete-movement','Eliminar',item.key) : this.button(item.origin==='retainer'?'retainer':item.sourceLabel==='Saylor'?'saylor':item.subscriptionId ? 'subscriptions' : 'projects', 'Ver origen',item.retainerId||'')}</div></div></article>`;
         }).join('')}</div>`;
     }
     movementList() {
         const query = this.query.trim().toLocaleLowerCase();
         const list = this.monthly().filter(item => (!this.type || item.type === this.type) && (!query || `${item.description} ${item.category} ${this.category(item.category,item.type)} ${item.sourceLabel}`.toLocaleLowerCase().includes(query)));
         const pages = Math.max(1, Math.ceil(list.length / 30)); this.page = Math.min(this.page, pages);
-        return `<div class="fw-heading"><h3>${list.length} movimientos</h3><span>Equivalentes históricos en ${esc(this.currency)} · ${esc(this.month)}</span></div>
+        return `<div class="fw-heading"><h3>${list.length} movimientos</h3><span>${this.valuationMode === 'current' ? 'Equivalentes actuales' : 'Equivalentes históricos'} en ${esc(this.currency)} · ${esc(this.month)}</span></div>
             ${list.length ? this.rows(list.slice((this.page - 1) * 30, this.page * 30)) : this.empty('No hay coincidencias. Revisá el mes, la moneda y los filtros.')}
             ${pages > 1 ? `<div class="fw-pagination">${this.button('previous','Anterior')}<span>Página ${this.page} de ${pages}</span>${this.button('next','Siguiente')}</div>` : ''}`;
     }

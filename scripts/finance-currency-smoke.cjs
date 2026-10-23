@@ -5,6 +5,8 @@ exports.runFinanceCurrencySmoke = async (page,{width,theme}) => {
         const app=window.lifecycle_controller;app.setPreferredCurrency('USD');app.setFinancialAmountsHidden(false);app.activateSection('finanzas-section');
     });
     const root=page.locator('#finance-workspace'),dialog=page.locator('#fw-dialog'),field=name=>dialog.locator(`[name=${name}]`);
+    assert.equal(await root.locator('#fw-valuation').inputValue(),'current','new users get automatic valuation');
+    await root.locator('#fw-valuation').selectOption('historical');
     const save=async()=>{await dialog.locator('[type=submit]').click();try{await dialog.waitFor({state:'hidden'});}catch(e){console.log('Currency form:',await dialog.locator('[role=alert]').textContent());throw e;}};
     for(const code of ['USD','ARS']) {
         await root.locator('[data-fw-tab=accounts]').click();await root.locator('[data-fw-action=new-account]').click();
@@ -20,6 +22,10 @@ exports.runFinanceCurrencySmoke = async (page,{width,theme}) => {
     await root.locator('#fw-currency').selectOption('ARS');assert.match(await income.innerText(),/1\.500\.000,00/);
     await page.evaluate(()=>{localStorage.setItem('lemon_usdt_ars_rate','1800');window.lifecycle_controller.refreshFinancialViews();});
     assert.match(await income.innerText(),/1\.500\.000,00/,'historical ARS total drifted');
+    await root.locator('#fw-valuation').selectOption('current');
+    assert.match(await income.innerText(),/2\.300\.000,00/);
+    await root.locator('#fw-currency').selectOption('USD');assert.match(await income.locator('strong').innerText(),/1\.277,78/);
+    await root.locator('#fw-valuation').selectOption('historical');
     await root.locator('#fw-currency').selectOption('USD');
     assert.match(await root.locator('.fw-current-balance .fw-balance').innerText(),/1\.277,78/);
     await root.locator('#fw-original').selectOption('ARS');assert.match(await income.innerText(),/500,00/);assert.doesNotMatch(await income.innerText(),/1\.500,00/);
@@ -32,6 +38,16 @@ exports.runFinanceCurrencySmoke = async (page,{width,theme}) => {
     await root.locator('#fw-currency').selectOption('ARS');await root.getByText('El total en ARS está incompleto.',{exact:false}).waitFor();
     await root.locator('#fw-original').selectOption('unknown');
     assert.match(await income.locator('strong').innerText(),/100,00 eq\./,'unknown ARS history must not look like zero income');
+    const unchanged=await page.evaluate(()=>JSON.stringify(window.lifecycle_controller.finanzas.data));
+    await root.locator('#fw-valuation').selectOption('current');
+    assert.match(await income.locator('strong').innerText(),/180\.000,00/,'legacy income converts automatically without entering a receipt rate');
+    assert.match(await income.innerText(),/original no registrada/);
+    assert.match(await root.locator('#fw-report-note').innerText(),/Lemon vía CriptoYa/);
+    assert.equal(await page.evaluate(()=>JSON.stringify(window.lifecycle_controller.finanzas.data)),unchanged);
+    await page.reload();await page.waitForFunction(()=>window.lifecycle_controller?.auth?.readyUserId);
+    await page.evaluate(()=>window.lifecycle_controller.activateSection('finanzas-section'));
+    assert.equal(await root.locator('#fw-valuation').inputValue(),'current');
+    await root.locator('#fw-valuation').selectOption('historical');
     await root.locator('#fw-original').selectOption('all');
     await root.locator('[data-fw-tab=movements]').click();await root.locator('#fw-original').selectOption('unknown');
     assert.equal(await root.locator('.fw-movement').count(),1);
@@ -71,6 +87,12 @@ exports.runFinanceCurrencySmoke = async (page,{width,theme}) => {
     assert.deepEqual(projectReceipts,[{currency:'ARS',amount:10000000,rate:1000},{currency:'USD',amount:10000,rate:1000}]);
     await page.evaluate(()=>window.lifecycle_controller.activateSection('finanzas-section'));
     assert.match(await income.innerText(),/1\.800,00/);
+    await root.locator('#fw-valuation').selectOption('current');
+    assert.match(await income.locator('strong').innerText(),/1\.533,33/);
+    await page.evaluate(()=>window.lifecycle_controller.activateSection('projects-section'));
+    assert.match(await page.locator('#monthUSD').innerText(),/155,56/);
+    assert.match(await page.locator('#projects-valuation-note').innerText(),/automáticamente/);
+    await page.evaluate(()=>window.lifecycle_controller.activateSection('finanzas-section'));
     assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth+2),false);
-    console.log(JSON.stringify({currency:true,width,theme,frozenHistory:true,nativeSplit:true,currentValue:true,optionalExchangeNoIncome:true,legacyPreserved:true,backup:true,reload:true,projectPartialAndFinal:true}));
+    console.log(JSON.stringify({currency:true,width,theme,frozenHistory:true,nativeSplit:true,currentValue:true,automaticLegacy:true,sharedProjectView:true,optionalExchangeNoIncome:true,legacyPreserved:true,backup:true,reload:true,projectPartialAndFinal:true}));
 };

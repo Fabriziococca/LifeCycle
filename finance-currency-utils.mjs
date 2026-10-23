@@ -1,5 +1,20 @@
-// Reporting never rewrites a receipt or revalues historical income at today's rate.
+// Display valuation never rewrites a receipt or its historical quote.
 export const validFinanceRate = value => Number.isFinite(Number(value)) && Number(value) >= .000001 && Number(value) <= 1_000_000;
+
+export const financeValuationMode = value => value === 'historical' ? 'historical' : 'current';
+
+export function reportMinor(movement, currency, { mode = 'historical', rate } = {}) {
+    if (mode !== 'current') return historicalMinor(movement, currency);
+    if (!movement.legacyEquivalent && movement.nativeCurrency === currency) return movement.nativeAmountMinor;
+    // Unknown originals remain unknown. Their saved USD equivalent is a reference,
+    // not evidence that the original payment was received in dollars.
+    const amount = movement.legacyEquivalent ? Number(movement.amount) * 100 : movement.nativeAmountMinor;
+    if (!Number.isFinite(amount)) return null;
+    const original = movement.legacyEquivalent ? 'USD' : movement.nativeCurrency;
+    if (original === currency || amount === 0) return amount;
+    if (!validFinanceRate(rate)) return null;
+    return original === 'USD' ? amount * Number(rate) : amount / Number(rate);
+}
 
 export function historicalMinor(movement, currency) {
     if (!movement.legacyEquivalent && movement.nativeCurrency === currency) return movement.nativeAmountMinor;
@@ -11,12 +26,12 @@ export function historicalMinor(movement, currency) {
     return validFinanceRate(rate) ? usd * Number(rate) * 100 : null;
 }
 
-export function summarizeCurrency(movements, currency) {
+export function summarizeCurrency(movements, currency, options) {
     const result = { totalMinor: 0, missingCount: 0, missingUsd: 0, originals: { USD: 0, ARS: 0 }, legacyUsd: 0, legacyCount: 0 };
     for (const movement of movements) {
         if (movement.legacyEquivalent) { result.legacyUsd += Number(movement.amount) || 0; result.legacyCount++; }
         else result.originals[movement.nativeCurrency] += movement.nativeAmountMinor;
-        const value = historicalMinor(movement, currency);
+        const value = reportMinor(movement, currency, options);
         if (value === null) { result.missingCount++; result.missingUsd += Number(movement.amount) || 0; }
         else result.totalMinor += value;
     }
