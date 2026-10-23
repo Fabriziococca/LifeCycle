@@ -85,3 +85,18 @@ servicios pagos ni obliga a registrar compras de dólares.
 - La confirmación individual/en grupo se prueba con datos sintéticos en QA,
   respaldo previo, recarga desde la nube y restauración exacta de Finanzas.
   Evidencia de esta tanda: `.tmp-sb/originals-release.json`.
+
+## Evolución de ingresos
+
+- Gráfico SVG en Resumen de Finanzas, como el gráfico corporal, sin librerías ni
+  servicios nuevos. Últimos 12 meses hasta el mes elegido, con puntos que se pueden
+  tocar o seleccionar por teclado, detalle mensual y tabla accesible.
+- Usa exactamente los ingresos combinados de Finanzas: manuales, Proyectos,
+  Mantenimientos y resultados de campañas cerradas de Saylor. No suma recordatorios
+  de Trading, posiciones abiertas, aportes de capital ni traspasos entre cuentas.
+- Total por defecto; permite separar Software/clientes (freelance, software,
+  Proyectos y Mantenimientos), Trading (categoría trading y Saylor) y otros ingresos.
+- Respeta USD/ARS, modo de cotización, moneda original y ámbito. Los meses con
+  cotización faltante dejan un hueco, sin dibujar su subtotal como total completo.
+  Estimados se distinguen con ≈ y punto hueco. Ocultar montos retira todo
+  el gráfico y su tabla para que tampoco se revelen importes por puntos o tooltips.

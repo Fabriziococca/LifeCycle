@@ -116,6 +116,21 @@
 .fw-form-grid .fw-original-choice { display:flex; flex-direction:row; align-items:flex-start; gap:.75rem; padding:.75rem; border-bottom:1px solid var(--surface-border); overflow-wrap:anywhere; }
 .fw-dialog .fw-original-choice input { width:1.2rem; height:1.2rem; flex-shrink:0; margin:.15rem 0 0; accent-color:var(--primary-color); }
 .fw-original-choice span { min-width:0; }
+#fw-income-chart { margin:1.25rem 0; }
+.fw-income-svg { width:100%; max-height:280px; display:block; overflow:visible; }
+.fw-income-svg text { fill:var(--text-secondary); font:11px system-ui,sans-serif; }
+.fw-chart-grid { stroke:var(--surface-border); stroke-dasharray:3 4; }
+.fw-chart-line { fill:none; stroke:var(--status-green); stroke-width:2.5; stroke-linejoin:round; }
+.fw-chart-point { fill:var(--status-green); stroke:var(--surface-solid); stroke-width:2; }
+.fw-chart-estimated { fill:var(--surface-solid); stroke:var(--status-yellow); stroke-width:2; }
+.fw-income-svg [role=button] { cursor:pointer; }
+.fw-income-svg [aria-pressed=true] circle { stroke-width:3; }
+.fw-income-svg [aria-pressed=true] .fw-chart-point { stroke:var(--text-primary); }
+.fw-income-svg [role=button]:focus-visible { outline:2px solid var(--primary-color); }
+#fw-income-chart label { display:grid; gap:.4rem; color:var(--text-secondary); font-size:.85rem; }
+#fw-income-chart select { background:var(--control-bg); color:var(--text-primary); border:1px solid var(--surface-border); border-radius:.65rem; padding:.7rem; width:100%; min-width:0; font:inherit; }
+.fw-chart-table { overflow-x:auto; }.fw-chart-table table { width:100%; border-collapse:collapse; font-size:.85rem; }
+.fw-chart-table th,.fw-chart-table td { padding:.65rem; text-align:left; border-bottom:1px solid var(--surface-border); }
 #fw-form-error { color: var(--status-red); min-height: 1.2rem; } #finance-workspace [hidden], .fw-dialog [hidden] { display: none !important; }
 #finance-workspace :focus-visible, .fw-dialog :focus-visible { outline: 3px solid var(--primary-color); outline-offset: 3px; }
 @media (max-width: 680px) {

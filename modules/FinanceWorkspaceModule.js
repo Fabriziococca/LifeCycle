@@ -6,6 +6,7 @@ import { financeWorkspace, buildFinanceAccount, buildFinanceMovement, buildFinan
     buildFinanceBudget, buildWorkspaceMovements, accountBalanceMinor, budgetSpentMinor,
     validateFinanceWorkspace, buildFinanceReceipt, buildOriginalConfirmation, confirmUsdOriginals, financeSourceFingerprint } from '../finance-workspace-utils.mjs';
 import { reportMinor, summarizeCurrency, currentBalanceValue, suggestedReceiptRate, financeValuationMode, estimatedFinanceValue } from '../finance-currency-utils.mjs';
+import { monthlyIncomeSeries } from '../finance-income-chart.mjs';
 
 const TABS = { summary: 'Resumen', movements: 'Movimientos', accounts: 'Cuentas', budgets: 'Presupuestos', cards: 'Tarjetas' };
 const KINDS = { cash: 'Efectivo', bank: 'Banco', wallet: 'Billetera', credit: 'Crédito' };
@@ -18,6 +19,7 @@ export class FinanceWorkspaceModule {
         if (!this.root) return;
         this.tab = 'summary'; this.month = this.app.uiState?.financeMonth || getLocalISOMonth();
         this.query = ''; this.type = ''; this.page = 1; this.scope = 'all'; this.originalCurrency = 'all';
+        this.chartSource='all'; this.chartMonth=this.month;
         this.root.innerHTML = `
             <div class="fw-toolbar"><div><span class="fw-eyebrow">TU DINERO, EN ORDEN</span><h2>Finanzas</h2></div>
             <button type="button" class="btn-primary" data-fw-action="new-movement">＋ Nuevo movimiento</button></div>
@@ -51,6 +53,14 @@ export class FinanceWorkspaceModule {
         this.root.querySelector('#fw-scope').addEventListener('change', event => { this.scope=event.target.value;this.page=1;this.render(); });
         this.root.querySelector('#fw-search').addEventListener('input', event => { this.query = event.target.value; this.page = 1; this.renderBody(); });
         this.root.querySelector('#fw-type').addEventListener('change', event => { this.type = event.target.value; this.page = 1; this.renderBody(); });
+        this.root.addEventListener('change',event=>{
+            if(event.target.id==='fw-income-source'){this.chartSource=event.target.value;this.renderBody();}
+            if(event.target.id==='fw-income-month')this.selectIncomeMonth(event.target.value);
+        });
+        this.root.addEventListener('keydown',event=>{
+            const point=event.target.closest('[data-income-month]');
+            if(point&&['Enter',' '].includes(event.key)){event.preventDefault();this.selectIncomeMonth(point.dataset.incomeMonth);}
+        });
         this.dialog.addEventListener('close', () => this.returnFocus?.isConnected && this.returnFocus.focus());
         this.dialog.addEventListener('click', event => { if (event.target === this.dialog || event.target.closest('[data-fw-close]')) this.dialog.close(); });
         this.dialog.addEventListener('submit', event => { event.preventDefault(); void this.submit(event); });
@@ -78,9 +88,9 @@ export class FinanceWorkspaceModule {
     }
     category(value, type) { return this.finance.getFinanceRecurringCategoryLabel(type, value); }
     scopeOf(item) { return financeWorkScope(item,this.app.work?.store?.state?.settings?.financeScopes||{}); }
-    monthly() { return this.movements.filter(item => item.date?.slice(0, 7) === this.month
-        && (this.originalCurrency === 'all' || (this.originalCurrency === 'unknown' ? item.legacyEquivalent : !item.legacyEquivalent && item.nativeCurrency === this.originalCurrency))
+    scopedMovements() { return this.movements.filter(item => (this.originalCurrency === 'all' || (this.originalCurrency === 'unknown' ? item.legacyEquivalent : !item.legacyEquivalent && item.nativeCurrency === this.originalCurrency))
         && (this.scope==='all'||this.scopeOf(item)===this.scope)); }
+    monthly() { return this.scopedMovements().filter(item=>item.date?.slice(0,7)===this.month); }
     empty(text, action = '') { return `<div class="fw-empty"><h3>Todavía no hay registros</h3><p>${esc(text)}</p>${action}</div>`; }
     button(action, text, recordId = '') { return `<button type="button" class="btn-secondary" data-fw-action="${action}" data-fw-id="${esc(recordId)}">${esc(text)}</button>`; }
     render() {
@@ -127,6 +137,7 @@ export class FinanceWorkspaceModule {
             <article class="fw-metric"><span>Resultado del mes · ${this.reportBasis}${income.estimatedCount+expense.estimatedCount?' · incluye estimados':''}</span><strong>${incomplete ? 'Pendiente de cotización' : `${income.estimatedCount+expense.estimatedCount?'≈ ':''}${this.money(income.totalMinor-expense.totalMinor)}`}</strong><small>${incomplete ? `Subtotal conocido: ${this.money(income.totalMinor-expense.totalMinor)}. Faltan cotizaciones.` : 'Ingresos menos gastos del período; no es tu saldo actual.'}</small></article></div>
             ${incomplete ? `<p class="fw-warning" role="status">El total en ${esc(this.currency)} está incompleto. ${this.valuationMode === 'current' ? 'Falta la referencia actual; se actualizará automáticamente al estar disponible.' : 'Podés completar la cotización de cada registro desde Movimientos o elegir Actual · automática.'} Los equivalentes USD guardados se conservan.</p>` : ''}
             ${this.balanceSummary()}
+            ${this.incomeChart()}
             <div class="fw-columns"><section class="fw-panel"><h3>En qué se fue</h3>${expense.missingCount ? '<p class="fw-warning">Sólo gastos convertibles con la cotización elegida.</p>' : ''}${categories.size ? [...categories].sort((a,b) => b[1]-a[1]).map(([key,value]) => `<div class="fw-category"><div><span>${esc(this.category(key,'expense'))}${estimatedCategories.has(key)?' · incluye estimados':''}</span><strong>${estimatedCategories.has(key)?'≈ ':''}${this.money(Math.round(value))}</strong></div><progress max="${Math.max(1, expense.totalMinor)}" value="${Math.max(0,value)}" aria-label="${esc(this.category(key,'expense'))}"></progress></div>`).join('') : '<p>Sin gastos convertibles con estos filtros.</p>'}</section>
             <section class="fw-panel"><h3>Tu organización</h3><p>Los cobros de Proyectos y los gastos de Suscripciones siguen apareciendo aquí sin duplicarlos.</p><p>${this.workspace.accounts.filter(item=>!item.archived).length} cuentas y tarjetas activas · ${this.workspace.budgets.filter(item=>item.month===this.month).length} presupuestos este mes.</p><p>Sin conexión bancaria ni servicios pagos añadidos.</p></section></div>
             ${this.app.work?.retainers?.pending(this.app.work.store.state)||''}<div class="fw-heading"><h3>Últimos movimientos</h3>${this.button('all-movements','Ver todos')}</div>${list.length ? this.rows(list.slice(0,8)) : this.empty('Registrá tu primer movimiento de este mes y moneda.')}`;
@@ -135,6 +146,39 @@ export class FinanceWorkspaceModule {
         const parts = ['USD','ARS'].filter(code => report.originals[code] !== 0).map(code => this.money(report.originals[code],code));
         if (report.legacyCount) parts.push(`${this.money(report.legacyUsd*100,'USD')} estimado · original no registrada (${report.legacyCount})`);
         return parts.length ? `Original: ${parts.join(' + ')}` : 'Sin movimientos.';
+    }
+    incomeMonthLabel(month) { return new Date(`${month}-01T12:00:00Z`).toLocaleDateString('es-AR',{month:'long',year:'numeric',timeZone:'UTC'}); }
+    incomePointLabel(row) {
+        return `${this.incomeMonthLabel(row.month)}: ${row.missingCount?`pendiente de cotización; subtotal ${this.money(row.totalMinor)}`:`${row.estimatedCount?'≈ ':''}${this.money(row.totalMinor)}`}. ${row.count?`${row.count} ingresos registrados`:'Sin ingresos registrados'}.${row.estimatedCount?' Incluye estimados.':''}`;
+    }
+    selectIncomeMonth(month) {
+        const row=this.incomeChartData?.find(item=>item.month===month);if(!row)return;
+        this.chartMonth=month;
+        this.root.querySelector('#fw-income-month').value=month;
+        this.root.querySelector('#fw-income-detail').textContent=this.incomePointLabel(row);
+        this.root.querySelectorAll('[data-income-month]').forEach(point=>point.setAttribute('aria-pressed',String(point.dataset.incomeMonth===month)));
+    }
+    incomeChart() {
+        const header='<div class="fw-heading"><h3>Evolución de ingresos</h3><span>12 meses · '+esc(this.currency)+' · '+this.reportBasis+'</span></div>';
+        if(this.app.financialAmountsHidden)return `<section id="fw-income-chart" class="fw-panel">${header}<p>Montos ocultos. Mostralos para ver el gráfico.</p></section>`;
+        const rows=monthlyIncomeSeries(this.scopedMovements(),this.month,this.currency,this.reportOptions,this.chartSource);
+        this.incomeChartData=rows;
+        if(!rows.some(row=>row.month===this.chartMonth))this.chartMonth=this.month;
+        const selected=rows.find(row=>row.month===this.chartMonth);
+        const small=this.root.clientWidth<550,w=small?360:720,h=220,left=58,right=w-18,top=24,bottom=176;
+        const max=Math.max(1,...rows.map(row=>row.plotMinor||0)),x=i=>left+i*(right-left)/11,y=value=>bottom-value/max*(bottom-top);
+        const compact=new Intl.NumberFormat('es-AR',{notation:'compact',maximumFractionDigits:1});
+        const grid=[0,.5,1].map(ratio=>`<line x1="${left}" y1="${y(max*ratio)}" x2="${right}" y2="${y(max*ratio)}" class="fw-chart-grid"/><text x="${left-8}" y="${y(max*ratio)+4}" text-anchor="end">${esc(compact.format(max*ratio/100))}</text>`).join('');
+        const segments=[];let points=[];
+        rows.forEach((row,i)=>{if(row.plotMinor===null){if(points.length)segments.push(points.join(' '));points=[];}else points.push(`${x(i)},${y(row.plotMinor)}`);});if(points.length)segments.push(points.join(' '));
+        const dots=rows.map((row,i)=>`<g role="button" tabindex="0" data-income-month="${row.month}" aria-pressed="${row.month===this.chartMonth}" aria-label="${esc(this.incomePointLabel(row))}"><title>${esc(this.incomePointLabel(row))}</title><rect x="${x(i)-10}" y="${(row.plotMinor===null?bottom:y(row.plotMinor))-12}" width="20" height="24" fill="transparent"/>${row.plotMinor===null?`<text x="${x(i)}" y="${bottom-8}" text-anchor="middle">?</text>`:`<circle cx="${x(i)}" cy="${y(row.plotMinor)}" r="${row.count?5:3}" class="${row.estimatedCount?'fw-chart-estimated':'fw-chart-point'}"/>`}</g>${!small||i%3===0||i===11?`<text x="${x(i)}" y="${bottom+26}" text-anchor="middle">${esc(new Date(`${row.month}-01T12:00:00Z`).toLocaleDateString('es-AR',{month:'short',year:'2-digit',timeZone:'UTC'}))}</text>`:''}`).join('');
+        const hasData=rows.some(row=>row.count);
+        return `<section id="fw-income-chart" class="fw-panel">${header}<p class="fw-note">Todos los ingresos registrados: software, clientes, Trading y otras fuentes. Hasta ${esc(this.incomeMonthLabel(this.month))}; respeta los filtros de ámbito y moneda original.</p>
+            <div class="fw-controls"><label>Origen del gráfico<select id="fw-income-source">${option('all','Todos los ingresos',this.chartSource)}${option('software','Software y clientes',this.chartSource)}${option('trading','Trading',this.chartSource)}${option('other','Otros ingresos',this.chartSource)}</select></label></div>
+            ${hasData?`<svg viewBox="0 0 ${w} ${h}" class="fw-income-svg" aria-label="Evolución mensual de ingresos en ${this.currency}">${grid}${segments.map(points=>`<polyline points="${points}" class="fw-chart-line"/>`).join('')}${dots}</svg>`:'<p>No hay ingresos registrados en estos 12 meses con los filtros elegidos.</p>'}
+            <p class="fw-note">Tocá un punto para ver el importe. Punto hueco y ≈: incluye estimados. ?: falta cotización; la línea se interrumpe. Los meses vacíos representan ausencia de registros.</p>
+            <label>Detalle mensual<select id="fw-income-month">${rows.map(row=>option(row.month,this.incomeMonthLabel(row.month),this.chartMonth)).join('')}</select></label><p id="fw-income-detail" aria-live="polite">${esc(this.incomePointLabel(selected))}</p>
+            <details><summary>Ver importes por mes</summary><div class="fw-chart-table"><table><caption>Ingresos registrados por mes · ${this.currency} · ${this.reportBasis}</caption><thead><tr><th>Mes</th><th>Ingresos</th><th>Registros</th></tr></thead><tbody>${rows.map(row=>`<tr><th scope="row">${esc(this.incomeMonthLabel(row.month))}</th><td>${row.missingCount?`Pendiente · subtotal ${this.money(row.totalMinor)}`:`${row.estimatedCount?'≈ ':''}${this.money(row.totalMinor)}`}</td><td>${row.count}</td></tr>`).join('')}</tbody></table></div></details></section>`;
     }
     balanceSummary() {
         const accounts = this.workspace.accounts;
@@ -195,6 +239,7 @@ export class FinanceWorkspaceModule {
             }).join('')}</div>` : this.empty('Definí cuánto querés gastar por categoría en este mes. No borra ni limita tus movimientos.')}`;
     }
     async onClick(event) {
+        const point=event.target.closest('[data-income-month]');if(point){this.selectIncomeMonth(point.dataset.incomeMonth);return;}
         const workAction=event.target.closest('[data-work-action]');
         if(workAction){try{await this.app.work.action(workAction.dataset.workAction,workAction.dataset.id);}catch(e){this.app.showToast?.(e.message,{tone:'warning'});}return;}
         const tab = event.target.closest('[data-fw-tab]');
