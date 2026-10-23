@@ -543,7 +543,7 @@ export class ProjectsModule {
         const report=summarizeCurrency(rows,currency,{mode,rate:this.app.getCachedExchangeRate?.()?.rate});
         const money=(minor,code)=>new Intl.NumberFormat('es-AR',{style:'currency',currency:code}).format(minor/100);
         if(report.missingCount) return `${report.totalMinor?money(report.totalMinor,currency)+' + ':''}${money(report.missingUsd*100,'USD')} eq. guardado · sin cambio ${mode==='current'?'actual':'histórico ARS'}`;
-        return money(report.totalMinor,currency);
+        return `${report.estimatedCount?'≈ ':''}${money(report.totalMinor,currency)}`;
     }
 
     getIncomeMovements({ includeZeroFinals = false } = {}) {

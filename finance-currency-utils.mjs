@@ -2,6 +2,8 @@
 export const validFinanceRate = value => Number.isFinite(Number(value)) && Number(value) >= .000001 && Number(value) <= 1_000_000;
 
 export const financeValuationMode = value => value === 'historical' ? 'historical' : 'current';
+export const estimatedFinanceValue = (movement, currency, mode) => Boolean(movement.legacyEquivalent
+    || (mode === 'historical' && currency === 'USD' && movement.rateSource === 'saved-equivalent'));
 
 export function reportMinor(movement, currency, { mode = 'historical', rate } = {}) {
     if (mode !== 'current') return historicalMinor(movement, currency);
@@ -18,7 +20,7 @@ export function reportMinor(movement, currency, { mode = 'historical', rate } = 
 
 export function historicalMinor(movement, currency) {
     if (!movement.legacyEquivalent && movement.nativeCurrency === currency) return movement.nativeAmountMinor;
-    const usd = Number(movement.amount);
+    const usd = !movement.legacyEquivalent && movement.nativeCurrency === 'USD' ? movement.nativeAmountMinor / 100 : Number(movement.amount);
     if (!Number.isFinite(usd)) return null;
     if (currency === 'USD') return usd * 100;
     const rate = movement.nativeCurrency === 'ARS' && !movement.legacyEquivalent
@@ -27,10 +29,11 @@ export function historicalMinor(movement, currency) {
 }
 
 export function summarizeCurrency(movements, currency, options) {
-    const result = { totalMinor: 0, missingCount: 0, missingUsd: 0, originals: { USD: 0, ARS: 0 }, legacyUsd: 0, legacyCount: 0 };
+    const result = { totalMinor: 0, missingCount: 0, missingUsd: 0, estimatedCount:0, originals: { USD: 0, ARS: 0 }, legacyUsd: 0, legacyCount: 0 };
     for (const movement of movements) {
         if (movement.legacyEquivalent) { result.legacyUsd += Number(movement.amount) || 0; result.legacyCount++; }
         else result.originals[movement.nativeCurrency] += movement.nativeAmountMinor;
+        if (estimatedFinanceValue(movement,currency,options?.mode||'historical')) result.estimatedCount++;
         const value = reportMinor(movement, currency, options);
         if (value === null) { result.missingCount++; result.missingUsd += Number(movement.amount) || 0; }
         else result.totalMinor += value;

@@ -4,8 +4,8 @@ import { RESOURCE_KEYS } from '../resource-policy.mjs';
 import { financeWorkScope, WORK_SCOPES } from '../work-utils.mjs';
 import { financeWorkspace, buildFinanceAccount, buildFinanceMovement, buildFinanceTransfer,
     buildFinanceBudget, buildWorkspaceMovements, accountBalanceMinor, budgetSpentMinor,
-    validateFinanceWorkspace, buildFinanceReceipt } from '../finance-workspace-utils.mjs';
-import { reportMinor, summarizeCurrency, currentBalanceValue, suggestedReceiptRate, financeValuationMode } from '../finance-currency-utils.mjs';
+    validateFinanceWorkspace, buildFinanceReceipt, buildOriginalConfirmation, confirmUsdOriginals, financeSourceFingerprint } from '../finance-workspace-utils.mjs';
+import { reportMinor, summarizeCurrency, currentBalanceValue, suggestedReceiptRate, financeValuationMode, estimatedFinanceValue } from '../finance-currency-utils.mjs';
 
 const TABS = { summary: 'Resumen', movements: 'Movimientos', accounts: 'Cuentas', budgets: 'Presupuestos', cards: 'Tarjetas' };
 const KINDS = { cash: 'Efectivo', bank: 'Banco', wallet: 'Billetera', credit: 'Crédito' };
@@ -55,9 +55,14 @@ export class FinanceWorkspaceModule {
         this.dialog.addEventListener('click', event => { if (event.target === this.dialog || event.target.closest('[data-fw-close]')) this.dialog.close(); });
         this.dialog.addEventListener('submit', event => { event.preventDefault(); void this.submit(event); });
         this.dialog.addEventListener('change', event => {
+            if(this.editing?.kind==='original') { if(event.target.name==='currency') this.updateOriginalFields(); return; }
+            if(this.editing?.kind==='confirm-usd') { this.updateUsdSelection(); return; }
             if (event.target.name === 'currency') this.updateCurrencyFields();
             if (event.target.name === 'date') this.updateReceiptDate();
             if (['fromId','toId'].includes(event.target.name)) this.updateTransferFields();
+        });
+        this.dialog.addEventListener('click',event=>{
+            if(event.target.closest('[data-select-usd]')) { this.dialog.querySelectorAll('[name=originalKeys]').forEach(input=>input.checked=true); this.updateUsdSelection(); }
         });
     }
     get currency() { return localStorage.getItem('preferred_currency') === 'ARS' ? 'ARS' : 'USD'; }
@@ -114,20 +119,21 @@ export class FinanceWorkspaceModule {
         const income = summarizeCurrency(list.filter(item => item.type === 'income'), this.currency, options);
         const expense = summarizeCurrency(list.filter(item => item.type === 'expense'), this.currency, options);
         const categories = new Map();
+        const estimatedCategories = new Set(list.filter(item=>item.type==='expense'&&estimatedFinanceValue(item,this.currency,this.valuationMode)).map(item=>item.category));
         list.filter(item => item.type === 'expense').forEach(item => { const value = reportMinor(item,this.currency,options); if(value!==null) categories.set(item.category, (categories.get(item.category) || 0) + value); });
         const incomplete = income.missingCount + expense.missingCount;
-        const metric = (label, report, css) => `<article class="fw-metric ${css}"><span>${label} · ${this.reportBasis}</span><strong>${report.missingCount && !report.totalMinor ? `${this.money(report.missingUsd*100,'USD')} eq. guardado` : `${report.missingCount?'Subtotal: ':''}${this.money(report.totalMinor)}`}</strong>${report.missingCount ? `<small class="fw-warning">${report.missingCount} sin ${this.missingQuote}. El equivalente USD guardado se conserva.</small>` : ''}<small>${this.originalBreakdown(report)}</small></article>`;
+        const metric = (label, report, css) => `<article class="fw-metric ${css}"><span>${label} · ${this.reportBasis}${report.estimatedCount?' · incluye estimados':''}</span><strong>${report.estimatedCount?'≈ ':''}${report.missingCount && !report.totalMinor ? `${this.money(report.missingUsd*100,'USD')} eq. guardado` : `${report.missingCount?'Subtotal: ':''}${this.money(report.totalMinor)}`}</strong>${report.missingCount ? `<small class="fw-warning">${report.missingCount} sin ${this.missingQuote}. El equivalente USD guardado se conserva.</small>` : ''}<small>${this.originalBreakdown(report)}</small>${report.estimatedCount?'<small class="fw-warning">Estimados basados en equivalentes USD anteriores; revisá los importes originales en Movimientos.</small>':''}</article>`;
         return `<div class="fw-metrics">${metric('Ingresos del mes',income,'fw-income')}${metric('Gastos del mes',expense,'fw-expense')}
-            <article class="fw-metric"><span>Resultado del mes · ${this.reportBasis}</span><strong>${incomplete ? 'Pendiente de cotización' : this.money(income.totalMinor-expense.totalMinor)}</strong><small>${incomplete ? `Subtotal conocido: ${this.money(income.totalMinor-expense.totalMinor)}. Faltan cotizaciones.` : 'Ingresos menos gastos del período; no es tu saldo actual.'}</small></article></div>
+            <article class="fw-metric"><span>Resultado del mes · ${this.reportBasis}${income.estimatedCount+expense.estimatedCount?' · incluye estimados':''}</span><strong>${incomplete ? 'Pendiente de cotización' : `${income.estimatedCount+expense.estimatedCount?'≈ ':''}${this.money(income.totalMinor-expense.totalMinor)}`}</strong><small>${incomplete ? `Subtotal conocido: ${this.money(income.totalMinor-expense.totalMinor)}. Faltan cotizaciones.` : 'Ingresos menos gastos del período; no es tu saldo actual.'}</small></article></div>
             ${incomplete ? `<p class="fw-warning" role="status">El total en ${esc(this.currency)} está incompleto. ${this.valuationMode === 'current' ? 'Falta la referencia actual; se actualizará automáticamente al estar disponible.' : 'Podés completar la cotización de cada registro desde Movimientos o elegir Actual · automática.'} Los equivalentes USD guardados se conservan.</p>` : ''}
             ${this.balanceSummary()}
-            <div class="fw-columns"><section class="fw-panel"><h3>En qué se fue</h3>${expense.missingCount ? '<p class="fw-warning">Sólo gastos convertibles con la cotización elegida.</p>' : ''}${categories.size ? [...categories].sort((a,b) => b[1]-a[1]).map(([key,value]) => `<div class="fw-category"><div><span>${esc(this.category(key,'expense'))}</span><strong>${this.money(Math.round(value))}</strong></div><progress max="${Math.max(1, expense.totalMinor)}" value="${Math.max(0,value)}" aria-label="${esc(this.category(key,'expense'))}"></progress></div>`).join('') : '<p>Sin gastos convertibles con estos filtros.</p>'}</section>
+            <div class="fw-columns"><section class="fw-panel"><h3>En qué se fue</h3>${expense.missingCount ? '<p class="fw-warning">Sólo gastos convertibles con la cotización elegida.</p>' : ''}${categories.size ? [...categories].sort((a,b) => b[1]-a[1]).map(([key,value]) => `<div class="fw-category"><div><span>${esc(this.category(key,'expense'))}${estimatedCategories.has(key)?' · incluye estimados':''}</span><strong>${estimatedCategories.has(key)?'≈ ':''}${this.money(Math.round(value))}</strong></div><progress max="${Math.max(1, expense.totalMinor)}" value="${Math.max(0,value)}" aria-label="${esc(this.category(key,'expense'))}"></progress></div>`).join('') : '<p>Sin gastos convertibles con estos filtros.</p>'}</section>
             <section class="fw-panel"><h3>Tu organización</h3><p>Los cobros de Proyectos y los gastos de Suscripciones siguen apareciendo aquí sin duplicarlos.</p><p>${this.workspace.accounts.filter(item=>!item.archived).length} cuentas y tarjetas activas · ${this.workspace.budgets.filter(item=>item.month===this.month).length} presupuestos este mes.</p><p>Sin conexión bancaria ni servicios pagos añadidos.</p></section></div>
             ${this.app.work?.retainers?.pending(this.app.work.store.state)||''}<div class="fw-heading"><h3>Últimos movimientos</h3>${this.button('all-movements','Ver todos')}</div>${list.length ? this.rows(list.slice(0,8)) : this.empty('Registrá tu primer movimiento de este mes y moneda.')}`;
     }
     originalBreakdown(report) {
         const parts = ['USD','ARS'].filter(code => report.originals[code] !== 0).map(code => this.money(report.originals[code],code));
-        if (report.legacyCount) parts.push(`${this.money(report.legacyUsd*100,'USD')} equivalente guardado · original no registrada`);
+        if (report.legacyCount) parts.push(`${this.money(report.legacyUsd*100,'USD')} estimado · original no registrada (${report.legacyCount})`);
         return parts.length ? `Original: ${parts.join(' + ')}` : 'Sin movimientos.';
     }
     balanceSummary() {
@@ -152,15 +158,15 @@ export class FinanceWorkspaceModule {
             const account = this.workspace.accounts.find(account => account.id === item.accountId);
             const value = reportMinor(item,this.currency,this.reportOptions);
             return `<article class="fw-movement"><div><span class="fw-kind ${item.type === 'income' ? 'fw-positive' : 'fw-negative'}">${item.type === 'income' ? '↗ Ingreso' : '↘ Gasto'}</span><h4>${esc(item.description || 'Sin detalle')}</h4>
-                <p>${esc(item.date || '')} · ${esc(this.category(item.category,item.type))} · ${esc(item.sourceLabel)} · ${esc(account?.name || 'Sin cuenta asignada')}</p>${item.legacyEquivalent ? '<small>Equivalente USD guardado; moneda original no disponible.</small>' : ''}</div>
-                <div class="fw-movement-end"><strong>${this.money(item.nativeAmountMinor,item.nativeCurrency)}${item.legacyEquivalent ? ' eq.' : ''}</strong><small>${value === null ? `Sin ${this.missingQuote}` : `${this.money(Math.round(value))} · ${this.reportBasis}`}</small><small>${WORK_SCOPES[this.scopeOf(item)]}</small><div>${this.button('receipt','Moneda y cotización',item.key)}${!['Proyecto','Saylor','Mantenimiento'].includes(item.sourceLabel)?this.button('scope','Clasificar',item.key):''}${item.editable ? this.button('edit-movement','Editar',item.key) + this.button('delete-movement','Eliminar',item.key) : this.button(item.origin==='retainer'?'retainer':item.sourceLabel==='Saylor'?'saylor':item.subscriptionId ? 'subscriptions' : 'projects', 'Ver origen',item.retainerId||'')}</div></div></article>`;
+                <p>${esc(item.date || '')} · ${esc(this.category(item.category,item.type))} · ${esc(item.sourceLabel)} · ${esc(account?.name || 'Sin cuenta asignada')}</p>${item.legacyEquivalent ? '<small class="fw-warning">Estimado · moneda original pendiente de confirmar.</small>' : item.originalConfirmedAt ? `<small>Importe original confirmado. Referencia anterior: ${this.money(item.amount*100,'USD')} equivalente guardado.${item.rateSource==='saved-equivalent'?' La equivalencia anterior no acredita una cotización histórica.':''}</small>` : ''}</div>
+                <div class="fw-movement-end"><strong>${item.legacyEquivalent?'≈ ':''}${this.money(item.nativeAmountMinor,item.nativeCurrency)}${item.legacyEquivalent ? ' eq.' : ''}</strong><small>${value === null ? `Sin ${this.missingQuote}` : `${estimatedFinanceValue(item,this.currency,this.valuationMode)?'≈ ':''}${this.money(Math.round(value))} · ${this.reportBasis}`}</small><small>${WORK_SCOPES[this.scopeOf(item)]}</small><div>${item.legacyEquivalent||item.originalConfirmedAt?this.button('confirm-original',item.legacyEquivalent?'Confirmar importe original':'Corregir importe original',item.key):''}${this.button('receipt','Moneda y cotización',item.key)}${!['Proyecto','Saylor','Mantenimiento'].includes(item.sourceLabel)?this.button('scope','Clasificar',item.key):''}${item.editable ? this.button('edit-movement','Editar',item.key) + this.button('delete-movement','Eliminar',item.key) : this.button(item.origin==='retainer'?'retainer':item.sourceLabel==='Saylor'?'saylor':item.subscriptionId ? 'subscriptions' : 'projects', 'Ver origen',item.retainerId||'')}</div></div></article>`;
         }).join('')}</div>`;
     }
     movementList() {
         const query = this.query.trim().toLocaleLowerCase();
         const list = this.monthly().filter(item => (!this.type || item.type === this.type) && (!query || `${item.description} ${item.category} ${this.category(item.category,item.type)} ${item.sourceLabel}`.toLocaleLowerCase().includes(query)));
         const pages = Math.max(1, Math.ceil(list.length / 30)); this.page = Math.min(this.page, pages);
-        return `<div class="fw-heading"><h3>${list.length} movimientos</h3><span>${this.valuationMode === 'current' ? 'Equivalentes actuales' : 'Equivalentes históricos'} en ${esc(this.currency)} · ${esc(this.month)}</span></div>
+        return `<div class="fw-heading"><h3>${list.length} movimientos</h3>${list.some(item=>item.type==='income'&&item.legacyEquivalent&&item.amount>0)?this.button('confirm-usd','Confirmar ingresos como USD'):''}<span>${this.valuationMode === 'current' ? 'Equivalentes actuales' : 'Equivalentes históricos'} en ${esc(this.currency)} · ${esc(this.month)}</span></div>
             ${list.length ? this.rows(list.slice((this.page - 1) * 30, this.page * 30)) : this.empty('No hay coincidencias. Revisá el mes, la moneda y los filtros.')}
             ${pages > 1 ? `<div class="fw-pagination">${this.button('previous','Anterior')}<span>Página ${this.page} de ${pages}</span>${this.button('next','Siguiente')}</div>` : ''}`;
     }
@@ -197,6 +203,7 @@ export class FinanceWorkspaceModule {
         const action = button.dataset.fwAction, recordId = button.dataset.fwId;
         if (action === 'refresh-rate') { button.disabled=true; try { await this.app.fetchLemonRate({force:true}); this.renderBody(); } finally { button.disabled=false; } return; }
         if (action === 'privacy') { this.app.setFinancialAmountsHidden(!this.app.isFinancialAmountsHidden()); return; }
+        if(action==='confirm-usd'&&this.app.financialAmountsHidden) { this.app.showToast?.('Mostrá los montos para revisar los ingresos antes de confirmarlos.'); return; }
         if (action === 'all-movements') { this.tab = 'movements'; this.render(); return; }
         if (action === 'previous' || action === 'next') { this.page = Math.max(1,this.page+(action==='next'?1:-1)); this.renderBody(); return; }
         if (action === 'recurring') { this.finance.openFinanceRecurringModal(button); return; }
@@ -237,7 +244,20 @@ export class FinanceWorkspaceModule {
         let title, fields = '', kind = action, existing = null;
         this.returnFocus = button;
         const ws = this.workspace;
-        if (action === 'new-movement' || action === 'edit-movement' || action === 'receipt') {
+        let batch;
+        if (action==='confirm-original') {
+            kind='original'; existing=this.movements.find(item=>item.key===recordId); if(!existing)return;
+            title='Confirmar moneda e importe original';
+            fields=`<p>${esc(existing.description)} · ${esc(existing.date)}</p><p class="fw-note">Referencia anterior: ${this.money(existing.amount*100,'USD')} equivalente guardado. Confirmá lo que realmente ${existing.type==='income'?'recibiste':'pagaste'}; no necesitás buscar una cotización.</p>`
+                +this.select('currency','Moneda original',option('','Elegí la moneda',existing.legacyEquivalent?'':existing.nativeCurrency)+option('ARS','ARS · pesos',existing.legacyEquivalent?'':existing.nativeCurrency)+option('USD','USD · dólares',existing.legacyEquivalent?'':existing.nativeCurrency))
+                +this.field('amount','Importe original','number',existing.legacyEquivalent?'':existing.nativeAmountMinor/100,'required min="0.01" step="0.01"')
+                +'<p class="fw-note">El importe confirmado se usará en los totales. El equivalente anterior se conserva como antecedente; no se inventa una cotización histórica. Si cambiás la moneda, una cuenta asignada de otra moneda quedará desvinculada.</p>';
+        } else if(action==='confirm-usd') {
+            kind='confirm-usd'; title='Confirmar ingresos recibidos en USD';
+            const query=this.query.trim().toLocaleLowerCase();
+            batch=this.monthly().filter(item=>item.type==='income'&&item.legacyEquivalent&&item.amount>0&&this.type!=='expense'&&(!query||`${item.description} ${item.category} ${this.category(item.category,item.type)} ${item.sourceLabel}`.toLocaleLowerCase().includes(query))).slice(0,200);
+            fields=`<p>Ingresos con moneda pendiente de ${esc(this.month)}, según tus filtros. Hasta 200 por tanda.</p><p class="fw-note">Seleccioná sólo los que realmente recibiste en dólares. Se propone el equivalente guardado como importe USD; los gastos quedan fuera.</p><button type="button" class="btn-secondary" data-select-usd>Seleccionar todos los listados</button><div class="fw-original-list">${batch.map(item=>`<label class="fw-original-choice"><input type="checkbox" name="originalKeys" value="${esc(item.key)}"><span>${esc(item.description||'Sin detalle')}<small>${esc(item.date)} · ${esc(item.sourceLabel)} · ${this.money(Math.round(item.amount*100),'USD')}</small></span></label>`).join('')}</div><p id="fw-usd-selection" aria-live="polite"></p>`;
+        } else if (action === 'new-movement' || action === 'edit-movement' || action === 'receipt') {
             kind = action === 'receipt' ? 'receipt' : 'movement'; existing = this.movements.find(item=>item.key===recordId);
             if (action === 'edit-movement' && !existing?.editable) return;
             if (kind === 'receipt' && !existing) return;
@@ -248,9 +268,9 @@ export class FinanceWorkspaceModule {
                 + `<datalist id="fw-categories">${[...new Set(['servicios','comida','transporte','salud','ocio','extraordinary',...this.movements.map(item=>item.category)])].map(value=>`<option value="${esc(value)}">${esc(this.category(value,'expense'))}</option>`).join('')}</datalist>`
                 + this.field('date','Fecha','date',existing?.date||getLocalISODate(),'required');
             const initialCurrency = existing?.legacyEquivalent ? 'unknown' : existing?.nativeCurrency || this.currency;
-            const initialRate = existing?.nativeCurrency === 'ARS' && !existing?.legacyEquivalent ? existing.exchangeRate : existing?.valuationRate
+            const initialRate = existing?.rateSource === 'saved-equivalent' ? null : existing?.nativeCurrency === 'ARS' && !existing?.legacyEquivalent ? existing.exchangeRate : existing?.valuationRate
                 || (!existing ? suggestedReceiptRate(getLocalISODate(),getLocalISODate(),this.app.getCachedExchangeRate?.()) : null);
-            fields += this.select('currency','Moneda original', (existing?.legacyEquivalent ? option('unknown','Original no registrada',initialCurrency) : '') + option('USD','USD',initialCurrency)+option('ARS','ARS',initialCurrency))
+            fields += kind==='movement'&&existing?.originalConfirmedAt ? '<p class="fw-note">La moneda y el importe confirmados se conservan. Para corregirlos, usá Corregir importe original.</p>' : this.select('currency','Moneda original', (existing?.legacyEquivalent ? option('unknown','Original no registrada',initialCurrency) : '') + option('USD','USD',initialCurrency)+option('ARS','ARS',initialCurrency))
                 + this.field('amount',existing?.legacyEquivalent?'Importe (equivalente USD si la original es desconocida)':'Importe original','number',existing?(existing.legacyEquivalent?existing.amount:existing.nativeAmountMinor/100):'','required min="0.01" step="any"')
                 + `<div id="fw-rate-field">${this.field('rate','Cotización del cobro / gasto: ARS por 1 USD','number',initialRate||'','min="0.000001" max="1000000" step="any"')}<small>Histórica: usá la de esa fecha. Para USD es opcional; sin ella el total histórico en ARS queda incompleto. La cotización actual sólo se sugiere para hoy.</small></div>`
                 + this.select('accountId','Cuenta / tarjeta','');
@@ -280,21 +300,34 @@ export class FinanceWorkspaceModule {
                 +this.select('currency','Moneda',option('USD','USD',existing?.currency||this.currency)+option('ARS','ARS',existing?.currency||this.currency))
                 +this.field('amount','Límite mensual','number',existing?existing.limitMinor/100:'','required min="0.01" step="0.01"');
         } else return;
-        this.editing = { kind, recordId, existing, fingerprint: this.fingerprint(kind,recordId), ownerId: this.app.auth?.readyUserId };
+        this.editing = { kind, recordId, existing, fingerprint: this.fingerprint(kind,recordId), ownerId: this.app.auth?.readyUserId, batch:batch?.map(item=>({key:item.key,fingerprint:JSON.stringify(item),amount:item.amount})) };
         this.dialog.innerHTML = `<form><div class="fw-heading"><h2 id="fw-dialog-title">${title}</h2><button type="button" data-fw-close aria-label="Cerrar">✕</button></div><div class="fw-form-grid">${fields}</div><p id="fw-form-error" role="alert"></p><div class="fw-actions"><button type="button" class="btn-secondary" data-fw-close>Cancelar</button><button type="submit" class="btn-primary">Guardar</button></div></form>`;
         this.dialog.setAttribute('aria-labelledby','fw-dialog-title');
         if (kind==='account' && existing) { this.dialog.querySelector('[name=kind]').disabled=true; this.dialog.querySelector('[name=currency]').disabled=true; }
         if (['movement','receipt'].includes(kind)) { this.updateCurrencyFields(existing?.accountId); if(existing && kind==='movement') this.dialog.querySelector('[name=type]').disabled=true; }
         if (kind==='transfer') this.updateTransferFields();
+        if (kind==='original') { this.dialog.querySelector('[name=currency]').required=true; this.dialog.querySelector('[type=submit]').textContent='Confirmar importe original'; }
+        if (kind==='confirm-usd') this.updateUsdSelection();
         this.dialog.showModal();
     }
     fingerprint(kind,recordId) {
         if (!recordId) return null;
-        const item = ['movement','receipt'].includes(kind) ? this.movements.find(item=>item.key===recordId) : kind==='account' ? this.workspace.accounts.find(item=>item.id===recordId) : this.workspace.budgets.find(item=>item.id===recordId);
+        const item = ['movement','receipt','original'].includes(kind) ? this.movements.find(item=>item.key===recordId) : kind==='account' ? this.workspace.accounts.find(item=>item.id===recordId) : this.workspace.budgets.find(item=>item.id===recordId);
         return JSON.stringify(item);
+    }
+    updateOriginalFields() {
+        const input=this.dialog.querySelector('[name=amount]'),code=this.dialog.querySelector('[name=currency]').value;
+        input.value=code==='USD'?(Math.round(this.editing.existing.amount*100)/100).toFixed(2):'';
+    }
+    updateUsdSelection() {
+        const selected=[...this.dialog.querySelectorAll('[name=originalKeys]:checked')];
+        const total=selected.reduce((sum,input)=>sum+Math.round((this.editing.batch.find(item=>item.key===input.value)?.amount||0)*100),0);
+        this.dialog.querySelector('#fw-usd-selection').textContent=`${selected.length} ingresos seleccionados · ${this.money(total,'USD')}. Confirmá que estos importes fueron recibidos en USD.`;
+        const submit=this.dialog.querySelector('[type=submit]'); submit.disabled=!selected.length; submit.textContent=`Confirmar ${selected.length} ingresos en USD`;
     }
     updateCurrencyFields(selectedAccount) {
         if(!['movement','receipt'].includes(this.editing?.kind)) return;
+        if(!this.dialog.querySelector('[name=currency]'))return;
         const code=this.dialog.querySelector('[name=currency]').value, select=this.dialog.querySelector('[name=accountId]');
         const selected=selectedAccount??select.value;
         select.innerHTML=option('','Sin cuenta asignada',selected)+this.workspace.accounts.filter(item=>(!item.archived||item.id===this.editing.existing?.accountId)&&item.currency===code).map(item=>option(item.id,`${item.name}${item.archived?' (archivada)':''}`,selected)).join('');
@@ -309,7 +342,7 @@ export class FinanceWorkspaceModule {
         const rate = this.dialog.querySelector('[name=rate]');
         // Changing the date requires an explicit historical quote; never reuse a
         // suggested current quote for a receipt backdated by the user.
-        rate.value='';
+        if(rate)rate.value='';
     }
     updateTransferFields() {
         if (this.editing?.kind !== 'transfer') return;
@@ -334,7 +367,15 @@ export class FinanceWorkspaceModule {
             if(recordId && fingerprint!==this.fingerprint(kind,recordId)) throw new Error('Este registro cambió en otra pestaña o dispositivo. Cerrá el editor y abrilo de nuevo.');
             const input=Object.fromEntries(new FormData(event.target));
             const ws=this.workspace;
-            if(kind==='account') {
+            if(kind==='original') {
+                const item=buildOriginalConfirmation(input,existing,ws);
+                this.saveWorkspace({...ws,receipts:[...(ws.receipts||[]).filter(receipt=>receipt.key!==item.key),item]});
+                this.app.projects?.render();
+            } else if(kind==='confirm-usd') {
+                const keys=new FormData(event.target).getAll('originalKeys');
+                const selections=keys.map(key=>this.editing.batch.find(item=>item.key===key)||{key});
+                this.saveWorkspace(confirmUsdOriginals(ws,this.movements,selections)); this.app.projects?.render();
+            } else if(kind==='account') {
                 if(existing) { input.currency=existing.currency; input.kind=existing.kind; }
                 const item=buildFinanceAccount(input,existing);
                 this.saveWorkspace({...ws,accounts:existing?ws.accounts.map(value=>value.id===item.id?item:value):[...ws.accounts,item]});
@@ -353,9 +394,11 @@ export class FinanceWorkspaceModule {
                 const collection=input.type==='income'?'entries':'expenses';
                 const original=existing?this.finance.data[collection].find(item=>String(item.id)===String(existing.id)):null;
                 if(!existing&&!this.finance.getFinanceResourceCapacity(RESOURCE_KEYS.FINANCE_TRANSACTIONS)) return;
-                const item=buildFinanceMovement(input,ws,original);
+                const confirmed = existing?.originalConfirmedAt;
+                const item=buildFinanceMovement(confirmed?{...input,currency:original.nativeCurrency||'unknown',amount:original.nativeAmountMinor/100,rate:original.nativeCurrency==='ARS'?original.exchangeRate:original.valuationRate}:input,ws,original);
                 const previous=this.finance.data;
                 this.finance.data={...previous,[collection]:existing?previous[collection].map(value=>String(value.id)===String(item.id)?item:value):[...previous[collection],item]};
+                if(confirmed)this.finance.data.workspace={...ws,receipts:(ws.receipts||[]).map(receipt=>receipt.key===existing.key?{...receipt,date:item.date,sourceFingerprint:financeSourceFingerprint(item)}:receipt)};
                 try { this.finance.saveData(); } catch(error) { this.finance.data=previous; throw error; }
                 this.finance.render();
             }

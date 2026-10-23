@@ -26,6 +26,22 @@ servicios pagos ni obliga a registrar compras de dólares.
   resultado pendiente; no presenta ingresos ni resultado en ARS como cero.
 - Los registros antiguos sin moneda original conservan su equivalente USD y se
   muestran por separado. No se los presenta como dólares efectivamente cobrados.
+- Confirmar importe original pide sólo moneda e importe realmente recibido/pagado.
+  Se guarda en `workspace.receipts`, con `originalConfirmedAt` y huella del origen;
+  el movimiento fuente y su equivalente USD quedan intactos. El importe puede
+  corregir la referencia anterior. En ARS, `rateSource=saved-equivalent` identifica
+  la proporción técnica de compatibilidad; nunca se presenta como cotización de
+  mercado de aquella fecha. En histórico USD se marca esa referencia como estimada.
+- Confirmar ingresos como USD muestra hasta 200 ingresos con original pendiente,
+  del mes y filtros actuales. Empieza sin selección y muestra cantidad/total antes
+  de guardar. Sólo aplica a seleccionados; valida sesión y huellas de todos antes
+  de una única escritura. Un ingreso editado, eliminado o ya confirmado cancela
+  toda la tanda. Los gastos y registros no seleccionados se conservan.
+- Totales, categorías y filas que usan referencias antiguas pendientes llevan
+  marca de estimación. Una confirmación elimina esa incertidumbre para el importe
+  en su moneda original. Se puede corregir después desde el mismo registro.
+  Editar descripción/fecha conserva la confirmación; cambiar el origen por fuera
+  de ese recorrido invalida la anotación cuando su huella ya no coincide.
 - `workspace.receipts` permite completar datos del registro desde Finanzas sin
   duplicar el movimiento ni modificar documentos de Proyectos/Mantenimientos.
   Incluye identidad, fecha, equivalente USD y huella del origen: una modificación
@@ -66,3 +82,6 @@ servicios pagos ni obliga a registrar compras de dólares.
   pruebas locales, QA y despliegue; este documento no acredita un despliegue solo.
 - La simplificación de vista automática se verifica sin escribir datos en QA;
   su evidencia de publicación se guarda en `.tmp-sb/currency-auto-release.json`.
+- La confirmación individual/en grupo se prueba con datos sintéticos en QA,
+  respaldo previo, recarga desde la nube y restauración exacta de Finanzas.
+  Evidencia de esta tanda: `.tmp-sb/originals-release.json`.

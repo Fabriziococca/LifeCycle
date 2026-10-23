@@ -286,5 +286,10 @@ parte de estas reglas. No reemplazan la verificación funcional en navegador.
   Saldo de cuentas usa siempre la referencia actual, con fecha y origen visibles.
   Las vistas no modifican monedas originales, importes ni cotizaciones guardadas.
 - Si falta información histórica, se indica sin inferir moneda ni cotización.
+- Confirmar importe original pide moneda e importe, sin exigir cotización.
+  Los equivalentes anteriores se conservan como antecedentes. Las estimaciones
+  llevan ≈ y una explicación visible, también en los totales y categorías.
+- Confirmar ingresos como USD empieza sin seleccionar registros y permite revisar
+  cantidad, importes y total. Respeta mes/filtros y rechaza tandas obsoletas completas.
 - Registrar cuentas y conversiones es opcional; no hay compra de dólares ni
   conexión bancaria. Convertir entre cuentas no duplica ingresos ni gastos.

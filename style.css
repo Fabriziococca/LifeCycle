@@ -103,7 +103,7 @@
 .fw-movement { display: flex; justify-content: space-between; gap: 1rem; align-items: center; border: 1px solid var(--surface-border); background: var(--surface-section); border-radius: .9rem; padding: 1rem; }
 .fw-movement > div { min-width: 0; }.fw-movement h4 { margin: .35rem 0; overflow-wrap: anywhere; }
 .fw-movement p, .fw-movement small { color: var(--text-secondary); font-size: .75rem; line-height: 1.5; margin: .25rem 0; overflow-wrap: anywhere; }
-.fw-kind { font-size: .75rem; }.fw-movement-end { display: grid; justify-items: end; gap: .6rem; flex-shrink: 0; }.fw-movement-end > div { display:flex; gap: .3rem; }
+.fw-kind { font-size: .75rem; }.fw-movement-end { display: grid; justify-items: end; gap: .6rem; flex-shrink: 1; max-width:100%; }.fw-movement-end > div { display:flex; gap: .3rem; flex-wrap:wrap; justify-content:flex-end; max-width:100%; }
 #finance-workspace .fw-movement button { padding: .35rem .6rem; font-size: .75rem; }
 .fw-heading { margin: 1.2rem 0; }.fw-heading > div { display: flex; flex-wrap: wrap; gap: .5rem; }
 .fw-empty { padding: 3rem 1.5rem; text-align: center; border: 1px dashed var(--surface-border); border-radius: 1rem; color: var(--text-secondary); }
@@ -112,6 +112,10 @@
 .fw-dialog { color: var(--text-primary); background: var(--surface-solid); border: 1px solid var(--surface-border); border-radius: 1.25rem; width: min(640px,calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 1.5rem; margin: auto; }
 .fw-dialog::backdrop { background: var(--overlay-bg); backdrop-filter: blur(4px); }.fw-dialog .fw-heading { margin-top: 0; }.fw-dialog h2 { font-size: 1.3rem; }
 .fw-form-grid { display: grid; gap: 1rem; }.fw-form-grid small { display: block; color: var(--text-secondary); margin-top: .4rem; }.fw-dialog .fw-actions { justify-content: flex-end; }
+.fw-original-list { display:grid; gap:.5rem; max-height:45dvh; overflow:auto; padding:.25rem; }
+.fw-form-grid .fw-original-choice { display:flex; flex-direction:row; align-items:flex-start; gap:.75rem; padding:.75rem; border-bottom:1px solid var(--surface-border); overflow-wrap:anywhere; }
+.fw-dialog .fw-original-choice input { width:1.2rem; height:1.2rem; flex-shrink:0; margin:.15rem 0 0; accent-color:var(--primary-color); }
+.fw-original-choice span { min-width:0; }
 #fw-form-error { color: var(--status-red); min-height: 1.2rem; } #finance-workspace [hidden], .fw-dialog [hidden] { display: none !important; }
 #finance-workspace :focus-visible, .fw-dialog :focus-visible { outline: 3px solid var(--primary-color); outline-offset: 3px; }
 @media (max-width: 680px) {

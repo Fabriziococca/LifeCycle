@@ -116,6 +116,37 @@ export function buildFinanceReceipt(input, movement, workspace) {
         nativeCurrency: item.nativeCurrency, nativeAmountMinor: item.nativeAmountMinor,
         exchangeRate: item.exchangeRate, ...(item.valuationRate ? { valuationRate: item.valuationRate } : {}), accountId: item.accountId };
 }
+
+// User confirmation is independent of the old saved USD reference. A derived
+// ratio connects both values for compatibility; it is never a market FX quote.
+export function buildOriginalConfirmation(input, movement, workspace, confirmedAt = new Date().toISOString()) {
+    const nativeCurrency = currency(input.currency), nativeAmountMinor = moneyToMinor(input.amount);
+    if (!Number.isFinite(movement.amount) || movement.amount <= 0 || typeof confirmedAt!=='string' || !Number.isFinite(Date.parse(confirmedAt)) || new Date(confirmedAt).toISOString()!==confirmedAt) throw new Error('Registro original inválido.');
+    const exchangeRate = nativeCurrency === 'USD' ? 1 : nativeAmountMinor / 100 / movement.amount;
+    if (!validFinanceRate(exchangeRate)) throw new Error('El importe confirmado no es compatible con el equivalente guardado. Revisá el registro desde su origen.');
+    const previousAccount = workspace.accounts.find(item => item.id === movement.accountId && item.currency === nativeCurrency);
+    const keepQuote = nativeCurrency==='USD' && Math.abs(nativeAmountMinor/100-movement.amount)<=.0050001 && validFinanceRate(movement.valuationRate);
+    return { key:movement.key, date:financeDate(movement.date), amountUsd:movement.amount,
+        ...(movement.sourceFingerprint ? { sourceFingerprint:movement.sourceFingerprint } : {}),
+        nativeCurrency, nativeAmountMinor, exchangeRate, accountId:previousAccount?.id || null,
+        originalConfirmedAt:confirmedAt, ...(nativeCurrency === 'ARS' ? { rateSource:'saved-equivalent' } : {}),
+        ...(keepQuote?{valuationRate:movement.valuationRate}:{}),
+        ...(!keepQuote&&validFinanceRate(movement.valuationRate||movement.priorValuationRate)?{priorValuationRate:movement.valuationRate||movement.priorValuationRate}:{}) };
+}
+
+export function confirmUsdOriginals(workspace, movements, selections) {
+    if (!Array.isArray(selections) || !selections.length || selections.length > 200 || new Set(selections.map(item=>item.key)).size !== selections.length) throw new Error('Seleccioná entre 1 y 200 ingresos distintos.');
+    const confirmations = selections.map(selection => {
+        const movement = movements.find(item=>item.key===selection.key);
+        if (!movement || JSON.stringify(movement)!==selection.fingerprint) throw new Error('Un ingreso seleccionado cambió. Cerrá y revisá la selección nuevamente.');
+        if (movement.type!=='income' || !movement.legacyEquivalent) throw new Error('Sólo se confirman ingresos con moneda original pendiente.');
+        return buildOriginalConfirmation({currency:'USD',amount:(Math.round(movement.amount*100)/100).toFixed(2)},movement,workspace);
+    });
+    const keys = new Set(confirmations.map(item=>item.key));
+    const result = {...workspace,receipts:[...(workspace.receipts||[]).filter(item=>!keys.has(item.key)),...confirmations]};
+    validateFinanceWorkspace(result);
+    return result;
+}
 export function buildFinanceBudget(input, workspace, existingId = null) {
     if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(input.month)) throw new Error('Elegí un mes válido.');
     const result = { id: existingId || id('budget'), month: input.month, category: requiredText(input.category, 'Categoría', 80),
@@ -124,16 +155,18 @@ export function buildFinanceBudget(input, workspace, existingId = null) {
         && item.category.toLocaleLowerCase() === result.category.toLocaleLowerCase())) throw new Error('Ya existe un presupuesto para esa categoría, moneda y mes.');
     return result;
 }
+export const financeSourceFingerprint = entry => JSON.stringify([entry.date,entry.amount,entry.nativeCurrency,entry.nativeAmountMinor,entry.exchangeRate,entry.valuationRate,entry.accountId]);
 export function buildWorkspaceMovements(data, combinedIncome = data.entries || []) {
     const map = (entry, type) => {
         const native = CURRENCIES.includes(entry.nativeCurrency) && Number.isSafeInteger(entry.nativeAmountMinor);
         const own = (data.entries || []).some(item => String(item.id) === String(entry.id));
         const key = `${type}:${entry.id}`.replace(/^income:proj-partial-(active|hist)-/, 'income:proj-partial-');
-        const sourceFingerprint = JSON.stringify([entry.date,entry.amount,entry.nativeCurrency,entry.nativeAmountMinor,entry.exchangeRate,entry.valuationRate,entry.accountId]);
+        const sourceFingerprint = financeSourceFingerprint(entry);
         const detail = data.workspace?.receipts?.find(item => item.key === key && item.date === entry.date && item.amountUsd === entry.amount && (!item.sourceFingerprint || item.sourceFingerprint === sourceFingerprint));
         return { ...entry, ...(detail || {}), type, key, nativeCurrency: detail?.nativeCurrency || (native ? entry.nativeCurrency : 'USD'),
             nativeAmountMinor: detail?.nativeAmountMinor ?? (native ? entry.nativeAmountMinor : Math.round(Number(entry.amount || 0) * 100)),
             legacyEquivalent: !detail?.nativeCurrency && !native, editable: entry.origin !== 'saylor' && (type === 'income' ? own : !entry.subscriptionId),
+            ...(detail?.originalConfirmedAt ? { valuationRate:detail.valuationRate } : {}),
             sourceFingerprint, sourceLabel: entry.origin === 'retainer' ? 'Mantenimiento' : entry.origin === 'saylor' ? 'Saylor' : entry.subscriptionId ? 'Suscripción' : type === 'income' && !own ? 'Proyecto' : entry.recurringRuleId ? 'Recurrente' : 'Manual' };
     };
     return [...combinedIncome.map(entry => map(entry, 'income')), ...(data.expenses || []).map(entry => map(entry, 'expense'))]
@@ -227,6 +260,12 @@ export function validateFinanceWorkspace(workspace) {
             keys.add(receipt.key);
             financeDate(receipt.date);
             if (receipt.sourceFingerprint !== undefined && (typeof receipt.sourceFingerprint !== 'string' || receipt.sourceFingerprint.length > 2000)) throw new Error('Referencia de cobro inválida.');
+            if (receipt.originalConfirmedAt !== undefined) {
+                const built = buildOriginalConfirmation({currency:receipt.nativeCurrency,amount:receipt.nativeAmountMinor/100},
+                    {key:receipt.key,date:receipt.date,amount:receipt.amountUsd,accountId:receipt.accountId,valuationRate:receipt.valuationRate},workspace,receipt.originalConfirmedAt);
+                if (built.exchangeRate!==receipt.exchangeRate || built.rateSource!==receipt.rateSource || built.accountId!==receipt.accountId || built.valuationRate!==receipt.valuationRate || (receipt.priorValuationRate!==undefined&&!validFinanceRate(receipt.priorValuationRate))) throw new Error('Confirmación de importe original inválida.');
+                continue;
+            }
             if (!receipt.nativeCurrency) {
                 if (!validFinanceRate(receipt.valuationRate) || receipt.nativeAmountMinor !== undefined || receipt.accountId) throw new Error('Cotización histórica inválida.');
                 continue;

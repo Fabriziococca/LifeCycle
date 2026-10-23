@@ -4,6 +4,7 @@ const assert = require('node:assert/strict');
 const express = require('express');
 const { runFinanceWorkspaceSmoke } = require('./finance-workspace-smoke.cjs');
 const { runFinanceCurrencySmoke } = require('./finance-currency-smoke.cjs');
+const { runFinanceOriginalsSmoke } = require('./finance-originals-smoke.cjs');
 const { runAlertsScheduleSmoke } = require('./alerts-schedule-smoke.cjs');
 const { runPlanningSmoke } = require('./planning-smoke.cjs');
 const { runWorkSmoke } = require('./work-smoke.cjs');
@@ -66,6 +67,9 @@ const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'originals') {
+                await runFinanceOriginalsSmoke(page,{width,theme}); assert.deepEqual(errors,[]); await context.close(); continue;
+            }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'currency') {
                 await runFinanceCurrencySmoke(page,{width,theme});
                 assert.deepEqual(errors,[]);await context.close();continue;
