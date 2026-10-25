@@ -8,7 +8,8 @@ atribuyó a contraseña inválida, pérdida de datos ni indisponibilidad de la b
 
 La entrada del navegador solicitaba un grafo de 117 módulos. Ahora se publica
 `app.bundle.js`, compilado mediante esbuild con versión fijada y sin imports
-externos de módulos. Se mantienen fuentes, reglas de negocio, almacenamiento,
+externos de módulos, y una única hoja `app.styles.css` que conserva la cascada
+de los siete estilos originales. Se mantienen fuentes, reglas de negocio, almacenamiento,
 sesiones y configuración de Supabase. No se desactiva HTTP/2 ni se cambia TLS.
 
 El bundle se incluye en Git para el despliegue actual sin cambiar infraestructura.

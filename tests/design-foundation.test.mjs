@@ -22,7 +22,7 @@ for (const [name,block] of [
 
 test('self-hosted design assets are included in browser, recovery and native web builds',async()=>{
     const [index,recovery,worker,bundler]=await Promise.all(['index.html','recovery.html','sw.js','scripts/build-capacitor-web.mjs'].map(file=>readFile(new URL('../'+file,import.meta.url),'utf8')));
-    assert.ok(index.indexOf('design-tokens.css')<index.indexOf('href="style.css"'));
+    assert.match(index,/href="app\.styles\.css"/);
     assert.match(recovery,/design-tokens\.css/);
     assert.match(recovery,/font-src 'self'/);
     assert.match(worker,/'\/design-tokens\.css'/);
@@ -30,7 +30,9 @@ test('self-hosted design assets are included in browser, recovery and native web
     await access(new URL('../assets/fonts/inter-latin.woff2',import.meta.url));
     await access(new URL('../assets/fonts/Inter-OFL.txt',import.meta.url));
     assert.doesNotMatch(index,/unpkg\.com/);
-    assert.match(index,/vendor\/phosphor\/phosphor\.css/);
+    const publishedStyles=await readFile(new URL('../app.styles.css',import.meta.url),'utf8');
+    assert.ok(publishedStyles.indexOf('Source: design-tokens.css')<publishedStyles.indexOf('Source: style.css'));
+    assert.match(publishedStyles,/vendor\/phosphor\/regular\/Phosphor\.woff2/);
     const icons=await readFile(new URL('../vendor/phosphor/phosphor.css',import.meta.url),'utf8');
     for(const font of icons.matchAll(/url\('\.\/(.*?)'\)/g))await access(new URL('../vendor/phosphor/'+font[1],import.meta.url));
 });

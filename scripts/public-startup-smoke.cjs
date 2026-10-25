@@ -14,7 +14,8 @@ const assert=require('node:assert/strict');
    page.on('pageerror',e=>errors.push(e.message));
    page.on('requestfailed',r=>failed.push({path:new URL(r.url()).pathname,error:r.failure()?.errorText}));
    await page.goto('https://lifecycle-ykn5.onrender.com/',{waitUntil:'networkidle'});
-   await page.locator('#access-gate input[type=email]').first().waitFor({state:'visible',timeout:20000});
+   try { await page.locator('#access-gate input[type=email]').first().waitFor({state:'visible',timeout:20000}); }
+   catch (error) { console.error(JSON.stringify({width,network,failed,errors,gate:await page.locator('#access-gate').innerText()})); throw error; }
    assert.equal(await page.locator('#app-load-retry').count(),0);
    assert.deepEqual(errors,[]);assert.deepEqual(failed,[]);
    assert.ok(network.some(r=>r.path==='/app.bundle.js'&&r.status===200&&r.protocol==='h2'),'Actual HTTP/2 bundle download required');
