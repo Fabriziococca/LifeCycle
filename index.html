@@ -4129,7 +4129,29 @@
         </div>
     </template>
 
-    <script type="module" src="app.js"></script>
+    <script id="lifecycle-startup-guard">
+        (() => {
+            let reported = false;
+            window.lifecycleBootFailure = () => {
+                if (reported) return;
+                const loading = document.getElementById('access-gate-loading');
+                if (!loading || loading.classList.contains('hidden')) return;
+                reported = true;
+                const message = document.createElement('p');
+                message.textContent = 'No se pudo completar la carga de LifeCycle. Tu sesión y tus datos se conservan.';
+                message.setAttribute('role', 'alert');
+                const retry = document.createElement('button');
+                retry.id = 'app-load-retry';
+                retry.type = 'button';
+                retry.className = 'btn btn-primary';
+                retry.textContent = 'Volver a intentar';
+                retry.addEventListener('click', () => window.location.reload());
+                loading.replaceChildren(message, retry);
+            };
+            window.setTimeout(window.lifecycleBootFailure, 30000);
+        })();
+    </script>
+    <script type="module" src="app.bundle.js" onerror="window.lifecycleBootFailure()"></script>
     <script>
         if (!window.__LIFECYCLE_IS_NATIVE__ && 'serviceWorker' in navigator) {
             window.addEventListener('load', () => {

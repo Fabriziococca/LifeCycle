@@ -7,6 +7,9 @@
     "start": "node server.js",
     "test": "node --test --test-isolation=none",
     "test:ui": "node scripts/ui-smoke.cjs",
+    "build:browser": "node scripts/build-browser.mjs",
+    "check:browser": "node scripts/build-browser.mjs --check",
+    "pretest:ui": "npm run build:browser",
     "build:android-web": "node scripts/build-capacitor-web.mjs",
     "cap:sync": "npm run build:android-web && cap sync android",
     "android:debug": "npm run cap:sync && cd android && gradlew.bat assembleDebug"
@@ -29,7 +32,8 @@
     "node": ">=24.0.0 <25.0.0"
   },
   "devDependencies": {
-    "@capacitor/cli": "8.5.1"
+    "@capacitor/cli": "8.5.1",
+    "esbuild": "0.28.2"
   },
   "overrides": {
     "qs": "6.16.0",
