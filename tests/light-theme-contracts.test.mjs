@@ -11,15 +11,13 @@ async function read(relativePath) {
 }
 
 test('shared surfaces expose opaque, readable values for the light theme', async () => {
-    const styles = await read('style.css');
-    const lightTheme = styles.match(/html\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
-
-    assert.match(lightTheme, /--surface-elevated:\s*#ffffff/);
-    assert.match(lightTheme, /--surface-section:\s*#f1f5f9/);
-    assert.match(lightTheme, /--surface-inset:\s*#f8fafc/);
-    assert.match(lightTheme, /--border-subtle:\s*rgba\(15, 23, 42, 0\.12\)/);
-    assert.match(lightTheme, /--progress-track:\s*rgba\(15, 23, 42, 0\.12\)/);
-    assert.match(lightTheme, /--mobile-nav-shadow:\s*0 -10px 30px rgba\(15, 23, 42, 0\.12\)/);
+    const styles = await read('design-tokens.css');
+    const lightTheme = styles.match(/:root\[data-theme="light"\]\s*\{([\s\S]*?)\n\}/)?.[1] || '';
+    for (const name of ['surface-elevated','surface-section','surface-inset','border-subtle','progress-track']) {
+        assert.match(lightTheme, new RegExp(`--${name}:\\s*#[a-f0-9]{6};`, 'i'), `${name} must be opaque`);
+    }
+    assert.match(lightTheme, /--bg-color:\s*#ffffff/);
+    assert.match(styles, /--mobile-nav-shadow:\s*none/);
 });
 
 test('critical overlays and dense managers consume semantic theme surfaces', async () => {

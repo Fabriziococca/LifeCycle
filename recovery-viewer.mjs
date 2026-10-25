@@ -1,5 +1,12 @@
 import { listRecoveryVaults, decryptRecoverySnapshot } from './recovery-vault.mjs';
 
+// Recovery shares appearance only. It never restores cloud sessions or writes data.
+try {
+    const recoveryTheme = localStorage.getItem('lifecycle_theme_preference') === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = recoveryTheme;
+    document.documentElement.style.colorScheme = recoveryTheme;
+} catch { /* Keep the safe dark fallback when storage is unavailable. */ }
+
 const $ = id => document.getElementById(id);
 let vaults = [], opened = null, lockTimer, generation = 0;
 const titles = {

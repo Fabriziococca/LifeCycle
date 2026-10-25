@@ -8,11 +8,11 @@ import {
 } from '../finance-display-utils.mjs';
 import { shouldHideCompletedTask } from '../task-visibility-utils.mjs';
 
-test('style.css defines --status-purple and --status-purple-glow in :root', () => {
-    const cssPath = path.join(process.cwd(), 'style.css');
+test('shared theme defines purple status and its separate surface tint', () => {
+    const cssPath = path.join(process.cwd(), 'design-tokens.css');
     const content = fs.readFileSync(cssPath, 'utf8');
-    assert.match(content, /--status-purple:\s*#a855f7/);
-    assert.match(content, /--status-purple-glow:\s*rgba\(168,\s*85,\s*247/);
+    assert.match(content, /--status-purple:\s*#[a-f0-9]{6}/i);
+    assert.match(content, /--status-purple-glow:\s*rgba\(/);
 });
 
 test('24-hour completed task preference hides old items without deleting data', () => {

@@ -32,6 +32,15 @@ exports.runVisualSmoke = async (page, { width, theme }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await page.evaluate(() => window.lifecycle_controller.activateSection('higiene-section'));
     await page.locator('#tabs-container [data-category="tecnologia"]').click();
+    const readability = await page.evaluate(() => {
+        const title=getComputedStyle(document.getElementById('app-context-title'));
+        const luminance=color=>color.match(/[\d.]+/g).slice(0,3).map(Number).map(v=>v/255).map(v=>v<=.04045?v/12.92:((v+.055)/1.055)**2.4).reduce((n,v,i)=>n+v*[.2126,.7152,.0722][i],0);
+        return {titleFill:title.webkitTextFillColor,titleColor:title.color,titleBackground:title.backgroundImage,
+            contrasts:[...document.querySelectorAll('#tracker-container .custom-tracker-record')].filter(e=>e.getBoundingClientRect().width&&!e.disabled).map(e=>{const s=getComputedStyle(e),a=luminance(s.color),b=luminance(s.backgroundColor);return (Math.max(a,b)+.05)/(Math.min(a,b)+.05);})};
+    });
+    assert.equal(readability.titleFill,readability.titleColor,'Heading must stay legible in both themes');
+    assert.equal(readability.titleBackground,'none','Administrative headings use solid readable text');
+    assert.ok(readability.contrasts.every(ratio=>ratio>=4.5),'Tracker action labels must have enough contrast');
     assert.equal(await page.locator('.glow-orb').first().isVisible(), false);
     const tracker = page.locator('#tracker-container .custom-tracker-card').filter({ has: page.locator('.custom-tracker-record:not([disabled])') }).first();
     const trackerId = await tracker.getAttribute('data-tracker-id');

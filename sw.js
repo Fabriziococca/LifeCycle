@@ -1,6 +1,6 @@
 const LEGACY_CACHE_PREFIX = 'lifecycle-cache-';
-const RECOVERY_CACHE = 'lifecycle-recovery-shell-v1';
-const RECOVERY_ASSETS = ['/recovery.html', '/recovery.css', '/recovery-viewer.mjs', '/recovery-vault.mjs'];
+const RECOVERY_CACHE = 'lifecycle-recovery-shell-v2';
+const RECOVERY_ASSETS = ['/design-tokens.css', '/assets/fonts/inter-latin.woff2', '/recovery.html', '/recovery.css', '/recovery-viewer.mjs', '/recovery-vault.mjs'];
 
 self.addEventListener('install', (e) => {
     console.log('[Service Worker] LifeCycle Push worker installed');

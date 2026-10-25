@@ -1506,7 +1506,7 @@ export class ProjectsModule {
 
                 if (isOver300) {
                     progress = 100;
-                    colorVar = "#3b82f6";
+                    colorVar = "var(--text-link)";
                     countdownText = "🔒 MANUAL (> $300)";
                 } else {
                     const releaseDate = new Date(del.getTime() + 15 * 24 * 60 * 60 * 1000);

@@ -974,9 +974,9 @@ export class TareasModule {
                     btnPinProject.querySelector('i').className = 'ph ph-push-pin-slash';
                 } else {
                     if (lblPinProject) lblPinProject.innerText = 'Fijar Proyecto';
-                    btnPinProject.style.background = 'rgba(59, 130, 246, 0.1)';
-                    btnPinProject.style.borderColor = 'rgba(59, 130, 246, 0.25)';
-                    btnPinProject.style.color = '#3b82f6';
+                    btnPinProject.style.background = 'var(--surface-active)';
+                    btnPinProject.style.borderColor = 'var(--surface-border)';
+                    btnPinProject.style.color = 'var(--text-link)';
                     btnPinProject.querySelector('i').className = 'ph ph-push-pin';
                 }
             }

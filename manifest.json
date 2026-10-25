@@ -4,8 +4,8 @@
   "description": "Control unificado de hábitos, lentes de contacto e higiene del hogar",
   "start_url": "./index.html",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "background_color": "#141414",
+  "theme_color": "#141414",
   "icons": [
     {
       "src": "icon-v2.png",
