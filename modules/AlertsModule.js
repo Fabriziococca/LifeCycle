@@ -595,6 +595,8 @@ export class AlertsModule {
         if (!context.onSave && !reminderId && !this.ensureRecurringReminderCreationCapacity()) {
             return false;
         }
+        this.reminderEditorCleanup?.();
+        this.reminderEditorCleanup = null;
         const config = context.config || (reminder ? (this.configs[reminder.id] || {}) : {});
         this.reminderContext = {...context, workspace:context.workspace || reminder?.workspace || this.app.work?.area || 'personal', owner:this.app.auth?.readyUserId, generation:this.app.auth?.syncGeneration};
         this.editingRecurringReminderId = reminder?.id || null;
@@ -661,11 +663,14 @@ export class AlertsModule {
         error.classList.add('hidden');
         modal.classList.remove('hidden');
         document.body.classList.add('modal-open');
+        this.reminderEditorCleanup = context.onOpen?.(form);
         requestAnimationFrame(() => document.getElementById('recurring-reminder-name')?.focus());
         return true;
     }
 
     closeRecurringReminderEditor({ restoreFocus = true } = {}) {
+        this.reminderEditorCleanup?.();
+        this.reminderEditorCleanup = null;
         document.getElementById('recurring-reminder-modal')?.classList.add('hidden');
         if (!document.querySelector('.modal:not(.hidden), .custom-tracker-dialog:not(.hidden)')) {
             document.body.classList.remove('modal-open');

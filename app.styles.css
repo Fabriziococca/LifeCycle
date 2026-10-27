@@ -49164,6 +49164,12 @@ body.access-locked #planning-dialog{display:none}
 .work-followup small{overflow-wrap:anywhere}
 @media(max-width:1000px){.work-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.work-columns{grid-template-columns:1fr}}
 @media(max-width:600px){#workspace-switch{padding:10px;min-width:42px}#workspace-switch span{display:none}.work-metrics{gap:8px}.work-metrics .card{padding:14px}.work-content .planning-actions .btn{padding:10px 12px}.work-content .planning-heading{gap:8px}}
+.maintenance-thresholds { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; padding: 16px 0; border-block: 1px solid var(--divider-color); margin: 16px 0; }
+.maintenance-thresholds small, .maintenance-thresholds strong { display: block; }
+.maintenance-thresholds small { color: var(--text-secondary); margin-bottom: 4px; }
+.maintenance-card.is-high-priority { border-color: var(--status-red); }
+.maintenance-card .badge.red { color: var(--status-red); background: color-mix(in srgb, var(--status-red) 12%, transparent); }
+@media (max-width: 600px) { .maintenance-thresholds { grid-template-columns: 1fr; gap: 12px; } }
 
 /* Source: visual.css */
 /* Shared visual foundation. Keep business colours, layouts and controls intact.

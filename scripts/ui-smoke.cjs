@@ -11,6 +11,7 @@ const { runPlanningSmoke } = require('./planning-smoke.cjs');
 const { runWorkSmoke } = require('./work-smoke.cjs');
 const { runCareSmoke } = require('./care-smoke.cjs');
 const { runRetainerSmoke } = require('./retainer-smoke.cjs');
+const { runMaintenanceEscalationSmoke } = require('./maintenance-escalation-smoke.cjs');
 const { runOrganizationSmoke } = require('./organization-smoke.cjs');
 const { runChargingSmoke } = require('./charging-smoke.cjs');
 const { runLifecycleImprovementsSmoke } = require('./lifecycle-improvements-smoke.cjs');
@@ -84,6 +85,9 @@ const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
             }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'clients') {
                 await runRetainerSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,clients:true}));await context.close();continue;
+            }
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'maintenance') {
+                await runMaintenanceEscalationSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,maintenance:true}));await context.close();continue;
             }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'care') {
                 await runCareSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,care:true}));await context.close();continue;

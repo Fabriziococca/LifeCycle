@@ -1,4 +1,4 @@
-import { validateMaintenance, maintenanceActive, maintenanceNoticeDue } from './maintenance-utils.mjs';
+import { validateMaintenance, maintenanceActive, maintenanceNoticeDue, maintenancePriority } from './maintenance-utils.mjs';
 import { validateRetainers, pendingRetainers } from './retainer-utils.mjs';
 import { addDays } from './schedule-date-utils.mjs';
 export const WORK_KEY = 'lifecycle_work';
@@ -10,6 +10,7 @@ export const WORK_NAV = Object.freeze({
 });
 export const WORK_ACTORS = Object.freeze({ me: 'Yo', client: 'Cliente', third: 'Tercero' });
 export const WORK_SCOPES = Object.freeze({ all: 'Todas', work: 'Trabajo', personal: 'Personal', unclassified: 'Sin clasificar' });
+export const followupPriority=(f,day=argentinaDate())=>maintenancePriority(f,day).high?'high':f.priority;
 const ID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const assert = (value, message) => { if (!value) throw new Error(message); };
 const text = (value, max, required = false) => typeof value === 'string' && value.length <= max && (!required || value.trim().length > 0);
@@ -77,7 +78,7 @@ function workNotificationCandidatesForDay(state,now,day) {
     const bills=pendingRetainers(state,day);
     if (state.settings.dailyEnabled && (overview.due.length || bills.length)) add('work:daily', state.settings.dailyTime, 'Trabajo · resumen diario', overview.mine.length + ' acciones para vos · ' + overview.due.filter(f => f.actor !== 'me').length + ' esperas · '+bills.length+' cobros por confirmar.');
     for (const f of overview.open.filter(f=>f.reviewOn&&f.reviewOn<=day)) if (f.reminderEnabled) {
-        if(f.maintenance){if(maintenanceNoticeDue(f,day))for(const time of f.maintenance.times)add(`work:maintenance:${f.id}:${f.maintenance.scheduleVersion}:${time.replace(':','')}`,time,f.maintenance.pushTitle||'Trabajo · recordatorio',f.title+' · '+state.clients.find(c=>c.id===f.clientId).name+(f.maintenance.instructions?' · '+f.maintenance.instructions.slice(0,240):''),f);}
+        if(f.maintenance){if(maintenanceNoticeDue(f,day))for(const time of f.maintenance.times)add(`work:maintenance:${f.id}:${f.maintenance.scheduleVersion}:${time.replace(':','')}`,time,(maintenancePriority(f,day).high?'Prioridad alta · ':'')+(f.maintenance.pushTitle||'Trabajo · recordatorio'),f.title+' · '+state.clients.find(c=>c.id===f.clientId).name+(f.maintenance.instructions?' · '+f.maintenance.instructions.slice(0,240):''),f);}
         else add('work:followup:' + f.id, f.reminderTime, 'Trabajo · seguimiento', f.title, f);
     }
     for (const {client,retainer:r} of bills) if(r.reminderEnabled) for(const time of r.times)

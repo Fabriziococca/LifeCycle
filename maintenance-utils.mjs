@@ -14,6 +14,7 @@ export function validateMaintenance(item) {
     else if(c.type==='weekly')assert(Array.isArray(c.days)&&c.days.length>=1&&c.days.length<=7&&new Set(c.days).size===c.days.length&&c.days.every(d=>Number.isInteger(d)&&d>=0&&d<=6), 'Elegí los días de la semana.');
     assert(m.completed===undefined||typeof m.completed==='boolean','Estado de realización no válido.');
     assert(m.repeatUntilDone===undefined||typeof m.repeatUntilDone==='boolean','Repetición de avisos no válida.');
+    assert(m.escalationDays===undefined||(Number.isInteger(m.escalationDays)&&m.escalationDays>=1&&m.escalationDays<=3650&&m.repeatUntilDone!==false),'La prioridad alta necesita entre 1 y 3650 días de atraso y seguimiento hasta realizarla.');
     assert(m.pushTitle===undefined||(typeof m.pushTitle==='string'&&m.pushTitle.length<=100),'Título de aviso no válido.');
     assert(Array.isArray(m.history)&&m.history.length<=2000, 'El historial llegó al límite. Exportalo antes de continuar.');
     const ids=new Set();
@@ -24,6 +25,14 @@ export function validateMaintenance(item) {
     return item;
 }
 export const maintenanceActive=f=>!f.maintenance || (!f.maintenance.paused&&!f.maintenance.archived&&!f.maintenance.completed);
+// Escalation is relative to the current due date, so completion moves both
+// thresholds together without rewriting history or creating another reminder.
+export function maintenancePriority(item, day=argentinaDay()) {
+    const m=item.maintenance;
+    const highOn=m?.escalationDays===undefined?null:addDays(item.reviewOn,m.escalationDays);
+    const high=!!(highOn&&maintenanceActive(item)&&m.repeatUntilDone!==false&&day>=highOn);
+    return {high,highOn};
+}
 export function maintenanceSchedule(item) {
     const c=item.maintenance.cadence;
     if(c.type==='scheduled')return c.schedule;
@@ -73,6 +82,6 @@ export function completeMaintenance(item,{id,doneOn,note='',now=new Date()}) {
 export function maintenanceDescription(m) {
     if(m.cadence.type==='scheduled')return describeRecurringSchedule(m.cadence.schedule);
     if(m.cadence.type==='weekly')return 'Días: '+m.cadence.days.map(d=>['dom','lun','mar','mié','jue','vie','sáb'][d]).join(', ');
-    const c=m.cadence, unit={days:'días',weeks:'semanas',months:'meses'}[c.unit];
+    const c=m.cadence, unit=(c.every===1?{days:'día',weeks:'semana',months:'mes'}:{days:'días',weeks:'semanas',months:'meses'})[c.unit];
     return `Cada ${c.every} ${unit} · ${c.anchor==='completion'?'desde la realización':'calendario fijo'}`;
 }

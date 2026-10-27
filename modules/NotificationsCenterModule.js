@@ -1,4 +1,5 @@
 import { pendingRetainers } from '../retainer-utils.mjs';
+import { maintenancePriority } from '../maintenance-utils.mjs';
 import {
     DateUtils,
     getLocalISODate,
@@ -395,7 +396,7 @@ export class NotificationsCenterModule {
         try {
             const state=this.app.work?.store.value;
             if(state) for(const f of state.followups) if(f.maintenance&&!f.maintenance.completed&&f.maintenance.repeatUntilDone!==false&&!f.maintenance.paused&&!f.maintenance.archived&&f.reviewOn<=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires'}).format(new Date())&&state.clients.some(c=>c.id===f.clientId&&!c.archived))
-                items.push({module:'maintenance',id:f.id,clientId:f.clientId,name:f.title,desc:'Recordatorio del cliente · '+f.reviewOn,icon:'ph-wrench',urgency:'urgente',completable:false});
+                items.push({module:'maintenance',id:f.id,clientId:f.clientId,name:f.title,desc:'Recordatorio del cliente · '+f.reviewOn,icon:'ph-wrench',urgency:maintenancePriority(f).high?'muy_urgente':'urgente',completable:false});
         } catch {}
         const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires'}).format(new Date());
         for(const {client,retainer:r} of pendingRetainers(this.app.work?.store?.state,day))items.push({module:'retainer',id:r.id,clientId:client.id,name:'¿'+client.name+' te pagó '+r.title+'?',desc:'Cobro por confirmar · período '+r.nextDue,icon:'ph-hand-coins',urgency:'urgente',completable:false});
