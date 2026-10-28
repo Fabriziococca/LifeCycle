@@ -1,5 +1,31 @@
 # Recordatorios de clientes con refuerzo de prioridad
 
+## Ajuste de experiencia del 27/10 por la noche
+
+Clientes → ficha → **Tarjetas y avisos** permite crear una **Nueva tarjeta**.
+Reutiliza los componentes de Higiene: contador de días, progreso, Último/Vence,
+estado, pausa y registro de realización. Configuración principal: nombre,
+Atención desde un día, Vencida desde otro y horarios con **+ Horario**.
+Proyecto e instrucciones quedan desplegables; configuración, instrucciones,
+historial y archivo están en el menú de la tarjeta.
+
+Para Diego se conservan las tres rutinas existentes, fechas, horarios e historial.
+El reinicio y la revisión de proveedores pasan a Atención al día 3 y Vencido al
+día 7; OBS al día 1 y 2 respectivamente. Vencido es un plazo de organización,
+no una afirmación sobre daño del equipo. El aviso reforzado dice «Vencido».
+Un ciclo inicial cuenta desde su inicio, sin inventar una realización. Registrar
+una realización reinicia ambos plazos desde la fecha elegida; consultar, editar
+instrucciones o cerrar el formulario no registra tareas ni reinicia el ciclo.
+
+Los avisos de una sola vez y otras frecuencias se conservan en «Recordatorios con
+otra frecuencia» y en Recordatorios de Trabajo. Una tarjeta admite volver a ese
+editor desde su menú. No se convierten automáticamente los recordatorios
+puntuales ni los calendarios fijos. Se mantiene el modelo y guardado existentes;
+no requiere migración de datos.
+
+La sección siguiente describe la implementación inicial de los plazos. Sus
+referencias a «Prioridad alta» corresponden al nombre anterior del segundo plazo.
+
 Desde Trabajo → Clientes → Abrir ficha → Agregar recordatorio se conserva el
 editor unificado: una sola vez, intervalos, semanal, mensual y anual. También
 se puede crear desde Recordatorios de Trabajo eligiendo el cliente.

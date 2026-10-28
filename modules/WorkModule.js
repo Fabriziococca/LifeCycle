@@ -90,7 +90,7 @@ export class WorkModule {
     renderClientsList(){try{const data=this.store.value;const list=document.querySelector('[data-work-clients-list]');if(list)list.innerHTML=this.clientCards(data);const directory=document.querySelector('[data-client-directory-list]');if(directory)directory.innerHTML=this.clientDirectoryRows(data);}catch{}}
     detail(c,data) {
         const links=data.links.filter(l=>l.clientId===c.id), notes=data.notes.filter(n=>n.clientId===c.id).slice().reverse();
-        const tabs=[['summary','Resumen'],['reminders','Recordatorios'],['retainers','Mantenimiento'],['projects','Proyectos'],['history','Historial']];
+        const tabs=[['summary','Resumen'],['reminders','Tarjetas y avisos'],['retainers','Mantenimiento'],['projects','Proyectos'],['history','Historial']];
         const show=tab=>this.clientTab==='summary'||this.clientTab===tab?'':' hidden';
         return `<div class="work-client-layout"><aside class="work-client-directory" aria-label="Cambiar de cliente"><label class="work-client-search">Buscar cliente<input type="search" name="work-search" class="text-input" value="${esc(this.query)}"></label><div data-client-directory-list>${this.clientDirectoryRows(data)}</div></aside><div class="work-client-body">`+this.heading(`<span class="work-client-title"><span class="work-client-avatar" aria-hidden="true">${esc(this.clientInitials(c))}</span><span>${esc(c.name)}</span></span>`,c.archived?'Cliente archivado · historial conservado':esc(c.contact||'Cliente activo'),btn('back','Todos los clientes')+btn('client','Editar ficha',c.id)+btn('archive',c.archived?'Reactivar':'Archivar',c.id))+
             (c.context?`<p class="work-text work-client-context">${esc(c.context)}</p>`:'')+

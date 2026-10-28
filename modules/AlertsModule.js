@@ -1,3 +1,4 @@
+import { timeSlotRow } from './TimeSlotsEditor.js';
 import {
     getSuggestedAlertTime,
     MAX_ALERT_TIMES_PER_DAY,
@@ -379,26 +380,16 @@ export class AlertsModule {
     appendReminderExtraTime(time) {
         const container = document.getElementById('recurring-reminder-extra-times-list');
         if (!container) return;
-        const row = document.createElement('div');
-        row.style.cssText = 'display: flex; gap: 6px; align-items: center;';
-        const input = document.createElement('input');
-        input.type = 'time';
-        input.className = 'text-input recurring-extra-time-input';
-        input.value = time;
-        input.style.flex = '1';
-        input.setAttribute('aria-label', 'Horario adicional del recordatorio');
-        const remove = document.createElement('button');
-        remove.type = 'button';
-        remove.className = 'icon-btn btn-remove-reminder-extra-time';
-        remove.style.cssText = 'color: var(--status-red); padding: 4px;';
-        remove.title = 'Eliminar horario';
+        const template = document.createElement('template');
+        template.innerHTML = timeSlotRow(time, { className: 'recurring-extra-time-input', label: 'Horario adicional del recordatorio' });
+        const row = template.content.firstElementChild;
+        const remove = row.querySelector('[data-remove-time]');
+        remove.classList.add('btn-remove-reminder-extra-time');
         remove.setAttribute('aria-label', 'Eliminar horario adicional del recordatorio');
-        remove.innerHTML = '<i class="ph ph-trash"></i>';
         remove.addEventListener('click', () => {
             row.remove();
             this.updateReminderAddTimeButton();
         });
-        row.append(input, remove);
         container.appendChild(row);
         this.updateReminderAddTimeButton();
     }

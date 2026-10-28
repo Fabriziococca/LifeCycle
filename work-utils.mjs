@@ -1,4 +1,4 @@
-import { validateMaintenance, maintenanceActive, maintenanceNoticeDue, maintenancePriority } from './maintenance-utils.mjs';
+import { validateMaintenance, maintenanceActive, maintenanceNoticeDue, maintenancePriority, isMaintenanceCycle } from './maintenance-utils.mjs';
 import { validateRetainers, pendingRetainers } from './retainer-utils.mjs';
 import { addDays } from './schedule-date-utils.mjs';
 export const WORK_KEY = 'lifecycle_work';
@@ -78,7 +78,7 @@ function workNotificationCandidatesForDay(state,now,day) {
     const bills=pendingRetainers(state,day);
     if (state.settings.dailyEnabled && (overview.due.length || bills.length)) add('work:daily', state.settings.dailyTime, 'Trabajo · resumen diario', overview.mine.length + ' acciones para vos · ' + overview.due.filter(f => f.actor !== 'me').length + ' esperas · '+bills.length+' cobros por confirmar.');
     for (const f of overview.open.filter(f=>f.reviewOn&&f.reviewOn<=day)) if (f.reminderEnabled) {
-        if(f.maintenance){if(maintenanceNoticeDue(f,day))for(const time of f.maintenance.times)add(`work:maintenance:${f.id}:${f.maintenance.scheduleVersion}:${time.replace(':','')}`,time,(maintenancePriority(f,day).high?'Prioridad alta · ':'')+(f.maintenance.pushTitle||'Trabajo · recordatorio'),f.title+' · '+state.clients.find(c=>c.id===f.clientId).name+(f.maintenance.instructions?' · '+f.maintenance.instructions.slice(0,240):''),f);}
+        if(f.maintenance){if(maintenanceNoticeDue(f,day))for(const time of f.maintenance.times)add(`work:maintenance:${f.id}:${f.maintenance.scheduleVersion}:${time.replace(':','')}`,time,(maintenancePriority(f,day).high?(isMaintenanceCycle(f)?'Vencido · ':'Prioridad alta · '):'')+(f.maintenance.pushTitle||'Trabajo · recordatorio'),f.title+' · '+state.clients.find(c=>c.id===f.clientId).name+(f.maintenance.instructions?' · '+f.maintenance.instructions.slice(0,240):''),f);}
         else add('work:followup:' + f.id, f.reminderTime, 'Trabajo · seguimiento', f.title, f);
     }
     for (const {client,retainer:r} of bills) if(r.reminderEnabled) for(const time of r.times)

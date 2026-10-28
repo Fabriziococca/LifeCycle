@@ -19,7 +19,7 @@ exports.runRetainerSmoke=async(page,{width,theme})=>{
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.revision),before,'cancel leaves links unchanged');
  await clients.locator('[data-work-action=link]').click();await dialog.locator('[value=qa-retainer-one]').check();await failSaveThenRetry();
  assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.links.length),1,'only selected project is linked');
- await clients.locator('[data-work-action=maintenance-new]').click();await page.locator('#recurring-reminder-name').fill('Reiniciar PC QA');await page.locator('#reminder-client-project').selectOption('qa-retainer-one');
+ await clients.locator('.maintenance-other > summary').first().click();await clients.locator('[data-work-action=maintenance-new]').click();await page.locator('#recurring-reminder-name').fill('Reiniciar PC QA');await page.locator('#reminder-client-project').selectOption('qa-retainer-one');
  await page.locator('#recurring-reminder-frequency').selectOption('interval');await page.locator('#recurring-reminder-every').fill('3');
  assert.equal(await page.locator('#recurring-reminder-unit').inputValue(),'days');assert.equal(await page.locator('#recurring-reminder-enabled').isChecked(),true);
  await page.locator('#recurring-reminder-form [type=submit]').click();await page.locator('#recurring-reminder-modal').waitFor({state:'hidden'});

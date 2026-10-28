@@ -92,3 +92,18 @@ Un rollback de código conserva los nuevos datos en la base. No eliminar la clav
 de agenda ni las extensiones de rutinas como parte de un rollback. Versiones
 antiguas no muestran Turnos ni conocen la repetición de Mantenimiento; pausar
 rutinas nuevas antes de volver a una versión anterior si se requiere rollback.
+
+## Ajuste del editor de Turnos — 27/10/2026
+
+Turnos comparte con Recordatorios los selectores nativos de hora y la interacción
+**+ Horario / eliminar horario**; ya no exige escribir listas separadas por comas.
+Lo principal queda a la vista: nombre, fecha, hora, activación de avisos y desde
+cuándo avisar. Hay anticipaciones preseleccionadas y una opción personalizada.
+Profesional, lugar, enlace, indicaciones y control vinculado quedan desplegables.
+
+Un turno nuevo comienza con una etapa editable: 7 días antes, a las 09:00.
+«Cambiar horarios al acercarse» permite hasta cuatro etapas; cada una admite
+hasta seis horarios distintos y reemplaza a la anterior. Al editar un turno
+existente se conservan todas sus etapas, horarios y demás datos, aunque sus
+detalles estén cerrados. El aviso del día de la cita sigue limitado a antes de
+la hora del turno. No se modifican ni se completan turnos reales para probar.

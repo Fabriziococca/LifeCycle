@@ -25,6 +25,21 @@ export function validateMaintenance(item) {
     return item;
 }
 export const maintenanceActive=f=>!f.maintenance || (!f.maintenance.paused&&!f.maintenance.archived&&!f.maintenance.completed);
+export const isMaintenanceCycle = item => {
+    const m = item.maintenance, c = m?.cadence;
+    return !!(m && m.repeatUntilDone !== false && c.type === 'interval' && c.unit === 'days' && c.anchor === 'completion');
+};
+export function maintenanceCycleState(item, day = argentinaDay()) {
+    if (!isMaintenanceCycle(item)) return null;
+    const m = item.maintenance, warningDays = m.cadence.every;
+    const deadlineDays = warningDays + (m.escalationDays || 0);
+    // reviewOn already follows the actual completion, including early/late ones.
+    // An initial anchor starts a counter, never a fabricated history entry.
+    const startOn = addDays(item.reviewOn, -warningDays), deadlineOn = addDays(startOn, deadlineDays);
+    const elapsedDays = Math.max(0, dayDistance(startOn, day));
+    const state = m.archived ? ['Archivado', 'gray'] : m.completed ? ['Realizado', 'gray'] : m.paused ? ['Pausado', 'gray'] : day < startOn ? ['Programado', 'gray'] : day >= deadlineOn ? ['Vencido', 'red'] : day >= item.reviewOn ? ['Atención', 'orange'] : ['Al día', 'green'];
+    return { label: state[0], tone: state[1], startOn, warningOn: item.reviewOn, deadlineOn, warningDays, deadlineDays, elapsedDays, progress: Math.min(100, elapsedDays / deadlineDays * 100), lastDoneOn: m.history[0]?.doneOn || null };
+}
 // Escalation is relative to the current due date, so completion moves both
 // thresholds together without rewriting history or creating another reminder.
 export function maintenancePriority(item, day=argentinaDay()) {

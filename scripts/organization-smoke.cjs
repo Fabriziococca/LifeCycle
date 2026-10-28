@@ -23,7 +23,7 @@ exports.runOrganizationSmoke=async(page,{width,theme})=>{
     await page.locator('#recurring-reminder-frequency').selectOption('interval');await page.locator('#recurring-reminder-every').fill('3');await page.locator('#recurring-reminder-start').fill('2026-12-20');await save();
     await open('work-clients-section');await page.locator('#work-clients-section [data-work-action=client]').click();
     await page.locator('#planning-dialog [name=name]').fill('QA Cliente organización');await page.locator('#planning-dialog [type=submit]').click();await page.locator('#planning-dialog').waitFor({state:'hidden'});
-    await page.locator('#work-clients-section [data-work-action=maintenance-new]').click();
+    await page.locator('#work-clients-section .maintenance-other > summary').first().click();await page.locator('#work-clients-section [data-work-action=maintenance-new]').click();
     await page.locator('#recurring-reminder-name').fill('QA Cliente puntual');
     await page.locator('#recurring-reminder-frequency').selectOption('once');await page.locator('#recurring-reminder-date').fill('2026-12-21');
     assert.equal(await page.locator('#recurring-reminder-category').isVisible(),false);

@@ -13,7 +13,7 @@ test('normal notice at day 3 and high priority at day 7, at 22:00 Argentina and 
  const f=routine(),s=state(f);validateWork(s);
  assert.equal(workNotificationCandidates(s,night('2026-10-03')).length,0);
  for(const day of ['2026-10-04','2026-10-07']){assert.equal(maintenancePriority(f,day).high,false);assert.equal(workNotificationCandidates(s,night(day))[0].title,'Trabajo · recordatorio');}
- for(const day of ['2026-10-08','2026-10-13']){assert.equal(maintenancePriority(f,day).high,true);assert.match(workNotificationCandidates(s,night(day))[0].title,/^Prioridad alta/);assert.equal(followupPriority(f,day),'high');}
+ for(const day of ['2026-10-08','2026-10-13']){assert.equal(maintenancePriority(f,day).high,true);assert.match(workNotificationCandidates(s,night(day))[0].title,/^Vencido/);assert.equal(followupPriority(f,day),'high');}
  assert.equal(maintenancePriority(f).highOn,'2026-10-08');assert.equal(f.reviewOn,'2026-10-04');assert.equal(f.maintenance.history.length,0);
  assert.equal(workNotificationCandidates(s,new Date('2026-10-08T22:15:00-03:00')).length,0);
 });

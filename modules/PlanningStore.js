@@ -60,12 +60,12 @@ export class PlanningStore {
 export function planningDialog(app, title, html, onSave) {
     const existing = document.getElementById('planning-dialog');
     if (existing) return; // Do not discard another unsaved form.
-    const previous = document.activeElement, user = app.auth?.user?.id;
+    const previous = document.activeElement?.closest('.custom-tracker-menu')?.querySelector('summary') || document.activeElement, user = app.auth?.user?.id;
     const layer = document.createElement('div');
     layer.id = 'planning-dialog'; layer.className = 'custom-tracker-dialog planning-dialog';
     layer.innerHTML = `<div class="custom-tracker-dialog-card" role="dialog" aria-modal="true" aria-labelledby="planning-dialog-title">
         <header class="planning-heading"><h2 id="planning-dialog-title"></h2><button type="button" class="icon-btn" data-close aria-label="Cerrar formulario" data-tooltip="Cerrar"><i class="ph ph-x" aria-hidden="true"></i></button></header>
-        <form>${html}<p class="planning-error" role="alert"></p><footer class="planning-actions"><button type="button" class="btn btn-secondary" data-close>Cancelar</button><button class="btn btn-primary" type="submit">Guardar</button></footer></form></div>`;
+        <form>${html}<p class="planning-error" role="alert"></p><footer class="planning-actions"><button type="button" class="btn btn-secondary" data-close>${onSave?'Cancelar':'Cerrar'}</button>${onSave?'<button class="btn btn-primary" type="submit">Guardar</button>':''}</footer></form></div>`;
     layer.querySelector('h2').textContent = title;
     document.body.append(layer); document.body.classList.add('modal-open');
     let saving = false;
@@ -80,14 +80,15 @@ export function planningDialog(app, title, html, onSave) {
         else if (!e.shiftKey && document.activeElement===last) { e.preventDefault(); first?.focus(); }
     });
     layer.querySelector('form').addEventListener('submit',async e=>{
-        e.preventDefault(); if(saving) return;
+        e.preventDefault(); if(saving || !onSave) return;
         const error = layer.querySelector('[role=alert]'); error.textContent='';
         if (!user || app.auth?.user?.id !== user) { error.textContent='La sesión cambió. Cerrá el formulario.'; return; }
         saving = true;
-        layer.querySelectorAll('button').forEach(b=>b.disabled=true);
+        const buttons = [...layer.querySelectorAll('button')].map(button => [button, button.disabled]);
+        buttons.forEach(([button])=>button.disabled=true);
         try { await onSave(new FormData(e.target)); saving=false; close(); app.showToast?.('Guardado y sincronizado.'); }
         catch(err) { error.textContent=err.message; }
-        finally { saving=false; layer.querySelectorAll('button').forEach(b=>b.disabled=false); }
+        finally { saving=false; buttons.forEach(([button, disabled])=>button.disabled=disabled); }
     });
     layer.querySelector('input,select,textarea,button').focus();
     return layer;

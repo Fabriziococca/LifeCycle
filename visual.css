@@ -364,3 +364,41 @@ input::placeholder,textarea::placeholder { color: var(--placeholder-color); opac
     .profile-sidebar { border-radius: 15px; }
     .profile-menu-item { min-height: 48px; }
 }
+
+/* Client cycles use the same components as the configurable Hygiene cards. */
+.maintenance-cycle-grid { display: grid; grid-template-columns: repeat(auto-fill,minmax(min(100%,280px),1fr)); gap: 20px; margin-block: 18px 24px; align-items: stretch; }
+.maintenance-cycle-card { margin: 0; }
+.maintenance-cycle-card .custom-tracker-identity h3 { margin: 0; white-space: normal; overflow-wrap: anywhere; }
+.maintenance-cycle-card .cycle-context,.maintenance-cycle-card .cycle-rule { margin: 0; color: var(--text-secondary); font-size: .8rem; line-height: 1.6; }
+.maintenance-cycle-card .tracker-utility-row { margin-top: auto; }
+.maintenance-cycle-card .tracker-utility-row .btn { background: transparent; border-color: transparent; color: var(--text-secondary); }
+.maintenance-cycle-card .custom-tracker-record { width: 100%; }
+.maintenance-other { margin-block: 20px; }
+.maintenance-other>summary { cursor: pointer; color: var(--text-secondary); }
+.maintenance-cycle-grid>.planning-card { grid-column: 1 / -1; }
+
+/* The same native time rows, add/remove controls and compact dialog rhythm. */
+.schedule-editor-dialog .custom-tracker-dialog-card { width: min(560px,100%); max-width: 560px; }
+.schedule-editor-dialog form { display: grid; gap: 18px; }
+.schedule-editor-dialog form>p,.schedule-editor-dialog .care-stage>p { margin: 0; }
+.schedule-editor-dialog .care-stage { padding: 0; border: 0; display: grid; gap: 14px; margin: 0; }
+.schedule-editor-dialog .care-stage+[data-stage-index] { padding-top: 18px; margin-top: 18px; border-top: 1px solid var(--divider-color); }
+.schedule-times-field { display: grid; gap: 10px; color: var(--text-secondary); }
+.schedule-times { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 8px; align-items: start; }
+.schedule-times>[data-time-rows] { display: grid; gap: 8px; min-width: 0; }
+.schedule-time-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.schedule-time-row input { flex: 1 1 0; min-width: 0; width: 100%; }
+.schedule-time-row .icon-btn { flex: 0 0 44px; min-height: 44px; }
+.schedule-times>[data-add-time] { min-height: 48px; white-space: nowrap; }
+.schedule-optional { border-top: 1px solid var(--divider-color); padding-top: 16px; }
+.schedule-optional>summary { font-weight: 600; cursor: pointer; color: var(--text-secondary); line-height: 1.6; }
+.schedule-optional[open]>summary { margin-bottom: 16px; }
+.schedule-optional>label,.schedule-optional>.planning-hint { margin-block: 14px; }
+.reminder-active-switch { display: flex !important; justify-content: space-between; align-items: center; gap: 16px; padding: 16px; border: 1px solid var(--divider-color); border-radius: 16px; background: var(--surface-subtle); }
+.reminder-active-switch>span:first-child { display: grid; gap: 4px; }
+.reminder-active-switch small { color: var(--text-secondary); font-size: .8rem; line-height: 1.5; font-weight: 400; }
+@media (max-width:767px) {
+    .maintenance-cycle-grid { gap: 16px; }
+    .schedule-editor-dialog .care-form-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
+    .schedule-editor-dialog .care-form-grid input { min-width: 0; width: 100%; }
+}

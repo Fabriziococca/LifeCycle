@@ -43,7 +43,8 @@ export class RemindersModule {
             let data;try{data=this.app.work.store.value;}catch{}
             if(data){
                 const clients=new Set(data.clients.filter(c=>!c.archived).map(c=>c.id));
-                html.push(...data.followups.filter(f=>f.maintenance&&!f.maintenance.archived&&clients.has(f.clientId)).map(f=>this.app.work.maintenance.card(f,data)));
+                const entries=data.followups.filter(f=>f.maintenance&&!f.maintenance.archived&&clients.has(f.clientId));
+                if(entries.length)html.push(`<div class="maintenance-cycle-grid">${entries.map(f=>this.app.work.maintenance.card(f,data)).join('')}</div>`);
             }else html.push('<p role="status">Sincronizando los recordatorios de clientes…</p>');
         }
         this.root.querySelector('#reminders-list').innerHTML=html.join('')||'<div class="planning-empty">Todavía no creaste recordatorios en este espacio.</div>';

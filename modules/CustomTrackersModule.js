@@ -1,4 +1,5 @@
 import { setEntityPaused } from '../pause-utils.mjs';
+import { cycleMetrics } from '../cycle-card-view.mjs';
 import {
     APP_MODULES,
     appendCustomTrackerRecords,
@@ -4653,20 +4654,7 @@ export class CustomTrackersModule {
                         <span style="width: ${state.active ? 100 : 0}%"></span>
                     </div>
                 ` : `
-                    <div class="custom-tracker-metric">
-                        <strong>${state.elapsedDays === null ? '--' : state.elapsedDays}</strong>
-                        <span>${escapeHtml(cadenceLabel)}</span>
-                    </div>
-                    <div class="custom-tracker-dates">
-                        <span>Último <strong>${escapeHtml(latestLabel)}</strong></span>
-                        <span>Próximo <strong>${escapeHtml(nextLabel)}</strong></span>
-                    </div>
-                    <div class="custom-tracker-progress" aria-hidden="true">
-                        <span style="width: ${state.progress}%"></span>
-                    </div>
-                    ${prediction ? `
-                        <p class="custom-tracker-prediction">${escapeHtml(prediction)}</p>
-                    ` : ''}
+                    ${cycleMetrics({ elapsedDays: state.elapsedDays, cadenceLabel, latestLabel, nextLabel, progress: state.progress, prediction })}
                 `}
                 <div class="tracker-utility-row"><button type="button" class="btn btn-secondary tracker-pause-button" data-custom-runtime-action="toggle-pause" data-tracker-id="${tracker.id}">
                     <i class="ph ${tracker.paused ? 'ph-play' : 'ph-pause'}" aria-hidden="true"></i> ${tracker.paused ? 'Reanudar' : 'Pausar'}
