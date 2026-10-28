@@ -90,7 +90,8 @@ export function planningDialog(app, title, html, onSave) {
         catch(err) { error.textContent=err.message; }
         finally { saving=false; buttons.forEach(([button, disabled])=>button.disabled=disabled); }
     });
-    layer.querySelector('input,select,textarea,button').focus();
+    const firstField=[...layer.querySelectorAll('form input,form select,form textarea')].find(field=>!field.disabled&&field.offsetParent!==null);
+    (firstField||layer.querySelector('button')).focus();
     return layer;
 }
 

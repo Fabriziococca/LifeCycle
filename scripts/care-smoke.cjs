@@ -28,6 +28,7 @@ exports.runCareSmoke=async(page,{width,theme})=>{
  await page.screenshot({path:`.tmp-sb/ui-smoke/care-maintenance-${width}-${theme}.png`,fullPage:true,animations:'disabled'});
  await page.evaluate(()=>{const a=window.lifecycle_controller;a.activateSection('salud-section');a.appointments.activate('turnos');});
  const health=page.locator('#health-appointments');await health.getByRole('button',{name:'Nuevo turno',exact:true}).click();
+ assert.equal(await field('name').evaluate(el=>el===document.activeElement),true,'a new appointment is ready to type, like a reminder');
  await field('name').fill('Turno QA <prueba>');await page.screenshot({path:`.tmp-sb/ui-smoke/care-appointment-editor-${width}-${theme}.png`,fullPage:false});await dialog.locator('.schedule-optional').last().locator('summary').click();await field('professional').fill('Profesional sintético');await field('date').fill('2026-12-20');await field('location').fill('Consultorio de prueba');
  await dialog.locator('[data-extra-stages] > summary').click();await dialog.locator('[data-add-stage]').click();await field('stageDays0').selectOption('15');await field('stageDays1').selectOption('7');await dialog.locator('[data-stage-index="1"] [data-add-time]').click();
  await field('locationUrl').fill('http://example.com/ubicacion');await dialog.locator('[type=submit]').click();

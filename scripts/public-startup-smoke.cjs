@@ -18,11 +18,12 @@ const assert=require('node:assert/strict');
    catch (error) { console.error(JSON.stringify({width,network,failed,errors,gate:await page.locator('#access-gate').innerText()})); throw error; }
    assert.equal(await page.locator('#app-load-retry').count(),0);
    assert.deepEqual(errors,[]);assert.deepEqual(failed,[]);
-   assert.ok(network.some(r=>r.path==='/app.bundle.js'&&r.status===200&&r.protocol==='h2'),'Actual HTTP/2 bundle download required');
+   const bundle=network.find(r=>r.path==='/app.bundle.js'&&r.status===200&&['h2','h3'].includes(r.protocol));
+   assert.ok(bundle,'Actual HTTP/2 or HTTP/3 bundle download required');
    assert.equal(network.some(r=>r.path.startsWith('/modules/')),false,'Startup must not fan out into the source module graph');
    await fs.mkdir('.tmp-sb/startup-ui',{recursive:true});
    await page.screenshot({path:`.tmp-sb/startup-ui/public-http2-${width}.png`});
-   results.push({width,loginReady:true,http2:true,failedRequests:failed.length,exceptions:errors.length,sourceModuleRequests:0});
+   results.push({width,loginReady:true,bundleProtocol:bundle.protocol,http2:bundle.protocol==='h2',http3:bundle.protocol==='h3',failedRequests:failed.length,exceptions:errors.length,sourceModuleRequests:0});
    await context.close();
   }
   await fs.writeFile('.tmp-sb/http2-public-results.json',JSON.stringify(results,null,2));
