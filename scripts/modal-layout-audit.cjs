@@ -50,6 +50,14 @@ async function inspect(page,selector){return page.locator(selector).evaluate(roo
   }
  }
  const textWalker=document.createTreeWalker(panel,NodeFilter.SHOW_TEXT);let textNode;while(textNode=textWalker.nextNode()){const parent=textNode.parentElement;if(!textNode.textContent.trim()||!visible(parent)||parent.closest('input,select,textarea,option,svg')||hScroll(parent))continue;const range=document.createRange();range.selectNodeContents(textNode);if([...range.getClientRects()].some(r=>r.left<outer.left-3||r.right>outer.right+3))issues.push({kind:'text-outside-dialog',tag:parent.tagName,cls:parent.className,text:textNode.textContent.trim().slice(0,70)});}
+ // Past-income fields must use their column and align with the paired field.
+ for(const input of panel.querySelectorAll('#proj-add-past-income-form .half > input')){
+  if(!visible(input))continue;
+  const cell=input.parentElement.getBoundingClientRect(),field=input.getBoundingClientRect();
+  if(Math.abs(field.width-cell.width)>2)issues.push({kind:'past-income-field-too-narrow',id:input.id});
+  const paired=input.parentElement.nextElementSibling?.querySelector('input');
+  if(paired && Math.abs(field.top-paired.getBoundingClientRect().top)>2)issues.push({kind:'past-income-fields-misaligned',id:input.id});
+ }
  return issues.filter((v,i,all)=>all.findIndex(x=>JSON.stringify(x)===JSON.stringify(v))===i).slice(0,45);
 });}
 (async()=>{
@@ -67,7 +75,7 @@ async function inspect(page,selector){return page.locator(selector).evaluate(roo
      await page.evaluate(()=>{document.querySelectorAll('.modal:not(.hidden)').forEach(el=>el.classList.add('hidden'));document.querySelectorAll('dialog[open]').forEach(el=>el.close());document.body.classList.remove('modal-open');});
      await open();await page.locator(selector).waitFor({state:'visible'});
      const issues=await inspect(page,selector);report.push({width,theme,stress,label,issues});
-     if(issues.length || (stress && ['templates','plan','finance-confirm-original'].includes(label)))await page.screenshot({path:path.join(root,`.tmp-sb/modal-audit/${width}-${theme}-${stress?'stress':'normal'}-${label}.png`),animations:'disabled'});
+     if(issues.length || (stress && ['templates','plan','history-past-income','finance-confirm-original'].includes(label)))await page.screenshot({path:path.join(root,`.tmp-sb/modal-audit/${width}-${theme}-${stress?'stress':'normal'}-${label}.png`),animations:'disabled'});
     }catch(e){report.push({width,theme,stress,label,error:e.message.split('\n')[0]});}
    };
    const projectCases=[['partial','projects-partial-release-modal','openPartialReleaseModal'],['details','projects-details-modal','openDetailsModal'],['edit-project','projects-edit-modal','openEditModal'],['arbitration','projects-resolve-arbitration-modal','openResolveArbitrationModal'],['status','projects-status-note-modal','openStatusNoteModal'],['plan','projects-plan-modal','openPlanModal']];
@@ -75,7 +83,7 @@ async function inspect(page,selector){return page.locator(selector).evaluate(roo
    await check('plan-phases','#projects-plan-modal',async()=>{await page.evaluate(()=>window.lifecycle_controller.projects.openPlanModal('qa-modal-project'));await page.locator('#proj-plan-tab-phases').click();});
    await check('plan-edit','#projects-plan-modal',async()=>{await page.evaluate(()=>window.lifecycle_controller.projects.openPlanModal('qa-modal-project'));await page.locator('#proj-plan-modal-edit').click();});
    await check('templates','#project-templates-modal',()=>page.evaluate(()=>window.lifecycle_controller.projects.openProjectTemplatesModal()));
-   await check('history-past-income','#projects-history-modal',async()=>{await page.evaluate(()=>{document.getElementById('projects-history-modal').classList.remove('hidden');window.lifecycle_controller.projects.renderMonthlyHistory('all');});await page.locator('#proj-btnToggleAddPastIncome').click();});
+   await check('history-past-income','#projects-history-modal',async()=>{await page.evaluate(()=>{document.getElementById('projects-history-modal').classList.remove('hidden');window.lifecycle_controller.projects.renderMonthlyHistory('all');});if(!await page.locator('#proj-add-past-income-form').isVisible())await page.locator('#proj-btnToggleAddPastIncome').click();});
    const actions=['new-movement','edit-movement','new-account','new-card','edit-account','new-budget','edit-budget','transfer','confirm-original','confirm-usd','receipt'];
    for(const action of actions)await check('finance-'+action,'#fw-dialog',()=>page.evaluate(action=>{
     const f=window.lifecycle_controller.finanzas.workspaceView,ws=f.workspace;

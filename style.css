@@ -12347,6 +12347,12 @@ body.adaptive-navigation-open {
     flex: 1 1 0;
 }
 
+#proj-add-past-income-form .half > input {
+    width: 100%;
+    min-width: 0;
+    margin-bottom: 0;
+}
+
 #projects-partial-release-modal .modal-content,
 #projects-details-modal .modal-content,
 #projects-resolve-arbitration-modal .modal-content {
