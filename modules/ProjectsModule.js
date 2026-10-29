@@ -2123,7 +2123,7 @@ export class ProjectsModule {
         }
 
         const averages = this.calculateAverages();
-        const usdAverage=value=>this.app.financialAmountsHidden?'••••••':new Intl.NumberFormat('es-AR',{style:'currency',currency:'USD'}).format(value)+' promedio USD guardado';
+        const usdAverage=value=>this.app.financialAmountsHidden?'••••••':new Intl.NumberFormat('es-AR',{style:'currency',currency:'USD'}).format(value);
         document.getElementById('proj-avgHistorical').innerText = usdAverage(averages.historical);
         document.getElementById('proj-avg6Months').innerText = usdAverage(averages.last6);
         document.getElementById('proj-avg3Months').innerText = usdAverage(averages.last3);

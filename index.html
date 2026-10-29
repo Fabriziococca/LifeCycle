@@ -3923,20 +3923,21 @@
             </div>
             
             <!-- Promedios mensuales -->
-            <div id="proj-averages-container" class="project-averages-grid">
-                <div style="display:flex; flex-direction:column; gap:2px; border-right: 1px solid var(--surface-border); padding-right:4px;">
-                    <span style="font-size:0.75rem; color:var(--text-secondary);">Histórico</span>
-                    <strong id="proj-avgHistorical" style="font-size:0.9rem; color:var(--status-green); white-space:nowrap;">USD 0.00</strong>
+            <div id="proj-averages-container" class="project-averages-grid" aria-describedby="proj-averages-note">
+                <div class="project-average-stat">
+                    <span>Histórico</span>
+                    <strong id="proj-avgHistorical">USD 0.00</strong>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:2px; border-right: 1px solid var(--surface-border); padding-right:4px;">
-                    <span style="font-size:0.75rem; color:var(--text-secondary);">Últ. 6 Meses</span>
-                    <strong id="proj-avg6Months" style="font-size:0.9rem; color:var(--status-green); white-space:nowrap;">USD 0.00</strong>
+                <div class="project-average-stat">
+                    <span>Últ. 6 Meses</span>
+                    <strong id="proj-avg6Months">USD 0.00</strong>
                 </div>
-                <div style="display:flex; flex-direction:column; gap:2px;">
-                    <span style="font-size:0.75rem; color:var(--text-secondary);">Últ. 3 Meses</span>
-                    <strong id="proj-avg3Months" style="font-size:0.9rem; color:var(--status-green); white-space:nowrap;">USD 0.00</strong>
+                <div class="project-average-stat">
+                    <span>Últ. 3 Meses</span>
+                    <strong id="proj-avg3Months">USD 0.00</strong>
                 </div>
             </div>
+            <p id="proj-averages-note" class="project-averages-note">Promedios mensuales en USD guardados.</p>
             
             <div id="proj-monthlyHistoryList" class="project-monthly-history-list">
                 <!-- Rellenado por JS -->

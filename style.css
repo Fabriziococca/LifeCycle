@@ -12348,7 +12348,14 @@ body.adaptive-navigation-open {
     background: var(--surface-subtle);
     text-align: center;
     font-size: 0.85rem;
+    flex-shrink: 0;
 }
+
+.project-average-stat { display: flex; flex-direction: column; gap: 2px; min-width: 0; padding-inline: 4px; }
+.project-average-stat:not(:last-child) { border-right: 1px solid var(--surface-border); }
+.project-average-stat > span { font-size: 0.75rem; color: var(--text-secondary); }
+.project-average-stat > strong { font-size: 0.9rem; line-height: 1.4; color: var(--status-green); font-variant-numeric: tabular-nums; white-space: normal; overflow-wrap: anywhere; }
+.project-averages-note { margin: -0.35rem 0 0.85rem; font-size: 0.75rem; line-height: 1.5; color: var(--text-secondary); }
 
 .project-monthly-history-list {
     display: flex;
