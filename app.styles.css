@@ -35383,9 +35383,9 @@
 .fw-empty { padding: 3rem 1.5rem; text-align: center; border: 1px dashed var(--surface-border); border-radius: 1rem; color: var(--text-secondary); }
 .fw-footer { margin: 1.5rem 0; }.fw-transfer { padding: .8rem 0; border-bottom: 1px solid var(--surface-border); font-size: .85rem; }.fw-transfer span { overflow-wrap: anywhere; }
 .fw-legacy { margin-top: 2rem; }.fw-legacy > summary { cursor: pointer; color: var(--text-secondary); padding: 1rem 0; }
-.fw-dialog { color: var(--text-primary); background: var(--surface-solid); border: 1px solid var(--surface-border); border-radius: 1.25rem; width: min(640px,calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 1.5rem; margin: auto; }
+.fw-dialog { color: var(--text-primary); background: var(--surface-solid); border: 1px solid var(--surface-border); border-radius: 1.25rem; width: min(640px,calc(100vw - 24px)); max-height: calc(100dvh - 32px); padding: 1.5rem; margin: auto; overflow-wrap: anywhere; }
 .fw-dialog::backdrop { background: var(--overlay-bg); backdrop-filter: blur(4px); }.fw-dialog .fw-heading { margin-top: 0; }.fw-dialog h2 { font-size: 1.3rem; }
-.fw-form-grid { display: grid; gap: 1rem; }.fw-form-grid small { display: block; color: var(--text-secondary); margin-top: .4rem; }.fw-dialog .fw-actions { justify-content: flex-end; }
+.fw-form-grid { display: grid; grid-template-columns: minmax(0,1fr); gap: 1rem; }.fw-form-grid > * { min-width: 0; }.fw-form-grid small { display: block; color: var(--text-secondary); margin-top: .4rem; }.fw-dialog .fw-actions { justify-content: flex-end; }
 .fw-original-list { display:grid; gap:.5rem; max-height:45dvh; overflow:auto; padding:.25rem; }
 .fw-form-grid .fw-original-choice { display:flex; flex-direction:row; align-items:flex-start; gap:.75rem; padding:.75rem; border-bottom:1px solid var(--surface-border); overflow-wrap:anywhere; }
 .fw-dialog .fw-original-choice input { width:1.2rem; height:1.2rem; flex-shrink:0; margin:.15rem 0 0; accent-color:var(--primary-color); }
@@ -45578,10 +45578,13 @@ html[data-theme="light"] .history-log[style] {
 
 .project-templates-list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
     gap: 0.65rem;
 }
 
 .project-template-list-item {
+    min-width: 0;
     padding: 0.85rem 0.95rem;
     border: 1px solid var(--surface-border);
     border-radius: 12px;
@@ -45590,6 +45593,7 @@ html[data-theme="light"] .history-log[style] {
 
 .project-template-list-copy {
     min-width: 0;
+    flex: 1;
 }
 
 .project-template-list-copy strong,
@@ -45608,6 +45612,7 @@ html[data-theme="light"] .history-log[style] {
     margin-top: 0.25rem;
     color: var(--text-secondary);
     font-size: 0.76rem;
+    overflow-wrap: anywhere;
 }
 
 .project-template-list-actions {
@@ -45795,6 +45800,7 @@ html[data-theme="light"] .history-log[style] {
 }
 
 .finance-recurring-registration-note {
+    overflow-wrap: anywhere;
     margin: -0.5rem 0 1.1rem;
     padding: 0.7rem 0.8rem;
     border: 1px solid rgba(245, 158, 11, 0.3);
@@ -45852,10 +45858,13 @@ html[data-theme="light"] .history-log[style] {
 
 .finance-recurring-list {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    min-width: 0;
     gap: 0.65rem;
 }
 
 .finance-recurring-list-item {
+    min-width: 0;
     padding: 0.85rem 0.95rem;
     border: 1px solid var(--surface-border);
     border-radius: 12px;
@@ -45868,10 +45877,12 @@ html[data-theme="light"] .history-log[style] {
 
 .finance-recurring-list-copy {
     min-width: 0;
+    flex: 1;
 }
 
 .finance-recurring-list-copy strong,
 .finance-recurring-list-copy span {
+    overflow-wrap: anywhere;
     display: block;
 }
 
@@ -47545,9 +47556,13 @@ body.adaptive-navigation-open {
     align-items: flex-start;
 }
 
+.project-plan-modal-header > div:first-child { min-width: 0; flex: 1; }
+.project-plan-header-actions { flex-shrink: 0; }
+
 .project-plan-modal-header h3 {
     margin: 0.15rem 0 0;
     text-wrap: balance;
+    overflow-wrap: anywhere;
 }
 
 .project-plan-eyebrow,
@@ -47659,6 +47674,17 @@ body.adaptive-navigation-open {
     flex-direction: column;
     box-sizing: border-box;
     text-align: left;
+}
+
+#proj-add-past-income-form .half {
+    min-width: 0;
+    flex: 1 1 0;
+}
+
+#projects-partial-release-modal .modal-content,
+#projects-details-modal .modal-content,
+#projects-resolve-arbitration-modal .modal-content {
+    overflow-wrap: anywhere;
 }
 
 .project-add-past-toggle {
