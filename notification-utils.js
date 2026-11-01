@@ -2,6 +2,7 @@
 const { getPauseAdjustedDate, getPauseAdjustedKm } = require('./pause-utils.mjs');
 const { readPlanning, FACULTY_KEY } = require('./planning-utils.mjs');
 const { isTradingRetryRelevant } = require('./trading-event-utils');
+const { subscriptionClientActive } = require('./subscription-utils.mjs');
 
 const SERVER_MANAGED_USER_DATA_KEYS = new Set([
     'alerts_sent_log',
@@ -569,6 +570,7 @@ function isPushRetryRelevant(alertKey, snapshot = {}) {
         const subscriptions = parseJsonValue(snapshot.lifecycle_subscriptions, {})?.subscriptions;
         return Array.isArray(subscriptions) && subscriptions.some(subscription => (
             `sub_${subscription.id}` === key && subscription.status === 'active' && subscription.alert?.enabled !== false
+            && subscriptionClientActive(subscription,snapshot._subscriptionClients)
         ));
     }
     return true;

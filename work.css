@@ -34,3 +34,10 @@
 .maintenance-card.is-high-priority { border-color: var(--status-red); }
 .maintenance-card .badge.red { color: var(--status-red); background: color-mix(in srgb, var(--status-red) 12%, transparent); }
 @media (max-width: 600px) { .maintenance-thresholds { grid-template-columns: 1fr; gap: 12px; } }
+
+/* The same client cards, arranged at a readable width in Seguimientos. */
+.work-followups-grid { display:grid; grid-template-columns:repeat(auto-fill,minmax(min(100%,280px),1fr)); gap:16px; align-items:start; margin-top:16px; }
+.work-followups-grid>.card { margin:0; min-width:0; }
+.work-followups-grid .planning-actions { flex-wrap:wrap; }
+.work-followups-grid .cycle-rule { font-size:.76rem; }
+.work-followups-grid:empty::before { content:'No hay seguimientos en esta vista.'; color:var(--text-secondary); }

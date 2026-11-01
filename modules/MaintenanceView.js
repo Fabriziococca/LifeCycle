@@ -9,7 +9,7 @@ const field=(label,name,value='',type='text',extra='')=>`<label>${label}<input c
 const option=(value,label,current)=>`<option value="${value}" ${value===current?'selected':''}>${label}</option>`;
 const button=(action,label,id)=>`<button type="button" class="btn btn-secondary" data-work-action="maintenance-${action}" data-id="${esc(id)}">${label}</button>`;
 export class MaintenanceView {
-    constructor(work){this.work=work;this.app=work.app;}
+    constructor(work){this.work=work;this.app=work.app;this.completing=new Set();}
     bindEscalationEditor(root,m) {
         const get=id=>root.querySelector('#'+id), enabled=get('reminder-escalation-enabled'), input=get('reminder-escalation-day');
         let previousBase;
@@ -63,7 +63,7 @@ export class MaintenanceView {
         const shortDay=day=>new Intl.DateTimeFormat('es-AR',{day:'numeric',month:'short',...(day.slice(0,4)!==argentinaDay().slice(0,4)?{year:'numeric'}:{})}).format(new Date(day+'T12:00:00Z'));
         const menuAction=(action,label)=>`<button type="button" role="menuitem" data-work-action="maintenance-${action}" data-id="${esc(f.id)}">${label}</button>`;
         return `<article id="maintenance-${f.id}" class="custom-tracker-card maintenance-card maintenance-cycle-card status-${s.tone}" data-maintenance-id="${esc(f.id)}" data-maintenance-priority="${s.tone==='red'?'high':'normal'}" style="--custom-status-color:${color}">
-            <div class="custom-tracker-card-header"><div class="custom-tracker-identity">${cycleIdentity(f.title,'ph-clock-clockwise',s.label)}</div><details class="custom-tracker-menu cycle-menu"><summary role="button" aria-haspopup="menu" aria-expanded="false" aria-label="Opciones de ${esc(f.title)}"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i></summary><div class="custom-tracker-menu-popover" role="menu" aria-label="Acciones de la tarjeta">${!client?.archived?menuAction('card-edit','Editar tarjeta')+menuAction('edit','Otra frecuencia de repetición'):''}${m.instructions?menuAction('instructions','Ver instrucciones'):''}${menuAction('history','Ver historial ('+m.history.length+')')}${!client?.archived?menuAction('archive',m.archived?'Desarchivar':'Archivar'):''}${menuAction('delete','Eliminar tarjeta')}</div></details></div>
+            <div class="custom-tracker-card-header"><div class="custom-tracker-identity">${cycleIdentity(f.title,'ph-clock-clockwise',s.label)}</div><details class="custom-tracker-menu cycle-menu"><summary role="button" aria-haspopup="menu" aria-expanded="false" aria-label="Opciones de ${esc(f.title)}"><i class="ph ph-dots-three-vertical" aria-hidden="true"></i></summary><div class="custom-tracker-menu-popover" role="menu" aria-label="Acciones de la tarjeta">${!client?.archived?menuAction('card-edit','Editar tarjeta')+menuAction('edit','Otra frecuencia de repetición'):''}${m.instructions?menuAction('instructions','Ver instrucciones'):''}${!inactive?menuAction('done-date','Registrar en otra fecha'):''}${menuAction('history','Ver historial ('+m.history.length+')')}${!client?.archived?menuAction('archive',m.archived?'Desarchivar':'Archivar'):''}${menuAction('delete','Eliminar tarjeta')}</div></details></div>
             ${showClient||f.projectId?`<small class="cycle-context">${showClient?esc(client?.name||''):''}${f.projectId?(showClient?' · ':'')+esc(this.work.projectName(f.projectId)):''}</small>`:''}
             ${cycleMetrics({elapsedDays:s.elapsedDays,cadenceLabel:`de ${s.deadlineDays} días`,latestLabel:s.lastDoneOn?shortDay(s.lastDoneOn):'Sin registrar',nextLabel:shortDay(s.deadlineOn),nextCaption:'Vence',progress:s.progress})}
             <p class="cycle-rule">Atención desde el día ${s.warningDays} · ${f.reminderEnabled?'Avisos '+esc(m.times.join(', ')):'Avisos desactivados'}</p>
@@ -137,9 +137,17 @@ export class MaintenanceView {
             });
         } else {
             if(!old)throw new Error('El recordatorio ya no está disponible.');
-            if(kind==='done') {
+            if(kind==='done' && isMaintenanceCycle(old)) {
+                if(this.completing.has(id))return true;
+                if(old.maintenance.history[0]?.doneOn===argentinaDay()){this.app.showToast?.('Esta tarjeta ya se registró hoy.');return true;}
+                this.completing.add(id);
+                try {
+                    data.followups=data.followups.map(x=>x.id===id?completeMaintenance(old,{id:'mh_'+crypto.randomUUID(),doneOn:argentinaDay()}):x);
+                    await save();this.app.showToast?.('Realización registrada. El contador vuelve a empezar.');
+                } finally {this.completing.delete(id);}
+            } else if(kind==='done'||kind==='done-date') {
                 const historyId='mh_'+crypto.randomUUID();
-                planningDialog(this.app,'Registrar tarea realizada',`<p>${esc(old.title)}</p>${field('Realizado el','doneOn',argentinaDay(),'date',`required max="${argentinaDay()}"`)}<label>Nota de la revisión (opcional)<textarea class="text-input" name="note" maxlength="2000"></textarea></label><p>Se conserva este registro y se programa la próxima revisión.</p>`,async f=>{data.followups=data.followups.map(x=>x.id===id?completeMaintenance(old,{id:historyId,doneOn:f.get('doneOn'),note:f.get('note').trim()}):x);await save();});
+                planningDialog(this.app,'Registrar tarea realizada',`<p>${esc(old.title)}</p>${field('Realizado el','doneOn',argentinaDay(),'date',`required max="${argentinaDay()}"`)}<details class="schedule-optional"><summary>Agregar nota (opcional)</summary><label>Nota de la revisión<textarea class="text-input" name="note" maxlength="2000"></textarea></label></details><p>Se conserva este registro y se programa la próxima revisión.</p>`,async f=>{data.followups=data.followups.map(x=>x.id===id?completeMaintenance(old,{id:historyId,doneOn:f.get('doneOn'),note:f.get('note').trim()}):x);await save();});
             } else if(kind==='pause'||kind==='archive') {
                 const key=kind==='pause'?'paused':'archived';
                 if(!await this.app.confirmAction({title:old.maintenance[key]?'Reactivar recordatorio':kind==='pause'?'Pausar recordatorio':'Archivar recordatorio',message:'El historial se conserva. Los avisos se envían sólo mientras el recordatorio y el cliente estén activos.',confirmLabel:'Confirmar',tone:'warning'}))return true;

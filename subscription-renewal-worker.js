@@ -1,5 +1,5 @@
 'use strict';
-const { normalizeSubscriptionRegistry } = require('./subscription-utils.mjs');
+const { normalizeSubscriptionRegistry, subscriptionTrackingDue, subscriptionClientActive } = require('./subscription-utils.mjs');
 const { EXCHANGE_RATE_PROVIDERS, parseExchangeRate } = require('./exchange-rate-utils.mjs');
 const { throwIfAborted } = require('./operational-resilience');
 
@@ -33,7 +33,7 @@ class SubscriptionRenewalWorker {
         throw new Error('No current ARS exchange rate available');
     }
 
-    async run(rows, {signal=null, now=new Date()} = {}) {
+    async run(rows, {signal=null, now=new Date(), clientStates=null} = {}) {
         const changed = new Set();
         const today = new Date(new Date(now).getTime()-3*3600000).toISOString().slice(0,10);
         const summary = {processed:0,duplicates:0,failed:0,deferred:0};
@@ -41,22 +41,27 @@ class SubscriptionRenewalWorker {
         let operations = 0, ratePromise = null;
         for (const row of rows) {
             for (const sub of normalizeSubscriptionRegistry(row.data?.lifecycle_subscriptions).subscriptions) {
-                if (sub.status!=='active'||sub.billingMode!=='paid'||!sub.autoRenew||!sub.autoRecordExpense||sub.cost<=0) continue;
+                if (clientStates && !subscriptionClientActive(sub,clientStates.get(row.user_id))) continue;
+                const tracking = sub.billingMode === 'tracking';
+                if (tracking ? !subscriptionTrackingDue(sub,now) : (sub.status!=='active'||sub.billingMode!=='paid'||!sub.autoRenew||!sub.autoRecordExpense||sub.cost<=0)) continue;
                 let date = sub.nextRenewalDate, periods = 0;
                 while (date && date<=today) {
                     throwIfAborted(signal);
                     if (operations>=this.maxOperations || periods>=24) { summary.deferred++; break; }
                     operations++; periods++;
                     try {
-                        if (sub.currency==='ARS' && !ratePromise) ratePromise=Promise.resolve().then(()=>this.resolveRate(signal));
-                        const rate = sub.currency==='ARS' ? await ratePromise : null;
-                        let query=this.db.rpc('renew_subscription_for_scheduler',{
+                        if (!tracking && sub.currency==='ARS' && !ratePromise) ratePromise=Promise.resolve().then(()=>this.resolveRate(signal));
+                        const rate = !tracking && sub.currency==='ARS' ? await ratePromise : null;
+                        let query=tracking ? this.db.rpc('advance_subscription_tracking_for_scheduler',{
+                            p_user_id:row.user_id,p_subscription_id:sub.id,p_due_date:date
+                        }) : this.db.rpc('renew_subscription_for_scheduler',{
                             p_user_id:row.user_id,p_subscription_id:sub.id,p_due_date:date,p_ars_per_usd:rate
                         });
                         if (signal) query=query.abortSignal(signal);
                         const {data,error}=await query;
                         throwIfAborted(signal);
                         if (error) throw error;
+                        if (data?.skipped) break;
                         if (!data || (!data.created && !data.duplicate)) throw new Error('Invalid renewal result');
                         if (data.created) summary.processed++; else summary.duplicates++;
                         changed.add(row.user_id);

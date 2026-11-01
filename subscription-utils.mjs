@@ -1,6 +1,6 @@
 import { normalizeAlertTimes } from './alert-schedule-utils.mjs';
 
-export const SUBSCRIPTION_SCHEMA_VERSION = 3;
+export const SUBSCRIPTION_SCHEMA_VERSION = 4;
 export const SUBSCRIPTION_STORAGE_KEY = 'lifecycle_subscriptions';
 
 export const SUBSCRIPTION_CATEGORIES = Object.freeze([
@@ -16,10 +16,44 @@ export const SUBSCRIPTION_CATEGORY_LABELS = Object.freeze({
 });
 
 export const SUBSCRIPTION_STATUSES = Object.freeze(['active', 'paused', 'canceled']);
-export const SUBSCRIPTION_BILLING_MODES = Object.freeze(['paid', 'trial', 'free']);
+export const SUBSCRIPTION_BILLING_MODES = Object.freeze(['paid', 'trial', 'free', 'tracking']);
 
 export function isPaidSubscription(subscription) {
     return !subscription?.billingMode || subscription.billingMode === 'paid';
+}
+
+export const CLIENT_SUBSCRIPTION_NOTICE_DAYS = Object.freeze([7, 5, 3, 2, 1, 0]);
+export function subscriptionNoticeDue(subscription, days) {
+    if (!Number.isInteger(days) || days < 0) return false;
+    return Array.isArray(subscription?.alert?.noticeDays)
+        ? subscription.alert.noticeDays.includes(days)
+        : days <= (subscription?.alert?.daysBefore ?? 3);
+}
+
+// On the renewal day, a late evening reminder moves to the renewal time.
+// The scheduler retains the old occurrence for the full 15-minute send window.
+export function subscriptionAlertTimes(subscription, days) {
+    const times = normalizeAlertTimes(subscription?.alert?.times || subscription?.alert?.time || '09:00').times;
+    return days === 0 && subscription?.renewalTime
+        ? [...new Set(times.map(time => time > subscription.renewalTime ? subscription.renewalTime : time))]
+        : times;
+}
+
+export function subscriptionTrackingDue(subscription, now = new Date()) {
+    if (subscription?.billingMode !== 'tracking' || subscription.status !== 'active' || !subscription.autoRenew) return false;
+    const local = new Date(new Date(now).getTime() - 3 * 3600000).toISOString();
+    const day = local.slice(0, 10);
+    if (subscription.nextRenewalDate < day) return true;
+    if (subscription.nextRenewalDate !== day) return false;
+    const times = subscriptionAlertTimes(subscription, 0);
+    const last = [subscription.renewalTime || '23:59', ...(subscription.alert?.enabled === false ? [] : times)].sort().at(-1);
+    const cutoff = Date.parse(`${day}T${last}:00-03:00`) + 15 * 60000;
+    return new Date(now).getTime() >= cutoff;
+}
+
+export function subscriptionClientActive(subscription, clients) {
+    if (!subscription?.clientId) return true;
+    return Array.isArray(clients) && clients.some(client => client.id === subscription.clientId && !client.archived);
 }
 const DATE_ONLY_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const SUBSCRIPTION_ID_PATTERN = /^sub_[a-z0-9][a-z0-9_-]{2,95}$/;
@@ -206,6 +240,9 @@ export function normalizeSubscription(raw, now = new Date()) {
     return {
         id,
         name,
+        ...(typeof raw.clientId === 'string' && /^[0-9a-f-]{36}$/i.test(raw.clientId) ? { clientId: raw.clientId } : {}),
+        ...(Number.isInteger(Number(raw.periodDays)) && Number(raw.periodDays) >= 1 && Number(raw.periodDays) <= 3650 ? { periodDays: Number(raw.periodDays) } : {}),
+        ...(/^([01]\d|2[0-3]):[0-5]\d$/.test(raw.renewalTime || '') ? { renewalTime: raw.renewalTime } : {}),
         category: SUBSCRIPTION_CATEGORIES.includes(raw.category) ? raw.category : 'otros',
         cost,
         billingMode: SUBSCRIPTION_BILLING_MODES.includes(raw.billingMode) ? raw.billingMode : 'paid',
@@ -226,6 +263,7 @@ export function normalizeSubscription(raw, now = new Date()) {
             enabled: raw.alert?.enabled !== false,
             time: alert.time,
             times: alert.times,
+            ...(Array.isArray(raw.alert?.noticeDays) ? { noticeDays: [...new Set(raw.alert.noticeDays.filter(day => Number.isInteger(day) && day >= 0 && day <= 30))].sort((a,b) => b-a) } : {}),
             daysBefore: Number.isFinite(requestedDaysBefore)
                 ? Math.min(30, Math.max(0, Math.trunc(requestedDaysBefore)))
                 : 3
@@ -325,7 +363,11 @@ export function advanceSubscriptionRenewal(subscription, fromDate = null) {
     afterRenewal.setDate(afterRenewal.getDate() + 1);
     return {
         ...normalized,
-        nextRenewalDate: addMonthsWithBillingAnchor(
+        nextRenewalDate: normalized.periodDays ? (() => {
+            const date = parseSubscriptionDate(renewalDate);
+            date.setDate(date.getDate() + normalized.periodDays);
+            return formatDateOnly(date);
+        })() : addMonthsWithBillingAnchor(
             renewalDate,
             normalized.periodMonths,
             normalized.billingAnchorDay,

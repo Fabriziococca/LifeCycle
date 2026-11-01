@@ -15,6 +15,7 @@ exports.runMaintenanceEscalationSmoke=async(page,{width,theme})=>{
  const menu=async()=>{await card.locator('.cycle-menu summary').click();};
  await menu();await card.locator('[data-work-action=maintenance-history]').click();
  assert.equal(await dialog.locator('[type=submit]').count(),0,'history is read-only');await dialog.getByText('Sin realizaciones registradas.',{exact:false}).waitFor();await dialog.getByRole('button',{name:'Cerrar',exact:true}).click();
+ await menu();await card.locator('[data-work-action=maintenance-done-date]').click();assert.equal(await dialog.locator('[name=doneOn]').count(),1);await dialog.getByRole('button',{name:'Cancelar',exact:true}).click();
  await menu();await card.locator('[data-work-action=maintenance-card-edit]').click();
  assert.equal(await dialog.locator('[name=warningDays]').inputValue(),'3');assert.equal(await dialog.locator('[name=deadlineDays]').inputValue(),'7');
  await dialog.locator('[name=deadlineDays]').fill('2');await dialog.locator('[type=submit]').click();await dialog.getByRole('alert').getByText('El vencimiento debe',{exact:false}).waitFor();
@@ -22,9 +23,11 @@ exports.runMaintenanceEscalationSmoke=async(page,{width,theme})=>{
  await card.locator('[data-work-action=maintenance-pause]').click();await page.locator('#app-feedback-dialog [data-feedback-confirm]').click();
  await card.locator('.custom-tracker-status').getByText('Pausado',{exact:true}).waitFor();assert.equal(await card.locator('[data-work-action=maintenance-done]').isDisabled(),true);
  await card.locator('[data-work-action=maintenance-pause]').click();await page.locator('#app-feedback-dialog [data-feedback-confirm]').click();
- await card.locator('[data-work-action=maintenance-done]').click();await save();
+ await card.locator('[data-work-action=maintenance-done]').click();await page.waitForFunction(()=>window.lifecycle_controller.work.store.value.followups[0].maintenance.history.length===1);assert.equal(await dialog.isVisible(),false,'a card completes immediately without a form');
  assert.equal(await card.getAttribute('data-maintenance-priority'),'normal');assert.match(await card.innerText(),/Al día/i);assert.equal(await card.locator('.custom-tracker-metric strong').innerText(),'0');
  await menu();await card.locator('[data-work-action=maintenance-card-edit]').click();assert.equal(await dialog.locator('[name=deadlineDays]').inputValue(),'7');assert.equal(await dialog.locator('[name=noticeTime]').count(),2);await dialog.getByRole('button',{name:'Cancelar',exact:true}).click();
+ await card.locator('[data-work-action=maintenance-done]').click();assert.equal(await page.evaluate(()=>window.lifecycle_controller.work.store.value.followups[0].maintenance.history.length),1,'duplicate quick completion on the same day is ignored');
+ await page.evaluate(()=>window.lifecycle_controller.activateSection('work-followups-section'));const compact=page.locator('#work-followups-section .maintenance-cycle-card');await compact.waitFor();if(width>=1100)assert.ok(await compact.evaluate(el=>el.getBoundingClientRect().width)<500,'Seguimientos reuses a compact card grid');
  await page.evaluate(()=>window.lifecycle_controller.activateSection('work-reminders-section'));
  await page.locator('#reminders-hub [data-hub-action=new]').click();await page.locator('#recurring-reminder-frequency').selectOption('once');await page.locator('#recurring-reminder-form').getByRole('button',{name:'Cancelar',exact:true}).click();
  await page.reload({waitUntil:'networkidle'});await page.waitForFunction(()=>window.lifecycle_controller.work.store.state?.followups?.[0]?.maintenance?.history?.length===1);

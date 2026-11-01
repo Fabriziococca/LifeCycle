@@ -1,3 +1,4 @@
+import { subscriptionNoticeDue, subscriptionClientActive } from '../subscription-utils.mjs';
 import { pendingRetainers } from '../retainer-utils.mjs';
 import { maintenancePriority, maintenanceCycleState } from '../maintenance-utils.mjs';
 import {
@@ -229,14 +230,13 @@ export class NotificationsCenterModule {
             // 5. SUSCRIPCIONES (Fase C)
             if (this.app.subscriptions?.subscriptions?.length) {
                 this.app.subscriptions.subscriptions.forEach(sub => {
-                    if (sub.status !== 'active') return;
+                    if (sub.status !== 'active' || !subscriptionClientActive(sub,this.app.work?.store?.state?.clients)) return;
                     const diffDays = DateUtils.getDaysUntil(sub.nextRenewalDate);
-                    const alertDays = sub.alert?.daysBefore ?? 3;
-                    if (Number.isFinite(diffDays) && diffDays <= alertDays) {
+                    if (Number.isFinite(diffDays) && (diffDays < 0 || subscriptionNoticeDue(sub,diffDays))) {
                         items.push({
                             module: 'subscriptions',
                             id: sub.id,
-                            name: sub.name,
+                            name: (sub.clientId ? (this.app.work?.store?.state?.clients?.find(c=>c.id===sub.clientId)?.name||'Cliente')+' · ' : '')+sub.name,
                             icon: 'ph-receipt',
                             desc: diffDays < 0
                                 ? `Plazo de suscripción vencido hace ${Math.abs(diffDays)} días.`
@@ -412,6 +412,7 @@ export class NotificationsCenterModule {
     }
 
     openItem(item) {
+        if(item.module==='subscriptions' && this.app.subscriptions){const sub=this.app.subscriptions.subscriptions.find(s=>s.id===item.id);this.app.subscriptions.clientScope=sub?.clientId?'clients':'own';const scope=document.getElementById('sub-client-scope');if(scope)scope.value=this.app.subscriptions.clientScope;this.app.subscriptions.render();}
         if (!item) return false;
 
         let sectionId = null;

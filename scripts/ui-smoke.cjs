@@ -1,3 +1,4 @@
+const { runClientSubscriptionsSmoke } = require('./client-subscriptions-smoke.cjs');
 const { chromium } = require(process.env.LIFECYCLE_PLAYWRIGHT_MODULE || 'playwright');
 const fs = require('node:fs/promises');
 const assert = require('node:assert/strict');
@@ -70,6 +71,7 @@ const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'client-subscriptions') { await runClientSubscriptionsSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,clientSubscriptions:true}));await context.close();continue; }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'project-history') {
                 await runProjectHistoryLayoutSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,projectHistoryLayout:true}));await context.close();continue;
             }

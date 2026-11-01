@@ -86,7 +86,7 @@ test('PR compatibility does not accept malformed legacy RIR labels', () => {
 
 test('subscription registries with alerts and history can be exported and restored without loss', () => {
     const registry = { version: 2, subscriptions: [normalizeSubscription({ id: 'sub_backup', name: 'Servicio', cost: 10,
-        startDate: '2026-09-01', nextRenewalDate: '2026-10-01', alert: { enabled: true, times: ['09:00', '21:00'] } })] };
+        startDate: '2026-09-01', nextRenewalDate: '2026-10-01', clientId:'11111111-1111-4111-8111-111111111111', periodDays:30, renewalTime:'17:47', alert: { enabled: true, times: ['09:00', '21:00'], noticeDays:[7,5,3,2,1,0] } })] };
     const payload = createBackupPayload(key => key === 'lifecycle_subscriptions' ? JSON.stringify(registry) : null);
     assert.deepEqual(payload.data.lifecycle_subscriptions, registry);
     assert.doesNotThrow(() => parseAndValidateBackupText(JSON.stringify(payload)));

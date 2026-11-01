@@ -78,6 +78,7 @@ const {
 const { collectSupabaseRangePages } = require('./supabase-pagination-utils');
 const { SchedulerDocumentCache } = require('./scheduler-document-cache');
 const { SubscriptionRenewalWorker } = require('./subscription-renewal-worker');
+const { normalizeSubscriptionRegistry, subscriptionNoticeDue, subscriptionAlertTimes, subscriptionClientActive } = require('./subscription-utils.mjs');
 const {
     createFixedWindowRateLimiter,
     normalizeClientAddress
@@ -544,7 +545,7 @@ function getSubscriptionRegistry(userData = {}) {
         : { version: 2, subscriptions: [] };
 }
 
-function ensureSubscriptionAlertConfigs(alertsConfig, registry) {
+function ensureSubscriptionAlertConfigs(alertsConfig, registry, clients = [], today = new Date().toLocaleDateString('en-CA',{timeZone:'America/Argentina/Buenos_Aires'})) {
     const subscriptions = Array.isArray(registry?.subscriptions)
         ? registry.subscriptions.slice(0, 500)
         : [];
@@ -556,22 +557,30 @@ function ensureSubscriptionAlertConfigs(alertsConfig, registry) {
     subscriptions.forEach(subscription => {
         const id = String(subscription?.id || '');
         if (!/^sub_[a-z0-9][a-z0-9_-]{2,95}$/.test(id)) return;
-        const rawTimes = Array.isArray(subscription.alert?.times)
-            ? subscription.alert.times
-            : [subscription.alert?.time || '09:00'];
+        const diff = Math.round((Date.parse(subscription.nextRenewalDate+'T12:00:00Z')-Date.parse(today+'T12:00:00Z'))/86400000);
+        const rawTimes = subscriptionAlertTimes(subscription,diff);
         const times = [...new Set(rawTimes
             .filter(time => RECURRING_TIME_PATTERN.test(time)))]
             .sort()
             .slice(0, 6);
         if (times.length === 0) times.push('09:00');
         alertsConfig[`sub_${id}`] = {
-            enabled: subscription.status === 'active' && subscription.alert?.enabled !== false,
+            enabled: subscription.status === 'active' && subscription.alert?.enabled !== false && subscriptionClientActive(subscription,clients),
             time: times[0],
             times,
             days: [],
             subscriptionId: id
         };
     });
+}
+
+async function loadSubscriptionClients(rows, signal) {
+    const owners=rows.filter(row=>normalizeSubscriptionRegistry(row.data?.lifecycle_subscriptions).subscriptions.some(s=>s.clientId)).map(row=>row.user_id);
+    const map=new Map();if(!owners.length)return map;
+    const {data,error}=await withAbortSignal(supabase.from('work_clients').select('user_id,id,archived:record->archived').in('user_id',owners),signal);
+    if(error)throw new Error('No se pudieron verificar clientes de Suscripciones.');
+    for(const c of data||[]){if(!map.has(c.user_id))map.set(c.user_id,[]);map.get(c.user_id).push({id:c.id,archived:c.archived===true});}
+    return map;
 }
 
 async function mergeServerUserDataKeys(userId, updates) {
@@ -1134,7 +1143,8 @@ async function retryUndeliveredPushes(now = Date.now(), { signal = null } = {}) 
     }
     const subscriptionsByUser = groupSubscriptionsByUser(subscriptionResult.data || []);
     const currentDocuments = await schedulerDocuments.load({ signal });
-    const documentsByUser = new Map(currentDocuments.map(row => [row.user_id, row.data || {}]));
+    const retryClients=await loadSubscriptionClients(currentDocuments,signal);
+    const documentsByUser = new Map(currentDocuments.map(row => [row.user_id, {...row.data,_subscriptionClients:retryClients.get(row.user_id)||[]}]));
     const workRetries = candidates.some(c=>String(c.alert_key).startsWith('work:'))
         ? await loadWorkNotificationStates(new Date(now),signal) : [];
     const workRetryStates = new Map(workRetries.map(row=>[row.user_id,row.state]));
@@ -2688,8 +2698,9 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
         const schedulerNow = new Date();
 
         let usersData = await schedulerDocuments.load({ signal });
+        const subscriptionClients=await loadSubscriptionClients(usersData,signal);
         if (!forceAll) {
-            const renewalResult = await subscriptionRenewals.run(usersData,{signal,now:schedulerNow});
+            const renewalResult = await subscriptionRenewals.run(usersData,{signal,now:schedulerNow,clientStates:subscriptionClients});
             if (renewalResult.summary.failed) console.error(`[Subscription Renewals] ${renewalResult.summary.failed} occurrence(s) could not be recorded; retained for retry.`);
             for (const id of renewalResult.changed) schedulerDocuments.forget(id);
             if (renewalResult.changed.size) usersData = await schedulerDocuments.load({signal});
@@ -2760,7 +2771,7 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                 alertsConfig,
                 parseJsonValue(data.vehicle_tracker_data, {})
             );
-            ensureSubscriptionAlertConfigs(alertsConfig, subscriptionRegistry);
+            ensureSubscriptionAlertConfigs(alertsConfig, subscriptionRegistry, subscriptionClients.get(userId)||[], dateStr);
 
             // Inicializar log de envíos diarios si no existe
             if (!data.alerts_sent_log) {
@@ -3330,10 +3341,10 @@ async function checkAndSendAllAlerts(forceAll = false, { signal = null } = {}) {
                                 if (targetSub && targetSub.status === 'active' && targetSub.alert?.enabled !== false) {
                                     const renewal = new Date(targetSub.nextRenewalDate + 'T12:00:00');
                                     const diffDays = getCandidateDaysUntil(renewal.toISOString());
-                                    const daysBefore = targetSub.alert?.daysBefore ?? 3;
-                                    if (diffDays <= daysBefore && diffDays >= 0) {
+                                    if (subscriptionNoticeDue(targetSub,diffDays)) {
                                         shouldNotify = true;
-                                        title = `💳 Suscripción: ${targetSub.name}`;
+                                        const clientLabel=targetSub.clientId ? ' del cliente' : '';
+                                        title = `💳 Suscripción${clientLabel}: ${targetSub.name}`;
                                         body = diffDays === 0
                                             ? `Tu suscripción a ${targetSub.name} vence o renueva hoy.`
                                             : `Tu suscripción a ${targetSub.name} vence o renueva en ${diffDays} días (${targetSub.nextRenewalDate}).`;

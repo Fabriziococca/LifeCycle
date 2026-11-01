@@ -1560,7 +1560,7 @@
                                 <label for="sub-input-cycle">Ciclo de Facturación</label>
                                 <select id="sub-input-cycle" class="text-input" style="width: 100%;">
                                     <option value="3">Trimestral (3 meses)</option>
-                                    <option value="1">Mensual (1 mes)</option>
+                                    <option value="days">Cada cierta cantidad de días</option><option value="1">Mensual (1 mes)</option>
                                     <option value="6">Semestral (6 meses)</option>
                                     <option value="12">Anual (12 meses)</option>
                                 </select>
@@ -1956,6 +1956,7 @@
                 <button type="button" class="tab-btn" data-subscription-filter="canceled">Canceladas / Pausadas</button>
             </div>
 
+            <label class="planning-filter" for="sub-client-scope">Suscripciones de<select id="sub-client-scope" class="text-input"><option value="own">Propias</option><option value="clients">Clientes</option><option value="all">Todas</option></select></label>
             <!-- Grilla de suscripciones -->
             <div id="subscriptions-list" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(290px, 1fr)); gap: 1rem;">
                 <!-- Dinámico -->
@@ -2832,10 +2833,11 @@
                 </button>
             </div>
             <form id="subscription-form">
+                <div class="input-group"><label for="sub-client">Cliente (opcional)</label><select id="sub-client" class="text-input"><option value="">Propia · sin cliente</option></select></div>
                 <div class="input-group">
                     <label for="sub-billing-mode">Modalidad</label>
                     <select id="sub-billing-mode" class="text-input" aria-describedby="sub-billing-help">
-                        <option value="paid">Suscripción paga</option>
+                        <option value="tracking">Sólo seguimiento · sin importe</option><option value="paid">Suscripción paga</option>
                         <option value="trial">Prueba gratuita hasta la fecha indicada</option>
                         <option value="free">Suscripción gratuita permanente</option>
                     </select>
@@ -2862,13 +2864,13 @@
                     <div class="input-group">
                         <label for="sub-period">Frecuencia / Ciclo</label>
                         <select id="sub-period" class="text-input">
-                            <option value="1">Mensual (1 mes)</option>
+                            <option value="days">Cada cierta cantidad de días</option><option value="1">Mensual (1 mes)</option>
                             <option value="3">Trimestral (3 meses)</option>
                             <option value="6">Semestral (6 meses)</option>
                             <option value="12">Anual (1 año)</option>
                         </select>
                     </div>
-                    <div class="input-group">
+                    <div id="sub-period-days-group" class="input-group hidden"><label for="sub-period-days">Cada cuántos días</label><input id="sub-period-days" type="number" class="text-input" min="1" max="3650" step="1" value="30"></div><div class="input-group">
                         <label for="sub-category">Categoría</label>
                         <select id="sub-category" class="text-input">
                             <option value="trabajo">💼 Trabajo</option>
@@ -2891,7 +2893,7 @@
                 </div>
 
                 <div class="input-group">
-                    <label for="sub-payment-method">Medio de pago</label>
+                    <label for="sub-renewal-time">Hora de renovación · Argentina (opcional)</label><input id="sub-renewal-time" type="time" class="text-input"><small>Se conserva como referencia. El día de renovación, cualquier aviso posterior se adelanta a esta hora.</small></div><div class="input-group"><label for="sub-payment-method">Medio de pago</label>
                     <input type="text" id="sub-payment-method" class="text-input" maxlength="80" placeholder="Ej: Visa, Mercado Pago, transferencia">
                 </div>
 
@@ -2918,7 +2920,7 @@
                     </label>
                     <div id="sub-alert-settings" class="subscription-alert-settings">
                         <div class="input-group">
-                            <label for="sub-alert-days">Días previos</label>
+                            <label for="sub-alert-mode">Cuándo avisar</label><select id="sub-alert-mode" class="text-input"><option value="daily">Todos los días desde el plazo elegido</option><option value="progressive">7, 5, 3, 2, 1 días antes y el mismo día</option></select></div><div id="sub-alert-days-group" class="input-group"><label for="sub-alert-days">Días previos</label>
                             <input type="number" id="sub-alert-days" class="text-input" min="0" max="30" value="3">
                         </div>
                         <div class="input-group">
