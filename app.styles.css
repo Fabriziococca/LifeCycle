@@ -35435,7 +35435,10 @@
 .subscription-card-heading {
     justify-content: space-between;
     align-items: flex-start;
+    flex-wrap: wrap;
 }
+
+.subscription-card-heading > div { flex: 1 1 14rem; }
 
 .subscription-card-heading h3 {
     margin: .15rem 0 0;
