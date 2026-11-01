@@ -7,7 +7,7 @@ const clientId='11111111-1111-4111-8111-111111111111';
 const subscription=()=>normalizeSubscription({id:'sub_client_qa',clientId,name:'Webshare QA',billingMode:'tracking',periodDays:30,nextRenewalDate:'2026-11-04',renewalTime:'17:47',alert:{enabled:true,times:['22:00'],noticeDays:[...CLIENT_SUBSCRIPTION_NOTICE_DAYS]}});
 
 test('exact-day client cycles preserve anchors, hours and original month-based subscriptions',()=>{
- let s=subscription();assert.equal(s.clientId,clientId);assert.equal(s.renewalTime,'17:47');
+ let s=subscription();assert.equal(s.clientId,clientId);assert.equal(s.renewalTime,'17:47');assert.equal(s.paymentMethod,'');
  for(const day of ['2026-12-04','2027-01-03','2027-02-02']){s=advanceSubscriptionRenewal(s);assert.equal(s.nextRenewalDate,day);assert.equal(s.history.length,0);}
  assert.equal(advanceSubscriptionRenewal(normalizeSubscription({id:'sub_monthly',nextRenewalDate:'2026-01-31',periodMonths:1})).nextRenewalDate,'2026-02-28');
 });

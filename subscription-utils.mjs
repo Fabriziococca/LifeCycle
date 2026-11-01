@@ -255,7 +255,7 @@ export function normalizeSubscription(raw, now = new Date()) {
         autoRenew: raw.autoRenew !== false,
         status,
         statusChangedAt: normalizeIsoTimestamp(raw.statusChangedAt, updatedAt),
-        paymentMethod: String(raw.paymentMethod || 'Tarjeta').replace(/\s+/g, ' ').trim().slice(0, 80),
+        paymentMethod: String(raw.paymentMethod || (raw.billingMode === 'tracking' ? '' : 'Tarjeta')).replace(/\s+/g, ' ').trim().slice(0, 80),
         notes: String(raw.notes || '').trim().slice(0, 2000),
         autoRecordExpense: raw.autoRecordExpense === true,
         lastExpenseRecordedPeriod: String(raw.lastExpenseRecordedPeriod || '').slice(0, 180) || null,

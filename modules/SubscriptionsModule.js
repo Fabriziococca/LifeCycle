@@ -465,7 +465,7 @@ export class SubscriptionsModule {
         renewalInput.value = reactivate || convertToPaid ? '' : subscription?.nextRenewalDate || '';
         renewalInput.min = reactivate || convertToPaid ? todayKey() : '';
         renewalInput.required = reactivate;
-        document.getElementById('sub-payment-method').value = subscription?.paymentMethod || 'Tarjeta';
+        document.getElementById('sub-payment-method').value = subscription?.paymentMethod || (clientId || subscription?.billingMode === 'tracking' ? '' : 'Tarjeta');
         document.getElementById('sub-autorenew').checked = subscription?.autoRenew !== false;
         document.getElementById('sub-auto-record-expense').checked = subscription?.autoRecordExpense === true;
         document.getElementById('sub-notes').value = subscription?.notes || '';
