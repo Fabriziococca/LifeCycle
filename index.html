@@ -1930,11 +1930,11 @@
             <!-- Métricas resumen -->
             <div class="summary-metrics-grid" style="display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 1rem; margin-bottom: 1.5rem;">
                 <div class="card" style="padding: 1.25rem;">
-                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Gasto mensual (USD)</span>
+                    <span id="subs-summary-usd-label" style="font-size: 0.8rem; color: var(--text-secondary);">Tu gasto mensual (USD)</span>
                     <h3 id="subs-summary-monthly-usd" style="margin: 0.35rem 0 0 0; font-size: 1.45rem; color: var(--text-primary);">$0.00 USD</h3>
                 </div>
                 <div class="card" style="padding: 1.25rem;">
-                    <span style="font-size: 0.8rem; color: var(--text-secondary);">Gasto mensual (ARS est.)</span>
+                    <span id="subs-summary-ars-label" style="font-size: 0.8rem; color: var(--text-secondary);">Tu gasto mensual (ARS est.)</span>
                     <h3 id="subs-summary-monthly-ars" style="margin: 0.35rem 0 0 0; font-size: 1.45rem; color: var(--text-primary);">—</h3>
                 </div>
                 <div class="card" style="padding: 1.25rem;">
@@ -1947,6 +1947,7 @@
                 </div>
             </div>
 
+            <p id="subs-summary-scope-note" class="fw-note">Sólo tus suscripciones propias se pueden registrar como gastos en Finanzas.</p>
             <!-- Filtros -->
             <div class="tabs-container" style="display: flex; gap: 8px; margin-bottom: 1.25rem; flex-wrap: wrap;">
                 <button type="button" class="tab-btn active" data-subscription-filter="all">Todas</button>
@@ -2833,7 +2834,7 @@
                 </button>
             </div>
             <form id="subscription-form">
-                <div class="input-group"><label for="sub-client">Cliente (opcional)</label><select id="sub-client" class="text-input"><option value="">Propia · sin cliente</option></select></div>
+                <div class="input-group"><label for="sub-client">Suscripción de</label><select id="sub-client" class="text-input"><option value="">Propia · la pago yo</option></select><small id="sub-owner-help" class="hidden">La paga el cliente. Su importe es informativo y nunca se registra como gasto tuyo.</small></div>
                 <div class="input-group">
                     <label for="sub-billing-mode">Modalidad</label>
                     <select id="sub-billing-mode" class="text-input" aria-describedby="sub-billing-help">
@@ -2851,6 +2852,7 @@
                     <div class="input-group">
                         <label for="sub-cost">Precio real del ciclo</label>
                         <input type="number" id="sub-cost" class="text-input" step="0.01" min="0" placeholder="Ej: 15.00" required>
+                        <small id="sub-client-cost-help" class="hidden">Costo del servicio para el cliente. No se suma a tus gastos.</small>
                     </div>
                     <div class="input-group">
                         <label for="sub-currency">Moneda</label>

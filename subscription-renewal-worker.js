@@ -42,7 +42,7 @@ class SubscriptionRenewalWorker {
         for (const row of rows) {
             for (const sub of normalizeSubscriptionRegistry(row.data?.lifecycle_subscriptions).subscriptions) {
                 if (clientStates && !subscriptionClientActive(sub,clientStates.get(row.user_id))) continue;
-                const tracking = sub.billingMode === 'tracking';
+                const tracking = Boolean(sub.clientId) || sub.billingMode === 'tracking';
                 if (tracking ? !subscriptionTrackingDue(sub,now) : (sub.status!=='active'||sub.billingMode!=='paid'||!sub.autoRenew||!sub.autoRecordExpense||sub.cost<=0)) continue;
                 let date = sub.nextRenewalDate, periods = 0;
                 while (date && date<=today) {

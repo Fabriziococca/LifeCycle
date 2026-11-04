@@ -11,6 +11,8 @@ import {
     getDaysUntilRenewal,
     getSubscriptionExpenseOccurrenceKey,
     isPaidSubscription,
+    isClientSubscription,
+    isExpenseSubscription,
     migrateWorkanaToSubscriptions,
     normalizeSubscription,
     normalizeSubscriptionRegistry,
@@ -223,6 +225,7 @@ export class SubscriptionsModule {
                 ?.classList.toggle('hidden', !event.currentTarget.checked);
         });
         document.getElementById('sub-billing-mode')?.addEventListener('change', () => this.updateBillingFields());
+        document.getElementById('sub-client')?.addEventListener('change', () => this.updateBillingFields());
         document.getElementById('sub-period')?.addEventListener('change', () => this.updateBillingFields());
         document.getElementById('sub-alert-mode')?.addEventListener('change', () => this.updateBillingFields());
     }
@@ -239,16 +242,23 @@ export class SubscriptionsModule {
         let usd = 0;
         let ars = 0;
         const rate = Number(this.app.getValidCachedLemonRate?.()) || 0;
-        active.filter(isPaidSubscription).forEach(item => {
-            const monthly = item.periodDays ? item.cost * 30 / item.periodDays : calculateMonthlyEquivalent(item.cost, item.periodMonths);
-            if (item.currency === 'ARS') {
-                ars += monthly;
-                if (rate > 0) usd += monthly / rate;
-            } else {
-                usd += monthly;
-                if (rate > 0) ars += monthly * rate;
-            }
-        });
+        const addCost = (items) => {
+            const totals = { usd: 0, ars: 0 };
+            items.forEach(item => {
+                const monthly = item.periodDays ? item.cost * 30 / item.periodDays : calculateMonthlyEquivalent(item.cost, item.periodMonths);
+                if (item.currency === 'ARS') {
+                    totals.ars += monthly;
+                    if (rate > 0) totals.usd += monthly / rate;
+                } else {
+                    totals.usd += monthly;
+                    if (rate > 0) totals.ars += monthly * rate;
+                }
+            });
+            return totals;
+        };
+        const clients = active.filter(isClientSubscription);
+        const clientTotals = addCost(clients);
+        ({ usd, ars } = this.clientScope === 'clients' ? clientTotals : addCost(active.filter(isExpenseSubscription)));
         const upcoming = active.filter(item => {
             const days = getDaysUntilRenewal(item.nextRenewalDate);
             return Number.isFinite(days) && days >= 0 && days <= 7;
@@ -258,9 +268,20 @@ export class SubscriptionsModule {
             if (element) element.textContent = value;
         };
         setText('subs-summary-total', String(scoped.length));
+        const clientsOnly = this.clientScope === 'clients';
+        setText('subs-summary-usd-label', clientsOnly ? 'Costo mensual de clientes (USD)' : 'Tu gasto mensual (USD)');
+        setText('subs-summary-ars-label', clientsOnly ? 'Costo mensual de clientes (ARS est.)' : 'Tu gasto mensual (ARS est.)');
         setText('subs-summary-monthly-usd', `$${usd.toFixed(2)} USD`);
         setText('subs-summary-monthly-ars', ars > 0 ? `$${Math.round(ars).toLocaleString('es-AR')} ARS` : '—');
         setText('subs-summary-upcoming', String(upcoming));
+        const note = document.getElementById('subs-summary-scope-note');
+        if (note) {
+            note.textContent = clientsOnly
+                ? `Las paga cada cliente. Importes informativos; no se suman a tus gastos.${clients.some(item => !item.cost) ? ' Hay servicios sin importe indicado.' : ''}`
+                : this.clientScope === 'all'
+                    ? `Tu gasto mensual incluye sólo suscripciones propias. Costo de clientes, por separado: USD ${clientTotals.usd.toFixed(2)}${clientTotals.ars > 0 ? ` · ARS ${Math.round(clientTotals.ars).toLocaleString('es-AR')}` : ''}. No se suma a tus gastos.`
+                    : 'Sólo tus suscripciones propias se pueden registrar como gastos en Finanzas.';
+        }
     }
 
     getFilteredSubscriptions() {
@@ -300,6 +321,7 @@ export class SubscriptionsModule {
     }
 
     renderCard(subscription, {clientContext = false} = {}) {
+        const clientOwned = isClientSubscription(subscription);
         const paid = isPaidSubscription(subscription);
         const tracking = subscription.billingMode === 'tracking';
         const client = subscription.clientId ? this.app.work?.store?.state?.clients?.find(c => c.id === subscription.clientId) : null;
@@ -317,7 +339,7 @@ export class SubscriptionsModule {
             : STATUS_LABELS[subscription.status];
         if (trial && subscription.status === 'active') {
             statusText = days === null ? 'Fecha inválida' : days < 0 ? 'Prueba vencida: decidir' : days === 0 ? 'Prueba termina hoy' : `Prueba: quedan ${days} d`;
-        } else if (!paid && !tracking && subscription.status === 'active') {
+        } else if (!clientOwned && !paid && !tracking && subscription.status === 'active') {
             statusText = 'Gratuita';
         }
         const alerts = subscription.alert.enabled
@@ -335,19 +357,19 @@ export class SubscriptionsModule {
                     <div>
                         <span class="subscription-category">${escapeHtml(client ? client.name + ' · ' + category : category)}</span>
                         <h3>${escapeHtml(subscription.name)}</h3>
-                        ${!paid ? `<span class="subscription-free-label">${tracking ? 'Sólo seguimiento · importe no indicado' : trial ? 'Prueba gratuita' : 'Gratuita permanente'} · No suma gasto</span>` : ''}
+                        ${clientOwned ? '<span class="subscription-free-label">La paga el cliente · Importe informativo · No suma a tus gastos</span>' : !paid ? `<span class="subscription-free-label">${tracking ? 'Sólo seguimiento · importe no indicado' : trial ? 'Prueba gratuita' : 'Gratuita permanente'} · No suma gasto</span>` : ''}
                     </div>
                     <span class="badge ${statusClass}">${escapeHtml(statusText)}</span>
                 </div>
                 <div class="subscription-price">
-                    <strong>${tracking ? 'Sólo avisos' : !paid ? 'Gratis ahora' : `${subscription.currency === 'USD' ? '$' : 'ARS$'}${subscription.cost.toFixed(2)}`}</strong>
+                    <strong>${clientOwned ? subscription.cost > 0 ? `${subscription.currency} ${subscription.cost.toFixed(2)}` : 'Sin importe indicado' : tracking ? 'Sólo avisos' : !paid ? 'Gratis ahora' : `${subscription.currency === 'USD' ? '$' : 'ARS$'}${subscription.cost.toFixed(2)}`}</strong>
                     <span>/ ${escapeHtml(period)}</span>
-                    ${tracking ? '' : `<small>${paid ? '≈' : 'Precio si pagás:'} ${subscription.currency === 'USD' ? '$' : 'ARS$'}${paid ? (subscription.periodDays ? subscription.cost * 30 / subscription.periodDays : calculateMonthlyEquivalent(subscription.cost, subscription.periodMonths)).toFixed(2) : subscription.cost.toFixed(2)}${paid ? '/mes' : ` / ${period}`}</small>`}
+                    ${clientOwned || tracking ? '' : `<small>${paid ? '≈' : 'Precio si pagás:'} ${subscription.currency === 'USD' ? '$' : 'ARS$'}${paid ? (subscription.periodDays ? subscription.cost * 30 / subscription.periodDays : calculateMonthlyEquivalent(subscription.cost, subscription.periodMonths)).toFixed(2) : subscription.cost.toFixed(2)}${paid ? '/mes' : ` / ${period}`}</small>`}
                 </div>
                 <dl class="subscription-meta">
                     <div><dt>${trial ? 'Fin de prueba / decisión' : 'Próxima renovación'}</dt><dd>${escapeHtml(subscription.nextRenewalDate)}${subscription.renewalTime ? ' · '+escapeHtml(subscription.renewalTime)+' · Argentina' : ''}</dd></div>
                     <div><dt>Avisos</dt><dd>${escapeHtml(alerts)}</dd></div>
-                    <div><dt>Gasto</dt><dd>${!paid ? 'Sin cargos registrados' : subscription.autoRecordExpense ? 'Automático' : 'Confirmación manual'}</dd></div>
+                    ${clientOwned ? `<div><dt>La paga</dt><dd>${escapeHtml(client?.name || 'El cliente')}</dd></div>` : `<div><dt>Gasto</dt><dd>${!paid ? 'Sin cargos registrados' : subscription.autoRecordExpense ? 'Automático' : 'Confirmación manual'}</dd></div>`}
                 </dl>
                 ${subscription.alert.enabled ? `<p class="fw-note">${subscription.alert.noticeDays ? 'Avisos cuando falten '+subscription.alert.noticeDays.join(', ')+' días.' : 'Avisos diarios desde '+subscription.alert.daysBefore+' días antes.'}${subscription.renewalTime ? ' El día de renovación, los avisos posteriores se adelantan a las '+escapeHtml(subscription.renewalTime)+'.' : ''}${client?.archived ? ' Cliente archivado: avisos y ciclos pausados.' : ''}</p>` : ''}
                 ${history.length > 0 ? `
@@ -356,8 +378,8 @@ export class SubscriptionsModule {
                         <ul>${history.map(event => `<li><strong>${escapeHtml(eventLabel(event.type))}</strong> · ${escapeHtml(event.effectiveDate)}${event.note ? ` — ${escapeHtml(event.note)}` : ''}</li>`).join('')}</ul>
                     </details>` : ''}
                 <div class="subscription-actions">
-                    ${paid ? '<button type="button" class="btn btn-secondary" data-subscription-action="expense"><i class="ph ph-receipt"></i> Registrar gasto</button>' : '<button type="button" class="btn btn-primary" data-subscription-action="convert-paid">Pasar a paga</button>'}
-                    ${trial && subscription.status === 'active' ? '<button type="button" class="btn btn-secondary" data-subscription-action="decline">No continuar</button>' : ''}
+                    ${clientOwned ? '' : paid ? '<button type="button" class="btn btn-secondary" data-subscription-action="expense"><i class="ph ph-receipt"></i> Registrar gasto</button>' : '<button type="button" class="btn btn-primary" data-subscription-action="convert-paid">Pasar a paga</button>'}
+                    ${!clientOwned && trial && subscription.status === 'active' ? '<button type="button" class="btn btn-secondary" data-subscription-action="decline">No continuar</button>' : ''}
                     <button type="button" class="btn btn-secondary" data-subscription-action="edit"><i class="ph ph-pencil"></i> Editar</button>
                     ${inactiveActions}
                     <button type="button" class="icon-btn is-danger" data-subscription-action="delete" aria-label="Eliminar ${escapeHtml(subscription.name)}"><i class="ph ph-trash"></i></button>
@@ -405,15 +427,26 @@ export class SubscriptionsModule {
     }
 
     updateBillingFields() {
+        const clientOwned = Boolean(document.getElementById('sub-client')?.value);
+        const billing = document.getElementById('sub-billing-mode');
+        if (clientOwned) billing.value = 'tracking';
+        billing.disabled = clientOwned;
+        billing.closest('.input-group')?.classList.toggle('hidden', clientOwned);
         const mode = document.getElementById('sub-billing-mode')?.value;
         const expense = document.getElementById('sub-auto-record-expense');
-        if (expense) expense.disabled = mode !== 'paid';
+        if (expense) {
+            expense.disabled = clientOwned || mode !== 'paid';
+            if (clientOwned) expense.checked = false;
+        }
         const tracking = mode === 'tracking';
-        document.getElementById('sub-payment-method')?.closest('.input-group')?.classList.toggle('hidden', tracking);
-        expense?.closest('.input-group')?.classList.toggle('hidden', tracking);
+        document.getElementById('sub-payment-method')?.closest('.input-group')?.classList.toggle('hidden', clientOwned || tracking);
+        expense?.closest('.input-group')?.classList.toggle('hidden', clientOwned || tracking);
         const price = document.getElementById('sub-cost');
-        price.required = !tracking;
-        document.querySelector('.subscription-form-row--money')?.classList.toggle('hidden', tracking);
+        price.required = !clientOwned && !tracking;
+        document.querySelector('label[for="sub-cost"]').textContent = clientOwned ? 'Importe del ciclo (opcional)' : 'Precio real del ciclo';
+        document.querySelector('.subscription-form-row--money')?.classList.toggle('hidden', !clientOwned && tracking);
+        document.getElementById('sub-client-cost-help')?.classList.toggle('hidden', !clientOwned);
+        document.getElementById('sub-owner-help')?.classList.toggle('hidden', !clientOwned);
         document.getElementById('sub-period-days-group')?.classList.toggle('hidden', document.getElementById('sub-period')?.value !== 'days');
         document.getElementById('sub-alert-days-group')?.classList.toggle('hidden', document.getElementById('sub-alert-mode')?.value !== 'daily');
         const renewal = document.getElementById('sub-renewal-date');
@@ -443,12 +476,16 @@ export class SubscriptionsModule {
         const subscription = subscriptionId
             ? this.subscriptions.find(item => item.id === subscriptionId)
             : null;
+        if (subscription?.clientId || clientId) {
+            convertToPaid = false;
+            this.convertingSubscription = false;
+        }
         this.reactivationFingerprint = reactivate || convertToPaid ? JSON.stringify(subscription) : null;
         document.getElementById('subscription-modal-title').textContent = reactivate ? 'Reactivar suscripción' : subscription ? 'Editar suscripción' : 'Nueva suscripción';
         document.getElementById('sub-name').value = subscription?.name || '';
         document.getElementById('sub-billing-mode').value = convertToPaid ? 'paid' : subscription?.billingMode || (clientId ? 'tracking' : 'paid');
         const clients = this.app.work?.store?.state?.clients || [];
-        document.getElementById('sub-client').innerHTML = '<option value="">Propia · sin cliente</option>' + clients.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}${c.archived?' · archivado':''}</option>`).join('');
+        document.getElementById('sub-client').innerHTML = '<option value="">Propia · la pago yo</option>' + clients.map(c => `<option value="${escapeHtml(c.id)}">${escapeHtml(c.name)}${c.archived?' · archivado':''}</option>`).join('');
         document.getElementById('sub-client').value = subscription?.clientId || clientId;
         if (convertToPaid) document.getElementById('subscription-modal-title').textContent = 'Pasar a suscripción paga';
         document.getElementById('sub-category').value = subscription?.category || 'software';
@@ -533,7 +570,7 @@ export class SubscriptionsModule {
         }
         if (!name) return this.showFormError('Ingresá el nombre del servicio o plataforma.');
         if (!parseSubscriptionDate(startDate)) return this.showFormError('Elegí una fecha de inicio válida.');
-        const billingMode = document.getElementById('sub-billing-mode').value;
+        const billingMode = clientId ? 'tracking' : document.getElementById('sub-billing-mode').value;
         if (existing && !isPaidSubscription(existing) && billingMode === 'paid' && (!parseSubscriptionDate(nextRenewalDate) || nextRenewalDate < todayKey())) {
             return this.showFormError('Indicá la primera renovación paga desde hoy; no se cobrarán períodos gratuitos anteriores.');
         }
@@ -568,7 +605,7 @@ export class SubscriptionsModule {
                 : existing?.billingAnchorIsMonthEnd,
             paymentMethod: document.getElementById('sub-payment-method')?.value,
             autoRenew: document.getElementById('sub-autorenew')?.checked,
-            autoRecordExpense: billingMode === 'paid' && document.getElementById('sub-auto-record-expense')?.checked,
+            autoRecordExpense: !clientId && billingMode === 'paid' && document.getElementById('sub-auto-record-expense')?.checked,
             notes: document.getElementById('sub-notes')?.value,
             status: reactivating || this.convertingSubscription ? 'active' : existing?.status || 'active',
             ...(reactivating ? { statusChangedAt: now } : {}),
@@ -651,7 +688,7 @@ export class SubscriptionsModule {
         const index = this.subscriptions.findIndex(item => item.id === subscriptionId);
         if (index < 0 || !this.app.finanzas) return false;
         const subscription = this.subscriptions[index];
-        if (!isPaidSubscription(subscription) || subscription.status !== 'active') return false;
+        if (!isExpenseSubscription(subscription) || subscription.status !== 'active') return false;
         const renewalDate = subscription.nextRenewalDate;
         const occurrenceKey = getSubscriptionExpenseOccurrenceKey(subscription, renewalDate);
         if (!occurrenceKey) return false;

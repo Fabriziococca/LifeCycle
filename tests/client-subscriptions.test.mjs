@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { normalizeSubscription, advanceSubscriptionRenewal, subscriptionNoticeDue, subscriptionAlertTimes, subscriptionTrackingDue, subscriptionClientActive, CLIENT_SUBSCRIPTION_NOTICE_DAYS } from '../subscription-utils.mjs';
+import { normalizeSubscription, advanceSubscriptionRenewal, subscriptionNoticeDue, subscriptionAlertTimes, subscriptionTrackingDue, subscriptionClientActive, isExpenseSubscription, CLIENT_SUBSCRIPTION_NOTICE_DAYS } from '../subscription-utils.mjs';
 import { SubscriptionRenewalWorker } from '../subscription-renewal-worker.js';
 import { isPushRetryRelevant } from '../notification-utils.js';
 const clientId='11111111-1111-4111-8111-111111111111';
@@ -30,4 +30,23 @@ test('tracking renews with no browser, no Push device and no exchange rate or ex
  const result=await worker.run(rows,{now:new Date('2026-11-04T18:05:00-03:00'),clientStates:new Map([['qa-only',[{id:clientId,archived:false}]]])});
  assert.equal(result.summary.processed,1);assert.equal(calls[0].name,'advance_subscription_tracking_for_scheduler');assert.deepEqual(rows,before);
  calls.length=0;await worker.run(rows,{now:new Date('2026-11-04T18:05:00-03:00'),clientStates:new Map([['qa-only',[{id:clientId,archived:true}]]])});assert.equal(calls.length,0);
+});
+
+test('client prices are informational even in older paid records; dates, cost and history survive',()=>{
+ const raw={...subscription(),billingMode:'paid',cost:99,currency:'ARS',autoRecordExpense:true,history:[{id:'existing',type:'created',occurredAt:'2026-11-01T00:00:00Z',effectiveDate:'2026-11-01',cost:99,currency:'ARS'}]};
+ const s=normalizeSubscription(raw);
+ assert.equal(isExpenseSubscription(raw),false);assert.equal(isExpenseSubscription(s),false);
+ assert.equal(s.cost,99);assert.equal(s.currency,'ARS');assert.equal(s.autoRecordExpense,false);
+ assert.equal(s.nextRenewalDate,raw.nextRenewalDate);assert.equal(s.history[0].id,'existing');
+ assert.equal(subscriptionTrackingDue(raw,'2026-11-05T22:00:00-03:00'),true);
+ assert.equal(isExpenseSubscription({...raw,clientId:undefined}),true);
+});
+
+test('old paid client subscriptions use expense-free rollover while own paid renewals still record expenses',async()=>{
+ const client={...subscription(),billingMode:'paid',cost:100,currency:'ARS',autoRecordExpense:true};
+ const own={...client,id:'sub_own_paid',clientId:undefined,currency:'USD'};
+ const calls=[],worker=new SubscriptionRenewalWorker({rpc:async(name,args)=>{calls.push(name);return {data:{created:true,next_date:'2026-12-04'}};}},{resolveRate:async()=>{throw Error('Client price must never require an exchange rate');}});
+ const rows=[{user_id:'qa-only',data:{lifecycle_subscriptions:{subscriptions:[client,own]},finanzasData:{expenses:[]}}}],before=structuredClone(rows);
+ await worker.run(rows,{now:new Date('2026-11-05T22:00:00-03:00'),clientStates:new Map([['qa-only',[{id:clientId,archived:false}]]])});
+ assert.deepEqual(calls,['advance_subscription_tracking_for_scheduler','renew_subscription_for_scheduler']);assert.deepEqual(rows,before);
 });

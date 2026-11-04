@@ -22,6 +22,15 @@ export function isPaidSubscription(subscription) {
     return !subscription?.billingMode || subscription.billingMode === 'paid';
 }
 
+export function isClientSubscription(subscription) {
+    return Boolean(subscription?.clientId);
+}
+
+// A client's service price is informational, irrespective of its billing mode.
+export function isExpenseSubscription(subscription) {
+    return !isClientSubscription(subscription) && isPaidSubscription(subscription);
+}
+
 export const CLIENT_SUBSCRIPTION_NOTICE_DAYS = Object.freeze([7, 5, 3, 2, 1, 0]);
 export function subscriptionNoticeDue(subscription, days) {
     if (!Number.isInteger(days) || days < 0) return false;
@@ -40,7 +49,7 @@ export function subscriptionAlertTimes(subscription, days) {
 }
 
 export function subscriptionTrackingDue(subscription, now = new Date()) {
-    if (subscription?.billingMode !== 'tracking' || subscription.status !== 'active' || !subscription.autoRenew) return false;
+    if ((!isClientSubscription(subscription) && subscription?.billingMode !== 'tracking') || subscription.status !== 'active' || !subscription.autoRenew) return false;
     const local = new Date(new Date(now).getTime() - 3 * 3600000).toISOString();
     const day = local.slice(0, 10);
     if (subscription.nextRenewalDate < day) return true;
@@ -257,7 +266,7 @@ export function normalizeSubscription(raw, now = new Date()) {
         statusChangedAt: normalizeIsoTimestamp(raw.statusChangedAt, updatedAt),
         paymentMethod: String(raw.paymentMethod || (raw.billingMode === 'tracking' ? '' : 'Tarjeta')).replace(/\s+/g, ' ').trim().slice(0, 80),
         notes: String(raw.notes || '').trim().slice(0, 2000),
-        autoRecordExpense: raw.autoRecordExpense === true,
+        autoRecordExpense: !isClientSubscription(raw) && raw.autoRecordExpense === true,
         lastExpenseRecordedPeriod: String(raw.lastExpenseRecordedPeriod || '').slice(0, 180) || null,
         alert: {
             enabled: raw.alert?.enabled !== false,

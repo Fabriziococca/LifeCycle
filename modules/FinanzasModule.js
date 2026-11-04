@@ -1,4 +1,5 @@
 import { retainerMovements } from '../retainer-utils.mjs';
+import { isClientSubscription } from '../subscription-utils.mjs';
 import {
     getLocalISODate,
     getLocalISOMonth,
@@ -1643,6 +1644,10 @@ export class FinanzasModule {
         occurrenceKey,
         automatic = false
     }) {
+        const subscription = this.app.subscriptions?.subscriptions?.find(item => item.id === subscriptionId);
+        if (isClientSubscription(subscription)) {
+            return { created: false, duplicate: false, error: new Error('La suscripción la paga el cliente; no genera gastos propios.') };
+        }
         let amountInUSD = Math.max(0, Number(amount) || 0);
         if (currency === 'ARS') {
             const rate = Number(
