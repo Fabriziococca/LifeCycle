@@ -1,5 +1,11 @@
 # Auditoría integral de LifeCycle — 14/10/2026
 
+> Corte histórico cerrado dentro de su cobertura. Para continuar al 17/11, usar
+> [PROJECT_STATE.md](../PROJECT_STATE.md) y [PROJECT_PLAN.md](../PROJECT_PLAN.md).
+> Trading multihorario y renovaciones sin abrir la app se resolvieron después de
+> esta auditoría (18/10). Conservar la confirmación física de Push del 14/10 sin
+> ampliarla a latencia medida, todos los horarios o Android nativo.
+
 Auditoría estática/local y recorridos funcionales ampliados en QA real,
 cerrados razonablemente dentro de la cobertura documentada. Los defectos
 encontrados se corrigieron y se volvieron a comprobar; también se completaron

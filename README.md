@@ -1,5 +1,11 @@
 # LifeCycle 🧼🧔👁️🚗
 
+Para retomar el desarrollo, empezar por [AGENTS.md](AGENTS.md) y el
+[Project Pack](PROJECT_MASTER.md): [estado actual](PROJECT_STATE.md),
+[plan vigente](PROJECT_PLAN.md), [decisiones](DECISIONS.md) y
+[accesos](ACCESS_REGISTER.md). Las descripciones y planes históricos de docs/
+se contrastan con ese corte; no son una cola automática de trabajo pendiente.
+
 > **A private, cloud-first Progressive Web App (PWA) designed for unified tracking of daily habits, personal care cycles, health controls, vehicle maintenance, tasks, and financial projects.**
 
 LifeCycle is a showcase of full-stack architecture built to optimize personal workflows, replacing notification fatigue and easily ignored calendar reminders with an adaptive, color-coded visual dashboard and a centralized, floating **Notifications Center** with background push alerts.
@@ -17,7 +23,7 @@ graph TD
     Server -->|Web Push Protocol| Client
 ```
 
-*   **Frontend Client:** HTML5, Vanilla CSS3 (custom glassmorphism style, dark-mode first design), ES6+ JavaScript, and a pinned local copy of SortableJS for accessible mouse/touch card ordering.
+*   **Frontend Client:** HTML5, Vanilla CSS3 (shared light/dark interface with cherry/pink accents), ES6+ JavaScript, and a pinned local copy of SortableJS for accessible mouse/touch card ordering.
 *   **Data Persistence:** Cloud-first architecture with **Supabase** as the source of truth. `LocalStorage` is only a runtime cache and is cleared when the session closes.
 *   **Database Cloud Sync:** Authenticated per-key updates avoid replacing unrelated module data, while Realtime and foreground refreshes keep devices aligned.
 *   **Backend Notification Server:** Node.js Express server hosted on **Render**, performing periodic database checks and dispatching secure Web Push Notifications.

@@ -1,8 +1,10 @@
 # LifeCycle — estado de estabilidad y diseño de Finanzas, 27/09/2026
 
-Este documento es el estado operativo vigente de esta entrega. Complementa el plan
-A–F y **sustituye las propuestas incompatibles del 26/09**, no declara cerrado el
-roadmap completo. No existe un Project Pack separado en este repositorio.
+Este documento registra el estado operativo de esta entrega al 27/09. Complementa
+el plan A–F y **sustituye las propuestas incompatibles del 26/09**, sin declarar
+cerrado el roadmap completo. Desde el 17/11 el corte vigente está en el Project
+Pack de la raíz: [PROJECT_STATE.md](../PROJECT_STATE.md) y
+[DECISIONS.md](../DECISIONS.md). Se conserva aquí la evidencia histórica.
 
 ## Decisiones confirmadas por el usuario
 

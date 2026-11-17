@@ -1,5 +1,13 @@
 # Plan definitivo de LifeCycle — estado auditado
 
+> **Entrada vigente para continuar, 17/11/2026:** [PROJECT_PLAN.md](../PROJECT_PLAN.md)
+> y [PROJECT_STATE.md](../PROJECT_STATE.md). Este documento conserva el roadmap
+> histórico A–F y sus cortes fechados. Trading multihorario/renovaciones ya se
+> resolvieron; Transcripciones está archivado y APK diferido. El rediseño aprobado
+> del 25/10 sustituyó carbón/piedra. Suscripciones de clientes quedó publicado y
+> su separación de gastos propios se corrigió el 04/11. No volver a ejecutar la
+> tabla antigua ni su secuencia final como pendientes actuales.
+
 **Ampliación del 23/10/2026:** Finanzas con desglose original USD/ARS, histórico
 al cambio de cada cobro, saldos a referencia actual y conversiones opcionales.
 Ver [reglas y verificación de multimoneda](FINANZAS_MULTIMONEDA_2026-10-23.md).

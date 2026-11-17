@@ -8,7 +8,7 @@ El ciclo puede ser por meses calendario o por una cantidad exacta de días. Los 
 
 El modo Sólo seguimiento no afirma que el servicio sea gratuito ni crea gastos. El servidor avanza su calendario aunque no haya navegador ni dispositivos Push. Espera a que termine la ventana del último aviso del día de renovación. Si hay hora de renovación, los avisos posteriores de ese día se adelantan a dicha hora, siempre en Argentina. El avance no confirma un pago ni una renovación del proveedor. Pausar, cancelar o desactivar renovación automática detiene el avance.
 
-La opción de avisos progresivos notifica exactamente a 7, 5, 3, 2, 1 y 0 días; no avisa a 6 ni 4. La hora habitual se elige con los mismos controles existentes. Los pagos automáticos opcionales siguen usando la transacción atómica existente, ahora compatible con periodDays. Un ciclo sólo genera como máximo un gasto por periodo; un seguimiento sin importe nunca lo genera.
+La opción de avisos progresivos notifica exactamente a 7, 5, 3, 2, 1 y 0 días; no avisa a 6 ni 4. La hora habitual se elige con los mismos controles existentes. Los registros automáticos opcionales de gastos sólo corresponden a suscripciones propias y usan la transacción atómica existente, compatible con periodDays; no realizan pagos al proveedor. Un ciclo propio genera como máximo un gasto por periodo. Las suscripciones de clientes no lo generan, tengan o no importe informativo.
 
 Configuración solicitada para Diego: Webshare 04/11/2026 17:47; ngrok 29/11/2026 21:00; ambas cada 30 días, con avisos habituales a las 22:00. La periodicidad de ngrok es una instrucción del usuario, no una comprobación del proveedor. No se presume importe, medio de pago ni pagos históricos.
 
