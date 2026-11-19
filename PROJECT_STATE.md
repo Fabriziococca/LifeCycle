@@ -1,8 +1,17 @@
 # Estado actual de LifeCycle
 
-Corte: 17/11/2026, migración del chat 01a0efed-8ad3-7de3-9eca-27ac6672b9d2. Leer junto a PROJECT_PLAN.md y DECISIONS.md.
+Corte operativo del 19/11/2026. Leer junto a PROJECT_PLAN.md y DECISIONS.md.
 
-## Punto seguro
+## Publicación del 19/11
+
+- Render sirve `bc5109cb535daf1b883e68551662a46817d2ce97`. La entrega de Tareas y dependencias fue `4c74c7c`. Ambas pasaron el workflow Validate LifeCycle y Manual Deploy. Health confirmó el commit y éxitos de avisos y renovaciones. El plan y los servicios contratados siguen siendo los mismos.
+- Tareas regulares usa identificadores independientes del reloj, reconciliación por campo y revisión de nube. La migración `20261119185830_guard_task_list_writes.sql` protege los datos ante envíos obsoletos y preserva los respaldos. Las versiones anteriores deben recargarse para enviar cambios pendientes. npm audit completo y de producción devolvieron cero hallazgos.
+- Nutrición permite guardar o cancelar con poca altura disponible. La guía se encuentra en Buscar y en Más del móvil. Sus siete recorridos abren funciones existentes de Personal y Trabajo.
+- 568 pruebas automatizadas aprobadas. QA local con navegadores independientes de 1440 y 390 px y PostgreSQL aislado. Nutrición se probó también a 390 × 420; la guía a 360, 390 y 1440 px, en temas claro y oscuro.
+- QA autenticada comprobada en el navegador integrado. La tarea de prueba pasó por alta, edición desde otra pestaña y borrado. Una comida general editada persistió tras recargar y Cancelar conservó el valor anterior. Las dos colecciones recuperaron su contenido inicial. La prueba móvil usó emulación de viewport.
+- Evidencia local en `.tmp-sb/qa-2026-11-19/release.json`, capturas y salidas de pruebas en el mismo directorio. La auditoría que originó la tanda se conserva en `.tmp-sb/auditoria-integral-2026-11-19/`.
+
+## Antecedentes del corte del 17/11
 - No hay desarrollo parcial, deploy en curso ni operación de escritura pendiente en esta sesión.
 - Última implementación funcional: ab2b87c1e46b564173ae2268e58721a3b7621afa, corrección de suscripciones pagadas por clientes (04/11).
 - La migración sólo incorpora/actualiza Markdown; no cambia código, datos, configuración, permisos, facturación ni despliegues. El commit documental posterior se identifica con git log; su código ejecutable es el mismo que ab2b87c.
@@ -17,7 +26,7 @@ Corte: 17/11/2026, migración del chat 01a0efed-8ad3-7de3-9eca-27ac6672b9d2. Lee
 - Hay un único worktree. El main LOCAL está antiguo y divergente (479fc6a; ahead 9/behind 72 al corte); no cambiarse a él ni fusionarlo por rutina. La rama snapshot de Antigravity también es histórica.
 - Commit de migración documental: mensaje docs: preserve LifeCycle continuity for new chat [skip render] [skip ci]. No hacer Manual Deploy de documentación para igualar health.
 
-## Producción comprobada hoy
+## Producción comprobada el 17/11
 URL: https://lifecycle-ykn5.onrender.com.
 - Render Lifecycle, servicio srv-d90sh067r5hc73bfo76g, workspace confirmado tea-d4ouodi4d50c73ak3dtg, main, plan Free. Config muestra autoDeploy yes; las publicaciones funcionales se hicieron manualmente con commits [skip render].
 - Último deploy: dep-dblbocijnfac73fhdpr0, live, commit exacto ab2b87c1e46b564173ae2268e58721a3b7621afa.
@@ -27,7 +36,7 @@ URL: https://lifecycle-ykn5.onrender.com.
 - Transcripciones: enabled/configured/running false, coincidente con product-features.mjs.
 - Hoy: Node v24.15.0; npm run check:browser y node --check server.js correctos. No se repitió innecesariamente la suite completa para una migración sólo documental.
 
-## Última tanda: cerrada y publicada
+## Suscripciones de clientes publicadas el 04/11
 Regla: las suscripciones vinculadas a clientes las pagan ellos. cost/currency son informativos; clientId impide registro manual/automático de gastos propios incluso ante una petición de versión vieja.
 - Fuentes: helpers isClientSubscription/isExpenseSubscription, normalización autoRecordExpense=false para clientes, formularios y tarjetas compartidos, guard en Finanzas, worker y PostgreSQL.
 - Migración aplicada: supabase/migrations/20261104045523_client_subscription_payer_boundary.sql. No es una migración de datos.
@@ -51,10 +60,10 @@ Regla: las suscripciones vinculadas a clientes las pagan ellos. cost/currency so
 ## Navegador y recursos al migrar
 - Inventario 17/11: navegador integrado de este chat id 2, sin pestañas; MCP Apps id 1, sin pestañas; sin Page/documento compañero ni artefactos/worktrees adjuntos.
 - No hay pestaña LifeCycle/QA/Supabase/Render que marcar o recuperar por ID. No se cerró ningún navegador/ventana ajeno.
-- QA autenticada se comprobó por última vez el 04/11. Sus cookies/sesión NO se presumen transferibles. En el nuevo chat, inventariar navegadores; abrir LifeCycle en su IAB si hace falta y comprobar identidad antes de escribir.
+- Al migrar el 17/11, la comprobación previa era del 04/11. El 19/11 se verificó de nuevo la identidad QA y se cerraron las pestañas abiertas para las pruebas.
 - docs/ACCESS_REGISTER.md contiene rutas/roles y recuperación sin secretos. No usar almacenamiento de navegador/tokens como atajo ni suponer que una sesión es QA por estar abierta.
 - La propuesta aprobada persiste en design-preview.html y qa-preview/visual-2026-10-25/. Un viejo localhost puede estar cerrado; no es una caída de producción.
 - Automatización Codex Revisión de Supabase LifeCycle cada 5 días: PAUSED, id revisi-n-diaria-de-supabase-lifecycle, heartbeat ligado al chat anterior. No reanudar, duplicar ni trasladar por esta migración. Es diferente del scheduler operativo de avisos de LifeCycle, que sigue activo en Render.
 
 ## Próxima acción
-READY-01 de PROJECT_PLAN.md: lectura dirigida, reconocimiento estructural y contraste de continuidad. No hay nueva tanda funcional abierta ni permiso nuevo para reactivar módulos diferidos. Si se confirma el cierre, continuar con el siguiente pedido concreto del usuario; no inventar desarrollo.
+READY-01 y las dos entregas del 19/11 quedaron cerradas. Retomar con el siguiente pedido concreto.
