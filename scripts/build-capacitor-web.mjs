@@ -1,4 +1,5 @@
-import { cp, mkdir, readdir, rm } from 'node:fs/promises';
+import { cp, mkdir, readFile, readdir, rm } from 'node:fs/promises';
+import { browserAssetNames } from '../browser-assets.mjs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import './build-browser.mjs';
@@ -10,7 +11,7 @@ const excludedRootScripts = new Set(['server.js', 'transcription-worker.js', 'sc
 const fixedAssets = new Set([
     'index.html',
     'style.css',
-    'app.styles.css',
+    ...Object.values(browserAssetNames(await readFile(path.join(projectRoot, 'index.html'), 'utf8'))),
     'design-tokens.css',
     'visual.css',
     'work.css',

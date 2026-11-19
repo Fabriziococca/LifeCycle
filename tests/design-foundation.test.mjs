@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile, access } from 'node:fs/promises';
+import { browserAssetNames } from '../browser-assets.mjs';
 
 const css = await readFile(new URL('../design-tokens.css', import.meta.url), 'utf8');
 function palette(block) { return Object.fromEntries([...block.matchAll(/--([\w-]+):\s*(#[a-f0-9]{6});/gi)].map(m => [m[1], m[2]])); }
@@ -22,7 +23,8 @@ for (const [name,block] of [
 
 test('self-hosted design assets are included in browser, recovery and native web builds',async()=>{
     const [index,recovery,worker,bundler]=await Promise.all(['index.html','recovery.html','sw.js','scripts/build-capacitor-web.mjs'].map(file=>readFile(new URL('../'+file,import.meta.url),'utf8')));
-    assert.match(index,/href="app\.styles\.css"/);
+    const assets = browserAssetNames(index);
+    assert.match(assets.stylesheet,/^app\.styles\.[a-f0-9]{16}\.css$/);
     assert.match(recovery,/design-tokens\.css/);
     assert.match(recovery,/font-src 'self'/);
     assert.match(worker,/'\/design-tokens\.css'/);
@@ -30,7 +32,7 @@ test('self-hosted design assets are included in browser, recovery and native web
     await access(new URL('../assets/fonts/inter-latin.woff2',import.meta.url));
     await access(new URL('../assets/fonts/Inter-OFL.txt',import.meta.url));
     assert.doesNotMatch(index,/unpkg\.com/);
-    const publishedStyles=await readFile(new URL('../app.styles.css',import.meta.url),'utf8');
+    const publishedStyles=await readFile(new URL('../'+assets.stylesheet,import.meta.url),'utf8');
     assert.ok(publishedStyles.indexOf('Source: design-tokens.css')<publishedStyles.indexOf('Source: style.css'));
     assert.match(publishedStyles,/vendor\/phosphor\/regular\/Phosphor\.woff2/);
     const icons=await readFile(new URL('../vendor/phosphor/phosphor.css',import.meta.url),'utf8');

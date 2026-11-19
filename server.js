@@ -1668,11 +1668,20 @@ app.use((req, res, next) => {
     }
     next();
 });
+const { browserAssetNames } = require('./browser-assets.mjs');
+const startupAssets = browserAssetNames(fs.readFileSync(path.join(__dirname, 'index.html'), 'utf8'));
+const immutableAssets = new Set(Object.values(startupAssets).map(name => path.join(__dirname, name)));
+app.get(['/app.bundle.js', '/app.styles.css'], (req, res) => {
+    const name = req.path === '/app.bundle.js' ? startupAssets.script : startupAssets.stylesheet;
+    res.set('Cache-Control', 'no-store').redirect(302, '/' + name);
+});
 app.use(express.static(__dirname, {
     dotfiles: 'deny',
     maxAge: '7d', // Cache static assets for 7 days by default
     setHeaders: (res, filePath) => {
-        if (
+        if (immutableAssets.has(filePath)) {
+            res.setHeader('Cache-Control', 'public, max-age=31536000, immutable');
+        } else if (
             filePath.endsWith('.html')
             || filePath.includes('sw.js')
             || filePath.endsWith('.js')
@@ -2468,7 +2477,11 @@ app.post(
 );
 
 // Fallback to index.html for SPA/PWA routing
+app.get(/^\/app\.(?:bundle\.[a-f0-9]{16}\.js|styles\.[a-f0-9]{16}\.css)$/, (_req, res) => {
+    res.set('Cache-Control', 'no-store').status(404).end();
+});
 app.get('*', (req, res) => {
+    res.set('Cache-Control', 'no-store');
     res.sendFile(path.join(__dirname, 'index.html'));
 });
 

@@ -39,6 +39,30 @@ test.after(async () => {
     }
 });
 
+test('only the content-addressed startup pair is immutable and old aliases remain fresh', async () => {
+    const {browserAssetNames} = await import('../browser-assets.mjs');
+    const {createHash} = require('node:crypto');
+    const shell = await fetch(baseUrl);
+    assert.match(shell.headers.get('cache-control'), /no-store/);
+    const assets = browserAssetNames(await shell.text());
+    for (const [alias, name] of [['app.bundle.js',assets.script], ['app.styles.css',assets.stylesheet]]) {
+        const legacy = await fetch(baseUrl+'/'+alias, {redirect:'manual'});
+        assert.equal(legacy.headers.get('location'), '/'+name);
+        assert.match(legacy.headers.get('cache-control'), /no-store/);
+        const response = await fetch(baseUrl+'/'+name);
+        assert.match(response.headers.get('cache-control'), /max-age=31536000, immutable/);
+        const digest = createHash('sha256').update(Buffer.from(await response.arrayBuffer())).digest('hex').slice(0,16);
+        assert.ok(name.includes('.'+digest+'.'));
+    }
+    const retired = await fetch(baseUrl+'/app.styles.0000000000000000.css');
+    assert.equal(retired.status,404);
+    assert.match(retired.headers.get('cache-control'), /no-store/);
+    for(const route of ['/sw.js','/recovery.html','/api/health','/some-view']) {
+        const response = await fetch(baseUrl+route);
+        assert.match(response.headers.get('cache-control'), /no-store/);
+    }
+});
+
 test('health exposes commit and non-sensitive notification state', async () => {
     const response = await fetch(`${baseUrl}/api/health`);
     const result = await response.json();

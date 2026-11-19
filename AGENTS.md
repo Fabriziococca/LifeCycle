@@ -25,7 +25,7 @@ Estas instrucciones preservan las reglas confirmadas por Fabrizio para continuar
 ## Implementación y validación
 - Seguí docs/UX_CONVENTIONS.md. Reutilizá tarjetas, formularios, controles de horarios y navegación; no crear flujos distintos para resolver el mismo patrón.
 - Temas claro/oscuro blanco-negro con acento cereza/rosa. Navegación inmediata sin fundidos, pantallas negras ni animación de entrada entre módulos.
-- Las fuentes son app.js, modules/, utilidades y CSS. app.bundle.js y app.styles.css se generan con npm run build:browser; npm run check:browser debe pasar.
+- Las fuentes son app.js, modules/, utilidades y CSS. npm run build:browser genera app.bundle.<huella>.js y app.styles.<huella>.css y actualiza sus referencias en index.html. Incluir los reemplazos en cada release y verificar npm run check:browser.
 - Pruebas acordes al riesgo: unitarias, SQL aislado, recorridos UI, persistencia, escenarios alternativos y regresiones relevantes. Distinguir nube sintética, QA autenticada, producción y dispositivo físico.
 - No confundir aceptación del proveedor Push con recepción/visualización ni declarar todas las combinaciones verificadas. No forzar avisos sobre la cuenta real.
 - Registrar sólo decisiones/estado/evidencias cuya pérdida cause errores o retrabajo. No guardar actividad rutinaria ni duplicar requisitos completos.

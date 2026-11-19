@@ -18,7 +18,7 @@ const assert=require('node:assert/strict');
    catch (error) { console.error(JSON.stringify({width,network,failed,errors,gate:await page.locator('#access-gate').innerText()})); throw error; }
    assert.equal(await page.locator('#app-load-retry').count(),0);
    assert.deepEqual(errors,[]);assert.deepEqual(failed,[]);
-   const bundle=network.find(r=>r.path==='/app.bundle.js'&&r.status===200&&['h2','h3'].includes(r.protocol));
+   const bundle=network.find(r=>/^\/app\.bundle\.[a-f0-9]{16}\.js$/.test(r.path)&&r.status===200&&['h2','h3'].includes(r.protocol));
    assert.ok(bundle,'Actual HTTP/2 or HTTP/3 bundle download required');
    assert.equal(network.some(r=>r.path.startsWith('/modules/')),false,'Startup must not fan out into the source module graph');
    await fs.mkdir('.tmp-sb/startup-ui',{recursive:true});
