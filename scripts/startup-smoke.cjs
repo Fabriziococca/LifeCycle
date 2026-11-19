@@ -8,7 +8,7 @@ const {installFakeCloud}=require('./qa-cloud.cjs');
  await new Promise(r=>server.once('listening',r));
  const browser=await chromium.launch({channel:'chrome',headless:true});
  try{
-  for(const width of [1440,390]){
+  for(const width of [1440,390]) for (const asset of ['bundle','styles']){
    const context=await browser.newContext({viewport:{width,height:844},serviceWorkers:'block'});
    await context.route('https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2',r=>r.fulfill({contentType:'application/javascript',body:`(${installFakeCloud.toString()})();`}));
    await context.route('**/api/**',r=>r.fulfill({json:r.request().url().endsWith('/api/config')?{supabaseUrl:'https://qa.invalid',supabaseAnonKey:'qa',registrationEnabled:false}:{devices:[],events:[],entries:[],deliveries:[],available:true}}));
@@ -16,18 +16,18 @@ const {installFakeCloud}=require('./qa-cloud.cjs');
    const page=await context.newPage();
    const failures=[];
    page.on('requestfailed',r=>failures.push(new URL(r.url()).pathname));
-   const bundle=/\/app\.bundle\.[a-f0-9]{16}\.js$/;
-   const block=r=>r.abort();await page.route(bundle,block);
+   const pattern=asset==='bundle' ? /\/app\.bundle\.[a-f0-9]{16}\.js$/ : /\/app\.styles\.[a-f0-9]{16}\.css$/;
+   const block=r=>r.abort();await page.route(pattern,block);
    await page.goto(`http://127.0.0.1:${server.address().port}/`);
    await page.locator('#app-load-retry').waitFor();
    assert.equal(await page.evaluate(()=>localStorage.getItem('qa-startup-sentinel')),'conserved');
-   await page.unroute(bundle,block);await page.locator('#app-load-retry').click();
+   await page.unroute(pattern,block);await page.locator('#app-load-retry').click();
    await page.waitForFunction(()=>window.lifecycle_controller?.auth?.readyUserId);
    assert.equal(await page.evaluate(()=>localStorage.getItem('qa-startup-sentinel')),'conserved');
    assert.equal(await page.locator('#app-load-retry').count(),0);
    await fs.mkdir('.tmp-sb/startup-ui',{recursive:true});
    await page.screenshot({path:`.tmp-sb/startup-ui/recovered-${width}.png`});
-   console.log(JSON.stringify({width,retryRecovered:true,storagePreserved:true}));
+   console.log(JSON.stringify({width,asset,retryRecovered:true,storagePreserved:true}));
    await context.close();
   }
  }finally{await browser.close();await new Promise(r=>server.close(r));}

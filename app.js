@@ -1079,6 +1079,15 @@ localStorage.removeItem = function(key) {
 };
 
 document.addEventListener('DOMContentLoaded', () => {
+    // A tab can receive HTML just before a deployment retires its stylesheet.
+    // Deferred modules have waited for blocking styles by DOMContentLoaded.
+    const stylesheet = document.querySelector('link[rel="stylesheet"][href^="app.styles."]');
+    if (stylesheet && (stylesheet.dataset.loadFailed === 'true' || !stylesheet.sheet)) {
+        const loading = document.getElementById('access-gate-loading');
+        document.body.replaceChildren(loading);
+        window.lifecycleBootFailure();
+        return;
+    }
     const controller = new AppController();
     controller.start();
 });

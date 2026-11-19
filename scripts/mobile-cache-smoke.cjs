@@ -35,10 +35,30 @@ async function measure(context, origin) {
 }
 
 async function main() {
-    const [origin, output, expected] = process.argv.slice(2);
-    assert.ok(origin && output && ['cached','baseline'].includes(expected),'Pass origin, output file and cached/baseline');
+    const [origin, output, expected, oldScript, newScript] = process.argv.slice(2);
+    assert.ok(origin && output && ['cached','baseline','rollout'].includes(expected),'Pass origin, output file and mode');
     const browser = await chromium.launch({channel:'chrome',headless:true});
     try {
+        if (expected === 'rollout') {
+            assert.ok(oldScript && newScript && oldScript !== newScript);
+            const context = await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});
+            const first = await measure(context,origin), warm = await measure(context,origin);
+            assert.ok(warm.assets.some(a=>a.path==='/'+oldScript));
+            assert.ok(warm.assets.every(a=>a.transferBytes===0));
+            console.log('Previous release warm. Waiting for the new public HTML.');
+            const deadline = Date.now()+600000;
+            while (!(await (await fetch(origin,{signal:AbortSignal.timeout(15000)})).text()).includes('src="'+newScript+'"')) {
+                assert.ok(Date.now()<deadline,'Deployment timed out');
+                await new Promise(resolve=>setTimeout(resolve,5000));
+            }
+            const updated = await measure(context,origin), reopened = await measure(context,origin);
+            assert.ok(updated.assets.some(a=>a.path==='/'+newScript && a.transferBytes>0));
+            assert.ok(updated.assets.some(a=>a.path===warm.assets.find(x=>x.path.endsWith('.css')).path && a.transferBytes===0));
+            assert.ok(reopened.assets.every(a=>a.transferBytes===0));
+            await fs.writeFile(output,JSON.stringify({first,warm,updated,reopened},null,2));
+            console.log('New script downloaded, stylesheet reused, both cached on next open.');
+            return;
+        }
         const runs = [];
         for (let i=0;i<3;i++) {
             const context = await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true,serviceWorkers:'block'});
