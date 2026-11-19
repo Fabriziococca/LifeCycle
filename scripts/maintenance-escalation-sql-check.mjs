@@ -9,7 +9,7 @@ try {
  create policy own on public.work_followups to authenticated using(user_id=current_setting('request.jwt.claim.sub')) with check(user_id=current_setting('request.jwt.claim.sub'));
  grant select,insert,update on public.work_followups to authenticated;
  set request.jwt.claim.sub='qa-a';`);
- await db.exec(await readFile(new URL('../supabase/migrations/20261027162607_client_reminder_escalation.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../supabase/migrations/20261027163229_client_reminder_escalation.sql',import.meta.url),'utf8'));
  await db.exec('set role authenticated');
  const insert=record=>db.query('insert into public.work_followups values($1,$2)',['qa-a',record]);
  await insert({title:'legacy'});await insert({maintenance:{escalationDays:4,repeatUntilDone:true}});

@@ -2,7 +2,13 @@
 
 Corte operativo del 19/11/2026. Leer junto a PROJECT_PLAN.md y DECISIONS.md.
 
-## Publicación del 19/11
+## Caché y recuperación del 19/11
+
+- Producción sirve `db7042a`. Dos publicaciones comprobaron el cambio de versión con la misma sesión QA. En tres reaperturas móviles emuladas, la mediana de transferencia de JS y CSS bajó de 505.914 a 0 bytes. El formulario de ingreso apareció en 2,34 s frente a 3,48 s. Render registró éxitos de avisos y renovaciones tras publicar.
+- Se reconstruyeron dos bases PostgreSQL locales con 41 migraciones cada una. Se verificaron 453 entradas de catálogo, restauración del respaldo de la app, propiedad de datos, monedas, adjunto sintético y reversión atómica. Las tres diferencias de versión se conciliaron en Git. La recuperación se ensayó con datos sintéticos y el proyecto de Supabase se consultó en lectura.
+- Métodos, límites, evidencia y pasos reproducibles en [Caché móvil y recuperación](docs/CACHE_Y_RECUPERACION_2026-11-19.md).
+
+## Publicación anterior del 19/11
 
 - Render sirve `bc5109cb535daf1b883e68551662a46817d2ce97`. La entrega de Tareas y dependencias fue `4c74c7c`. Ambas pasaron el workflow Validate LifeCycle y Manual Deploy. Health confirmó el commit y éxitos de avisos y renovaciones. El plan y los servicios contratados siguen siendo los mismos.
 - Tareas regulares usa identificadores independientes del reloj, reconciliación por campo y revisión de nube. La migración `20261119185830_guard_task_list_writes.sql` protege los datos ante envíos obsoletos y preserva los respaldos. Las versiones anteriores deben recargarse para enviar cambios pendientes. npm audit completo y de producción devolvieron cero hallazgos.
@@ -39,7 +45,7 @@ URL: https://lifecycle-ykn5.onrender.com.
 ## Suscripciones de clientes publicadas el 04/11
 Regla: las suscripciones vinculadas a clientes las pagan ellos. cost/currency son informativos; clientId impide registro manual/automático de gastos propios incluso ante una petición de versión vieja.
 - Fuentes: helpers isClientSubscription/isExpenseSubscription, normalización autoRecordExpense=false para clientes, formularios y tarjetas compartidos, guard en Finanzas, worker y PostgreSQL.
-- Migración aplicada: supabase/migrations/20261104045523_client_subscription_payer_boundary.sql. No es una migración de datos.
+- Migración aplicada: supabase/migrations/20261104045955_client_subscription_payer_boundary.sql. No es una migración de datos.
 - Propias: conservan gasto manual/automático. Clientes: costo informativo. Todas: gasto propio y costo del cliente separado.
 - 564 tests aprobados, SQL aislado, UI local 1440/390 y ambos temas. QA productiva autenticada con soyfabr, alta/edición/recarga, sin acciones de gasto y sin overflow; request RPC de cliente bloqueado sin escrituras.
 - Fixture QA Pagador 04/11 / QA Servicio del cliente 04/11: importe ficticio USD 20; suscripción pausada y ficha archivada al cerrar. Finanzas de QA sin cambios. No reactivar ni usar este caso como dato personal.
@@ -66,4 +72,4 @@ Regla: las suscripciones vinculadas a clientes las pagan ellos. cost/currency so
 - Automatización Codex Revisión de Supabase LifeCycle cada 5 días: PAUSED, id revisi-n-diaria-de-supabase-lifecycle, heartbeat ligado al chat anterior. No reanudar, duplicar ni trasladar por esta migración. Es diferente del scheduler operativo de avisos de LifeCycle, que sigue activo en Render.
 
 ## Próxima acción
-READY-01 y las dos entregas del 19/11 quedaron cerradas. Retomar con el siguiente pedido concreto.
+READY-01 y las entregas de Tareas, Nutrición, guía, caché y recuperación quedaron cerradas. Retomar con el siguiente pedido concreto.

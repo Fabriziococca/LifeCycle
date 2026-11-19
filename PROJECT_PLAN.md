@@ -8,6 +8,7 @@ Corte 19/11/2026. La continuidad del 17/11 se verificó y dio paso a la tanda de
 | Base operativa, cuenta, backup, navegación | Implementado y auditado dentro de cobertura | docs/AUDITORIA_INTEGRAL_2026-10-14.md; no equivale a todas las combinaciones |
 | Tareas regulares PC/teléfono y dependencias | Publicado y comprobado en QA | 4c74c7c, migración 20261119185830. Prueba de colisión entre dos navegadores aislados y ciclo de alta, edición y borrado con la cuenta QA. |
 | Nutrición móvil y guía | Publicado y comprobado en QA | bc5109c. Edición con altura reducida, búsqueda de acciones y navegación desde Más. Recibo y alcance de pruebas en PROJECT_STATE.md. |
+| Caché de arranque y recuperación | Caché publicada, restauración local verificada | db7042a. Medidas de reapertura, actualización QA y ensayo reproducible en docs/CACHE_Y_RECUPERACION_2026-11-19.md. |
 | Personal/Trabajo y recordatorios comunes | Implementado/publicado | docs/ORGANIZACION_Y_DISENO_2026-10-21.md; una sola cuenta, una sola vez |
 | Diseño y arranque | Implementado/publicado | docs/REDISENO_VISUAL_2026-10-25.md y docs/ARRANQUE_HTTP2_2026-10-25.md |
 | Clientes, mantenimiento, turnos y tarjetas | Implementado/publicado | Fuentes por dominio enlazadas en PROJECT_MASTER.md; no nueva tanda pendiente |

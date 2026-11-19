@@ -10,8 +10,8 @@ try {
  grant usage on schema public,auth to anon,authenticated,service_role;`);
  const old=await readFile(new URL('../supabase/migrations/20261018050000_trading_times_and_subscription_renewals.sql',import.meta.url),'utf8');
  await db.exec(old.slice(0,old.indexOf('alter table public.trading_events')));
- await db.exec(await readFile(new URL('../supabase/migrations/20261101031602_client_subscription_cycles.sql',import.meta.url),'utf8'));
- await db.exec(await readFile(new URL('../supabase/migrations/20261104045523_client_subscription_payer_boundary.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../supabase/migrations/20261101032555_client_subscription_cycles.sql',import.meta.url),'utf8'));
+ await db.exec(await readFile(new URL('../supabase/migrations/20261104045955_client_subscription_payer_boundary.sql',import.meta.url),'utf8'));
  await db.query('insert into public.work_clients values($1,$2,$3)',[owner,client,{archived:false}]);
  const base={id:'sub_sql_tracking',name:'QA local',clientId:client,billingMode:'tracking',status:'active',autoRenew:true,periodDays:30,nextRenewalDate:'2026-09-04',renewalTime:'17:47',alert:{enabled:true,times:['22:00']},history:[]};
  const put=async(sub,user=owner)=>db.query('insert into public.user_data(user_id,data) values($1,$2) on conflict(user_id) do update set data=excluded.data',[user,{sentinel:'preserved',lifecycle_subscriptions:JSON.stringify({version:4,subscriptions:[sub]}),finanzasData:'{"entries":[],"expenses":[]}'}]);
