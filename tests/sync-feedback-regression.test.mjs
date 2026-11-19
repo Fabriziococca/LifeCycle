@@ -65,7 +65,11 @@ function cloudFixture(t) {
         async rpc(name, parameters) {
             state.writes += 1;
             if (state.onWrite) return state.onWrite(parameters);
-            Object.assign(state.row.data, parameters.p_updates || {});
+            const { __task_revision, ...updates } = parameters.p_updates || {};
+            if (name === 'merge_user_data_at_revision' && parameters.p_expected_revision !== state.row.revision)
+                return { error: { code: '40001' } };
+            if (__task_revision !== undefined) assert.equal(__task_revision, state.row.revision);
+            Object.assign(state.row.data, updates);
             for (const key of parameters.p_delete_keys || []) delete state.row.data[key];
             state.row.revision += 1;
             return { data: new Date().toISOString(), error: null };
@@ -137,17 +141,17 @@ test('simultaneous focus and visibility share a single cloud request', async t =
 test('a local edit made and saved during a read is never overwritten by its stale response', async t => {
     const { auth, state } = cloudFixture(t);
     const pending = gate();
-    state.pause = () => pending.promise;
+    state.pause = columns => columns.startsWith('data,') ? pending.promise : undefined;
     const read = auth.checkAndSyncData();
     localStorage.setItem('tareas_list', '[{"id":"local-edit"}]');
     auth.queueKeySync('tareas_list');
     assert.equal(await auth.flushPendingKeySync(), true);
     pending.release();
     assert.equal(await read, false);
-    assert.equal(localStorage.getItem('tareas_list'), '[{"id":"local-edit"}]');
+    assert.equal(localStorage.getItem('tareas_list'), '[{"id":"remote"},{"id":"local-edit"}]');
     state.pause = null;
     assert.equal(await auth.checkAndSyncData(), true);
-    assert.equal(localStorage.getItem('tareas_list'), '[{"id":"local-edit"}]');
+    assert.equal(localStorage.getItem('tareas_list'), state.row.data.tareas_list);
 });
 
 test('logout detaches pending reads and prevents cross-account restoration', async t => {

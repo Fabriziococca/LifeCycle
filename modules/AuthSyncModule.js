@@ -22,6 +22,7 @@ import {
 } from '../resource-policy.mjs?v=20260829-feature-limits';
 import { PushManagementModule } from './PushManagementModule.js?v=20260801-push-diagnostics';
 import {FINANCIAL_SYNC_KEYS,readFinancialBase,rememberFinancialBase,mergeFinancialValue} from '../financial-sync-utils.mjs';
+import {TASK_LIST, taskBaseKey, mergeTaskLists} from '../task-sync-utils.mjs';
 
 function isMissingCloudRevisionSchema(error) {
     const code = String(error?.code || '');
@@ -595,7 +596,7 @@ export class AuthSyncModule {
             CLOUD_LOCAL_CLEAR_KEYS.forEach(key => localStorage.removeItem(key));
             for(let index=localStorage.length-1;index>=0;index--){
                 const key=localStorage.key(index);
-                if(key?.startsWith('lifecycle_financial_sync_base:'))localStorage.removeItem(key);
+                if(key?.startsWith('lifecycle_financial_sync_base:') || key?.startsWith('lifecycle_task_sync_base:'))localStorage.removeItem(key);
             }
             this.pendingSyncKeys.clear();
             this.cloudRevision = null;
@@ -618,28 +619,69 @@ export class AuthSyncModule {
         if(this.user?.id)rememberFinancialBase(localStorage,this.user.id,document);
     }
 
-    async syncFinancialPatch(updates,deleteKeys,isCurrentSession){
+    rememberTaskBase(value) {
+        const serialized = typeof value === 'string' ? value : JSON.stringify(value ?? []);
+        localStorage.setItem(taskBaseKey(this.user.id), serialized);
+    }
+
+    async syncRevisionPatch(updates,deleteKeys,isCurrentSession){
         const base=readFinancialBase(localStorage,this.user.id);
+        const hasTasks = Object.hasOwn(updates, TASK_LIST) || deleteKeys.includes(TASK_LIST);
+        const taskBase = hasTasks ? localStorage.getItem(taskBaseKey(this.user.id)) : null;
+        const financial = FINANCIAL_SYNC_KEYS.some(key => Object.hasOwn(updates, key) || deleteKeys.includes(key));
+        const columns = ['revision'];
+        if (hasTasks) columns.push('tasks:data->tareas_list');
+        if (financial) columns.push('finance:data->finanzasData', 'subscriptions:data->lifecycle_subscriptions');
         for(let attempt=0;attempt<3;attempt++){
-            const {data:row,error}=await this.readCloudRow('revision,finance:data->finanzasData,subscriptions:data->lifecycle_subscriptions',this.user.id);
+            const {data:row,error}=await this.readCloudRow(columns.join(','),this.user.id);
             if(error)throw error;
             if(!isCurrentSession())throw new Error('La sesión cambió durante el guardado.');
-            if(!row?.revision)throw new Error('No se pudo confirmar la revisión financiera.');
-            const remote=row.data||{finanzasData:row.finance,lifecycle_subscriptions:row.subscriptions};
+            if(!row?.revision)throw new Error('No se pudo confirmar la revisión de la nube.');
+            const remote=row.data||{finanzasData:row.finance,lifecycle_subscriptions:row.subscriptions,[TASK_LIST]:row.tasks};
             const merged={...updates};
+            let removals = deleteKeys, conflicts = 0;
+            if (hasTasks) {
+                const result = await mergeTaskLists(taskBase, updates[TASK_LIST], remote[TASK_LIST]);
+                conflicts = result.conflicts;
+                merged.__task_revision = row.revision;
+                if (result.tasks.length || Object.hasOwn(updates, TASK_LIST)) {
+                    merged[TASK_LIST] = JSON.stringify(result.tasks);
+                    removals = deleteKeys.filter(key => key !== TASK_LIST);
+                }
+            }
             for(const key of FINANCIAL_SYNC_KEYS)if(Object.hasOwn(updates,key)){
                 merged[key]=JSON.stringify(mergeFinancialValue(key,base[key],updates[key],remote[key]));
             }
+            if(!isCurrentSession())throw new Error('La sesión cambió durante el guardado.');
             const result=await this.supabase.rpc('merge_user_data_at_revision',{
-                p_updates:merged,p_delete_keys:deleteKeys,p_expected_revision:row.revision
+                p_updates:merged,p_delete_keys:removals,p_expected_revision:row.revision
             });
             if(result.error?.code==='40001')continue;
             if(result.error)throw result.error;
             if(!isCurrentSession())throw new Error('La sesión cambió durante el guardado.');
             if(Number.isSafeInteger(result.data?.revision))this.minimumCloudRevision=Math.max(this.minimumCloudRevision||0,result.data.revision);
-            this.rememberFinancialSnapshot({...remote,...merged});
+            if (financial) this.rememberFinancialSnapshot({...remote,...merged});
             const restoring=this.isRestoring;this.isRestoring=true;
             try{
+                if (hasTasks) {
+                    const sent = updates[TASK_LIST] ?? null;
+                    const current = localStorage.getItem(TASK_LIST);
+                    if (!this.pendingSyncKeys.has(TASK_LIST) && current === sent) {
+                        if (Object.hasOwn(merged, TASK_LIST)) localStorage.setItem(TASK_LIST, merged[TASK_LIST]);
+                        else localStorage.removeItem(TASK_LIST);
+                        this.rememberTaskBase(merged[TASK_LIST]);
+                        if (current !== (merged[TASK_LIST] ?? null)) {
+                            this.app.tareas?.loadData();
+                            this.app.tareas?.render();
+                            this.app.today?.render();
+                            this.app.notificationsCenter?.updateBadge();
+                        }
+                    } else {
+                        // Edits made while awaiting the RPC are based on the submitted list.
+                        this.rememberTaskBase(sent);
+                    }
+                    if (conflicts) this.app.showToast?.('Dos dispositivos cambiaron la misma tarea. Conservamos las ediciones en Tareas.');
+                }
                 for(const key of FINANCIAL_SYNC_KEYS)if(Object.hasOwn(merged,key)
                     && !this.pendingSyncKeys.has(key) && areStoredValuesEqual(localStorage.getItem(key),updates[key])){
                     localStorage.setItem(key,merged[key]);
@@ -737,8 +779,8 @@ export class AuthSyncModule {
                     key => localStorage.getItem(key)
                 );
 
-                if(keysToSync.some(key=>FINANCIAL_SYNC_KEYS.includes(key))){
-                    await this.syncFinancialPatch(updates,deleteKeys,isCurrentSession);
+                if(keysToSync.some(key=>key===TASK_LIST || FINANCIAL_SYNC_KEYS.includes(key))){
+                    await this.syncRevisionPatch(updates,deleteKeys,isCurrentSession);
                 }else{
                     const { error } = await this.supabase.rpc('merge_user_data_keys', {
                         p_updates: updates,
@@ -911,6 +953,7 @@ export class AuthSyncModule {
             }
             const cloudData = data.data || {};
             this.rememberFinancialSnapshot(cloudData);
+            this.rememberTaskBase(cloudData[TASK_LIST]);
 
             // Internal scheduler state belongs only to the backend and should not remain cached.
             CLOUD_SERVER_MANAGED_KEYS.forEach(key => localStorage.removeItem(key));
@@ -1324,6 +1367,7 @@ export class AuthSyncModule {
                     this.cloudRevision = revision;
                     this.appliedCloudRevision = revision;
                     this.rememberFinancialSnapshot(newCloudData);
+                    this.rememberTaskBase(newCloudData[TASK_LIST]);
                 }
             })
             .subscribe();

@@ -30,13 +30,13 @@ test('quick capture builds the same task shape used by the task module', () => {
         },
         {
             categories: ['Personal', 'Freelance'],
-            existingIds: [1000],
             now: () => 1000
         }
     );
 
+    assert.match(task.id, /^[0-9a-f-]{36}$/);
     assert.deepEqual(task, {
-        id: 1001,
+        id: task.id,
         text: 'Comprar jabón blanco',
         category: 'Personal',
         urgency: 'muy_urgente',

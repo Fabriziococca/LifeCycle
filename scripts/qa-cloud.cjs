@@ -21,6 +21,7 @@ function installFakeCloud() {
         then(resolve) {
             if (this.table.startsWith('transcription_')) window.qaSyncMetrics.transcriptionReads++;
             if (this.table === 'user_data') {
+                if (window.qaSharedDocument) return window.qaSharedDocument('read', this.columns).then(resolve);
                 window.qaSyncMetrics[this.columns === 'revision' ? 'revisionReads' : 'fullReads'] += 1;
             }
             const data = this.table === 'user_data' ? { user_id: user.id, data: structuredClone(cloudDocument), updated_at: '2026-09-05T00:00:00Z', revision }
@@ -46,6 +47,19 @@ function installFakeCloud() {
         },
         from: table => new Query(table),
         rpc: async (name, parameters) => {
+            if (window.qaSharedDocument && ['merge_user_data_keys', 'merge_user_data_at_revision'].includes(name)) {
+                return window.qaSharedDocument(name, parameters);
+            }
+            if (parameters?.p_updates && Object.hasOwn(parameters.p_updates, '__task_revision')) {
+                const { __task_revision, ...updates } = parameters.p_updates;
+                if (__task_revision !== revision) return { error: { code: '40001' } };
+                parameters = { ...parameters, p_updates: updates };
+            }
+            if (parameters?.p_updates && Object.hasOwn(parameters.p_updates, '__expected_task_list')) {
+                const { __expected_task_list, ...updates } = parameters.p_updates;
+                if (__expected_task_list !== (cloudDocument.tareas_list ?? null)) return { error: { code: '40001' } };
+                parameters = { ...parameters, p_updates: updates };
+            }
             if(name==='get_work_state')return {data:structuredClone(work),error:null};
             if(name==='work_backup_snapshot')return {data:{work:structuredClone(work),personal:structuredClone(cloudDocument)},error:null};
             if(name==='save_work_state') {

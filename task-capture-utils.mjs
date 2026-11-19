@@ -23,7 +23,6 @@ export function createTaskRecord(
     draft,
     {
         categories = [],
-        existingIds = [],
         now = () => Date.now()
     } = {}
 ) {
@@ -45,12 +44,9 @@ export function createTaskRecord(
     const safeTimestamp = Number.isFinite(timestamp) && timestamp >= 0
         ? Math.trunc(timestamp)
         : Date.now();
-    const usedIds = new Set(existingIds.map(id => String(id)));
-    let id = safeTimestamp;
-    while (usedIds.has(String(id))) id += 1;
 
     return {
-        id,
+        id: crypto.randomUUID(),
         text,
         category,
         urgency,

@@ -51,6 +51,9 @@ export class TareasModule {
                 this.categories = ['Personal', 'LifeCycle', 'Facultad', 'Cotidianas'];
             }
 
+            for (const task of this.tasks) {
+                if (task.category && !this.categories.includes(task.category)) this.categories.push(task.category);
+            }
             // Asegurar que exista la carpeta Freelance
             if (!this.categories.includes('Freelance')) {
                 this.categories.push('Freelance');
@@ -82,6 +85,13 @@ export class TareasModule {
             this.removedProjectIds = [];
             this.pinnedProjectsStore = [];
         }
+    }
+
+    conflictCopyLabel() {
+        const label = document.createElement('small');
+        label.className = 'badge';
+        label.textContent = 'Copia por edición simultánea';
+        return label;
     }
 
     saveData() {
@@ -226,8 +236,7 @@ export class TareasModule {
                     urgency: elements.urgency?.value
                 },
                 {
-                    categories: this.categories,
-                    existingIds: this.tasks.map(task => task.id)
+                    categories: this.categories
                 }
             );
         } catch (error) {
@@ -251,7 +260,7 @@ export class TareasModule {
         this.render();
         this.app.notificationsCenter?.render();
         this.app.showToast?.(appendResourceCapacityNotice(
-            `Tarea guardada en ${newTask.category}.`,
+            `Tarea en ${newTask.category}. Sincronización pendiente.`,
             RESOURCE_KEYS.TASKS,
             capacity
         ));
@@ -1270,6 +1279,7 @@ export class TareasModule {
                             this.deleteTask(t.id);
                         });
                     }
+                    if (t.syncConflictCopy) row.append(this.conflictCopyLabel());
                     activeList.appendChild(row);
                 });
             }
@@ -1308,6 +1318,7 @@ export class TareasModule {
                     row.querySelector('.btn-delete-task').addEventListener('click', () => {
                         this.deleteTask(t.id);
                     });
+                    if (t.syncConflictCopy) row.append(this.conflictCopyLabel());
                     completedList.appendChild(row);
                 });
                 if (hiddenCompletedCount > 0) {

@@ -64,7 +64,11 @@ export class WorkStore {
             if(!await auth.flushPendingKeySync()) throw new Error('Primero deben sincronizarse los cambios pendientes.');
             if(owner!==auth.readyUserId || generation!==auth.syncGeneration) throw new Error('La sesión cambió.');
             if(restore){guarded=true;auth.planningWriteCount=(auth.planningWriteCount||0)+1;auth.localEditGeneration=(auth.localEditGeneration||0)+1;}
-            const args={p_state:next,p_expected_revision:expectedRevision,p_updates:restore?.updates??null,p_delete_keys:restore?.deletes??[]};
+            const updates = restore ? { ...restore.updates } : null;
+            if (restore && (Object.hasOwn(updates, 'tareas_list') || restore.deletes.includes('tareas_list'))) {
+                updates.__expected_task_list = restore.expectedTasks;
+            }
+            const args={p_state:next,p_expected_revision:expectedRevision,p_updates:updates,p_delete_keys:restore?.deletes??[]};
             let result=await auth.supabase.rpc('save_work_state',args);
             // One identical retry is safe for ordinary writes after a lost response.
             if(result.error && !restore && String(result.error.code)!=='40001') result=await auth.supabase.rpc('save_work_state',args);
@@ -105,7 +109,7 @@ export class WorkStore {
                 updates[key]=JSON.stringify({...(key===CHARGING_KEY?restoreCharging(item):item),revision:old.revision+1});
             } else if(value===null) deletes.push(key); else updates[key]=value;
         }
-        await this.save(incoming,current.revision,{updates,deletes});
+        await this.save(incoming,current.revision,{updates,deletes,expectedTasks:snapshot.tareas_list??null});
         return plan.entries.map(([key])=>key);
     }
 }
