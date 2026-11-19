@@ -101,6 +101,7 @@ export class AdaptiveNavigationModule {
                     </button>
                 </header>
                 <div class="adaptive-navigation-list" data-adaptive-navigation-list></div>
+                <button type="button" class="btn btn-secondary" data-adaptive-nav-action="guide">Guía · ¿Dónde hago esto?</button>
             </div>
         `;
         this.moreList = this.moreLayer.querySelector('[data-adaptive-navigation-list]');
@@ -117,6 +118,12 @@ export class AdaptiveNavigationModule {
             this.toggleCollapsed();
         });
         this.moreLayer?.addEventListener('click', event => {
+            if (event.target.closest('[data-adaptive-nav-action="guide"]')) {
+                this.closeMore({ restoreFocus: false });
+                this.app.globalSearch.showGuide();
+                this.app.globalSearch.returnFocus = this.moreButton;
+                return;
+            }
             if (event.target === this.moreLayer || event.target.closest('[data-adaptive-nav-action="close"]')) {
                 this.closeMore();
                 return;

@@ -7,6 +7,7 @@ import {
 import { matchesKeyboardShortcut } from '../keyboard-shortcuts.mjs?v=20260801-shortcuts';
 
 const GROUP_META = Object.freeze({
+    guide: Object.freeze({label:'Guía de LifeCycle',icon:'ph-book-open'}),
     charging: Object.freeze({label:'Cargas',icon:'ph-plug'}),
     work: Object.freeze({label:'Trabajo',icon:'ph-briefcase'}),
     command: Object.freeze({ label: 'Acciones', icon: 'ph-lightning' }),
@@ -23,6 +24,16 @@ const URGENCY_LABELS = Object.freeze({
     urgente: 'Urgente',
     no_urgente: 'No urgente'
 });
+
+const GUIDE = [
+    { title:'Cobrar un mantenimiento', path:'Trabajo → Clientes → Abrir ficha → Mantenimiento. Si el período está pendiente, elegí «Sí, recibí el pago».', keywords:'cobrar mantenimiento mensual registrar cobro pago cliente', section:'work-clients-section', view:'retainers' },
+    { title:'Registrar una revisión de cliente', path:'Trabajo → Clientes → Abrir ficha → Tarjetas y avisos. Abrí la tarjeta que revisaste.', keywords:'registrar revisión control recordatorio rutina cliente', section:'work-clients-section', view:'reminders' },
+    { title:'Agregar un servicio del cliente', path:'Trabajo → Clientes → Abrir ficha → Suscripciones → Nueva suscripción. El importe lo paga el cliente.', keywords:'servicio del cliente dominio hosting renovación suscripción', section:'work-clients-section', view:'subscriptions' },
+    { title:'Crear un turno médico', path:'Personal → Salud → Turnos → Nuevo turno. Elegí la fecha, la hora y los avisos.', keywords:'crear turno cita consulta médico salud', section:'salud-section', view:'turnos' },
+    { title:'Editar una comida', path:'Personal → Gimnasio → Nutrición. Elegí una comida fija y tocá Editar para cambiar sus cantidades o valores.', keywords:'nutrición comida alimentos calorías kcal modificar', section:'gym-section', view:'nutrition' },
+    { title:'Anotar una tarea', path:'Tocá Nueva tarea en la barra superior. Elegí la carpeta y guardá. Después la encontrás desde Buscar.', keywords:'crear nueva tarea rápida carpetas pendientes', command:'new-task' },
+    { title:'Ver mis dispositivos y avisos', path:'Cuenta y ajustes → Notificaciones. Ahí podés revisar los dispositivos registrados y el historial de avisos.', keywords:'dispositivos celular teléfono push notificaciones historial', command:'notification-settings' }
+];
 
 function uniqueSearchId(kind, ...parts) {
     return [kind, ...parts.map(part => String(part ?? ''))].join(':');
@@ -144,6 +155,10 @@ export class GlobalSearchModule {
     }
 
     handleResultsClick(event) {
+        if (event.target.closest('[data-open-guide]')) {
+            this.showGuide();
+            return;
+        }
         const button = event.target.closest('[data-search-result-index]');
         if (!button) return;
         const result = this.results[Number(button.dataset.searchResultIndex)];
@@ -152,6 +167,7 @@ export class GlobalSearchModule {
 
     buildIndex() {
         return [
+            ...this.getGuideItems(),
             ...(this.app.charging?.store.value.devices||[]).filter(d=>!d.deleted).map(d=>({id:`charging:${d.id}`,kind:'charging',title:d.name,subtitle:`Control de cargas${d.archived?' · Archivado':''}`,keywords:['cargar bateria tecnología'],target:{id:d.id}})),
             ...this.getWorkItems(),
             ...this.getCommandItems(),
@@ -163,6 +179,38 @@ export class GlobalSearchModule {
             ...this.getSubscriptionItems(),
             ...this.getTranscriptionItems()
         ];
+    }
+
+    getGuideItems() {
+        return GUIDE.map(entry => ({
+            id: 'guide:' + (entry.view || entry.command), kind: 'guide',
+            title: entry.title, subtitle: entry.path,
+            keywords: ['guía ayuda dónde cómo', entry.keywords], target:entry
+        }));
+    }
+
+    showGuide() {
+        if (this.modal.classList.contains('hidden')) this.open();
+        this.input.value = 'Guía';
+        this.results = this.getGuideItems();
+        this.activeIndex = 0;
+        this.renderResults('Guía');
+        this.input.focus();
+        this.input.select();
+    }
+
+    openGuideTarget(entry) {
+        if (entry.command) { this.executeCommand(entry.command); return; }
+        if (!this.app.activateSection(entry.section)) {
+            this.app.openProfileTab('modulos');
+            this.app.showToast('Activá el módulo en esta pantalla para usarlo.');
+            return;
+        }
+        if (entry.section === 'work-clients-section') {
+            const work = this.app.work;
+            work.openClientGuide(entry.view);
+        } else if (entry.section === 'salud-section') this.app.appointments.activate(entry.view);
+        else if (entry.section === 'gym-section') this.app.gym.activateGymTab(entry.view);
     }
 
     getCommandItems() {
@@ -462,6 +510,12 @@ export class GlobalSearchModule {
             quickActions.appendChild(button);
         });
         state.appendChild(quickActions);
+        const guideButton = document.createElement('button');
+        guideButton.type = 'button';
+        guideButton.className = 'btn btn-secondary';
+        guideButton.dataset.openGuide = '';
+        guideButton.textContent = 'Guía · ¿Dónde hago esto?';
+        state.appendChild(guideButton);
         this.resultsRoot.appendChild(state);
         this.updateActiveResult({ scroll: false });
     }
@@ -491,6 +545,7 @@ export class GlobalSearchModule {
 
             const group = document.createElement('section');
             group.className = 'global-search-group';
+            if (kind === 'guide') group.classList.add('global-search-guide');
             const heading = document.createElement('h3');
             const headingIcon = document.createElement('i');
             headingIcon.className = `ph ${GROUP_META[kind].icon}`;
@@ -545,7 +600,9 @@ export class GlobalSearchModule {
         if (!result) return;
         this.close({ restoreFocus: false });
 
-        if(result.kind==='charging') {
+        if (result.kind === 'guide') {
+            this.openGuideTarget(result.target);
+        } else if(result.kind==='charging') {
             this.app.notificationsCenter?.openItem({module:'charging',id:result.target.id});
         } else if(result.kind==='work') {
             this.app.work.clientId=result.target.clientId;this.app.activateSection('work-clients-section');

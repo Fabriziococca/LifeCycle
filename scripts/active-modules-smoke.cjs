@@ -141,7 +141,29 @@ async function runActiveModulesSmoke(page) {
     await page.evaluate(()=>window.lifecycle_controller.gym.activateGymTab('nutrition'));
     assert.equal((await page.locator('#total-kcal').textContent()).trim(),'300');
     await page.evaluate(()=>window.lifecycle_controller.gym.editMeal('fixed',window.lifecycle_controller.gym.meals.fixed[0].id));
-    await page.locator('#edit-meal-kcal').fill('350'); await page.locator('#edit-meal-save').click();
+    const mealDialog = page.getByRole('dialog', {name:'Editar comida'});
+    const mealName = mealDialog.getByLabel('Nombre de la comida');
+    const previousName = await mealName.inputValue();
+    await mealName.fill('');
+    await mealDialog.getByRole('button',{name:'Guardar Cambios'}).click();
+    assert.equal(await mealDialog.isVisible(),true);
+    await mealName.fill(previousName);
+    await mealDialog.getByLabel('Kcal', {exact:true}).fill('900');
+    await page.keyboard.press('Escape');
+    await mealDialog.waitFor({state:'hidden'});
+    assert.equal((await page.locator('#total-kcal').textContent()).trim(),'300');
+    await page.evaluate(()=>window.lifecycle_controller.gym.editMeal('fixed',window.lifecycle_controller.gym.meals.fixed[0].id));
+    await mealDialog.getByLabel('Kcal', {exact:true}).fill('350');
+    const viewport = page.viewportSize();
+    if (viewport.width < 500) await page.setViewportSize({width:viewport.width,height:420});
+    assert.equal(await mealDialog.getByRole('button',{name:'Guardar Cambios'}).evaluate(button => {
+        const rect = button.getBoundingClientRect();
+        return rect.bottom <= window.innerHeight && rect.top >= 0 &&
+            button.contains(document.elementFromPoint(rect.x + rect.width/2, rect.y + rect.height/2));
+    }), true);
+    if (viewport.width < 500) await page.screenshot({path:'.tmp-sb/ui-smoke/meal-short-mobile.png',animations:'disabled'});
+    await mealDialog.getByRole('button',{name:'Guardar Cambios'}).click();
+    await page.setViewportSize(viewport);
     assert.equal((await page.locator('#total-kcal').textContent()).trim(),'350');
     await page.locator('#btn-weight-log-toggle').click();
     await page.locator('#weight-log-val').fill('80.5');

@@ -45,6 +45,7 @@ export class WorkModule {
         return false;
     }
     enter(id) {
+        if (id !== 'work-clients-section') this.guideClientTab = null;
         if(!this.isWork(id))this.lastPersonalSectionId=id;
         this.area=this.isWork(id)?'work':'personal';document.body.dataset.workspace=this.area;
         this.workspacePicker.querySelectorAll('[data-workspace-choice]').forEach(button=>{const active=button.dataset.workspaceChoice===this.area;button.classList.toggle('is-active',active);button.setAttribute('aria-pressed',String(active));button.removeAttribute('id');if(!active){button.id='workspace-switch';button.setAttribute('aria-label',this.area==='work'?'Abrir Personal':'Abrir Trabajo');this.switchButton=button;}else button.removeAttribute('aria-label');});
@@ -53,7 +54,17 @@ export class WorkModule {
         this.app.adaptiveNavigation?.refresh();
         if(this.area==='work'&&this.app.auth?.readyUserId)void this.refresh();
     }
-    reset() {this.store.reset();this.clientId='';this.error='';this.lastPersonalSectionId=null;this.render();}
+    reset() {this.store.reset();this.clientId='';this.guideClientTab=null;this.error='';this.lastPersonalSectionId=null;this.render();}
+    openClientGuide(tab) {
+        if (this.clientId && this.store.state?.clients.some(client => client.id === this.clientId)) {
+            this.clientTab = tab;
+            this.guideClientTab = null;
+            this.render();
+            return;
+        }
+        this.guideClientTab = tab;
+        this.app.showToast('Elegí la ficha del cliente. Si es tu primer cliente, podés crear su ficha acá.');
+    }
     async refresh(force=false) {try{await this.store.load(force);this.error='';this.render();}catch(e){this.error=e.message;this.render();}}
     get projects() {return this.app.projects?.projects||[];}
     get allProjects() {return [...this.projects,...(this.app.projects?.history||[])];}
@@ -114,7 +125,12 @@ export class WorkModule {
         if(action.startsWith('maintenance-')){await this.maintenance.action(action,id);return;}
         if(action==='retry'){await this.refresh(true);return;}
         if(action==='back'){this.clientId='';this.render();return;}
-        if(action==='detail'){if(this.clientId!==id)this.clientTab='summary';this.clientId=id;this.app.activateSection('work-clients-section');this.render();if(typeof window!=='undefined')window.scrollTo({top:0,behavior:'instant'});return;}
+        if(action==='detail'){
+            if(this.clientId!==id || this.guideClientTab)this.clientTab=this.guideClientTab||'summary';
+            this.guideClientTab=null;this.clientId=id;this.app.activateSection('work-clients-section');this.render();
+            if(typeof window!=='undefined')window.scrollTo({top:0,behavior:'instant'});
+            return;
+        }
         if(action==='project') {this.app.activateSection('projects-section');const p=this.project(id);if(!p)await this.app.showMessage({title:'Proyecto no disponible',message:'El vínculo se conserva. El proyecto puede estar en otro respaldo o haber sido eliminado.',tone:'info'});else {if(!this.projects.includes(p))document.getElementById('btnOpenHistory')?.click();document.querySelector(`[data-project-id="${CSS.escape(id)}"], [data-history-project-id="${CSS.escape(id)}"]`)?.scrollIntoView({block:'center'});}return;}
         if(action==='tasks'){const t=this.app.tareas;t.currentCategory='Freelance';t.activeProjectId=id;this.app.activateSection('tareas-section');return;}
         const data=this.store.value, revision=data.revision,owner=this.app.auth?.readyUserId,generation=this.app.auth?.syncGeneration;
@@ -124,7 +140,7 @@ export class WorkModule {
             planningDialog(this.app,'Avisos de Trabajo',`<label><input type="checkbox" name="dailyEnabled" ${s.dailyEnabled?'checked':''}> Recibir resumen diario si hay pendientes, recordatorios o cobros por confirmar</label>${field('Hora Argentina','dailyTime',s.dailyTime,'time','required')}<p>Los avisos individuales se configuran en cada recordatorio, pendiente o mantenimiento mensual. Ambos son opcionales y dejan de enviarse al resolver o archivar.</p>`,async f=>{data.settings.dailyEnabled=f.has('dailyEnabled');data.settings.dailyTime=f.get('dailyTime');await save();});
         } else if(action==='client') {
             const c=data.clients.find(c=>c.id===id),newId=c?.id||crypto.randomUUID();
-            planningDialog(this.app,c?'Editar cliente':'Nuevo cliente',`${field('Nombre','name',c?.name||'','text','required maxlength="120"')}${field('Contacto / referencia (opcional)','contact',c?.contact||'','text','maxlength="300"')}<label>Contexto<textarea class="text-input" name="context" maxlength="2000">${esc(c?.context||'')}</textarea></label><p>Podés tener varios proyectos por cliente. Los nombres iguales no se fusionan.</p>`,async f=>{const item={...c,id:newId,name:f.get('name').trim(),contact:f.get('contact').trim(),context:f.get('context').trim(),archived:c?.archived||false,updatedAt:stamp()};if(c)data.clients=data.clients.map(x=>x.id===c.id?item:x);else data.clients=[...data.clients.filter(x=>x.id!==newId),item];await save();this.clientId=item.id;this.app.activateSection('work-clients-section');this.render();});
+            planningDialog(this.app,c?'Editar cliente':'Nuevo cliente',`${field('Nombre','name',c?.name||'','text','required maxlength="120"')}${field('Contacto / referencia (opcional)','contact',c?.contact||'','text','maxlength="300"')}<label>Contexto<textarea class="text-input" name="context" maxlength="2000">${esc(c?.context||'')}</textarea></label><p>Podés tener varios proyectos por cliente. Los nombres iguales no se fusionan.</p>`,async f=>{const item={...c,id:newId,name:f.get('name').trim(),contact:f.get('contact').trim(),context:f.get('context').trim(),archived:c?.archived||false,updatedAt:stamp()};if(c)data.clients=data.clients.map(x=>x.id===c.id?item:x);else data.clients=[...data.clients.filter(x=>x.id!==newId),item];await save();this.clientId=item.id;if(this.guideClientTab){this.clientTab=this.guideClientTab;this.guideClientTab=null;}this.app.activateSection('work-clients-section');this.render();});
         } else if(action==='archive'||action==='delete-client') {
             const c=data.clients.find(x=>x.id===id);if(!c)return;
             if(action==='delete-client'&&(data.links.some(l=>l.clientId===id)||data.followups.some(f=>f.clientId===id)||data.notes.some(n=>n.clientId===id)||(c.retainers||[]).length||this.app.subscriptions?.clientItems(c.id).length))throw new Error('La ficha tiene historial. Usá Archivar para conservarlo.');

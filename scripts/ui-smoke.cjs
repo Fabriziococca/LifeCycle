@@ -25,6 +25,7 @@ const httpServer = express().use(express.static(path.resolve(__dirname, '..'))).
 const { installFakeCloud } = require('./qa-cloud.cjs');
 const { runFullAuditSmoke } = require('./full-audit-smoke.cjs');
 const { runActiveModulesSmoke } = require('./active-modules-smoke.cjs');
+const { runGuideSmoke } = require('./guide-smoke.cjs');
 const { runPrivacyLockSmoke } = require('./privacy-lock-smoke.cjs');
 const { runProjectHistoryLayoutSmoke } = require('./project-history-layout-smoke.cjs');
 const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
@@ -71,6 +72,13 @@ const { runRecoverySmoke } = require('./recovery-legacy-smoke.cjs');
             try { await page.waitForFunction(() => window.lifecycle_controller?.auth?.readyUserId && window.qaAuthListeners.length, null, { timeout: 10000 }); }
             catch (error) { console.log({errors, body: (await page.locator('body').innerText()).slice(0, 1600)}); throw error; }
             await page.evaluate(theme => window.lifecycle_controller.theme.apply(theme), theme);
+            if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'guide') {
+                await runGuideSmoke(page, width);
+                assert.deepEqual(errors, []);
+                console.log(JSON.stringify({width,theme,guide:true}));
+                await context.close();
+                continue;
+            }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'client-subscriptions') { await runClientSubscriptionsSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,clientSubscriptions:true}));await context.close();continue; }
             if (process.env.LIFECYCLE_UI_SMOKE_ONLY === 'project-history') {
                 await runProjectHistoryLayoutSmoke(page,{width,theme});assert.deepEqual(errors,[]);console.log(JSON.stringify({width,theme,projectHistoryLayout:true}));await context.close();continue;

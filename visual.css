@@ -402,3 +402,46 @@ input::placeholder,textarea::placeholder { color: var(--placeholder-color); opac
     .schedule-editor-dialog .care-form-grid { display: grid; grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
     .schedule-editor-dialog .care-form-grid input { min-width: 0; width: 100%; }
 }
+#nutrition-edit-modal {
+    inset: 0;
+    margin: 0;
+    border: 0;
+    padding: max(12px, env(safe-area-inset-top)) max(12px, env(safe-area-inset-right)) max(12px, env(safe-area-inset-bottom)) max(12px, env(safe-area-inset-left));
+    width: 100%;
+    height: 100dvh;
+    max-width: none;
+    max-height: none;
+    box-sizing: border-box;
+    color: var(--text-primary);
+}
+#nutrition-edit-modal:not([open]) { display: none; }
+.global-search-guide .global-search-result-copy span {
+    white-space: normal;
+    font-size: .83rem;
+    line-height: 1.45;
+}
+#nutrition-edit-modal .modal-content {
+    display: flex;
+    flex-direction: column;
+    width: min(100%, 500px);
+    max-width: none;
+    max-height: 100%;
+    padding: 0;
+    overflow: hidden;
+}
+#nutrition-edit-modal .meal-editor-fields {
+    overflow-y: auto;
+    overscroll-behavior: contain;
+    padding: clamp(16px, 4vw, 28px);
+}
+#nutrition-edit-modal .modal-actions {
+    flex: none;
+    margin: 0;
+    padding: 12px 16px;
+    border-top: 1px solid var(--surface-border);
+}
+@media (max-width: 520px) {
+    #nutrition-edit-modal .form-row { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    #nutrition-edit-modal .form-row:first-of-type .input-group:first-child { grid-column: 1 / -1; }
+    #nutrition-edit-modal .input-group { min-width: 0; }
+}

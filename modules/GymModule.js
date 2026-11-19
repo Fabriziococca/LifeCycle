@@ -652,8 +652,9 @@ export class GymModule {
         const editSaveBtn = document.getElementById('edit-meal-save');
 
         if (editCancelBtn && editModal) {
-            editCancelBtn.addEventListener('click', () => {
-                editModal.classList.add('hidden');
+            editCancelBtn.addEventListener('click', () => editModal.close());
+            editModal.addEventListener('close', () => {
+                if (!editModal.open) editModal.classList.add('hidden');
             });
         }
 
@@ -661,13 +662,14 @@ export class GymModule {
             editSaveBtn.addEventListener('click', (e) => {
                 e.preventDefault();
                 const type = editModal.dataset.mealType;
-                const id = parseInt(editModal.dataset.mealId);
+                const id = editModal.dataset.mealId;
                 let list = type === 'general' ? this.generalMeals : this.meals.fixed;
                 
-                const meal = list.find(m => m.id === id);
+                const meal = list.find(m => String(m.id) === id);
                 if (!meal) return;
 
-                const name = document.getElementById('edit-meal-name').value.trim();
+                const nameInput = document.getElementById('edit-meal-name');
+                const name = nameInput.value.trim();
                 const qty = parseFloat(document.getElementById('edit-meal-qty').value) || 1;
                 const unit = document.getElementById('edit-meal-unit').value || 'u';
                 const kcal = parseFloat(document.getElementById('edit-meal-kcal').value) || 0;
@@ -679,11 +681,9 @@ export class GymModule {
                 const group = document.getElementById('edit-meal-group').value.trim();
 
                 if (!name) {
-                    void this.app.showMessage({
-                        title: 'Falta el nombre',
-                        message: 'Ingresá un nombre para la comida.',
-                        tone: 'warning'
-                    });
+                    nameInput.setCustomValidity('Ingresá un nombre para la comida.');
+                    nameInput.reportValidity();
+                    nameInput.setCustomValidity('');
                     return;
                 }
 
@@ -706,7 +706,7 @@ export class GymModule {
                     this.renderNutrition();
                 }
                 
-                editModal.classList.add('hidden');
+                editModal.close();
             });
         }
 
@@ -1975,6 +1975,9 @@ export class GymModule {
         modal.dataset.mealId = id;
 
         modal.classList.remove('hidden');
+        if (!modal.open) modal.showModal();
+        modal.querySelector('.meal-editor-fields').scrollTop = 0;
+        document.getElementById('nutrition-edit-title').focus({ preventScroll: true });
     }
 
     copyToFixed(id) {
