@@ -2,9 +2,17 @@
 
 Corte operativo del 19/11/2026. Leer junto a PROJECT_PLAN.md y DECISIONS.md.
 
+## Acciones rápidas de Hoy del 19/11
+
+- La versión publicada es `bd59b86`. La comprobación visual de QA detectó que faltaba el icono de Nutrición. La versión final usa el icono de cubiertos incluido en la app y comprueba que todos los atajos tengan un icono disponible. Validate LifeCycle y Manual Deploy pasaron. Health confirmó el commit y un ciclo exitoso de avisos y renovaciones. Render registró cero advertencias, errores de aplicación o respuestas 5xx entre las 23:21 y 23:25 de Argentina.
+- En `e498d21`, «Abrir» elige cliente, pestaña y tarjeta. La revisión muestra el nombre del cliente en Hoy. Un cobro pendiente abre el mantenimiento y conserva su confirmación explícita.
+- «Anotar pendiente de cliente» y «Nutrición» son opcionales en Hoy → Personalizar. El primero abre el formulario de Trabajo sobre Hoy y pide elegir cliente cuando hay varios activos. Nutrición abre su pestaña en Gimnasio.
+- La cuenta QA reprodujo el fallo anterior desde Historial y verificó ambos destinos después de publicar. Se confirmó el guardado de un pendiente para el cliente elegido tras recargar, la cancelación y la persistencia de los dos atajos. Abrir los vencimientos dejó cero registros de realización y de cobro. Tras limpiar las pruebas, las huellas de clientes, seguimientos y preferencias de Hoy coincidieron con las iniciales.
+- La regresión reproducible está en `scripts/today-actions-smoke.cjs`. Se probaron anchos de 360, 390 y 1440 px en claro y oscuro y pasaron 569 pruebas automáticas. En QA autenticada también se verificaron ambos accesos a 390 px con un único cliente activo. Captura final en `.tmp-sb/qa-hoy-2026-11-19/atajos-movil-qa.jpg`. Costo adicional USD 0.
+
 ## Caché y recuperación del 19/11
 
-- Producción sirve `db7042a`. Dos publicaciones comprobaron el cambio de versión con la misma sesión QA. En tres reaperturas móviles emuladas, la mediana de transferencia de JS y CSS bajó de 505.914 a 0 bytes. El formulario de ingreso apareció en 2,34 s frente a 3,48 s. Render registró éxitos de avisos y renovaciones tras publicar.
+- La entrega de caché quedó publicada en `db7042a`. Dos publicaciones comprobaron el cambio de versión con la misma sesión QA. En tres reaperturas móviles emuladas, la mediana de transferencia de JS y CSS bajó de 505.914 a 0 bytes. El formulario de ingreso apareció en 2,34 s frente a 3,48 s. Render registró éxitos de avisos y renovaciones tras publicar.
 - Se reconstruyeron dos bases PostgreSQL locales con 41 migraciones cada una. Se verificaron 453 entradas de catálogo, restauración del respaldo de la app, propiedad de datos, monedas, adjunto sintético y reversión atómica. Las tres diferencias de versión se conciliaron en Git. La recuperación se ensayó con datos sintéticos y el proyecto de Supabase se consultó en lectura.
 - Métodos, límites, evidencia y pasos reproducibles en [Caché móvil y recuperación](docs/CACHE_Y_RECUPERACION_2026-11-19.md).
 
@@ -72,4 +80,4 @@ Regla: las suscripciones vinculadas a clientes las pagan ellos. cost/currency so
 - Automatización Codex Revisión de Supabase LifeCycle cada 5 días: PAUSED, id revisi-n-diaria-de-supabase-lifecycle, heartbeat ligado al chat anterior. No reanudar, duplicar ni trasladar por esta migración. Es diferente del scheduler operativo de avisos de LifeCycle, que sigue activo en Render.
 
 ## Próxima acción
-READY-01 y las entregas de Tareas, Nutrición, guía, caché y recuperación quedaron cerradas. Retomar con el siguiente pedido concreto.
+Las entregas de Tareas, Nutrición, guía, caché, recuperación y acciones rápidas de Hoy quedaron cerradas. Retomar con el siguiente pedido concreto.
