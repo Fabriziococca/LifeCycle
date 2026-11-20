@@ -32,7 +32,7 @@ export const TODAY_QUICK_ACTIONS = Object.freeze({
     open_nutrition: Object.freeze({
         label: 'Nutrición',
         description: 'Abrir Nutrición en Gimnasio.',
-        icon: 'ph-salad',
+        icon: 'ph-fork-knife',
         moduleId: 'gym-section'
     }),
     new_tracker: Object.freeze({

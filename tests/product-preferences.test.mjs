@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import {
     DEFAULT_TODAY_QUICK_ACTIONS,
     normalizeTodayPreferences,
@@ -44,9 +45,11 @@ test('strict Today preferences reject unsupported actions', () => {
 });
 
 test('all Today quick actions expose the data needed by the UI', () => {
+    const icons = readFileSync(new URL('../vendor/phosphor/phosphor.css', import.meta.url), 'utf8');
     Object.values(TODAY_QUICK_ACTIONS).forEach(action => {
         assert.equal(typeof action.label, 'string');
         assert.equal(typeof action.description, 'string');
         assert.match(action.icon, /^ph-/);
+        assert.ok(icons.includes(`.ph.${action.icon}:before`), `Missing Today icon: ${action.icon}`);
     });
 });
