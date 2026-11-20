@@ -395,10 +395,13 @@ export class NotificationsCenterModule {
         items.push(...(this.app.appointments?.getOverdueItems?.() || []));
         try {
             const state=this.app.work?.store.value;
-            if(state) for(const f of state.followups) if(f.maintenance&&!f.maintenance.completed&&f.maintenance.repeatUntilDone!==false&&!f.maintenance.paused&&!f.maintenance.archived&&f.reviewOn<=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires'}).format(new Date())&&state.clients.some(c=>c.id===f.clientId&&!c.archived))
+            if(state) for(const f of state.followups) if(f.maintenance&&!f.maintenance.completed&&f.maintenance.repeatUntilDone!==false&&!f.maintenance.paused&&!f.maintenance.archived&&f.reviewOn<=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires'}).format(new Date()))
             {
+                const client = state.clients.find(c => c.id === f.clientId && !c.archived);
+                if (!client) continue;
                 const cycle=maintenanceCycleState(f);
-                items.push({module:'maintenance',id:f.id,clientId:f.clientId,name:f.title,desc:cycle?cycle.label+' · Vence '+cycle.deadlineOn:'Recordatorio del cliente · '+f.reviewOn,icon:cycle?'ph-clock-clockwise':'ph-wrench',urgency:maintenancePriority(f).high?'muy_urgente':'urgente',completable:false});
+                const detail = cycle ? cycle.label+' · Vence '+cycle.deadlineOn : 'Recordatorio del cliente · '+f.reviewOn;
+                items.push({module:'maintenance',id:f.id,clientId:f.clientId,name:f.title,desc:client.name+' · '+detail,icon:cycle?'ph-clock-clockwise':'ph-wrench',urgency:maintenancePriority(f).high?'muy_urgente':'urgente',completable:false});
             }
         } catch {}
         const day=new Intl.DateTimeFormat('en-CA',{timeZone:'America/Argentina/Buenos_Aires'}).format(new Date());
@@ -412,8 +415,8 @@ export class NotificationsCenterModule {
     }
 
     openItem(item) {
-        if(item.module==='subscriptions' && this.app.subscriptions){const sub=this.app.subscriptions.subscriptions.find(s=>s.id===item.id);this.app.subscriptions.clientScope=sub?.clientId?'clients':'own';const scope=document.getElementById('sub-client-scope');if(scope)scope.value=this.app.subscriptions.clientScope;this.app.subscriptions.render();}
         if (!item) return false;
+        if(item.module==='subscriptions' && this.app.subscriptions){const sub=this.app.subscriptions.subscriptions.find(s=>s.id===item.id);this.app.subscriptions.clientScope=sub?.clientId?'clients':'own';const scope=document.getElementById('sub-client-scope');if(scope)scope.value=this.app.subscriptions.clientScope;this.app.subscriptions.render();}
 
         let sectionId = null;
         let targetTab = null;
@@ -424,8 +427,10 @@ export class NotificationsCenterModule {
             targetElementId = this.app.appointments?.open(item.id);
         } else if (item.module === 'maintenance' || item.module === 'retainer') {
             sectionId = 'work-clients-section';
-            if(this.app.work){this.app.work.clientId=item.clientId;this.app.work.render();}
-            targetElementId = (item.module==='retainer'?'retainer-':'maintenance-')+item.id;
+            this.app.work.clientId = item.clientId;
+            this.app.work.clientTab = item.module === 'retainer' ? 'retainers' : 'reminders';
+            this.app.work.guideClientTab = null;
+            targetElementId = `${item.module}-${item.id}`;
         } else if (item.module === 'charging') {
             sectionId = 'higiene-section';
             targetElementId = this.app.charging?.open(item.id);
@@ -521,7 +526,13 @@ export class NotificationsCenterModule {
 
         // Scroll to specific element if targetElementId exists or card exists
         requestAnimationFrame(() => {
-            let targetEl = targetElementId ? document.getElementById(targetElementId) : null;
+            let targetEl = null;
+            if (targetElementId) {
+                // A routine can also appear in the hidden work summary and follow-up list.
+                targetEl = sectionId === 'work-clients-section'
+                    ? document.getElementById(sectionId)?.querySelector(`#${CSS.escape(targetElementId)}`)
+                    : document.getElementById(targetElementId);
+            }
             if (!targetEl && item.id) {
                 targetEl = document.querySelector(`[data-project-id="${item.id}"]`)
                     || document.querySelector(`[data-card-id="${item.id}"]`)

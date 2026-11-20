@@ -23,6 +23,18 @@ export const TODAY_QUICK_ACTIONS = Object.freeze({
         icon: 'ph-barbell',
         moduleId: 'gym-section'
     }),
+    new_client_followup: Object.freeze({
+        label: 'Anotar pendiente de cliente',
+        description: 'Elegí el cliente y anotá qué queda por hacer o responder.',
+        icon: 'ph-list-checks',
+        moduleId: 'work-followups-section'
+    }),
+    open_nutrition: Object.freeze({
+        label: 'Nutrición',
+        description: 'Abrir Nutrición en Gimnasio.',
+        icon: 'ph-salad',
+        moduleId: 'gym-section'
+    }),
     new_tracker: Object.freeze({
         label: 'Nueva tarjeta',
         description: 'Abrir el creador central de tarjetas configurables.',

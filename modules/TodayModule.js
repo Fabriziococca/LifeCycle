@@ -100,7 +100,7 @@ export class TodayModule {
         });
     }
 
-    activateActionModule(moduleId) {
+    activateActionModule(moduleId, { navigate = true } = {}) {
         if (!moduleId) return true;
         if (!this.app.customTrackers?.isModuleVisible(moduleId)) {
             this.app.showToast?.(
@@ -109,12 +109,32 @@ export class TodayModule {
             );
             return false;
         }
-        return this.app.activateSection?.(moduleId, { smooth: true }) === true;
+        return !navigate || this.app.activateSection?.(moduleId, { smooth: true }) === true;
+    }
+
+    async openClientFollowup() {
+        const work = this.app.work;
+        await work.store.load();
+        if (this.root.classList.contains('hidden') || document.getElementById('planning-dialog')) return;
+        const returnFocus = () => this.root.querySelector('[data-quick-action-id="new_client_followup"]')?.focus();
+        await work.action('followup', '', { chooseClient: true, returnFocus });
     }
 
     executeQuickAction(actionId) {
         const action = TODAY_QUICK_ACTIONS[actionId];
-        if (!action || !this.activateActionModule(action.moduleId)) return false;
+        if (!action || !this.activateActionModule(action.moduleId, { navigate: actionId !== 'new_client_followup' })) return false;
+
+        if (actionId === 'new_client_followup') {
+            void this.openClientFollowup().catch(error => {
+                this.app.showToast(error.message, { tone: 'warning' });
+            });
+            return true;
+        }
+
+        if (actionId === 'open_nutrition') {
+            this.app.gym.activateGymTab('nutrition');
+            return true;
+        }
 
         if (actionId === 'new_project') {
             this.app.projects?.openCreateForm();

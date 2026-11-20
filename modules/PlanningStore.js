@@ -57,7 +57,7 @@ export class PlanningStore {
     }
 }
 
-export function planningDialog(app, title, html, onSave) {
+export function planningDialog(app, title, html, onSave, returnFocus) {
     const existing = document.getElementById('planning-dialog');
     if (existing) return; // Do not discard another unsaved form.
     const previous = document.activeElement?.closest('.custom-tracker-menu')?.querySelector('summary') || document.activeElement, user = app.auth?.user?.id;
@@ -69,7 +69,13 @@ export function planningDialog(app, title, html, onSave) {
     layer.querySelector('h2').textContent = title;
     document.body.append(layer); document.body.classList.add('modal-open');
     let saving = false;
-    const close = () => { if (saving) return; layer.remove(); document.body.classList.remove('modal-open'); previous?.isConnected && previous.focus(); };
+    const close = () => {
+        if (saving) return;
+        layer.remove();
+        document.body.classList.remove('modal-open');
+        if (returnFocus) returnFocus();
+        else if (previous?.isConnected) previous.focus();
+    };
     layer.querySelectorAll('[data-close]').forEach(b=>b.addEventListener('click',close));
     layer.addEventListener('keydown',e=>{
         if (e.key === 'Escape') { e.preventDefault(); close(); }
